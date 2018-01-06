@@ -14,13 +14,13 @@ extern crate vulkano_win;
 
 pub mod graphics;
 pub mod drawcalls;
-mod rawgl;
-mod rawvk;
+pub mod rawgl;
+pub mod rawvk;
 pub mod font;
 mod shaders;
 mod window;
 mod vulkano_win_updated;
-mod settings;
+pub mod settings;
 
 
 
