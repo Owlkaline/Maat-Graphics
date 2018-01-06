@@ -1,0 +1,19 @@
+[package]
+name = "maat-engine"
+version = "0.1.0"
+authors = ["Lilith645 <lilith@inet-sys.com>"]
+
+[dependencies]
+cgmath = "0.14.1"
+gl = "0.6.0"
+image = "*"
+vulkano = "0.7.2"
+vulkano-shader-derive = "0.7.2"
+vulkano-win = "0.7.2"
+winit = "0.8.1"
+glutin = "0.10.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.9"
+objc = "0.2"
+metal-rs = "0.4.3"
