@@ -478,16 +478,16 @@ impl DrawMath {
      let box_a: Vector4<f32> = 
        Vector4::new(
          a.x + a.z*0.5,
-         a.x + a.z*0.5,
          a.y + a.w*0.5,
+         a.x - a.z*0.5,
          a.y - a.w*0.5
        );
      
      let box_b: Vector4<f32> =
        Vector4::new(
          b.x + b.z*0.5,
-         b.x + b.z*0.5,
          b.y + b.w*0.5,
+         b.x - b.z*0.5,
          b.y - b.w*0.5
        );
      
@@ -496,7 +496,7 @@ impl DrawMath {
      if box_a.x >= box_b.z && box_a.z <= box_b.x &&
         box_a.y >= box_b.w && box_a.w <= box_b.y {
        collision = true;   
-     } 
+     }
      
      collision
    }
