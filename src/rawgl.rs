@@ -161,7 +161,7 @@ impl CoreRender for RawGl {
   }
  
   fn load_texture(&mut self, reference: String, location: String) {
-    let mut texture_start_time = time::Instant::now();
+    let texture_start_time = time::Instant::now();
     let mut texture_id: GLuint = 0;
     
     unsafe {
@@ -270,7 +270,7 @@ impl CoreRender for RawGl {
   
   fn dynamic_load(&mut self) {
     let mut delta_time;
-    let mut frame_start_time = time::Instant::now();
+    let frame_start_time = time::Instant::now();
   
     let mut loaded_a_image = false;
     let cloned_paths = self.texture_paths.clone();

@@ -1,13 +1,8 @@
-use settings::Settings;
-
 use gl;
 
 use winit;
 use winit::EventsLoop;
 
-//use vulkano_win;
-//use vulkano_win::required_extensions;
-//use vulkano_win::VkSurfaceBuild;
 use vulkano_win_updated::VkSurfaceBuild;
 use vulkano_win_updated::required_extensions;
 use vulkano_win_updated as vulkano_win;
@@ -15,17 +10,16 @@ use vulkano_win_updated as vulkano_win;
 use vulkano::device::Queue;
 use vulkano::device::Device;
 use vulkano::format::Format;
-use vulkano::image::ImageUsage;
 use vulkano::instance::Instance;
 use vulkano::swapchain::Swapchain;
-use vulkano::format::B8G8R8A8Unorm;
+//use vulkano::format::B8G8R8A8Unorm;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::PresentMode;
 use vulkano::instance::PhysicalDevice;
 use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
 use vulkano::swapchain::SwapchainCreationError;
-use vulkano::swapchain::CompositeAlpha::Opaque;
+//use vulkano::swapchain::CompositeAlpha::Opaque;
 
 use std::mem;
 use std::sync::Arc;
@@ -164,11 +158,6 @@ impl VkWindow {
     };
     
     println!("Winit Vulkan Window created");
-    
-    let dimensions = {
-      let (width, height) = window.window().get_inner_size_pixels().unwrap();
-      [width as u32, height as u32]
-    };
     
     let (physical, queue) = {
       let mut found_suitable_device = false;

@@ -47,11 +47,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use cgmath;
-use cgmath::Vector2;
-use cgmath::Vector3;
-use cgmath::Vector4;
 use cgmath::Matrix4;
-use cgmath::SquareMatrix;
 
 #[derive(Debug, Clone)]
 struct Vertex { position: [f32; 2], uv: [f32; 2] }
@@ -186,7 +182,7 @@ impl CoreRender for RawVk {
   }
   
   fn load_texture(&mut self, reference: String, location: String) {
-    let mut texture_start_time = time::Instant::now();
+    let texture_start_time = time::Instant::now();
     
     let (texture, tex_future) = {
       let image = image::open(&location).unwrap().to_rgba(); 
@@ -313,10 +309,9 @@ impl CoreRender for RawVk {
   
   fn dynamic_load(&mut self) {
     let mut delta_time;
-    let mut frame_start_time = time::Instant::now();
+    let frame_start_time = time::Instant::now();
   
     let mut loaded_a_image = false;
-    let mut to_be_removed: Vec<String> = Vec::new();
     
     let cloned_paths = self.texture_paths.clone();
     

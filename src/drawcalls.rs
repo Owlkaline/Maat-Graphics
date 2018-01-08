@@ -1,7 +1,6 @@
 use font::GenericCharacter;
 use font::GenericFont;
 
-use cgmath;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
@@ -115,7 +114,7 @@ impl DrawCall {
   }
 
   pub fn with_outline_colour(mut self, r: f32, g: f32, b: f32) -> DrawCall {
-    self.outline_colour = Vector3::new(r, b, b);
+    self.outline_colour = Vector3::new(r, g, b);
     self
   }
   
@@ -331,10 +330,10 @@ impl DrawMath {
     let mut translation = draw.get_translation();
     translation.x = init_translation;
     
-    let mut position = 0;
-    let mut number_of_words = 0;
-    let finish_at_next_space = 0;
-    let mut last_space_position = 0;
+    //let mut position = 0;
+    //let mut number_of_words = 0;
+    //let finish_at_next_space = 0;
+    //let mut last_space_position = 0;
     
     let mut y_offset = 0.0;
     
@@ -371,15 +370,15 @@ impl DrawMath {
             translation.x+=c.get_advance() as f32 * (size/640.0); 
           }
 
-          last_space_position = position;
-          number_of_words += 1;
+          //last_space_position = position;
+         // number_of_words += 1;
         } else {
                 
           new_draw_calls.push(DrawCall::new_custom_text((*letter as char).to_string(), translation.x, translation.y+y_offset, size, 0, draw.get_colour(), draw.get_outline_colour(), draw.get_edge_width(), false, draw.get_texture_unref()));
         
           translation.x+=c.get_advance() as f32 * (size/640.0); 
         }        
-        position += 1;
+        //position += 1;
       }
     }
               
@@ -441,9 +440,9 @@ impl DrawMath {
      let mut x_rot = 0.0;
      let mut z_rot = 0.0;
     
-     let Q1 = 90.0;
-     let Q2 = 180.0;
-     let Q3 = 270.0;
+     let q1 = 90.0;
+     let q2 = 180.0;
+     let q3 = 270.0;
     
      let mut angle_y = y_rotation;
     
@@ -455,23 +454,50 @@ impl DrawMath {
        angle_y = angle_y - 360.0;
      }
      
-     if angle_y < Q1 {
+     if angle_y < q1 {
        z_rot = 1.0 - (angle_y/90.0);
-       x_rot = (angle_y/90.0);
-     } else if angle_y < Q2 {
-       angle_y -= Q1;
+       x_rot = angle_y/90.0;
+     } else if angle_y < q2 {
+       angle_y -= q1;
        z_rot = -(angle_y/90.0);
        x_rot = 1.0-(angle_y/90.0);      
-     } else if angle_y < Q3 {
-       angle_y -= Q2;
+     } else if angle_y < q3 {
+       angle_y -= q2;
        z_rot = (angle_y/90.0) - 1.0;
        x_rot = -(angle_y/90.0);      
      } else {
-       angle_y -= Q3;
-       z_rot = (angle_y/90.0);
-       x_rot = (angle_y/90.0) - 1.0;      
+       angle_y -= q3;
+       z_rot = angle_y/90.0;
+       x_rot = angle_y/90.0 - 1.0;      
      }
      
      (x_rot, z_rot)
+   }
+   
+   pub fn box_collision(a: Vector4<f32>, b: Vector4<f32>) -> bool {
+     let box_a: Vector4<f32> = 
+       Vector4::new(
+         a.x + a.z*0.5,
+         a.x + a.z*0.5,
+         a.y + a.w*0.5,
+         a.y - a.w*0.5
+       );
+     
+     let box_b: Vector4<f32> =
+       Vector4::new(
+         b.x + b.z*0.5,
+         b.x + b.z*0.5,
+         b.y + b.w*0.5,
+         b.y - b.w*0.5
+       );
+     
+     let mut collision = false;
+     
+     if box_a.x >= box_b.z && box_a.z <= box_b.x &&
+        box_a.y >= box_b.w && box_a.w <= box_b.y {
+       collision = true;   
+     } 
+     
+     collision
    }
 }
