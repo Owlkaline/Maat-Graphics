@@ -7,6 +7,8 @@ use settings::Settings;
 use font::GenericFont;
 
 use cgmath;
+use cgmath::Vector2;
+use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use image;
@@ -389,6 +391,7 @@ impl CoreRender for RawGl {
   
   fn show_cursor(&mut self){}
   fn hide_cursor(&mut self){}
+  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>){}
 }
 
 

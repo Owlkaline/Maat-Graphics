@@ -53,6 +53,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use cgmath;
+use cgmath::Vector2;
+use cgmath::Vector3;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 
@@ -324,6 +326,10 @@ impl CoreRender for RawVk {
   }
   
   fn load_texture(&mut self, reference: String, location: String) {
+    if location == String::from("") {
+      return;
+    }
+    
     let texture_start_time = time::Instant::now();
     
     let (texture, tex_future) = {
@@ -887,6 +893,13 @@ impl CoreRender for RawVk {
   
   fn hide_cursor(&mut self) {
     self.window.hide_cursor();
+  }
+  
+  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
+
+    let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
+    
+    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));  
   }
   
   fn post_draw(&self) {}

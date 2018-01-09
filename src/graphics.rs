@@ -6,6 +6,9 @@ use winit;
 
 use std::vec::Vec;
 
+use cgmath::Vector2;
+use cgmath::Vector3;
+
 pub trait CoreRender {
   fn preload_model(&mut self, reference: String, location: String, texture: String);
   fn add_model(&mut self, reference: String, location: String, texture: String);
@@ -36,5 +39,6 @@ pub trait CoreRender {
   fn dynamic_load(&mut self);
   fn show_cursor(&mut self);
   fn hide_cursor(&mut self);
+  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>);
 }
 
