@@ -9,6 +9,7 @@ use font::GenericFont;
 use cgmath;
 use cgmath::Vector2;
 use cgmath::Vector3;
+use cgmath::Vector4;
 use cgmath::Matrix4;
 
 use image;
@@ -20,6 +21,7 @@ use gl::types::*;
 use std::ptr;
 use std::mem;
 use std::time;
+use std::f32::consts;
 use std::ffi::CString;
 use std::collections::HashMap;
 
@@ -29,8 +31,15 @@ pub struct RawGl {
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, GLuint>,
   texture_paths: HashMap<String, String>,
-  projection: Matrix4<f32>,
-  vao: GLuint,
+  
+  clear_colour: Vector4<f32>,
+  
+  projection_2d: Matrix4<f32>,
+  vao_2d: GLuint,
+  
+  projection_3d: Matrix4<f32>,
+  vao_3d: GLuint,
+  
   pub window: GlWindow,
 }
 
@@ -45,7 +54,8 @@ impl RawGl {
     
     let window = GlWindow::new(width, height, min_width, min_height, fullscreen);
     
-    let proj = cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
+    let proj_2d = cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
+    let proj_3d = cgmath::perspective(cgmath::Rad(consts::FRAC_PI_4), { width as f32 / height as f32 }, 0.01, 100.0);
     
     unsafe {
       gl::Viewport(0, 0, (width as i32 *2) as i32, (height as i32 *2) as i32);
@@ -57,8 +67,15 @@ impl RawGl {
       fonts: HashMap::with_capacity(10),
       textures: HashMap::with_capacity(10),
       texture_paths: HashMap::with_capacity(10),
-      projection: proj,
-      vao: 0,
+
+      clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
+
+      projection_2d: proj_2d,
+      vao_2d: 0,
+      
+      projection_3d: proj_3d,
+      vao_3d: 0,      
+      
       window: window,
     }
   }
@@ -138,7 +155,7 @@ impl CoreRender for RawGl {
     
   }
  
-  fn pre_load_texture(&mut self, reference: String, location: String) {
+  fn preload_texture(&mut self, reference: String, location: String) {
     self.load_texture(reference, location);
   }
   
@@ -179,9 +196,9 @@ impl CoreRender for RawGl {
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
   }
   
-  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String) {
+  fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String) {
     self.load_font(reference.clone(), font);
-    self.pre_load_texture(reference, font_texture);
+    self.preload_texture(reference, font_texture);
   }
   
   fn add_font(&mut self, reference: String, location: &[u8], font_texture: String) {
@@ -247,11 +264,11 @@ impl CoreRender for RawGl {
       gl::UseProgram(self.shader_id[0]);
       // texture shader
       gl::Uniform1i(gl::GetUniformLocation(self.shader_id[0], CString::new("image").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection[0]));
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       // Create Vertex Array Object
-      gl::GenVertexArrays(1, &mut self.vao);
-      gl::BindVertexArray(self.vao);
+      gl::GenVertexArrays(1, &mut self.vao_2d);
+      gl::BindVertexArray(self.vao_2d);
       
       // Create a Vertex Buffer Object and copy the vertex data to it
       gl::GenBuffers(1, &mut vbo);
@@ -273,7 +290,7 @@ impl CoreRender for RawGl {
       gl::UseProgram(self.shader_id[1]);
       
       gl::Uniform1i(gl::GetUniformLocation(self.shader_id[1], CString::new("image").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection[0]));
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       gl::Enable(gl::BLEND);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
@@ -308,14 +325,15 @@ impl CoreRender for RawGl {
   
   fn clear_screen(&mut self) {
     unsafe {
-      gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+      //gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+      gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
       gl::Clear(gl::COLOR_BUFFER_BIT);
     }
   }
   
   fn pre_draw(&mut self) {
     unsafe {
-      gl::BindVertexArray(self.vao);
+      gl::BindVertexArray(self.vao_2d);
     }
   }
   
@@ -341,7 +359,7 @@ impl CoreRender for RawGl {
       for shader in &self.shader_id {
         gl::DeleteProgram(*shader);
       }
-      gl::DeleteVertexArrays(1, &self.vao);
+      gl::DeleteVertexArrays(1, &self.vao_2d);
     }
   }
   
@@ -351,18 +369,18 @@ impl CoreRender for RawGl {
   
   fn screen_resized(&mut self) {
     let dimensions = self.get_dimensions();
-    self.projection = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
+    self.projection_2d = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
     self.window.resize_screen(dimensions);
     
     unsafe {
       gl::Viewport(0, 0, dimensions[0] as i32, dimensions[1] as i32); 
       // texture shader
       gl::UseProgram(self.shader_id[0]);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection[0]));
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       // Text shader
       gl::UseProgram(self.shader_id[1]);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection[0]));
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       gl::UseProgram(0);
     }
@@ -389,8 +407,18 @@ impl CoreRender for RawGl {
     self.ready
   }
   
-  fn show_cursor(&mut self){}
-  fn hide_cursor(&mut self){}
+  fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
+    self.clear_colour = Vector4::new(r,g,b,a);
+  }
+  
+  fn show_cursor(&mut self) {
+    self.window.show_cursor();
+  }
+  
+  fn hide_cursor(&mut self) {
+    self.window.hide_cursor();
+  }
+  
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>){}
 }
 

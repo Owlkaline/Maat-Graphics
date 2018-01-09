@@ -111,6 +111,14 @@ impl GlWindow {
   pub fn get_dpi_scale(&self) -> f32 {
     self.window.hidpi_factor()
   }
+  
+  pub fn show_cursor(&mut self) {
+    self.window.set_cursor(winit::MouseCursor::Default);
+  }
+  
+  pub fn hide_cursor(&mut self) {
+    self.window.set_cursor(winit::MouseCursor::NoneCursor);
+  }
 }
 
 impl VkWindow {

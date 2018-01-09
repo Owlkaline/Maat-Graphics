@@ -12,6 +12,8 @@ use winit;
 use vulkano::image as vkimage;
 use vulkano::sampler;
 
+use vulkano::memory;
+
 use vulkano::sync::now;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::NowFuture;
@@ -55,6 +57,7 @@ use std::sync::Arc;
 use cgmath;
 use cgmath::Vector2;
 use cgmath::Vector3;
+use cgmath::Vector4;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 
@@ -106,7 +109,7 @@ mod fs_3d {
 }
 
 #[derive(Clone)]
-pub struct Model_Info {
+pub struct ModelInfo {
   location: String,
   texture: String,
 }
@@ -121,7 +124,9 @@ pub struct RawVk {
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
   texture_paths: HashMap<String, String>,
-  model_paths: HashMap<String, Model_Info>,
+  model_paths: HashMap<String, ModelInfo>,
+  
+  clear_colour: Vector4<f32>,
   
   framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
   render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
@@ -197,6 +202,8 @@ impl RawVk {
       texture_paths: HashMap::new(),
       model_paths: HashMap::new(),
 
+      clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
+
       framebuffers: None,
       render_pass: None,
 
@@ -250,23 +257,66 @@ impl RawVk {
       ]
     };
     
-    CpuAccessibleBuffer::from_iter(self.window.get_device(), BufferUsage::vertex_buffer(), square.iter().cloned()).expect("failed to create vertex buffer")
+    CpuAccessibleBuffer::from_iter(self.window.get_device(), 
+                                   BufferUsage::vertex_buffer(), 
+                                   square.iter().cloned())
+                                   .expect("failed to create vertex buffer")
   }
   
   pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u16]>>,
                                     CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     let indicies: [u16; 6] = [1, 2, 3, 0, 3, 1];
     
-    ImmutableBuffer::from_iter(indicies.iter().cloned(), BufferUsage::index_buffer(), self.window.get_queue()).expect("failed to create immutable index buffer")
+    ImmutableBuffer::from_iter(indicies.iter().cloned(), 
+                               BufferUsage::index_buffer(), 
+                               self.window.get_queue())
+                               .expect("failed to create immutable index buffer")
   }
   
   pub fn create_vertex(&self, verticies: iter::Cloned<slice::Iter<model_data::Vertex>>) -> Arc<BufferAccess + Send + Sync> {
-      CpuAccessibleBuffer::from_iter(self.window.get_device(), BufferUsage::vertex_buffer(), verticies).expect("failed to create vertex buffer")
+      CpuAccessibleBuffer::from_iter(self.window.get_device(), 
+                                     BufferUsage::vertex_buffer(), 
+                                     verticies)
+                                     .expect("failed to create vertex buffer")
   }
   
   pub fn create_index(&self, indicies: iter::Cloned<slice::Iter<u16>>) -> (Arc<ImmutableBuffer<[u16]>>,
                                                                            CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-      ImmutableBuffer::from_iter(indicies, BufferUsage::index_buffer(), self.window.get_queue()).expect("failed to create immutable teapot index buffer")
+      ImmutableBuffer::from_iter(indicies, BufferUsage::index_buffer(), 
+                                 self.window.get_queue())
+                                 .expect("failed to create immutable teapot index buffer")
+  }
+  
+  pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,  
+                                                                      Arc<memory::pool::StdMemoryPool>> {
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size());
+          
+    let uniform_data = vs_texture::ty::Data {
+      colour: draw.get_colour().into(),
+      model: model.into(),
+      projection: self.projection_2d.into(),
+    };
+    self.uniform_buffer_texture.next(uniform_data).unwrap()
+  }
+  
+  pub fn create_3d_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, 
+                                                                 Arc<memory::pool::StdMemoryPool>> {
+    let rotation_x = cgmath::Matrix3::from_angle_x(cgmath::Rad(draw.get_rotation()));
+    let rotation_y = cgmath::Matrix3::from_angle_y(cgmath::Rad(draw.get_y_rotation()));
+    let rotation_z = cgmath::Matrix3::from_angle_z(cgmath::Rad(draw.get_z_rotation()));
+                
+    let world = cgmath::Matrix4::from_translation(draw.get_translation()) * 
+                                                  cgmath::Matrix4::from(rotation_x) *  
+                                                  cgmath::Matrix4::from(rotation_y) * 
+                                                  cgmath::Matrix4::from(rotation_z);
+                
+    let uniform_data = vs_3d::ty::Data {
+      world: world.into(),
+      view : (self.view * cgmath::Matrix4::from_scale(draw.get_size().x)).into(),
+      proj : self.projection_3d.into(),
+    };
+
+    self.uniform_buffer_3d.next(uniform_data).unwrap()
   }
   
   pub fn create_2d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
@@ -293,12 +343,12 @@ impl CoreRender for RawVk {
   }
   
   fn add_model(&mut self, reference: String, location: String, texture: String) {
-    self.model_paths.insert(reference.clone(), Model_Info {location: location, texture: texture.clone()});
+    self.model_paths.insert(reference.clone(), ModelInfo {location: location, texture: texture.clone()});
     self.add_texture(reference, texture);
   }
   
   fn load_model(&mut self, reference: String, location: String, texture: String) {
-    let mut start_time = time::Instant::now();
+    let start_time = time::Instant::now();
     
     let model = model_data::Loader::load_opengex(location.clone(), texture);
     
@@ -317,7 +367,7 @@ impl CoreRender for RawVk {
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);
   }
   
-  fn pre_load_texture(&mut self, reference: String, location: String) {
+  fn preload_texture(&mut self, reference: String, location: String) {
     self.load_texture(reference, location);
   }
   
@@ -350,7 +400,7 @@ impl CoreRender for RawVk {
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
   }
   
-  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String) {
+  fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String) {
     self.load_font(reference.clone(), font);    
     self.load_texture(reference, font_texture);
   }
@@ -462,10 +512,10 @@ impl CoreRender for RawVk {
     let time_limit = 9.0;
     
     let mut delta_time;
-    let mut frame_start_time = time::Instant::now();
+    let frame_start_time = time::Instant::now();
   
     let mut still_loading = false;
-    let mut to_be_removed: Vec<String> = Vec::new();
+    //let mut to_be_removed: Vec<String> = Vec::new();
     
     let texture_paths_clone = self.texture_paths.clone();
     
@@ -570,27 +620,14 @@ impl CoreRender for RawVk {
         
       let build_start = tmp_cmd_buffer;
         
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![[0.2, 0.3, 0.3, 1.0].into(), 1f32.into()]).unwrap();    
-      
+    //  tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![[0.2, 0.3, 0.3, 1.0].into(), 1f32.into()]).unwrap(); 
+      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];   
+      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![clear.into(), 1f32.into()]).unwrap();
       for draw in draw_calls {
         
         if draw.is_3d_model() {
           
-          let uniform_buffer_subbuffer = {
-            let rotation_x = cgmath::Matrix3::from_angle_x(cgmath::Rad(draw.get_rotation()));
-            let rotation_y = cgmath::Matrix3::from_angle_y(cgmath::Rad(draw.get_y_rotation()));
-            let rotation_z = cgmath::Matrix3::from_angle_z(cgmath::Rad(draw.get_z_rotation()));
-                
-            let world = cgmath::Matrix4::from_translation(draw.get_translation()) * cgmath::Matrix4::from(rotation_x) *  cgmath::Matrix4::from(rotation_y) * cgmath::Matrix4::from(rotation_z);
-                
-            let uniform_data = vs_3d::ty::Data {
-              world: world.into(),
-              view : (self.view * cgmath::Matrix4::from_scale(draw.get_size().x)).into(),
-              proj : self.projection_3d.into(),
-            };
-
-            self.uniform_buffer_3d.next(uniform_data).unwrap()
-          };
+          let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone());
           
           let mut texture: String = String::from("default");
           if self.textures.contains_key(draw.get_texture()) {
@@ -604,7 +641,7 @@ impl CoreRender for RawVk {
           );
           
           {
-            let mut cb = tmp_cmd_buffer;
+            let cb = tmp_cmd_buffer;
 
             tmp_cmd_buffer = cb.draw_indexed(
                   self.pipeline_3d.clone().unwrap(),
@@ -649,7 +686,7 @@ impl CoreRender for RawVk {
                   projection: self.projection_2d.into(),
                 };
                 self.uniform_buffer_text.next(uniform_data).unwrap()
-               };
+              };
               
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_text.clone().unwrap(), 0)
                                          .add_sampled_image(self.textures.get(draw.get_texture()).unwrap().clone(), self.sampler.clone()).unwrap()
@@ -657,7 +694,7 @@ impl CoreRender for RawVk {
                                          .build().unwrap());
               
               {
-                let mut cb = tmp_cmd_buffer;
+                let cb = tmp_cmd_buffer;
                 tmp_cmd_buffer = cb.draw_indexed(self.pipeline_text.clone().unwrap(),
                                               DynamicState {
                                                       line_width: None,
@@ -676,26 +713,17 @@ impl CoreRender for RawVk {
               }
             }
           } else {
-            let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size());
-          
-            let uniform_buffer_subbuffer = {
-              let uniform_data = vs_texture::ty::Data {
-                colour: draw.get_colour().into(),
-                model: model.into(),
-                projection: self.projection_2d.into(),
-              };
-              self.uniform_buffer_texture.next(uniform_data).unwrap()
-            };
+            let uniform_buffer_texture_subbuffer = self.create_texture_subbuffer(draw.clone());
             
             // No Texture
             if draw.get_texture() == &String::from("") {
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
                                          .add_sampled_image(self.textures.get("Candara").unwrap().clone(), self.sampler.clone()).unwrap()
-                                         .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
+                                         .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                          .build().unwrap());
               
               {
-                let mut cb = tmp_cmd_buffer;
+                let cb = tmp_cmd_buffer;
                 
                 tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
                                               DynamicState {
@@ -715,11 +743,11 @@ impl CoreRender for RawVk {
               // Texture
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
                                       .add_sampled_image(self.textures.get(draw.get_texture()).expect("Unknown Texture").clone(), self.sampler.clone()).unwrap()
-                                      .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
+                                      .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                       .build().unwrap());
               
               {
-                let mut cb = tmp_cmd_buffer;
+                let cb = tmp_cmd_buffer;
 
                 tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
                                               DynamicState {
@@ -739,114 +767,6 @@ impl CoreRender for RawVk {
           }
         }
       }
-        /*
-        if draw.get_text() != "" {
-          let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
-          let size = draw.get_x_size();
-          
-          for letter in wrapped_draw {
-            let cmd_tmp = cb;
-            
-            let char_letter = {
-              letter.get_text().as_bytes()[0] 
-            };
-            
-            let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
-
-            let model = DrawMath::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-            let letter_uv = DrawMath::calculate_text_uv(&c.clone());
-            let colour = letter.get_colour();
-            let outline = letter.get_outline_colour();
-            let edge_width = letter.get_edge_width(); 
-             
-            let uniform_buffer_text_subbuffer = {
-              let uniform_data = vs_text::ty::Data {
-                outlineColour: outline.into(),
-                colour: colour.into(),
-                edge_width: edge_width.into(),
-                letter_uv: letter_uv.into(),
-                model: model.into(),
-                projection: self.projection.into(),
-              };
-              self.uniform_buffer_text.next(uniform_data).unwrap()
-             };
-            
-            let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_text.clone().unwrap(), 0)
-                                       .add_sampled_image(self.textures.get(draw.get_texture()).unwrap().clone(), self.sampler.clone()).unwrap()
-                                       .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
-                                       .build().unwrap());
-            
-            cb = cmd_tmp.draw_indexed(self.pipeline_text.clone().unwrap(),
-                                            DynamicState {
-                                                    line_width: None,
-                                                    viewports: Some(vec![Viewport {
-                                                      origin: [0.0, 0.0],
-                                                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                      depth_range: 0.0 .. 1.0,
-                                                    }]),
-                                                    scissors: None,
-                                            },
-                                            self.vertex_buffer.clone().unwrap(),
-                                            self.index_buffer.clone().unwrap(),
-                                            uniform_set.clone(), ()).unwrap();
-          }
-          tmp_cmd_buffer = cb;
-        } else {
-          
-          let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size());
-          
-          let uniform_buffer_subbuffer = {
-            let uniform_data = vs_texture::ty::Data {
-              colour: draw.get_colour().into(),
-              model: model.into(),
-              projection: self.projection.into(),
-            };
-            self.uniform_buffer_texture.next(uniform_data).unwrap()
-          };
-          
-          // No Texture
-          if draw.get_texture() == &String::from("") {
-            let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
-                                       .add_sampled_image(self.textures.get("Candara").unwrap().clone(), self.sampler.clone()).unwrap()
-                                       .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
-                                       .build().unwrap());
-            
-            tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
-                                            DynamicState {
-                                                    line_width: None,
-                                                    viewports: Some(vec![Viewport {
-                                                      origin: [0.0, 0.0],
-                                                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                      depth_range: 0.0 .. 1.0,
-                                                    }]),
-                                                    scissors: None,
-                                            },
-                                            self.vertex_buffer.clone().unwrap(),
-                                            self.index_buffer.clone().unwrap(),
-                                            uniform_set.clone(), ()).unwrap();
-          } else {
-            // Texture
-            let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
-                                    .add_sampled_image(self.textures.get(draw.get_texture()).expect("Unknown Texture").clone(), self.sampler.clone()).unwrap()
-                                    .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
-                                    .build().unwrap());
-          
-            tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
-                                            DynamicState {
-                                                    line_width: None,
-                                                    viewports: Some(vec![Viewport {
-                                                      origin: [0.0, 0.0],
-                                                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                      depth_range: 0.0 .. 1.0,
-                                                    }]),
-                                                    scissors: None,
-                                            },
-                                            self.vertex_buffer.clone().unwrap(),
-                                            self.index_buffer.clone().unwrap(),
-                                            uniform_set.clone(), ()).unwrap();
-          }*/
-       // }
-      //}
       
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
@@ -900,6 +820,10 @@ impl CoreRender for RawVk {
     let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
     
     self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));  
+  }
+  
+  fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
+    self.clear_colour = Vector4::new(r,g,b,a);
   }
   
   fn post_draw(&self) {}

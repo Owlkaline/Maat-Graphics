@@ -14,11 +14,11 @@ pub trait CoreRender {
   fn add_model(&mut self, reference: String, location: String, texture: String);
   fn load_model(&mut self, reference: String, location: String, texture: String);
 
-  fn pre_load_texture(&mut self, reference: String, location: String);
+  fn preload_texture(&mut self, reference: String, location: String);
   fn add_texture(&mut self, reference: String, location: String);
   fn load_texture(&mut self, reference: String, location: String);
 
-  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String);
+  fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String);
   fn add_font(&mut self, reference: String, font: &[u8], font_texture: String);  
   fn load_font(&mut self, reference: String, font: &[u8]);
   
@@ -40,5 +40,6 @@ pub trait CoreRender {
   fn show_cursor(&mut self);
   fn hide_cursor(&mut self);
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>);
+  fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32);
 }
 
