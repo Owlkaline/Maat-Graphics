@@ -124,40 +124,24 @@ impl RawGl {
 }
 
 impl CoreRender for RawGl {
-  fn load_shaders(&mut self) {
-    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.vert"));
-    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.frag"));
+  fn preload_model(&mut self, reference: String, location: String, texture: String) {
     
-    let v_src = CString::new(v_string.as_bytes()).unwrap();
-    let f_src = CString::new(f_string.as_bytes()).unwrap();
+  }
+  
+  fn add_model(&mut self, reference: String, location: String, texture: String) {
     
-    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
-    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
-    let program = ShaderProgram::link_program(vs, fs);
+  }
+  
+  fn load_model(&mut self, reference: String, location: String, texture: String) {
     
-    self.shader_id.push(program);
-    
-    unsafe {
-      gl::DeleteShader(fs);
-      gl::DeleteShader(vs);
-    }
-    
-    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.vert"));
-    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.frag"));
-    
-    let v_src = CString::new(v_string.as_bytes()).unwrap();
-    let f_src = CString::new(f_string.as_bytes()).unwrap();
-    
-    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
-    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
-    let program = ShaderProgram::link_program(vs, fs);
-    
-    self.shader_id.push(program);
-    
-    unsafe {
-      gl::DeleteShader(fs);
-      gl::DeleteShader(vs);
-    }
+  }
+ 
+  fn pre_load_texture(&mut self, reference: String, location: String) {
+    self.load_texture(reference, location);
+  }
+  
+  fn add_texture(&mut self, reference: String, location: String) {
+    self.texture_paths.insert(reference, location);
   }
  
   fn load_texture(&mut self, reference: String, location: String) {
@@ -193,28 +177,56 @@ impl CoreRender for RawGl {
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
   }
   
-  fn load_font(&mut self, reference: String, font: &[u8]) {
-    let mut new_font = GenericFont::new();
-    new_font.load_font(font);
-    self.fonts.insert(reference.clone(), new_font);
-  }
-   
-  fn add_texture(&mut self, reference: String, location: String) {
-    self.texture_paths.insert(reference, location);
+  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String) {
+    self.load_font(reference.clone(), font);
+    self.pre_load_texture(reference, font_texture);
   }
   
   fn add_font(&mut self, reference: String, location: &[u8], font_texture: String) {
     self.load_font(reference.clone(), location);
     self.add_texture(reference, font_texture);
   }
-    
-  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String) {
-    self.load_font(reference.clone(), font);
-    self.pre_load_texture(reference, font_texture);
+  
+  fn load_font(&mut self, reference: String, font: &[u8]) {
+    let mut new_font = GenericFont::new();
+    new_font.load_font(font);
+    self.fonts.insert(reference.clone(), new_font);
   }
   
-  fn pre_load_texture(&mut self, reference: String, location: String) {
-    self.load_texture(reference, location);
+  fn load_shaders(&mut self) {
+    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.vert"));
+    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.frag"));
+    
+    let v_src = CString::new(v_string.as_bytes()).unwrap();
+    let f_src = CString::new(f_string.as_bytes()).unwrap();
+    
+    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
+    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
+    let program = ShaderProgram::link_program(vs, fs);
+    
+    self.shader_id.push(program);
+    
+    unsafe {
+      gl::DeleteShader(fs);
+      gl::DeleteShader(vs);
+    }
+    
+    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.vert"));
+    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.frag"));
+    
+    let v_src = CString::new(v_string.as_bytes()).unwrap();
+    let f_src = CString::new(f_string.as_bytes()).unwrap();
+    
+    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
+    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
+    let program = ShaderProgram::link_program(vs, fs);
+    
+    self.shader_id.push(program);
+    
+    unsafe {
+      gl::DeleteShader(fs);
+      gl::DeleteShader(vs);
+    }
   }
   
   fn init(&mut self) {

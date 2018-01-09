@@ -7,12 +7,18 @@ use winit;
 use std::vec::Vec;
 
 pub trait CoreRender {
-  fn add_font(&mut self, reference: String, font: &[u8], font_texture: String);
-  fn add_texture(&mut self, reference: String, location: String);
+  fn preload_model(&mut self, reference: String, location: String, texture: String);
+  fn add_model(&mut self, reference: String, location: String, texture: String);
+  fn load_model(&mut self, reference: String, location: String, texture: String);
+
   fn pre_load_texture(&mut self, reference: String, location: String);
-  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String);
+  fn add_texture(&mut self, reference: String, location: String);
   fn load_texture(&mut self, reference: String, location: String);
+
+  fn pre_load_font(&mut self, reference: String, font: &[u8], font_texture: String);
+  fn add_font(&mut self, reference: String, font: &[u8], font_texture: String);  
   fn load_font(&mut self, reference: String, font: &[u8]);
+  
   fn load_shaders(&mut self);
   fn init(&mut self);
   fn clear_screen(&mut self);

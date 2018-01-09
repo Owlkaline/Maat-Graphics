@@ -12,6 +12,12 @@ extern crate vulkano_shader_derive;
 extern crate winit;
 extern crate vulkano_win;
 
+extern crate opengex;
+extern crate piston_meta;
+extern crate piston_meta_search;
+extern crate range;
+
+
 pub mod graphics;
 pub mod drawcalls;
 pub mod rawgl;
@@ -21,6 +27,7 @@ mod shaders;
 mod window;
 mod vulkano_win_updated;
 pub mod settings;
+mod model_data;
 
 
 

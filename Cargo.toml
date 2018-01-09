@@ -12,6 +12,10 @@ vulkano-shader-derive = "0.7.2"
 vulkano-win = "0.7.2"
 winit = "0.8.1"
 glutin = "0.10.0"
+piston-opengex = "*"
+piston_meta = "*"
+piston_meta_search = "*"
+range = "*"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.9"
