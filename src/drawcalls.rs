@@ -281,7 +281,7 @@ impl DrawCall {
     (*self.texture).to_string()
   }
   
-  pub fn get_rotation(&self) -> f32 {
+  pub fn get_x_rotation(&self) -> f32 {
     self.rotation.x
   }
   

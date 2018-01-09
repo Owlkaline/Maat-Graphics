@@ -55,11 +55,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use cgmath;
+use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
+use cgmath::Matrix3;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
+use cgmath::Rotation3;
+use cgmath::InnerSpace;
 
 #[derive(Debug, Clone)]
 struct Vertex { position: [f32; 2], uv: [f32; 2] }
@@ -300,15 +304,16 @@ impl RawVk {
   }
   
   pub fn create_3d_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, 
-                                                                 Arc<memory::pool::StdMemoryPool>> {
-    let rotation_x = cgmath::Matrix3::from_angle_x(cgmath::Rad(draw.get_rotation()));
-    let rotation_y = cgmath::Matrix3::from_angle_y(cgmath::Rad(draw.get_y_rotation()));
-    let rotation_z = cgmath::Matrix3::from_angle_z(cgmath::Rad(draw.get_z_rotation()));
-                
-    let world = cgmath::Matrix4::from_translation(draw.get_translation()) * 
-                                                  cgmath::Matrix4::from(rotation_x) *  
-                                                  cgmath::Matrix4::from(rotation_y) * 
-                                                  cgmath::Matrix4::from(rotation_z);
+                                                                 Arc<memory::pool::StdMemoryPool>> {    
+    let axis_x = Vector3::new(1.0, 0.0, 0.0).normalize();
+    let axis_y = Vector3::new(0.0, 1.0, 0.0).normalize();
+    let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
+    
+    let rotation_x: Matrix4<f32> = Matrix4::from_axis_angle(axis_x, Deg(draw.get_x_rotation()));
+    let rotation_y: Matrix4<f32> = Matrix4::from_axis_angle(axis_y, Deg(draw.get_y_rotation()));
+    let rotation_z: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(draw.get_z_rotation()));
+         
+    let world: Matrix4<f32> = cgmath::Matrix4::from_translation(draw.get_translation()) * (rotation_x*rotation_y*rotation_z);
                 
     let uniform_data = vs_3d::ty::Data {
       world: world.into(),

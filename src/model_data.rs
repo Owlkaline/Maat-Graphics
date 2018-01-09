@@ -10,6 +10,9 @@ use range::Range;
 use std::fs::File;
 use std::io::Read;
 
+use cgmath::Vector4;
+use cgmath::Matrix4;
+
 #[derive(Copy, Clone)]
 pub struct Vertex {
   pub position: [f32; 3],
@@ -39,8 +42,31 @@ impl Loader {
     
     let s = Search::new(&data);
     
+    let transform: Matrix4<f32> = stderr_unwrap(&source, s.for_node("Transform",
+        |ref mut s| {
+            let mut vs = Vec::with_capacity(24);
+            loop {
+                vs.push(
+                   match s.f64("val") {
+                     Ok(t)  => t,
+                     Err(e) => break,
+                   } as f32,
+                );
+            }
+            
+            let transform_matrix: Matrix4<f32> = 
+              Matrix4::new(
+                vs[0],  vs[1],  vs[2],  vs[3],
+                vs[4],  vs[5],  vs[6],  vs[7],
+                vs[8],  vs[9],  vs[10], vs[11],
+                vs[12], vs[13], vs[14], vs[15],
+              );
+            Ok(transform_matrix)
+        }));
+    
     let verticies: Vec<Vertex> = {
-      let vertex_data: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_bool("position", true,
+      
+      let mut vertex_data: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_bool("position", true,
         |ref mut s| {
             let mut vs = Vec::with_capacity(24);
             loop {
@@ -55,6 +81,20 @@ impl Loader {
             }
             Ok(vs)
         }));
+      
+      let mut index = 0;
+      for vertex in vertex_data.clone() {
+        let vec4_vert = Vector4::new(vertex[0], vertex[1], vertex[2], 1.0);
+        
+        let new_vertex = transform*vec4_vert;
+        
+        vertex_data[index][0] = new_vertex.x;
+        vertex_data[index][1] = new_vertex.y;
+        vertex_data[index][2] = new_vertex.z;
+        
+        index += 1;
+      }
+      
       let normal_data: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_bool("normal", true,
         |ref mut s| {
             let mut vs = Vec::with_capacity(24);

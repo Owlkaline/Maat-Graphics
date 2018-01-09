@@ -25,12 +25,24 @@ use std::f32::consts;
 use std::ffi::CString;
 use std::collections::HashMap;
 
+#[derive(Clone)]
+pub struct ModelInfo {
+  location: String,
+  texture: String,
+}
+
+pub struct Model {
+  vao: GLuint,
+  num_vbo: i32,
+}
+
 pub struct RawGl {
   ready: bool,
   shader_id: Vec<GLuint>,
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, GLuint>,
   texture_paths: HashMap<String, String>,
+  model_paths: HashMap<String, ModelInfo>,
   
   clear_colour: Vector4<f32>,
   
@@ -38,7 +50,7 @@ pub struct RawGl {
   vao_2d: GLuint,
   
   projection_3d: Matrix4<f32>,
-  vao_3d: GLuint,
+  models: Vec<Model>,
   
   pub window: GlWindow,
 }
@@ -67,16 +79,37 @@ impl RawGl {
       fonts: HashMap::with_capacity(10),
       textures: HashMap::with_capacity(10),
       texture_paths: HashMap::with_capacity(10),
+      model_paths: HashMap::with_capacity(10),
 
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
 
       projection_2d: proj_2d,
       vao_2d: 0,
       
-      projection_3d: proj_3d,
-      vao_3d: 0,      
+      projection_3d: proj_3d,  
+      models: Vec::with_capacity(10), 
       
       window: window,
+    }
+  }
+  
+  fn storef32InAttributeList(&mut self, attribute_number: i32, length: i32, data: Vec<GLfloat>) {
+    let mut vbo: GLuint = 0;
+    unsafe {
+      // Create a Vertex Buffer Object and copy the vertex data to it
+      gl::GenBuffers(1, &mut vbo);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+      gl::BufferData(gl::ARRAY_BUFFER,
+                     (data.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+                     mem::transmute(&data[0]),
+                     gl::STATIC_DRAW);
+      
+      gl::VertexAttribPointer(attribute_number as GLuint,
+                              length,
+                              gl::FLOAT,
+                              gl::FALSE as GLboolean,
+                              0,
+                              ptr::null());
     }
   }
   
@@ -144,15 +177,38 @@ impl RawGl {
 
 impl CoreRender for RawGl {
   fn preload_model(&mut self, reference: String, location: String, texture: String) {
-    
+    self.load_model(reference.clone(), location, texture.clone());
+    self.load_texture(reference, texture);
   }
   
   fn add_model(&mut self, reference: String, location: String, texture: String) {
-    
+    self.model_paths.insert(reference.clone(), ModelInfo {location: location, texture: texture.clone()});
+    self.add_texture(reference, texture);
   }
   
   fn load_model(&mut self, reference: String, location: String, texture: String) {
+   // let model = model_data::Loader::load_opengex(location.clone(), texture);
     
+    let mut vao: GLuint = 0;
+    
+    // Create Vertex Array Object
+ //   gl::GenVertexArrays(1, &mut vao);
+ //   gl::BindVertexArray(vao);
+    
+    //self.storef32InAttributeList(0, 3, verticies);
+    //self.storef32InAttributeList(1, 3, normals);
+    //self.storef32InAttributeList(2, 2, uv);
+    
+//   
+    
+    //model.get_verticies()
+    //model.get_indicies()
+    
+    /*let model = Model {
+      vao: ,
+      num_vbo: ,
+    };*/
+    //self.models.insert(reference, model);
   }
  
   fn preload_texture(&mut self, reference: String, location: String) {
@@ -246,52 +302,60 @@ impl CoreRender for RawGl {
       gl::DeleteShader(fs);
       gl::DeleteShader(vs);
     }
+    
+    let v_string = String::from_utf8_lossy(include_bytes!("shaders/Gl3D.vert"));
+    let f_string = String::from_utf8_lossy(include_bytes!("shaders/Gl3D.frag"));
+    
+    let v_src = CString::new(v_string.as_bytes()).unwrap();
+    let f_src = CString::new(f_string.as_bytes()).unwrap();
+    
+    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
+    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
+    let program = ShaderProgram::link_program(vs, fs);
+    
+    self.shader_id.push(program);
+    
+    unsafe {
+      gl::DeleteShader(fs);
+      gl::DeleteShader(vs);
+    }
   }
   
   fn init(&mut self) {
-    let square: [GLfloat; 24] = [ 0.5,  0.5, 1.0, 0.0,
+    let square = vec!( 0.5,  0.5, 1.0, 0.0,
                                  -0.5,  0.5, 0.0, 0.0,
                                  -0.5, -0.5, 0.0, 1.0,
                                  
                                  -0.5, -0.5, 0.0, 1.0,
                                   0.5, -0.5, 1.0, 1.0,
-                                  0.5,  0.5, 1.0, 0.0];
-    
-    let mut vbo = 0;
+                                  0.5,  0.5, 1.0, 0.0);
     
     unsafe {
       
       gl::UseProgram(self.shader_id[0]);
       // texture shader
       gl::Uniform1i(gl::GetUniformLocation(self.shader_id[0], CString::new("image").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       // Create Vertex Array Object
       gl::GenVertexArrays(1, &mut self.vao_2d);
       gl::BindVertexArray(self.vao_2d);
       
-      // Create a Vertex Buffer Object and copy the vertex data to it
-      gl::GenBuffers(1, &mut vbo);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (square.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-                     mem::transmute(&square[0]),
-                     gl::STATIC_DRAW);
-      
-      gl::VertexAttribPointer(0 as GLuint,
-                              4,
-                              gl::FLOAT,
-                              gl::FALSE as GLboolean,
-                              0,
-                              ptr::null());
-      gl::EnableVertexAttribArray(0 as GLuint);
+      // Create a Vertex Buffer Object and copy the vertex data to it      
+      self.storef32InAttributeList(0, 4, square);
       
       // Text shader
       gl::UseProgram(self.shader_id[1]);
       
       gl::Uniform1i(gl::GetUniformLocation(self.shader_id[1], CString::new("image").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection_2d").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
-      
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
+ 
+      // 3D shader     
+      gl::UseProgram(self.shader_id[2]);
+ 
+      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[2], CString::new("image").unwrap().as_ptr()), 0);
+      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[2], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_3d[0]));
+           
       gl::Enable(gl::BLEND);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
       
@@ -334,6 +398,7 @@ impl CoreRender for RawGl {
   fn pre_draw(&mut self) {
     unsafe {
       gl::BindVertexArray(self.vao_2d);
+      gl::EnableVertexAttribArray(0 as GLuint);
     }
   }
   
@@ -351,6 +416,7 @@ impl CoreRender for RawGl {
     unsafe {
       gl::UseProgram(0);
       gl::BindVertexArray(0);
+      gl::DisableVertexAttribArray(0 as GLuint);
     }
   }
   

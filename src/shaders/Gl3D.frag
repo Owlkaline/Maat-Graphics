@@ -1,11 +1,11 @@
-#version 450
+#version 330 core
 
-layout(location = 0) in vec3 v_normal;
-layout(location = 1) in vec2 v_uv;
+in vec3 v_normal;
+in vec2 v_uv;
 
-layout(location = 0) out vec4 f_colour;
+out vec4 f_colour;
 
-layout(set = 0, binding = 1) uniform sampler2D tex;
+uniform sampler2D tex;
 
 const vec3 LIGHT = vec3(1.0, 1.0, 1.0);
 
