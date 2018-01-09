@@ -34,7 +34,7 @@ use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
-use vulkano::format::R8G8B8A8Unorm;
+use vulkano::format;
 use vulkano::image::ImmutableImage;
 use vulkano::descriptor::descriptor_set;
 use vulkano::swapchain::SwapchainCreationError;
@@ -48,6 +48,7 @@ use std::sync::Arc;
 
 use cgmath;
 use cgmath::Matrix4;
+use cgmath::SquareMatrix;
 
 #[derive(Debug, Clone)]
 struct Vertex { position: [f32; 2], uv: [f32; 2] }
@@ -85,27 +86,31 @@ mod fs_text {
 pub struct RawVk {
   ready: bool,
   fonts: HashMap<String, GenericFont>,
-  textures: HashMap<String, Arc<ImmutableImage<R8G8B8A8Unorm>>>,
+  textures: HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
   texture_paths: HashMap<String, String>,
+
+  framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
+  render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
 
   projection: Matrix4<f32>,
 
-  pub window: VkWindow,
-  empty_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  text_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  texture_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+
   vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
   index_buffer: Option<Arc<ImmutableBuffer<[u16]>>>,
 
   texture_uniform_buffer: cpu_pool::CpuBufferPool<vs_texture::ty::Data>,
   text_uniform_buffer: cpu_pool::CpuBufferPool<vs_text::ty::Data>,
-  texture_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  text_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
 
-  render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  pub window: VkWindow,
   sampler: Arc<sampler::Sampler>,
 
   recreate_swapchain: bool,
-  framebuffers: Option<Vec<Arc<framebuffer::Framebuffer<Arc<RenderPassAbstract + Sync + Send>, ((), Arc<vkimage::SwapchainImage>)>>>>,
+  
   previous_frame_end: Option<Box<GpuFuture>>,
+  
+  empty_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
 }
 
 impl RawVk {
@@ -119,11 +124,7 @@ impl RawVk {
     
     let window = VkWindow::new(width, height, min_width, min_height, fullscreen);
     
-    let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
-    let text_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
-    let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
-    
-    let proj = cgmath::ortho(0.0, width as f32, height as f32, 0.0, -1.0, 1.0);
+    let proj = Matrix4::identity();//create_2d_projection(width, height);
         
     let sampler = sampler::Sampler::new(window.get_device(), sampler::Filter::Linear,
                                                    sampler::Filter::Linear, 
@@ -132,6 +133,10 @@ impl RawVk {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
+ 
+    let text_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
+    let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
+    let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
     RawVk {
       ready: false,
@@ -159,6 +164,10 @@ impl RawVk {
       framebuffers: None,
       previous_frame_end: previous_frame_end,
     }
+  }
+  
+  pub fn create_2d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
+    cgmath::ortho(0.0, width, height, 0.0, -1.0, 1.0)
   }
 }
 
@@ -192,7 +201,7 @@ impl CoreRender for RawVk {
       vkimage::immutable::ImmutableImage::from_iter(
               image_data.iter().cloned(),
               vkimage::Dimensions::Dim2d { width: width, height: height },
-              R8G8B8A8Unorm,
+              format::R8G8B8A8Unorm,
                self.window.get_queue()).unwrap()
     };
     self.previous_frame_end = Some(Box::new(tex_future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
@@ -210,6 +219,12 @@ impl CoreRender for RawVk {
   }
   
   fn load_shaders(&mut self) {
+    let dimensions = {
+      self.window.get_dimensions()
+    };
+    
+    self.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    
     let square = {
       [
           Vertex { position: [  0.5 ,   0.5 ], uv: [1.0, 0.0] },
@@ -356,15 +371,16 @@ impl CoreRender for RawVk {
       self.framebuffers = None;
       self.recreate_swapchain = false;
       
-      self.projection = cgmath::ortho(0.0, dimensions[0] as f32, dimensions[1] as f32, 0.0, -1.0, 1.0);  
+      self.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
     }
     
     if self.framebuffers.is_none() {
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
-             Arc::new(framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
+             let fb = framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
                       .add(image.clone()).unwrap()
-                      .build().unwrap())
+                      .build().unwrap();
+             Arc::new(fb) as Arc<framebuffer::FramebufferAbstract + Send + Sync>
              }).collect::<Vec<_>>());
       mem::replace(&mut self.framebuffers, new_framebuffers);
     }
