@@ -329,7 +329,7 @@ impl RawVk {
   }
   
   pub fn create_3d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
-    cgmath::perspective(cgmath::Rad(consts::FRAC_PI_4), { width as f32 / height as f32 }, 0.01, 100.0)
+    cgmath::perspective(/*cgmath::Rad(consts::FRAC_PI_4)*/cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0)
   }
   
   pub fn create_depth_buffer(&self) -> Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>> {
