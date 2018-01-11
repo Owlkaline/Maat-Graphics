@@ -325,11 +325,15 @@ impl RawVk {
     let rotation_z: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(draw.get_z_rotation()));
          
     let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation())* cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
-                
+    
+    #[repr(C)]
     let uniform_data = vs_3d::ty::Data {
       transformation: transformation.into(),
       view : (self.view * self.scale).into(),
       proj : self.projection_3d.into(),
+      lightposition_shinedamper: Vector4::new(0.0, 0.0, 0.0, 10.0).into(),
+      lightcolour_reflectivity: Vector4::new(1.0, 1.0, 1.0,  1.0).into(),
+      attenuation: Vector4::new(1.0, 0.0, 0.0, -1.0).into(),
     };
 
     self.uniform_buffer_3d.next(uniform_data).unwrap()

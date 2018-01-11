@@ -3,10 +3,10 @@
 layout(location = 0) in vec3 v_normal;
 layout(location = 1) in vec2 v_uv;
 layout(location = 2) in vec3 toLightVector;
-layout(location = 3) in vec3 lightColour;
-layout(location = 4) in vec2 damper_reflectivity;
-layout(location = 5) in vec3 toCameraVector;
-layout(location = 6) in vec3 attenuation;
+layout(location = 3) in vec3 toCameraVector;
+layout(location = 4) in vec3 lightColour;
+layout(location = 5) in vec3 attenuation;
+layout(location = 6) in vec2 damper_reflectivity;
 
 layout(location = 0) out vec4 f_colour;
 
