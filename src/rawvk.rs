@@ -44,6 +44,7 @@ use vulkano::image::ImmutableImage;
 use vulkano::descriptor::descriptor_set;
 use vulkano::swapchain::SwapchainCreationError;
 
+use std::env;
 use std::mem;
 use std::time;
 use std::iter;
@@ -171,6 +172,11 @@ pub struct RawVk {
 
 impl RawVk {
   pub fn new() -> RawVk {
+    #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
+    //avoid_winit_wayland_hack
+    println!("Forcing x11");
+    env::set_var("WINIT_UNIX_BACKEND", "x11");
+    
     let mut settings = Settings::load();
     let width = settings.get_resolution()[0];
     let height = settings.get_resolution()[1];
@@ -246,6 +252,11 @@ impl RawVk {
     }
   }
   
+  pub fn with_title(mut self, title: String) -> RawVk {
+    self.window.set_title(title);
+    self
+  }
+  
   pub fn create_2d_vertex(&self) -> Arc<BufferAccess + Send + Sync> {
     #[derive(Debug, Clone)]
     struct Vertex { position: [f32; 2], uv: [f32; 2] }
@@ -313,11 +324,11 @@ impl RawVk {
     let rotation_y: Matrix4<f32> = Matrix4::from_axis_angle(axis_y, Deg(draw.get_y_rotation()));
     let rotation_z: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(draw.get_z_rotation()));
          
-    let world: Matrix4<f32> = cgmath::Matrix4::from_translation(draw.get_translation()) * (rotation_x*rotation_y*rotation_z);
+    let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation())* cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
                 
     let uniform_data = vs_3d::ty::Data {
-      world: world.into(),
-      view : (self.view * cgmath::Matrix4::from_scale(draw.get_size().x)).into(),
+      transformation: transformation.into(),
+      view : (self.view * self.scale).into(),
       proj : self.projection_3d.into(),
     };
 

@@ -82,20 +82,7 @@ impl Loader {
             Ok(vs)
         }));
       
-      let mut index = 0;
-      for vertex in vertex_data.clone() {
-        let vec4_vert = Vector4::new(vertex[0], vertex[1], vertex[2], 1.0);
-        
-        let new_vertex = transform*vec4_vert;
-        
-        vertex_data[index][0] = new_vertex.x;
-        vertex_data[index][1] = new_vertex.y;
-        vertex_data[index][2] = new_vertex.z;
-        
-        index += 1;
-      }
-      
-      let normal_data: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_bool("normal", true,
+      let mut normal_data: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_bool("normal", true,
         |ref mut s| {
             let mut vs = Vec::with_capacity(24);
             loop {
@@ -111,6 +98,32 @@ impl Loader {
             }
             Ok(vs)
         }));
+      
+      let mut index = 0;
+      for vertex in vertex_data.clone() {
+        let vec4_vert = Vector4::new(vertex[0], vertex[1], vertex[2], 1.0);
+        
+        let new_vertex = transform*vec4_vert;
+        
+        vertex_data[index][0] = new_vertex.x;
+        vertex_data[index][1] = new_vertex.y;
+        vertex_data[index][2] = new_vertex.z;
+        
+        index += 1;
+      }
+      
+      let mut index = 0;
+      for normal in normal_data.clone() {
+        let vec4_norm = Vector4::new(normal[0], normal[1], normal[2], 1.0);
+        
+        let new_normal = transform*vec4_norm;
+        
+        normal_data[index][0] = new_normal.x;
+        normal_data[index][1] = new_normal.y;
+        normal_data[index][2] = new_normal.z;
+        
+        index += 1;
+      }
       
       
       let uv_data: Vec<[f32; 2]> = {

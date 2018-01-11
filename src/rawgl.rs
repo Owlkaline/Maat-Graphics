@@ -21,6 +21,7 @@ use winit;
 use gl;
 use gl::types::*;
 
+use std::env;
 use std::ptr;
 use std::mem;
 use std::time;
@@ -65,6 +66,11 @@ pub struct RawGl {
 
 impl RawGl {
   pub fn new() -> RawGl {
+    #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
+    //avoid_winit_wayland_hack
+    println!("Forcing x11");
+    env::set_var("WINIT_UNIX_BACKEND", "x11");
+    
     let mut settings = Settings::load();
     let width = settings.get_resolution()[0];
     let height = settings.get_resolution()[1];
@@ -104,6 +110,11 @@ impl RawGl {
       
       window: window,
     }
+  }
+  
+  pub fn with_title(mut self, title: String) -> RawGl {
+    self.window.set_title(title);
+    self
   }
   
   fn store_f32_in_attribute_list(&mut self, attribute_number: i32, length: i32, data: Vec<GLfloat>) {

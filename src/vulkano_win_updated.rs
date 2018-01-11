@@ -96,6 +96,11 @@ impl Window {
     pub fn set_cursor(&mut self, state: winit::MouseCursor) {
       self.window.set_cursor(state);
     }
+    
+    #[inline]
+    pub fn set_title(&mut self, title: String) {
+      self.window.set_title(&title);
+    }
 }
 
 /// Error that can happen when creating a window.

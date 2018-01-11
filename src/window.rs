@@ -3,23 +3,23 @@ use gl;
 use winit;
 use winit::EventsLoop;
 
+use settings::Settings;
+
 use vulkano_win_updated::VkSurfaceBuild;
 use vulkano_win_updated::required_extensions;
 use vulkano_win_updated as vulkano_win;
 
 use vulkano::device::Queue;
 use vulkano::device::Device;
-use vulkano::format::Format;
+use vulkano::format;
 use vulkano::instance::Instance;
 use vulkano::swapchain::Swapchain;
-//use vulkano::format::B8G8R8A8Unorm;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::PresentMode;
 use vulkano::instance::PhysicalDevice;
 use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
 use vulkano::swapchain::SwapchainCreationError;
-//use vulkano::swapchain::CompositeAlpha::Opaque;
 
 use std::mem;
 use std::sync::Arc;
@@ -64,11 +64,11 @@ impl GlWindow {
         };
         // Fullscreen
         temp_window = glutin::WindowBuilder::new().with_fullscreen(Some(monitor))
-                                           .with_title("Trephination - OpenGl")
+                                           .with_title("OpenGl Fullscreen")
       } else {
         // Windowed
         temp_window = glutin::WindowBuilder::new()
-                                            .with_title("Trephination - OpenGl").with_decorations(true)
+                                            .with_title("OpenGl Windowed").with_decorations(true)
                                             .with_dimensions(width, height)
                                             .with_min_dimensions(min_width, min_height);
       }
@@ -89,6 +89,10 @@ impl GlWindow {
       events: events_loop,
       window: gl_window,
     }
+  }
+  
+  pub fn set_title(&mut self, title: String) {
+    self.window.set_title(&title);
   }
   
   pub fn get_dimensions(&self) -> [u32; 2] {
@@ -151,14 +155,14 @@ impl VkWindow {
         
         // Fullscreen
         temp_window = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
-                                           .with_title("Trephination - Vulkan")
+                                           .with_title("Vulkan Fullscreen")
                                            .build_vk_surface(&events_loop, instance.clone())
                                            .unwrap();
       } else {
         // Windowed
         temp_window = winit::WindowBuilder::new().with_dimensions(width, height)
                                             .with_min_dimensions(min_width, min_height)
-                                           .with_title("Trephination - Vulkan")
+                                           .with_title("Vulkan Windowed")
                                            .build_vk_surface(&events_loop, instance.clone())
                                            .unwrap();
       }
@@ -223,9 +227,13 @@ impl VkWindow {
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
       
-      let dimensions = caps.current_extent.unwrap_or([1024, 768]);
+      let mut settings = Settings::load();
+      let min_width = settings.get_minimum_resolution()[0];
+      let min_height = settings.get_minimum_resolution()[1];
+      
+      let dimensions = caps.current_extent.unwrap_or([min_width, min_height]);
                    
-      let format = caps.supported_formats[0].0;//B8G8R8A8Unorm;
+      let format = format::B8G8R8A8Unorm;//caps.supported_formats[0].0;//B8G8R8A8Unorm;
       let alpha = caps.supported_composite_alpha.iter().next().unwrap();//Opaque;
       let min_image_count = caps.min_image_count;
       let supported_usage_flags = caps.supported_usage_flags;
@@ -249,6 +257,10 @@ impl VkWindow {
           }
   }
   
+  pub fn set_title(&mut self, title: String) {
+    self.window.set_title(title);
+  }
+  
   pub fn get_device(&self) -> Arc<Device> {
     self.device.clone()
   }
@@ -266,8 +278,12 @@ impl VkWindow {
     let caps = self.window.surface()
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
-   // println!("after caps");
-    let dimensions = caps.current_extent.unwrap_or([1024, 768]);
+   
+    let mut settings = Settings::load();
+    let min_width = settings.get_minimum_resolution()[0];
+    let min_height = settings.get_minimum_resolution()[1];
+   
+    let dimensions = caps.current_extent.unwrap_or([min_width, min_height]);
     println!("Window Resized!");
     self.swapchain.recreate_with_dimension(dimensions)
   }
@@ -288,7 +304,7 @@ impl VkWindow {
     self.swapchain.clone()
   }
   
-  pub fn get_swapchain_format(&self) -> Format {
+  pub fn get_swapchain_format(&self) -> format::Format {
     self.swapchain.format()
   }
   
