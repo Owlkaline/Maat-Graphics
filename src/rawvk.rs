@@ -190,7 +190,7 @@ impl RawVk {
     let proj_3d = Matrix4::identity();
     
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
-    let scale = cgmath::Matrix4::from_scale(0.01);
+    let scale = cgmath::Matrix4::from_scale(0.1);
     
     let sampler = sampler::Sampler::new(window.get_device(), sampler::Filter::Linear,
                                                    sampler::Filter::Linear, 
@@ -326,14 +326,47 @@ impl RawVk {
          
     let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation())* cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
     
-    #[repr(C)]
+    let lighting_position: Matrix4<f32> =
+      Matrix4::from_cols(
+        Vector4::new(0.0, -0.6, 25.0, -1.0),
+        Vector4::new(7.0, -0.6, 25.0, -1.0),
+        Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
+    let reflectivity = {
+      let mut temp = 1.0;
+      if draw.get_texture() == "terrain" {
+        temp = 0.0;
+      }
+      temp
+    };
+    
+    let lighting_colour: Matrix4<f32> =
+      // (R, G, B, n/a)
+      Matrix4::from_cols(
+        Vector4::new(0.0, 0.0, 1.0, 10.0), // colour + shinedamper
+        Vector4::new(1.0, 0.0, 0.0, reflectivity),  // colour + reflectivity
+        Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
+    // (Intensity, 1)
+    let attenuation: Matrix4<f32> =
+      Matrix4::from_cols(
+        Vector4::new(0.1, 0.25, 0.25, -1.0),
+        Vector4::new(0.1, 0.25, 0.25, -1.0),
+        Vector4::new(0.5, 0.0, 0.0, -1.0),
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
     let uniform_data = vs_3d::ty::Data {
       transformation: transformation.into(),
       view : (self.view * self.scale).into(),
       proj : self.projection_3d.into(),
-      lightposition_shinedamper: Vector4::new(0.0, 0.0, 0.0, 10.0).into(),
-      lightcolour_reflectivity: Vector4::new(1.0, 1.0, 1.0,  1.0).into(),
-      attenuation: Vector4::new(1.0, 0.0, 0.0, -1.0).into(),
+      lightpositions: lighting_position.into(),
+      lightcolours: lighting_colour.into(),
+      attenuations: attenuation.into(),
     };
 
     self.uniform_buffer_3d.next(uniform_data).unwrap()
@@ -520,6 +553,66 @@ impl CoreRender for RawVk {
     self.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
     self.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
+    
+		let size = 800;
+		let vertex_count = 128;
+		
+		let count = vertex_count*vertex_count;
+		
+		let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(count);
+		let mut normals: Vec<[f32; 3]> = Vec::with_capacity(count);
+		let mut uv: Vec<[f32; 2]> = Vec::with_capacity(count);
+	  let mut indices: Vec<u16> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
+	  
+	  for i in 0..vertex_count {
+	    for j in 0..vertex_count {
+	      vertices.push(
+	        [j as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5,
+				  0.0,
+				  i as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5]);
+				normals.push([0.0, 1.0, 0.0]);
+				uv.push([j as f32/(vertex_count - 1) as f32,
+				         i as f32/(vertex_count - 1) as f32]);
+	    }
+	  }
+	  
+	  for gz in 0..vertex_count-1 {
+	    for gx in 0..vertex_count-1 {
+	      let top_left: u16 = ((gz*vertex_count)+gx) as u16;
+	      let top_right: u16 = (top_left + 1) as u16;
+	      let bottom_left: u16 = (((gz+1)*vertex_count)+gx) as u16;
+	      let bottom_right: u16 = (bottom_left + 1) as u16;
+	      indices.push(top_left);
+	      indices.push(bottom_left);
+	      indices.push(top_right);
+	      indices.push(top_right);
+	      indices.push(bottom_left);
+	      indices.push(bottom_right);
+	    }
+	  }
+	  
+	  let mut vertex: Vec<model_data::Vertex> = Vec::new();
+    
+    for i in 0..vertices.len() {      
+      vertex.push(model_data::Vertex {
+          position: vertices[i],
+          normal: normals[i],
+          uv: uv[i],
+        }
+      );
+    }
+    
+    let vert3d_buffer = self.create_vertex(vertex.iter().cloned());
+    let (idx_3d_buffer, future_3d_idx) = self.create_index(indices.iter().cloned()); 
+    
+    let model = Model {
+      vertex_buffer: vec!(vert3d_buffer),
+      index_buffer: idx_3d_buffer,
+    };
+    
+    self.models.insert(String::from("terrain"), model);
+    
+    self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
   
   fn init(&mut self) {    

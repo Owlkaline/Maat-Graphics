@@ -41,7 +41,7 @@ impl Settings {
     Settings {
       vulkan: true,
       fullscreen: false,
-      resolution: [1024, 768],
+      resolution: [1280, 800],
     }
   }
   
@@ -54,7 +54,7 @@ impl Settings {
   }
   
   pub fn get_minimum_resolution(&self) -> [u32; 2] {
-    [1024, 768]
+    [1280, 800]
   }
   
   pub fn get_resolution(&mut self) -> [u32; 2] {

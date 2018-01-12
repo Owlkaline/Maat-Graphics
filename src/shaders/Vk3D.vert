@@ -6,32 +6,35 @@ layout(location = 2) in vec2 uv;
 
 layout(location = 0) out vec3 v_normal;
 layout(location = 1) out vec2 v_uv;
-layout(location = 2) out vec3 toLightVector;
-layout(location = 3) out vec3 toCameraVector;
-layout(location = 4) out vec3 lightColour;
-layout(location = 5) out vec3 attenuation;
-layout(location = 6) out vec2 damper_reflectivity;
+layout(location = 2) out vec3 toCameraVector;
+layout(location = 3) out vec2 damper_reflectivity;
+layout(location = 4) out vec3 toLightVector[4];
+layout(location = 8) out vec3 lightColour[4];
+layout(location = 12) out vec3 attenuation[4];
 
 layout(set = 0, binding = 0) uniform Data {
     mat4 transformation;
     mat4 view;
     mat4 proj;
-    vec4 lightposition_shinedamper;
-    vec4 lightcolour_reflectivity;
-    vec4 attenuation;
+    mat4 lightpositions;
+    mat4 lightcolours;
+    mat4 attenuations;
 } uniforms;
 
 void main() {
-    damper_reflectivity = vec2(uniforms.lightposition_shinedamper.w, uniforms.lightcolour_reflectivity.w);
-    attenuation = uniforms.attenuation.xyz;
-    lightColour = uniforms.lightcolour_reflectivity.xyz;
-    
+    vec4 worldPosition = uniforms.transformation * vec4(position, 1.0);
+
     v_uv = uv;
     v_normal = (uniforms.transformation * vec4(normal, 0.0)).xyz;
+    damper_reflectivity = vec2(uniforms.lightcolours[0].w, uniforms.lightcolours[1].w);
     
-    vec4 worldPosition = uniforms.transformation * vec4(position, 1.0);
-    toLightVector = uniforms.lightposition_shinedamper.xyz - worldPosition.xyz;
     toCameraVector = (inverse(uniforms.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
+    
+    for(int i = 0; i < 4; ++i) {
+      attenuation[i]   = uniforms.attenuations[i].xyz;
+      lightColour[i]   = uniforms.lightcolours[i].xyz;
+      toLightVector[i] = uniforms.lightpositions[i].xyz - worldPosition.xyz;
+    }
     
     gl_Position = uniforms.proj * uniforms.view * worldPosition;
 }

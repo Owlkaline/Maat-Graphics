@@ -28,7 +28,7 @@ pub struct Loader {
 }
 
 impl Loader {
-  pub fn load_opengex(location: String, texture: String) -> Loader {
+  pub fn load_opengex(location: String, texture: String) -> Loader {    
     let mut file_h = File::open("resources/models/opengex-syntax.txt").unwrap();
     let mut source = String::new();
     file_h.read_to_string(&mut source).unwrap();
@@ -40,6 +40,9 @@ impl Loader {
     let mut data = vec![];
     stderr_unwrap(&source, parse(&rules, &source, &mut data));
     
+    for i in data.len()-20 .. data.len() {
+      println!("{:?}", data[i]);
+    }
     let s = Search::new(&data);
     
     let transform: Matrix4<f32> = stderr_unwrap(&source, s.for_node("Transform",
@@ -182,7 +185,26 @@ impl Loader {
             }
             Ok(is)
     }));
-            
+    
+    //let mut diffuse = stderr_unwrap(&source, s.for_bool("diffuse", true, |ref mut s|{}));
+   /* let mut diffuse: Vec<[f32; 3]> = stderr_unwrap(&source, s.for_string("up", "z",
+        |ref mut s| {
+            println!("IT WORKS BITCHES");
+            let mut vs = Vec::with_capacity(24);
+            loop {
+                vs.push([
+                   match s.f64("x") {
+                     Ok(t)  => t,
+                     Err(e) => break,
+                   } as f32,
+                    try!(s.f64("y")) as f32,
+                    try!(s.f64("z")) as f32
+                ]);
+            }
+            Ok(vs)
+        }));*/
+    
+      
     Loader {
       vertex: verticies,
       index: indicies,
