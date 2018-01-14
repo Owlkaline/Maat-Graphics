@@ -930,7 +930,8 @@ impl CoreRender for RawVk {
   
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
 
-    let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
+    //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
+    let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
     
     self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));  
   }

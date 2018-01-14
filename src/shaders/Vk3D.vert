@@ -25,7 +25,7 @@ void main() {
     vec4 worldPosition = uniforms.transformation * vec4(position, 1.0);
 
     v_uv = uv;
-    v_normal = (uniforms.transformation * vec4(normal, 0.0)).xyz;
+    v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
     damper_reflectivity = vec2(uniforms.lightcolours[0].w, uniforms.lightcolours[1].w);
     
     toCameraVector = (inverse(uniforms.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;

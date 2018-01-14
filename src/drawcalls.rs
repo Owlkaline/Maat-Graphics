@@ -4,6 +4,7 @@ use font::GenericFont;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
+use cgmath::Matrix2;
 use cgmath::Matrix4;
 
 use std::collections::HashMap;
@@ -434,6 +435,19 @@ impl DrawMath {
      let y_h: f32 = y + c.get_height() as f32;
      
      Vector4::new(x, y, x_w, y_h)
+   }
+   
+   pub fn rotate(angle: f32) -> (f32, f32) {
+     let mut crnt_pos = Vector2::new(0.0, 1.0);
+     
+     let mut rotation_mat = Matrix2::new(
+       angle.cos(), -(angle.sin()),
+       angle.sin(), angle.cos()
+     );
+     
+     let new_pos = rotation_mat * crnt_pos;
+     
+     (new_pos.x, new_pos.y)
    }
    
    pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
