@@ -1,11 +1,13 @@
 use font::GenericCharacter;
 use font::GenericFont;
 
+use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix2;
 use cgmath::Matrix4;
+use cgmath::InnerSpace;
 
 use std::collections::HashMap;
 
@@ -36,8 +38,24 @@ impl DrawCall {
       text: String::from(""),
       text_wrapping: 0,
       centered: false,
-      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      is_model: false,      
+      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      is_model: false,
+    }
+  }
+  
+  pub fn text(x: f32, y: f32, text: String) -> DrawCall {
+    DrawCall {
+      position: Vector3::new(x, y, 0.0),
+      rotation: Vector3::new(0.0, 0.0, 0.0),
+      size: Vector2::new(128.0, 128.0),
+      texture: String::from("Arial"),
+      colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
+      outline_colour: Vector3::new(0.0, 0.0, 0.0),
+      text: text,
+      text_wrapping: 0,
+      centered: false,
+      edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
+      is_model: false,
     }
   }
   
@@ -73,6 +91,11 @@ impl DrawCall {
     }
   }
   
+  pub fn center_text(mut self) -> DrawCall {
+    self.centered = true;
+    self
+  }
+  
   pub fn with_colour(mut self, r: f32, g: f32, b: f32, a: f32) -> DrawCall {
     self.colour = Vector4::new(r, g, b, a);
     self
@@ -91,6 +114,11 @@ impl DrawCall {
   pub fn with_scale(mut self, x_scale: f32, y_scale: f32) -> DrawCall {
     self.size.x = x_scale;
     self.size.y = y_scale;
+    self
+  }
+  
+  pub fn with_2d_rotation(mut self, rot: f32) -> DrawCall {
+    self.rotation.x = rot;
     self
   }
   
@@ -386,8 +414,12 @@ impl DrawMath {
     new_draw_calls
   }
   
-  pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>) -> Matrix4<f32>{
-    let mut model = Matrix4::from_translation(translation);
+  pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32>{
+    
+    let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
+    let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(rotation));
+    
+    let mut model = Matrix4::from_translation(translation)*rotation;
     model = model * Matrix4::from_nonuniform_scale(size.x, size.y, 1.0);
     model
   }
@@ -428,7 +460,7 @@ impl DrawMath {
     model
   }
   
-   pub fn calculate_text_uv(c: &GenericCharacter) -> Vector4<f32> {         
+   pub fn calculate_text_uv(c: &GenericCharacter) -> Vector4<f32> {
      let x: f32 = c.get_x() as f32;
      let y: f32 = c.get_y() as f32;
      let x_w: f32 = x + c.get_width() as f32;
@@ -482,36 +514,81 @@ impl DrawMath {
      } else {
        angle_y -= q3;
        z_rot = angle_y/90.0;
-       x_rot = angle_y/90.0 - 1.0;      
+       x_rot = angle_y/90.0 - 1.0;
      }
      
      (x_rot, z_rot)
    }
    
-   pub fn box_collision(a: Vector4<f32>, b: Vector4<f32>) -> bool {
-     let box_a: Vector4<f32> = 
-       Vector4::new(
-         a.x + a.z*0.5,
-         a.y + a.w*0.5,
-         a.x - a.z*0.5,
-         a.y - a.w*0.5
-       );
+   /// Simple collision between two cicles given
+   /// a Vector3(center_x, center_y, raidus)
+   ///
+   /// # Examples
+   /// 
+   /// Simple example with circles that do collide.
+   ///
+   /// ```
+   /// # extern crate maat_engine;
+   /// # extern crate cgmath;
+   /// let a = cgmath::Vector3::new(1.0, 1.0, 5.0);
+   /// let b = cgmath::Vector3::new(-1.0, -1.0, 4.0);
+   /// assert!(maat_engine::drawcalls::DrawMath::circle_collision(a, b));
+   /// ```
+   ///
+   /// Simple eample with circle that dont collide.
+   /// 
+   /// ```
+   /// # extern crate maat_engine;
+   /// # extern crate cgmath;
+   /// let a = cgmath::Vector3::new(10.0, 10.0, 5.0);
+   /// let b = cgmath::Vector3::new(-10.0, -10.0, 4.0);
+   /// assert!(!maat_engine::drawcalls::DrawMath::circle_collision(a, b));
+   /// ```
+   /// 
+   pub fn circle_collision(a: Vector3<f32>, b: Vector3<f32>) -> bool {
+     let dist = a.z + b.z;
+     let dx = b.x - a.x;
+     let dy = b.y - a.y;
      
-     let box_b: Vector4<f32> =
-       Vector4::new(
-         b.x + b.z*0.5,
-         b.y + b.w*0.5,
-         b.x - b.z*0.5,
-         b.y - b.w*0.5
-       );
-     
-     let mut collision = false;
-     
-     if box_a.x >= box_b.z && box_a.z <= box_b.x &&
-        box_a.y >= box_b.w && box_a.w <= box_b.y {
-       collision = true;   
+     if dx*dx + dy*dy < dist*dist {
+       return true
      }
      
-     collision
+     false
+   }
+   
+   /// Simple collision between two box's given
+   /// a Vector4(center_x, center_y, width, height)
+   ///
+   /// # Examples
+   /// 
+   /// Simple example with box's that do collide.
+   ///
+   /// ```
+   /// # extern crate maat_engine;
+   /// # extern crate cgmath;
+   /// let a = cgmath::Vector4::new(1.0, 1.0, 5.0, 5.0);
+   /// let b = cgmath::Vector4::new(-1.0, -1.0, 4.0, 4.0);
+   /// assert!(maat_engine::drawcalls::DrawMath::box_collision(a, b));
+   /// ```
+   ///
+   /// Simple eample with circle that dont collide.
+   /// 
+   /// ```
+   /// # extern crate maat_engine;
+   /// # extern crate cgmath;
+   /// let a = cgmath::Vector4::new(10.0, 10.0, 5.0, 5.0);
+   /// let b = cgmath::Vector4::new(-10.0, -10.0, 4.0, 4.0);
+   /// assert!(!maat_engine::drawcalls::DrawMath::box_collision(a, b));
+   /// ```
+   /// 
+   pub fn box_collision(a: Vector4<f32>, b: Vector4<f32>) -> bool {
+     if a.x+a.z*0.5 < b.x-b.z*0.5 || a.x-a.z*0.5 > b.x+b.z*0.5 {
+       return false
+     }
+     if a.y+a.w*0.5 < b.y-b.w*0.5 || a.y-a.w*0.5 > b.y+b.w*0.5 {
+       return false   
+     }
+     true
    }
 }

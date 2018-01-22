@@ -5,6 +5,7 @@ use shaders::ShaderProgram;
 use graphics::CoreRender;
 use settings::Settings;
 use font::GenericFont;
+use camera::Camera;
 use model_data;
 
 use cgmath;
@@ -183,7 +184,7 @@ impl RawGl {
   fn draw_square(&self, object: &DrawCall) {
     let colour = object.get_colour();
     
-    let model = DrawMath::calculate_texture_model(object.get_translation(), object.get_size());
+    let model = DrawMath::calculate_texture_model(object.get_translation(), object.get_size(), object.get_z_rotation());
     
     unsafe {
       gl::UseProgram(self.shader_id[0]);
@@ -683,6 +684,8 @@ impl CoreRender for RawGl {
   fn hide_cursor(&mut self) {
     self.window.hide_cursor();
   }
+  
+  fn set_camera(&mut self, camera: Camera){}
   
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>){}
 }

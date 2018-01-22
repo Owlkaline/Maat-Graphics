@@ -21,6 +21,8 @@ use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
 use vulkano::swapchain::SwapchainCreationError;
 
+use vulkano::swapchain::CompositeAlpha;
+
 use std::mem;
 use std::sync::Arc;
 
@@ -91,35 +93,45 @@ impl GlWindow {
     }
   }
   
+  /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
     self.window.set_title(&title);
   }
   
+  /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> [u32; 2] {
     let (width, height) = self.window.get_inner_size_pixels().unwrap();
     [width as u32, height as u32]
   }
   
+  /// Returns a reference to the events loop
   pub fn get_events(&mut self) -> &mut winit::EventsLoop {
     &mut self.events
   }
   
+  /// Swaps the drawing buffer
   pub fn swap_buffers(&mut self) {
     self.window.swap_buffers().unwrap();
   }
   
+  /// Resizes the current window
   pub fn resize_screen(&mut self, dimensions: [u32; 2]) {
     self.window.resize(dimensions[0], dimensions[1]);
   }
   
+  /// Returns the current dpi scale factor
+  ///
+  /// Needed to solve issues with Hidpi monitors
   pub fn get_dpi_scale(&self) -> f32 {
     self.window.hidpi_factor()
   }
   
+  /// Enables the cursor to be drawn whilst over the window
   pub fn show_cursor(&mut self) {
     self.window.set_cursor(winit::MouseCursor::Default);
   }
   
+  /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
     self.window.set_cursor(winit::MouseCursor::NoneCursor);
   }
@@ -199,18 +211,6 @@ impl VkWindow {
       
       (physical, queue)
     };
-      /*
-      let physical = PhysicalDevice::enumerate(&instance).next().expect("no device available");
-      
-      let queue = physical.queue_families().find(|&q| {
-          q.supports_graphics() && window.surface().is_supported(q).unwrap_or(false)
-        }
-      ).expect("couldn't find a graphical queue family");
-    }
-    println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
-    for family in physical.queue_families() {
-      println!("Found a queue family with {:?} queue(s)", family.queues_count());
-    }*/
     
     let (device, mut queues) = {
       let device_ext = DeviceExtensions {
@@ -222,7 +222,7 @@ impl VkWindow {
     };
   
     let queue = queues.next().unwrap();
-        let (swapchain, images) = {
+    let (swapchain, images) = {
       let caps = window.surface()
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
@@ -257,24 +257,28 @@ impl VkWindow {
           }
   }
   
+  /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
     self.window.set_title(title);
   }
   
+  // Returns a clone of device
   pub fn get_device(&self) -> Arc<Device> {
     self.device.clone()
   }
   
+  // Returns a clone of the queue
   pub fn get_queue(&self) -> Arc<Queue> {
     self.queue.clone()
   }
   
+  // Returns the queue as a reference
   pub fn get_queue_ref(&self) -> &Arc<Queue> {
     &self.queue
   }
   
+  // Recrates the swapchain to keep it relevant to the surface dimensions
   pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain>, Vec<Arc<SwapchainImage>>), SwapchainCreationError> {
-   // println!("re creating surface");
     let caps = self.window.surface()
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
@@ -288,43 +292,55 @@ impl VkWindow {
     self.swapchain.recreate_with_dimension(dimensions)
   }
   
+  // Replaces entire swap chain memory with parameter swapchain
   pub fn replace_swapchain(&mut self, new_swapchain: Arc<Swapchain>) {
     mem::replace(&mut self.swapchain, new_swapchain);
   }
   
+  // Returns a reference to the current swapchain image
   pub fn get_images(&self) -> &Vec<Arc<SwapchainImage>> {
     &self.images
   }
   
+  // Replaces the current swapchain image with parameter image with mem::replace
   pub fn replace_images(&mut self, new_images: Vec<Arc<SwapchainImage>>) {
     mem::replace(&mut self.images, new_images);
   }
   
+  // Returns a clone of the swapchain
   pub fn get_swapchain(&self) -> Arc<Swapchain> {
     self.swapchain.clone()
   }
   
+  // Returns the current swapchain format enum from vulkano::format::Format
   pub fn get_swapchain_format(&self) -> format::Format {
     self.swapchain.format()
   }
   
+  /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> [u32; 2] {
     let (width, height) = self.window.window().get_inner_size_pixels().unwrap();
     [width as u32, height as u32]
   }
   
+  /// Returns a reference to the events loop
   pub fn get_events(&mut self) -> &mut EventsLoop {
     &mut self.events
   }
   
+  /// Returns the current dpi scale factor
+  ///
+  /// Needed to solve issues with Hidpi monitors
   pub fn get_dpi_scale(&self) -> f32 {
     self.window.hidpi_factor()
   }
   
+  /// Enables the cursor to be drawn whilst over the window
   pub fn show_cursor(&mut self) {
     self.window.set_cursor(winit::MouseCursor::Default);
   }
   
+  /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
     self.window.set_cursor(winit::MouseCursor::NoneCursor);
   }

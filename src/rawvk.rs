@@ -4,6 +4,7 @@ use drawcalls::DrawCall;
 use drawcalls::DrawMath;
 use graphics::CoreRender;
 use settings::Settings;
+use camera::Camera;
 use model_data;
 
 use image;
@@ -37,6 +38,7 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 
 use vulkano::pipeline;
 use vulkano::pipeline::viewport::Viewport;
+use vulkano::pipeline::viewport::Scissor;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
 use vulkano::format;
@@ -52,6 +54,7 @@ use std::slice;
 use std::f32::consts;
 use std::marker::Sync;
 use std::marker::Send;
+use std::time::Duration;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -172,10 +175,10 @@ pub struct RawVk {
 
 impl RawVk {
   pub fn new() -> RawVk {
-    #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
     //avoid_winit_wayland_hack
-    println!("Forcing x11");
+    #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
     env::set_var("WINIT_UNIX_BACKEND", "x11");
+    println!("Forcing x11");
     
     let mut settings = Settings::load();
     let width = settings.get_resolution()[0];
@@ -280,8 +283,14 @@ impl RawVk {
   
   pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u16]>>,
                                     CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-    let indicies: [u16; 6] = [1, 2, 3, 0, 3, 1];
+    //Flickering at top and sides
+    //let indicies: [u16; 6] = [1, 2, 3, 0, 3, 1];
     
+    // Better, no flickering at top but worse flickering in corner
+    //let indicies: [u16; 6] = [0, 3, 1, 1, 2, 3];
+    
+    //let indicies: [u16; 6] = [2, 3, 1, 0, 1, 3];
+    let indicies: [u16; 6] = [0, 1, 2, 2, 3, 0];
     ImmutableBuffer::from_iter(indicies.iter().cloned(), 
                                BufferUsage::index_buffer(), 
                                self.window.get_queue())
@@ -302,14 +311,24 @@ impl RawVk {
                                  .expect("failed to create immutable teapot index buffer")
   }
   
-  pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,  
+  pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,
                                                                       Arc<memory::pool::StdMemoryPool>> {
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size());
-          
+    
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation());
+    
+    let has_texture = {
+      let mut value = 1.0;
+      if draw.get_texture() == &String::from("") {
+        value = 0.0;
+      }
+      value
+    };
+    
     let uniform_data = vs_texture::ty::Data {
-      colour: draw.get_colour().into(),
-      model: model.into(),
       projection: self.projection_2d.into(),
+      model: model.into(),
+      colour: draw.get_colour().into(),
+      has_texture: Vector4::new(has_texture, 0.0, 0.0, 0.0).into(),
     };
     self.uniform_buffer_texture.next(uniform_data).unwrap()
   }
@@ -383,7 +402,7 @@ impl RawVk {
   pub fn create_depth_buffer(&self) -> Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>> {
     Some(vkimage::attachment::AttachmentImage::transient(
                                 self.window.get_device().clone(),
-                                self.window.get_dimensions(),                             
+                                self.window.get_dimensions(),
                                 format::D16Unorm)
                                 .unwrap())
   }
@@ -470,6 +489,9 @@ impl CoreRender for RawVk {
     self.fonts.insert(reference.clone(), new_font);
   }
   
+  /// Prepares shaders, pipelines, and vertex, index buffers
+  /// # Warning
+  /// You must call this function otherwise will result in crash
   fn load_shaders(&mut self) {
     let dimensions = {
       self.window.get_dimensions()
@@ -524,6 +546,7 @@ impl CoreRender for RawVk {
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_3d.main_entry_point(), ())
         .depth_stencil_simple_depth()
+        .cull_mode_front()
         .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
@@ -534,6 +557,7 @@ impl CoreRender for RawVk {
         .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
+        //.blend_collective(pipeline::blend::AttachmentBlend::alpha_blending())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
@@ -554,6 +578,8 @@ impl CoreRender for RawVk {
     
     self.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
+    
+    // Terrain stuff
 		let size = 800;
 		let vertex_count = 128;
 		
@@ -615,14 +641,17 @@ impl CoreRender for RawVk {
     self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
   
+  /// Initalises some variables
   fn init(&mut self) {    
     self.framebuffers = None;
     
     self.recreate_swapchain = false;
   }
   
+  /// Loads the unloaded textures returning after ~16ms has passed to allow for 
+  /// updates whilst still loading
   fn dynamic_load(&mut self) {
-    let time_limit = 9.0;
+    let time_limit = 12.0;
     
     let mut delta_time;
     let frame_start_time = time::Instant::now();
@@ -668,10 +697,12 @@ impl CoreRender for RawVk {
     }
   }
   
+  /// Clears the screen
   fn clear_screen(&mut self) {
     self.previous_frame_end.as_mut().unwrap().cleanup_finished();
   }
   
+  /// Settings up drawing variables before the drawing commences
   fn pre_draw(&mut self) {    
     if self.recreate_swapchain {
       let dimensions = {
@@ -714,6 +745,7 @@ impl CoreRender for RawVk {
     }
   }
   
+  /// Draws everything that is in the drawcall passed to this function
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
    let (image_num, acquire_future) = match swapchain::acquire_next_image(self.window.get_swapchain(), None) {
       Ok(r) => r,
@@ -831,7 +863,7 @@ impl CoreRender for RawVk {
             // No Texture
             if draw.get_texture() == &String::from("") {
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
-                                         .add_sampled_image(self.textures.get("Candara").unwrap().clone(), self.sampler.clone()).unwrap()
+                                         .add_sampled_image(self.textures.get("Arial").expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
                                          .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                          .build().unwrap());
               
@@ -885,63 +917,88 @@ impl CoreRender for RawVk {
         .unwrap()
         .build().unwrap() as AutoCommandBuffer
     };
-      
+  
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
       .then_execute(self.window.get_queue(), command_buffer).unwrap()
       .then_swapchain_present(self.window.get_queue(), self.window.get_swapchain(), image_num)
       .then_signal_fence_and_flush().unwrap();
-      
-      
+    
+    // <hacks>
+    /*    match future.wait(Some(Duration::from_millis(100))) {
+            Ok(x) => x,  // type unit
+            Err(err) => println!("err: {:?}", err), // never see this
+        }*/
+    // </hacks>
+    
     self.previous_frame_end = Some(Box::new(future) as Box<_>);
   }
   
+  /// Tells engine it needs to update as window resize has occured
   fn screen_resized(&mut self) {
     self.recreate_swapchain = true;
   }
   
+  /// Returns the dimensions of the drawing window as u32
   fn get_dimensions(&self) -> [u32; 2] {
     let dimensions: [u32; 2] = self.window.get_dimensions();
     dimensions
   }
   
+  /// Returns a reference to the events loop
   fn get_events(&mut self) -> &mut winit::EventsLoop {
     self.window.get_events()
   }
   
+  /// Returns all loaded fonts in a HashMap
   fn get_fonts(&self) -> HashMap<String, GenericFont> {
     self.fonts.clone()
   }
   
+  /// Returns the current dpi scale factor
+  ///
+  /// Needed to solve issues with Hidpi monitors
   fn get_dpi_scale(&self) -> f32 {
     self.window.get_dpi_scale()
   }
   
+  /// Queries if the engine has loaded all textures and models
   fn is_ready(&self) -> bool {
     self.ready
   }
   
+  /// Enables the cursor to be drawn whilst over the window
   fn show_cursor(&mut self) {
     self.window.show_cursor();
   }
   
+  /// Disables the cursor from being drawn whilst over the window
   fn hide_cursor(&mut self) {
     self.window.hide_cursor();
   }
   
+  /// Sets camera location based on a position Vector3 and rotation in the x 
+  /// and y axis with a Vector2
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
 
     //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
     let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
     
-    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));  
+    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
   }
   
+  // Sets the clear colour for the window to display if nothing is draw in an area
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     self.clear_colour = Vector4::new(r,g,b,a);
   }
   
+  /// Sets the camera location, rotation, view given a Camera object
+  fn set_camera(&mut self, camera: Camera) {}
+  
+  /// does nothing in vulkan
   fn post_draw(&self) {}
+  /// does nothing in vulkan
   fn clean(&self) {}
+  /// does nothing
   fn swap_buffers(&mut self) {}
 }
 

@@ -1,6 +1,7 @@
 use drawcalls::DrawCall;
 use std::collections::HashMap;
 use font::GenericFont;
+use camera::Camera;
 
 use winit;
 
@@ -41,5 +42,6 @@ pub trait CoreRender {
   fn hide_cursor(&mut self);
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>);
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32);
+  fn set_camera(&mut self, camera: Camera);
 }
 
