@@ -157,54 +157,6 @@ impl DrawCall {
     self
   }
   
-  pub fn new_model(x: f32, y: f32, z: f32, scale: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, model: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x,y, z),
-      rotation: Vector3::new(rotation_x, rotation_y, rotation_z),
-      size: Vector2::new(scale, scale),
-      texture: model,
-      colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      is_model: true,
-    }
-  }
-  
-  pub fn new_textured(x: f32, y: f32, x_size: f32, y_size: f32, texture: String) -> DrawCall {
-    DrawCall { 
-      position: Vector3::new(x,y, 0.0), 
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(x_size,y_size), 
-      texture: texture, 
-      colour: Vector4::new(1.0,1.0,1.0,-1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.5, 0.1, 0.1, 0.0),
-      is_model: false,
-    }
-  }
-  
-  pub fn new_untextured(x: f32, y: f32, x_size: f32, y_size: f32, colour: Vector4<f32>) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x,y, 0.0), 
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(x_size,y_size), 
-      texture: String::from(""), 
-      colour: colour,
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.5, 0.1, 0.1, 0.0),
-      is_model: false,
-    }
-  }
-  
   pub fn new_plain_text(text: String, x: f32, y: f32, size: f32, wrap_length: i32, colour: Vector4<f32>, centered: bool, font: String) -> DrawCall {
     DrawCall {
       position: Vector3::new(x,y, 0.0), 
