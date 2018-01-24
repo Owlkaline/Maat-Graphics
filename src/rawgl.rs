@@ -181,21 +181,29 @@ impl RawGl {
     }
   }
   
-  fn draw_square(&self, object: &DrawCall) {
-    let colour = object.get_colour();
+  fn draw_square(&self, draw: &DrawCall) {
+    let colour = draw.get_colour();
+    let has_texture = {
+      let mut value = 1.0;
+      if draw.get_texture() == &String::from("") {
+        value = 0.0;
+      }
+      value
+    };
     
-    let model = DrawMath::calculate_texture_model(object.get_translation(), object.get_size(), object.get_z_rotation());
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation());
     
     unsafe {
       gl::UseProgram(self.shader_id[0]);
       
       gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("model").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&model[0]));
       
-      gl::Uniform4f(gl::GetUniformLocation(self.shader_id[0], CString::new("colour").unwrap().as_ptr()), colour.x, colour.y, colour.z, colour.w);
+      gl::Uniform4f(gl::GetUniformLocation(self.shader_id[0], CString::new("new_colour").unwrap().as_ptr()), colour.x, colour.y, colour.z, colour.w);
+      gl::Uniform4f(gl::GetUniformLocation(self.shader_id[0], CString::new("has_texture").unwrap().as_ptr()), has_texture, 0.0, 0.0, 0.0);
       
-      if object.get_colour().w == -1.0 {
+      if draw.get_colour().w == -1.0 {
         gl::ActiveTexture(gl::TEXTURE0);
-        gl::BindTexture(gl::TEXTURE_2D, *self.textures.get(object.get_texture()).unwrap());
+        gl::BindTexture(gl::TEXTURE_2D, *self.textures.get(draw.get_texture()).unwrap());
       }
       
       gl::DrawArrays(gl::TRIANGLES, 0, 6);
@@ -207,14 +215,14 @@ impl RawGl {
     
     let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
     let size = draw.get_x_size();
-            
-    for letter in wrapped_draw {              
+    
+    for letter in wrapped_draw {
       let char_letter = {
         letter.get_text().as_bytes()[0] 
       };
-              
+      
       let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
-
+      
       let model = DrawMath::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
       let letter_uv = DrawMath::calculate_text_uv(&c.clone());
       let colour = letter.get_colour();
@@ -504,7 +512,7 @@ impl CoreRender for RawGl {
       
       gl::UseProgram(self.shader_id[0]);
       // texture shader
-      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[0], CString::new("image").unwrap().as_ptr()), 0);
+      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[0], CString::new("tex").unwrap().as_ptr()), 0);
       gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
       
       // Create Vertex Array Object
