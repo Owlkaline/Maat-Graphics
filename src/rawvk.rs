@@ -455,7 +455,8 @@ impl CoreRender for RawVk {
     let texture_start_time = time::Instant::now();
     
     let (texture, tex_future) = {
-      let image = image::open(&location).unwrap().to_rgba(); 
+      let texture = location.clone();
+      let image = image::open(&location).expect(&("No file or Directory at: ".to_string() + &texture)).to_rgba(); 
       let (width, height) = image.dimensions();
       let image_data = image.into_raw().clone();
 
@@ -886,8 +887,10 @@ impl CoreRender for RawVk {
               }
             } else {
               // Texture
+              let texture = draw.get_texture();
+              
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
-                                      .add_sampled_image(self.textures.get(draw.get_texture()).expect("Unknown Texture").clone(), self.sampler.clone()).unwrap()
+                                      .add_sampled_image(self.textures.get(draw.get_texture()).expect(&("Unknown Texture".to_string() + texture)).clone(), self.sampler.clone()).unwrap()
                                       .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                       .build().unwrap());
               

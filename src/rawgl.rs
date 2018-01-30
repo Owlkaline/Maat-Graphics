@@ -410,7 +410,8 @@ impl CoreRender for RawGl {
       gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
       //gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
       
-      let image = image::open(&location).unwrap().to_rgba(); 
+      let texture = location.clone();
+      let image = image::open(&location).expect(&("No file or Directory at: ".to_string() + &texture)).to_rgba(); 
       let (width, height) = image.dimensions();
       let image_data = image.into_raw().clone();
      
