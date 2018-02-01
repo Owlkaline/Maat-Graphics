@@ -17,6 +17,7 @@ use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
+use cgmath::Matrix3;
 use cgmath::Matrix4;
 use cgmath::InnerSpace;
 
@@ -37,6 +38,8 @@ use std::collections::HashMap;
 
 pub const TEXTURE: usize = 0;
 pub const TEXT: usize = 1;
+
+pub const MODEL: usize = 0;
 
 pub struct Vao {
   vao: GLuint,
@@ -148,19 +151,17 @@ pub struct GL2D {
   projection: Matrix4<f32>
 }
 
+pub struct GL3D {
+  shaders: Vec<Box<ShaderFunctions>>,
+  models: HashMap<String, Vao>,
+  projection: Matrix4<f32>,
+}
+
 #[derive(Clone)]
 pub struct ModelInfo {
   location: String,
   texture: String,
 }
-
-#[derive(Clone, Debug)]
-pub struct Model {
-  vao: GLuint,
-  ebo: GLuint,
-  index_len: i32,
-}
-
 
 pub struct RawGl {
   ready: bool,
@@ -173,11 +174,10 @@ pub struct RawGl {
   clear_colour: Vector4<f32>,
   
   gl2D: GL2D,
+  gl3D: GL3D,
   
-  projection_3d: Matrix4<f32>,
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
-  models: HashMap<String, Model>,
   
   pub window: GlWindow,
 }
@@ -199,10 +199,10 @@ impl RawGl {
     let window = GlWindow::new(width, height, min_width, min_height, fullscreen);
     
     let proj_2d = cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
-    let proj_3d = cgmath::perspective(cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0);
+    let proj_3d = cgmath::perspective(cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0) * cgmath::Matrix4::from_scale(-1.0);
     
-    let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, 1.0, 0.0));
-    let scale = cgmath::Matrix4::from_scale(0.01);
+    let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
+    let scale = cgmath::Matrix4::from_scale(0.1);
     
     unsafe {
       gl::Viewport(0, 0, (width as i32 *2) as i32, (height as i32 *2) as i32);
@@ -224,10 +224,14 @@ impl RawGl {
         projection: proj_2d,
       },
       
-      projection_3d: proj_3d,
+      gl3D: GL3D {
+        shaders: Vec::new(),
+        models: HashMap::new(),
+        projection: proj_3d,
+      },
+      
       view: view,
       scale: scale,
-      models: HashMap::with_capacity(10), 
       
       window: window,
     }
@@ -238,46 +242,95 @@ impl RawGl {
     self
   }
   
+  fn load_2d_vao(&mut self) {
+    let square_verts: Vec<GLfloat> = vec!(
+       0.5,  0.5, 1.0, 1.0, // top right
+       0.5, -0.5, 1.0, 0.0, // bottom right
+      -0.5, -0.5, 0.0, 0.0, // bottom left
+      -0.5,  0.5, 0.0, 1.0, // top left 
+    );
+  
+    let square_indices: Vec<GLuint> = vec!(  // note that we start from 0!
+      0, 1, 3,   // first triangle
+      1, 2, 3    // second triangle
+    );
+    
+    self.gl2D.vao.bind();
+    self.gl2D.vao.create_ebo(square_indices, gl::STATIC_DRAW);
+    self.gl2D.vao.create_vbo(square_verts, gl::STATIC_DRAW);
+    
+    self.gl2D.vao.set_vertex_attrib(0, 2, 4, 0);
+    self.gl2D.vao.set_vertex_attrib(1, 2, 4, 2);
+  }
+  
   fn draw_3d(&mut self, draw: &DrawCall) {
-   /* let model = self.models.get(draw.get_texture()).expect("Invalid model name").clone();
-
+    
     unsafe {
-      gl::UseProgram(self.shader_id[2]);
-      
       gl::Enable(gl::DEPTH_TEST);
-      // Accept fragment if it closer to the camera than the former one
       gl::DepthFunc(gl::LESS);
-     
-      let axis_x = Vector3::new(1.0, 0.0, 0.0).normalize();
-      let axis_y = Vector3::new(0.0, 1.0, 0.0).normalize();
-      let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
+    }
+    
+    let model = self.gl3D.models.get(draw.get_texture()).expect("Invalid model name").clone();
+    
+    let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
+    let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
+    let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
       
-      let rotation_x: Matrix4<f32> = Matrix4::from_axis_angle(axis_x, Deg(draw.get_x_rotation()));
-      let rotation_y: Matrix4<f32> = Matrix4::from_axis_angle(axis_y, Deg(draw.get_y_rotation()));
-      let rotation_z: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(draw.get_z_rotation()));
-      
-      let world = cgmath::Matrix4::from_translation(draw.get_translation()) * (rotation_x*rotation_y*rotation_z);
-      let view: Matrix4<f32> = (self.view * cgmath::Matrix4::from_scale(draw.get_size().x)).into();
-      
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[2], CString::new("world").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&world[0]));
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[2], CString::new("view").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&view[0]));
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[2], CString::new("proj").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_3d[0]));
-      
-      gl::BindVertexArray(model.vao);
-      //gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, model.index_buffer);
-      
-      gl::DrawElements(
-        gl::TRIANGLES,
-        model.index_len,
-        gl::UNSIGNED_INT,
-        ptr::null()
+    let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation()) * cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
+    
+    let lighting_position: Matrix4<f32> =
+      Matrix4::from_cols(
+        Vector4::new(0.0, -0.6, 25.0, -1.0),
+        Vector4::new(7.0, -0.6, 25.0, -1.0),
+        Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
-      
+    
+    let reflectivity = 1.0;
+    let shine_damper = 10.0;
+    
+    let lighting_colour: Matrix4<f32> =
+      // (R, G, B, n/a)
+      Matrix4::from_cols(
+        Vector4::new(0.0, 0.0, 1.0, -1.0), // colour + shinedamper
+        Vector4::new(1.0, 0.0, 0.0, -1.0),  // colour + reflectivity
+        Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
+    // (Intensity, 1)
+    let attenuation: Matrix4<f32> =
+      Matrix4::from_cols(
+        Vector4::new(0.1, 0.25, 0.25, -1.0),
+        Vector4::new(0.1, 0.25, 0.25, -1.0),
+        Vector4::new(0.5, 0.0, 0.0, -1.0),
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
+    let view = self.view * self.scale;
+    
+    let mut texture = String::from("default");
+    if self.textures.contains_key(draw.get_texture()) {
+      texture = draw.get_texture().clone();
+    }
+    let texture = *self.textures.get(&texture).unwrap();
+    
+    self.gl3D.shaders[MODEL].Use();
+    self.gl3D.shaders[MODEL].set_mat4(String::from("transformation"), transformation);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("view"), view);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("lightpositions"), lighting_position);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("lightcolours"), lighting_colour);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("attenuations"), attenuation);
+    self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
+    self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
+    
+    model.activate_texture0(texture);
+    model.draw_indexed(gl::TRIANGLES);
+    
+    unsafe {
       gl::Disable(gl::DEPTH_TEST);
-      
-      //gl::BindVertexArray(self.vao_2d);
-      gl::UseProgram(0);
-    }*/
+    }
   }
   
   fn draw_square(&self, draw: &DrawCall) {
@@ -355,118 +408,38 @@ impl CoreRender for RawGl {
     let model = model_data::Loader::load_opengex(location.clone(), texture);
     
     let vertex = model.get_verticies();
-    let index: Vec<u16> = model.get_indicies();
-/*    
-    let mut verticies: Vec<f32> = Vec::with_capacity(10);
-    let mut normals: Vec<f32> = Vec::with_capacity(10);
-    let mut uv: Vec<f32> = Vec::with_capacity(10);
-    //let mut indicies: Vec<u16> = Vec::with_capacity(10);
     
-    for vert in vertex {
-      for pos in vert.position.iter() {
-        verticies.push(*pos);
-      }
-      
-      for norm in vert.normal.iter() {
-        normals.push(*norm);
-      }
-      
-      for u_uv in vert.uv.iter() {
-        uv.push(*u_uv);
-      }
-    }*/
+    let mut vertices: Vec<GLfloat> = Vec::new();
     
-    let mut vao: GLuint = 0;
-    let mut vbo: GLuint = 0;
-    let mut ebo: GLuint = 0;
-    
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-      gl::GenBuffers(1, &mut vbo);
-      gl::GenBuffers(1, &mut ebo);
+    for vertex in model.get_verticies() {
+      vertices.push(vertex.position[0]);
+      vertices.push(vertex.position[1]);
+      vertices.push(vertex.position[2]);
       
-      gl::BindVertexArray(vao);
+      vertices.push(vertex.normal[0]);
+      vertices.push(vertex.normal[1]);
+      vertices.push(vertex.normal[2]);
       
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (vertex.len() * mem::size_of::<model_data::Vertex>()) as GLsizeiptr,
-                     mem::transmute(&vertex[0]),
-                     gl::STATIC_DRAW);
-                     
-      gl::UseProgram(self.shader_id[2]);
-      
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                     (index.len() * mem::size_of::<u16>()) as GLsizeiptr,
-                     mem::transmute(&index[0]),
-                     gl::STATIC_DRAW);
-      
-      gl::EnableVertexAttribArray(0);
-      gl::VertexAttribPointer(0,
-                              3,
-                              gl::FLOAT,
-                              gl::FALSE as GLboolean,
-                              8*mem::size_of::<model_data::Vertex>() as i32,
-                              ptr::null());
-      
-      gl::EnableVertexAttribArray(1);
-      gl::VertexAttribPointer(1,
-                              3,
-                              gl::FLOAT,
-                              gl::FALSE as GLboolean,
-                              8*mem::size_of::<model_data::Vertex>() as i32, 
-                              ptr::null().offset(3*mem::size_of::<GLfloat>() as isize));
-      
-      gl::EnableVertexAttribArray(2);
-      gl::VertexAttribPointer(2, 
-                              2, 
-                              gl::FLOAT, 
-                              gl::FALSE as GLboolean, 
-                              8*mem::size_of::<model_data::Vertex>() as i32, 
-                              ptr::null().offset(6*mem::size_of::<GLfloat>() as isize));
-      
-      gl::BindVertexArray(0);
-    }
-   /* let mut vao: GLuint = 0;
-    // Create Vertex Array Object
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-      gl::BindVertexArray(vao);
+      vertices.push(vertex.uv[0]);
+      vertices.push(vertex.uv[1]);
     }
     
-    self.store_f32_in_attribute_list(0, 3, verticies);
-    self.store_f32_in_attribute_list(1, 3, normals);
-    self.store_f32_in_attribute_list(2, 2, uv); 
+    let indices = model.get_indicies().iter().map( |index| {
+        *index as GLuint
+      }
+    ).collect::<Vec<GLuint>>();
     
-    unsafe {
-      // Create a Vertex Buffer Object and copy the vertex data to it
-      gl::GenBuffers(1, &mut ebo);
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                     (index.len() * mem::size_of::<u16>()) as GLsizeiptr,
-                     mem::transmute(&index[0]),
-                     gl::STATIC_DRAW);*/
-      
-     /* gl::VertexAttribPointer(3 as GLuint,
-                              index.len(),
-                              gl::FLOAT,
-                              gl::FALSE as GLboolean,
-                              0,
-                              ptr::null());*/
-    //}
-    /*
-    unsafe {
-      gl::BindVertexArray(0);
-    }*/
+    let mut vao: Vao = Vao::new();
     
-    let model = Model {
-      vao: vao,
-      ebo: ebo,
-      index_len: index.len() as i32,
-    };
+    vao.bind();
+    vao.create_ebo(indices, gl::STATIC_DRAW);
+    vao.create_vbo(vertices, gl::STATIC_DRAW);
     
-    self.models.insert(reference, model);
+    vao.set_vertex_attrib(0, 3, 8, 0);
+    vao.set_vertex_attrib(1, 3, 8, 3);
+    vao.set_vertex_attrib(2, 2, 8, 6);
+    
+    self.gl3D.models.insert(reference, vao);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);
@@ -508,7 +481,7 @@ impl CoreRender for RawGl {
                     height as GLsizei,
                     0, gl::RGBA, gl::UNSIGNED_BYTE,
                     mem::transmute(&image_data[0]));
-     // gl::GenerateMipmap(gl::TEXTURE_2D);
+      gl::GenerateMipmap(gl::TEXTURE_2D);
       
       gl::BindTexture(gl::TEXTURE_2D, 0);
     }
@@ -538,6 +511,7 @@ impl CoreRender for RawGl {
   fn load_shaders(&mut self) {
     self.gl2D.shaders.push(Box::new(ShaderTexture::new()));
     self.gl2D.shaders.push(Box::new(ShaderText::new()));
+    self.gl3D.shaders.push(Box::new(Shader3D::new()));
   }
   
   fn init(&mut self) {
@@ -546,24 +520,7 @@ impl CoreRender for RawGl {
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
     
-    let square_verts: Vec<GLfloat> = vec!(
-       0.5,  0.5, 1.0, 1.0, // top right
-       0.5, -0.5, 1.0, 0.0, // bottom right
-      -0.5, -0.5, 0.0, 0.0, // bottom left
-      -0.5,  0.5, 0.0, 1.0, // top left 
-    );
-  
-    let square_indices: Vec<GLuint> = vec!(  // note that we start from 0!
-      0, 1, 3,   // first triangle
-      1, 2, 3    // second triangle
-    );
-    
-    self.gl2D.vao.bind();
-    self.gl2D.vao.create_ebo(square_indices, gl::STATIC_DRAW);
-    self.gl2D.vao.create_vbo(square_verts, gl::STATIC_DRAW);
-    
-    self.gl2D.vao.set_vertex_attrib(0, 2, 4, 0);
-    self.gl2D.vao.set_vertex_attrib(1, 2, 4, 2);
+    self.load_2d_vao();
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_int(String::from("tex"), 0);
@@ -573,19 +530,9 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[TEXT].set_int(String::from("tex"), 0);
     self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), self.gl2D.projection);
     
-    /*unsafe {
- 
-      // 3D shader     
-      gl::UseProgram(self.shader_id[2]);
- 
-      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[2], CString::new("tex").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[2], CString::new("proj").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_3d[0]));
-           
-      gl::Enable(gl::BLEND);
-      gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-      
-      gl::UseProgram(0);
-    }*/
+    self.gl3D.shaders[MODEL].Use();
+    self.gl3D.shaders[MODEL].set_int(String::from("tex"), 0);
+    self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
   }
   
   fn dynamic_load(&mut self) {
@@ -638,7 +585,7 @@ impl CoreRender for RawGl {
   fn clear_screen(&mut self) {
     unsafe {
       gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
-      gl::Clear(gl::COLOR_BUFFER_BIT);// | gl::DEPTH_BUFFER_BIT);
+      gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
     }
   }
   
@@ -680,7 +627,7 @@ impl CoreRender for RawGl {
   fn screen_resized(&mut self) {
     let dimensions = self.get_dimensions();
     let projection_2d = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
-    self.projection_3d = cgmath::perspective(cgmath::Deg(45.0), { dimensions[0] as f32 / dimensions[1] as f32 }, 0.01, 100.0);
+    let projection_3d = cgmath::perspective(cgmath::Deg(45.0), { dimensions[0] as f32 / dimensions[1] as f32 }, 0.01, 100.0); //* cgmath::Matrix4::from_scale(-100.0);
     self.window.resize_screen(dimensions);
     
     unsafe {
@@ -690,6 +637,8 @@ impl CoreRender for RawGl {
       self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
       self.gl2D.shaders[TEXT].Use();
       self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
+      self.gl3D.shaders[MODEL].Use();
+      self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
       
       gl::UseProgram(0);
     }
@@ -730,7 +679,13 @@ impl CoreRender for RawGl {
   
   fn set_camera(&mut self, camera: Camera){}
   fn pre_draw(&mut self) {}
-  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>){}
+    fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
+
+    //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
+    let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
+    
+    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
+  }
 }
 
 

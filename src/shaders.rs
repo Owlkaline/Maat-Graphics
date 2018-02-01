@@ -9,6 +9,7 @@ use std::str;
 
 use cgmath::Vector3;
 use cgmath::Vector4;
+use cgmath::Matrix3;
 use cgmath::Matrix4;
 
 pub struct ShaderTexture {
@@ -161,6 +162,12 @@ pub trait ShaderFunctions {
   fn set_vec4(&self, name: String, value: Vector4<GLfloat>) {
     unsafe {
       gl::Uniform4f(gl::GetUniformLocation(self.data().id, CString::new(name).unwrap().as_ptr()), value.x, value.y, value.z, value.w);
+    }
+  }
+  
+  fn set_mat3(&self, name: String, value: Matrix3<GLfloat>) {
+    unsafe {
+      gl::UniformMatrix3fv(gl::GetUniformLocation(self.data().id, CString::new(name).unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&value[0]));
     }
   }
   
