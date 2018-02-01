@@ -1,7 +1,11 @@
 use window::GlWindow;
 use drawcalls::DrawCall;
 use drawcalls::DrawMath;
+use shaders::ShaderFunctions;
 use shaders::ShaderProgram;
+use shaders::ShaderTexture;
+use shaders::ShaderText;
+use shaders::Shader3D;
 use graphics::CoreRender;
 use settings::Settings;
 use font::GenericFont;
@@ -31,6 +35,97 @@ use std::ffi::CString;
 use std::os::raw::c_void;
 use std::collections::HashMap;
 
+pub const TEXTURE: usize = 0;
+pub const TEXT: usize = 1;
+
+pub struct Vao {
+  vao: GLuint,
+  ebo: GLuint,
+  attrib: Vec<GLuint>,
+}
+
+impl Vao {
+  pub fn new() -> Vao {
+    let mut vao: GLuint = 0;
+    unsafe {
+      gl::GenVertexArrays(1, &mut vao);
+    }
+    
+    Vao {
+      vao: vao,
+      ebo: 0,
+      attrib: Vec::new(),
+    }
+  }
+  
+  pub fn unbind(&self) {
+    unsafe {
+      gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+      gl::BindVertexArray(0);
+    }
+  }
+  
+  pub fn bind(&self) {
+    unsafe {
+      gl::BindVertexArray(self.vao);
+      for location in self.attrib.clone() {
+        gl::EnableVertexAttribArray(location);
+      }
+    }
+  }
+  
+  pub fn bind_ebo(&self) {
+    unsafe {
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+    }
+  }
+  
+  pub fn create_vbo(&self, vertices: Vec<GLfloat>, draw_type: GLuint) {
+    let mut vbo: GLuint = 0;
+    unsafe {
+      gl::GenBuffers(1, &mut vbo);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+      gl::BufferData(gl::ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
+                     mem::transmute(&vertices[0]),
+                     draw_type);
+    }
+  }
+  
+  pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
+    unsafe {
+      gl::GenBuffers(1, &mut self.ebo);
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*indices.len()) as isize,
+                     mem::transmute(&indices[0]),
+                     draw_type);
+    }
+  }
+  
+  pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
+    unsafe {
+      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
+                              (total_size * mem::size_of::<GLfloat>()) as i32,
+                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
+      self.attrib.push(location);
+    }
+  }
+  
+  pub fn activate_texture0(&self, texture: GLuint) {
+    unsafe {
+      gl::ActiveTexture(gl::TEXTURE0);
+      gl::BindTexture(gl::TEXTURE_2D, texture);
+    }
+  }
+}
+
+pub struct GL2D {
+  shaders: Vec<Box<ShaderFunctions>>,
+  vao: Vao,
+  projection: Matrix4<f32>
+}
+
 #[derive(Clone)]
 pub struct ModelInfo {
   location: String,
@@ -44,6 +139,7 @@ pub struct Model {
   index_len: i32,
 }
 
+
 pub struct RawGl {
   ready: bool,
   shader_id: Vec<GLuint>,
@@ -54,8 +150,7 @@ pub struct RawGl {
   
   clear_colour: Vector4<f32>,
   
-  projection_2d: Matrix4<f32>,
-  vao_2d: GLuint,
+  gl2D: GL2D,
   
   projection_3d: Matrix4<f32>,
   view: Matrix4<f32>,
@@ -82,7 +177,7 @@ impl RawGl {
     let window = GlWindow::new(width, height, min_width, min_height, fullscreen);
     
     let proj_2d = cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
-    let proj_3d = cgmath::perspective(cgmath::Deg(45.0)/*cgmath::Rad(consts::FRAC_PI_4)*/, { width as f32 / height as f32 }, 0.01, 100.0);
+    let proj_3d = cgmath::perspective(cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0);
     
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, 1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.01);
@@ -101,8 +196,11 @@ impl RawGl {
 
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
 
-      projection_2d: proj_2d,
-      vao_2d: 0,
+      gl2D: GL2D {
+        shaders: Vec::new(),
+        vao: Vao::new(),
+        projection: proj_2d,
+      },
       
       projection_3d: proj_3d,
       view: view,
@@ -118,29 +216,8 @@ impl RawGl {
     self
   }
   
-  fn store_f32_in_attribute_list(&mut self, attribute_number: i32, length: i32, data: Vec<GLfloat>) {
-    let mut vbo: GLuint = 0;
-    unsafe {
-      // Create a Vertex Buffer Object and copy the vertex data to it
-      gl::GenBuffers(1, &mut vbo);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (data.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-                     mem::transmute(&data[0]),
-                     gl::STATIC_DRAW);
-      
-      gl::EnableVertexAttribArray(attribute_number as u32);
-      gl::VertexAttribPointer(attribute_number as GLuint,
-                              length,
-                              gl::FLOAT,
-                              gl::FALSE as GLboolean,
-                              0,
-                              ptr::null());
-    }
-  }
-  
   fn draw_3d(&mut self, draw: &DrawCall) {
-    let model = self.models.get(draw.get_texture()).expect("Invalid model name").clone();
+   /* let model = self.models.get(draw.get_texture()).expect("Invalid model name").clone();
 
     unsafe {
       gl::UseProgram(self.shader_id[2]);
@@ -176,9 +253,9 @@ impl RawGl {
       
       gl::Disable(gl::DEPTH_TEST);
       
-      gl::BindVertexArray(self.vao_2d);
+      //gl::BindVertexArray(self.vao_2d);
       gl::UseProgram(0);
-    }
+    }*/
   }
   
   fn draw_square(&self, draw: &DrawCall) {
@@ -191,22 +268,20 @@ impl RawGl {
       value
     };
     
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation());
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()+180.0));
     
+    self.gl2D.shaders[TEXTURE].Use();
+    self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
+    self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
+    self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
+    if has_texture == 1.0 {
+      self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+    }
+    
+    self.gl2D.vao.bind();
+    self.gl2D.vao.bind_ebo();
     unsafe {
-      gl::UseProgram(self.shader_id[0]);
-      
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("model").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&model[0]));
-      
-      gl::Uniform4f(gl::GetUniformLocation(self.shader_id[0], CString::new("new_colour").unwrap().as_ptr()), colour.x, colour.y, colour.z, colour.w);
-      gl::Uniform4f(gl::GetUniformLocation(self.shader_id[0], CString::new("has_texture").unwrap().as_ptr()), has_texture, 0.0, 0.0, 0.0);
-      
-      if draw.get_colour().w == -1.0 {
-        gl::ActiveTexture(gl::TEXTURE0);
-        gl::BindTexture(gl::TEXTURE_2D, *self.textures.get(draw.get_texture()).unwrap());
-      }
-      
-      gl::DrawArrays(gl::TRIANGLES, 0, 6);
+      gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
     }
   }
   
@@ -229,23 +304,21 @@ impl RawGl {
       let outline = letter.get_outline_colour();
       let edge_width = letter.get_edge_width(); 
       
+      self.gl2D.shaders[TEXT].Use();
+      self.gl2D.shaders[TEXT].set_mat4(String::from("model"), model);
+      self.gl2D.shaders[TEXT].set_vec4(String::from("colour"), colour);
+      self.gl2D.shaders[TEXT].set_vec4(String::from("letter_uv"), letter_uv);
+      self.gl2D.shaders[TEXT].set_vec3(String::from("outlineColour"), outline);
+      self.gl2D.shaders[TEXT].set_vec4(String::from("edge_width"), edge_width);
+      
+      self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+      
+      self.gl2D.vao.bind();
+      self.gl2D.vao.bind_ebo();
       unsafe {
-        gl::UseProgram(self.shader_id[1]);
-        
-        gl::Enable(gl::BLEND);
-        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-        
-        gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("model").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&model[0]));
-        gl::Uniform4f(gl::GetUniformLocation(self.shader_id[1], CString::new("colour").unwrap().as_ptr()), colour.x, colour.y, colour.z, colour.w);
-        gl::Uniform4f(gl::GetUniformLocation(self.shader_id[1], CString::new("letter_uv").unwrap().as_ptr()), letter_uv.x, letter_uv.y, letter_uv.z, letter_uv.w);
-        gl::Uniform3f(gl::GetUniformLocation(self.shader_id[1], CString::new("outlineColour").unwrap().as_ptr()), outline.x, outline.y, outline.z);
-        gl::Uniform4f(gl::GetUniformLocation(self.shader_id[1], CString::new("edge_width").unwrap().as_ptr()), edge_width.x, edge_width.y, edge_width.z, edge_width.w);
-        
-        gl::ActiveTexture(gl::TEXTURE0);
-        gl::BindTexture(gl::TEXTURE_2D, *self.textures.get(draw.get_texture()).unwrap());
-        
-        gl::DrawArrays(gl::TRIANGLES, 0, 6);
+        gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
       }
+      
       translation.x+=c.get_advance() as f32 * (size/640.0); 
     }
   }
@@ -291,7 +364,7 @@ impl CoreRender for RawGl {
     
     let mut vao: GLuint = 0;
     let mut vbo: GLuint = 0;
-    let mut ebo: GLuint = 0;    
+    let mut ebo: GLuint = 0;
     
     unsafe {
       gl::GenVertexArrays(1, &mut vao);
@@ -421,6 +494,7 @@ impl CoreRender for RawGl {
                     height as GLsizei,
                     0, gl::RGBA, gl::UNSIGNED_BYTE,
                     mem::transmute(&image_data[0]));
+     // gl::GenerateMipmap(gl::TEXTURE_2D);
       
       gl::BindTexture(gl::TEXTURE_2D, 0);
     }
@@ -448,86 +522,44 @@ impl CoreRender for RawGl {
   }
   
   fn load_shaders(&mut self) {
-    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.vert"));
-    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlTexture.frag"));
-    
-    let v_src = CString::new(v_string.as_bytes()).unwrap();
-    let f_src = CString::new(f_string.as_bytes()).unwrap();
-    
-    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
-    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
-    let program = ShaderProgram::link_program(vs, fs);
-    
-    self.shader_id.push(program);
-    
-    unsafe {
-      gl::DeleteShader(fs);
-      gl::DeleteShader(vs);
-    }
-    
-    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.vert"));
-    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlText.frag"));
-    
-    let v_src = CString::new(v_string.as_bytes()).unwrap();
-    let f_src = CString::new(f_string.as_bytes()).unwrap();
-    
-    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
-    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
-    let program = ShaderProgram::link_program(vs, fs);
-    
-    self.shader_id.push(program);
-    
-    unsafe {
-      gl::DeleteShader(fs);
-      gl::DeleteShader(vs);
-    }
-    
-    let v_string = String::from_utf8_lossy(include_bytes!("shaders/Gl3D.vert"));
-    let f_string = String::from_utf8_lossy(include_bytes!("shaders/Gl3D.frag"));
-    
-    let v_src = CString::new(v_string.as_bytes()).unwrap();
-    let f_src = CString::new(f_string.as_bytes()).unwrap();
-    
-    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
-    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
-    let program = ShaderProgram::link_program(vs, fs);
-    
-    self.shader_id.push(program);
-    
-    unsafe {
-      gl::DeleteShader(fs);
-      gl::DeleteShader(vs);
-    }
+    self.gl2D.shaders.push(Box::new(ShaderTexture::new()));
+    self.gl2D.shaders.push(Box::new(ShaderText::new()));
   }
   
   fn init(&mut self) {
-    let square = vec!( 0.5,  0.5, 1.0, 0.0,
-                                 -0.5,  0.5, 0.0, 0.0,
-                                 -0.5, -0.5, 0.0, 1.0,
-                                 
-                                 -0.5, -0.5, 0.0, 1.0,
-                                  0.5, -0.5, 1.0, 1.0,
-                                  0.5,  0.5, 1.0, 0.0);
-    
     unsafe {
-      
-      gl::UseProgram(self.shader_id[0]);
-      // texture shader
-      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[0], CString::new("tex").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
-      
-      // Create Vertex Array Object
-      gl::GenVertexArrays(1, &mut self.vao_2d);
-      gl::BindVertexArray(self.vao_2d);
-      
-      // Create a Vertex Buffer Object and copy the vertex data to it      
-      self.store_f32_in_attribute_list(0, 4, square);
-      
-      // Text shader
-      gl::UseProgram(self.shader_id[1]);
-      
-      gl::Uniform1i(gl::GetUniformLocation(self.shader_id[1], CString::new("image").unwrap().as_ptr()), 0);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
+      gl::Enable(gl::BLEND);
+      gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+    }
+    
+    let square_verts: Vec<GLfloat> = vec!(
+       0.5,  0.5, 1.0, 1.0, // top right
+       0.5, -0.5, 1.0, 0.0, // bottom right
+      -0.5, -0.5, 0.0, 0.0, // bottom left
+      -0.5,  0.5, 0.0, 1.0, // top left 
+    );
+  
+    let square_indices: Vec<GLuint> = vec!(  // note that we start from 0!
+      0, 1, 3,   // first triangle
+      1, 2, 3    // second triangle
+    );
+    
+    self.gl2D.vao.bind();
+    self.gl2D.vao.create_ebo(square_indices, gl::STATIC_DRAW);
+    self.gl2D.vao.create_vbo(square_verts, gl::STATIC_DRAW);
+    
+    self.gl2D.vao.set_vertex_attrib(0, 2, 4, 0);
+    self.gl2D.vao.set_vertex_attrib(1, 2, 4, 2);
+    
+    self.gl2D.shaders[TEXTURE].Use();
+    self.gl2D.shaders[TEXTURE].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    self.gl2D.shaders[TEXT].Use();
+    self.gl2D.shaders[TEXT].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    /*unsafe {
  
       // 3D shader     
       gl::UseProgram(self.shader_id[2]);
@@ -539,7 +571,7 @@ impl CoreRender for RawGl {
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
       
       gl::UseProgram(0);
-    }
+    }*/
   }
   
   fn dynamic_load(&mut self) {
@@ -591,18 +623,8 @@ impl CoreRender for RawGl {
   
   fn clear_screen(&mut self) {
     unsafe {
-      //gl::ClearColor(0.2, 0.3, 0.3, 1.0);
       gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
-      gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-    }
-  }
-  
-  fn pre_draw(&mut self) {
-    unsafe {
-      gl::BindVertexArray(self.vao_2d);
-      gl::EnableVertexAttribArray(0 as GLuint);
-      gl::EnableVertexAttribArray(1 as GLuint);
-      gl::EnableVertexAttribArray(2 as GLuint);
+      gl::Clear(gl::COLOR_BUFFER_BIT);// | gl::DEPTH_BUFFER_BIT);
     }
   }
   
@@ -629,12 +651,12 @@ impl CoreRender for RawGl {
   }
   
   fn clean(&self) {
-    unsafe {
+  /*  unsafe {
       for shader in &self.shader_id {
         gl::DeleteProgram(*shader);
       }
       gl::DeleteVertexArrays(1, &self.vao_2d);
-    }
+    }*/
   }
   
   fn swap_buffers(&mut self) {
@@ -643,19 +665,17 @@ impl CoreRender for RawGl {
   
   fn screen_resized(&mut self) {
     let dimensions = self.get_dimensions();
-    self.projection_2d = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
-    self.projection_3d = cgmath::perspective(cgmath::Deg(45.0)/*cgmath::Rad(consts::FRAC_PI_4)*/, { dimensions[0] as f32 / dimensions[1] as f32 }, 0.01, 100.0);
+    let projection_2d = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
+    self.projection_3d = cgmath::perspective(cgmath::Deg(45.0), { dimensions[0] as f32 / dimensions[1] as f32 }, 0.01, 100.0);
     self.window.resize_screen(dimensions);
     
     unsafe {
-      gl::Viewport(0, 0, dimensions[0] as i32, dimensions[1] as i32); 
-      // texture shader
-      gl::UseProgram(self.shader_id[0]);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[0], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
+      gl::Viewport(0, 0, dimensions[0] as i32, dimensions[1] as i32);
       
-      // Text shader
-      gl::UseProgram(self.shader_id[1]);
-      gl::UniformMatrix4fv(gl::GetUniformLocation(self.shader_id[1], CString::new("projection").unwrap().as_ptr()), 1, gl::FALSE, mem::transmute(&self.projection_2d[0]));
+      self.gl2D.shaders[TEXTURE].Use();
+      self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
+      self.gl2D.shaders[TEXT].Use();
+      self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
       
       gl::UseProgram(0);
     }
@@ -695,7 +715,7 @@ impl CoreRender for RawGl {
   }
   
   fn set_camera(&mut self, camera: Camera){}
-  
+  fn pre_draw(&mut self) {}
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>){}
 }
 

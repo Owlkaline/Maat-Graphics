@@ -366,8 +366,7 @@ impl DrawMath {
     new_draw_calls
   }
   
-  pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32>{
-    
+  pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32> {
     let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
     let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(rotation));
     
