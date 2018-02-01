@@ -41,6 +41,8 @@ pub const TEXT: usize = 1;
 pub struct Vao {
   vao: GLuint,
   ebo: GLuint,
+  num_vertices: GLint,
+  num_indices: GLint,
   attrib: Vec<GLuint>,
 }
 
@@ -54,7 +56,25 @@ impl Vao {
     Vao {
       vao: vao,
       ebo: 0,
+      num_vertices: 0,
+      num_indices: 0,
       attrib: Vec::new(),
+    }
+  }
+  
+  pub fn draw_indexed(&self, draw_type: GLuint) {
+    self.bind();
+    self.bind_ebo();
+    unsafe {
+      gl::DrawElements(draw_type, self.num_indices, gl::UNSIGNED_INT, ptr::null());
+    }
+  }
+  
+  pub fn draw(&self, draw_type: GLuint) {
+    self.bind();
+    self.bind_ebo();
+    unsafe {
+      gl::DrawElements(draw_type, self.num_vertices, gl::UNSIGNED_INT, ptr::null());
     }
   }
   
@@ -80,7 +100,7 @@ impl Vao {
     }
   }
   
-  pub fn create_vbo(&self, vertices: Vec<GLfloat>, draw_type: GLuint) {
+  pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
     let mut vbo: GLuint = 0;
     unsafe {
       gl::GenBuffers(1, &mut vbo);
@@ -89,6 +109,7 @@ impl Vao {
                      (mem::size_of::<GLuint>()*vertices.len()) as isize,
                      mem::transmute(&vertices[0]),
                      draw_type);
+      self.num_vertices = (vertices.len()/3) as GLint;
     }
   }
   
@@ -100,6 +121,7 @@ impl Vao {
                      (mem::size_of::<GLuint>()*indices.len()) as isize,
                      mem::transmute(&indices[0]),
                      draw_type);
+      self.num_indices = indices.len() as GLint;
     }
   }
   
@@ -278,11 +300,7 @@ impl RawGl {
       self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
     }
     
-    self.gl2D.vao.bind();
-    self.gl2D.vao.bind_ebo();
-    unsafe {
-      gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-    }
+    self.gl2D.vao.draw_indexed(gl::TRIANGLES);
   }
   
   fn draw_text(&self, draw: &DrawCall) {
@@ -313,11 +331,7 @@ impl RawGl {
       
       self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
       
-      self.gl2D.vao.bind();
-      self.gl2D.vao.bind_ebo();
-      unsafe {
-        gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-      }
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
       
       translation.x+=c.get_advance() as f32 * (size/640.0); 
     }
