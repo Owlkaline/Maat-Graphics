@@ -11,6 +11,7 @@ layout(location = 3) out vec2 damper_reflectivity;
 layout(location = 4) out vec3 toLightVector[4];
 layout(location = 8) out vec3 lightColour[4];
 layout(location = 12) out vec3 attenuation[4];
+layout(location = 16) out float lightType[4];
 
 layout(set = 0, binding = 0) uniform Data {
     mat4 transformation;
@@ -33,6 +34,7 @@ void main() {
     for(int i = 0; i < 4; ++i) {
       attenuation[i]   = uniforms.attenuations[i].xyz;
       lightColour[i]   = uniforms.lightcolours[i].xyz;
+      lightType[i]     = uniforms.lightcolours[i].w;
       toLightVector[i] = uniforms.lightpositions[i].xyz - worldPosition.xyz;
     }
     

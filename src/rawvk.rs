@@ -342,8 +342,14 @@ impl RawVk {
          
     let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation())* cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
     
+    let point_light = 2.0;
+    let directional_light = 0.0;
+    let metallic = 1.0;
+    let roughness = 1.0;
+    
     let lighting_position: Matrix4<f32> =
       Matrix4::from_cols(
+        // (x, y, z, n/a)
         Vector4::new(0.0, -0.6, 25.0, -1.0),
         Vector4::new(7.0, -0.6, 25.0, -1.0),
         Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
@@ -359,20 +365,20 @@ impl RawVk {
     };
     
     let lighting_colour: Matrix4<f32> =
-      // (R, G, B, n/a)
+      // (R, G, B, light type)
       Matrix4::from_cols(
-        Vector4::new(0.0, 0.0, 1.0, 10.0), // colour + shinedamper
-        Vector4::new(1.0, 0.0, 0.0, reflectivity),  // colour + reflectivity
-        Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
+        Vector4::new(0.0, 0.0, 1.0, point_light), // blue light
+        Vector4::new(1.0, 0.0, 0.0, point_light),  // red light
+        Vector4::new(0.4, 0.4, 0.4, directional_light), //sun
         Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
     
     // (Intensity, 1)
     let attenuation: Matrix4<f32> =
       Matrix4::from_cols(
-        Vector4::new(0.1, 0.25, 0.25, -1.0),
-        Vector4::new(0.1, 0.25, 0.25, -1.0),
-        Vector4::new(0.5, 0.0, 0.0, -1.0),
+        Vector4::new(1.0, 0.25, 0.25, -1.0),
+        Vector4::new(1.0, 0.25, 0.25, -1.0),
+        Vector4::new(1.0, 0.0, 0.0, -1.0),
         Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
     

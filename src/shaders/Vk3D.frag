@@ -7,6 +7,7 @@ layout(location = 3) in vec2 damper_reflectivity;
 layout(location = 4) in vec3 toLightVector[4];
 layout(location = 8) in vec3 lightColour[4];
 layout(location = 12) in vec3 attenuation[4];
+layout(location = 16) in float lightType[4];
 
 layout(location = 0) out vec4 f_colour;
 
@@ -19,43 +20,91 @@ layout(set = 0, binding = 1) uniform sampler2D tex;
 // Do same for damped factor
 // End Cell Shading
 
+const float PI = 3.14159265359;
+
+//const vec3 albedo = vec3(0.0, 0.0, 0.0);
+const float metallic = 1.0;
+const float roughness = 0.0;
+const float ao = 0.2;
+
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main() {
   float shinedamper = damper_reflectivity.x;
   float reflectivity = damper_reflectivity.y;
 
-  vec3 unitNormal = normalize(v_normal);
-  vec3 unitVectorToCamera = normalize(toCameraVector);
+  vec3 N = normalize(v_normal);
+  vec3 V = normalize(toCameraVector);
   
-  vec3 total_diffuse = vec3(0.0);
-  vec3 total_specular = vec3(0.0);
+  vec3 albedo = pow(texture(tex, v_uv).rgb, vec3(2.2));
   
+  vec3 F0 = vec3(0.04);
+  F0 = mix(F0, albedo, metallic);
+  
+  vec3 Lo = vec3(0.0);
   for(int i = 0; i < 4; ++i) {
-    if(lightColour[i] == vec3(0.0)) {
-      continue;
-    }
-    
-    vec3 unitLightVector = normalize(toLightVector[i]);
-    vec3 lightDirection = -unitLightVector;
-    
-    // Brightness
-    float nDot1 = dot(unitNormal, unitLightVector);
-    float brightness = max(nDot1, 0.0);
-    
+    vec3 L = normalize(toLightVector[i]);
+    vec3 H = normalize(V + L);
     float distance = length(toLightVector[i]);
-    float attFactor = attenuation[i].x + (attenuation[i].y * distance) + (attenuation[i].z * distance * distance);
     
-    vec3 reflectedLightDirection = reflect(lightDirection, unitNormal);
+    float attenuation = 1.0 / pow(distance, lightType[i]);
+    vec3 radiance = lightColour[i] * attenuation;
     
-    float specularFactor = dot(reflectedLightDirection, unitVectorToCamera);
-    specularFactor = max(specularFactor, 0.0);
+    float NDF = DistributionGGX(N, H, clamp(roughness, 0.3, 1.0));
+    float G   = GeometrySmith(N, V, L, roughness);
+    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
     
-    float dampedFactor = pow(specularFactor, shinedamper);
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
     
-    total_diffuse += (brightness * lightColour[i]) / attFactor;
-    total_specular += (dampedFactor * reflectivity * lightColour[i]) / attFactor;
+    vec3 nominator = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+    vec3 specular = nominator / max(denominator, 0.001);
+    
+    float NdotL = max(dot(N, L), 0.0);
+    Lo += (kD * albedo / PI + specular) * radiance * NdotL;
   }
   
-  total_diffuse = max(total_diffuse, 0.2);
+  vec3 ambient = vec3(0.03) * albedo * ao;
+  vec3 colour = ambient + Lo;
   
-  f_colour = vec4(total_diffuse, 1.0) * texture(tex, v_uv) + vec4(total_specular, 1.0);
+  colour = colour / (colour + vec3(1.0));
+  colour = pow(colour, vec3(1.0/2.2));
+  
+  f_colour = vec4(colour, 1.0);
 }
