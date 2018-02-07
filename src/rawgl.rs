@@ -198,8 +198,8 @@ impl RawGl {
     
     let window = GlWindow::new(width, height, min_width, min_height, fullscreen);
     
-    let proj_2d = cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
-    let proj_3d = cgmath::perspective(cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0) * cgmath::Matrix4::from_scale(-1.0);
+    let proj_2d = RawGl::load_2d_projection(width as f32, height as f32);
+    let proj_3d = RawGl::load_3d_projection(width as f32, height as f32);
     
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.1);
@@ -240,6 +240,14 @@ impl RawGl {
   pub fn with_title(mut self, title: String) -> RawGl {
     self.window.set_title(title);
     self
+  }
+  
+  pub fn load_2d_projection(width: f32, height: f32) -> Matrix4<f32> {
+    cgmath::ortho(0.0, width, 0.0, height, -1.0, 1.0)
+  }
+  
+  pub fn load_3d_projection(width: f32, height: f32) -> Matrix4<f32> {
+    cgmath::perspective(cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0) * cgmath::Matrix4::from_scale(-1.0)
   }
   
   fn load_2d_vao(&mut self) {
@@ -307,7 +315,7 @@ impl RawGl {
         Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
     
-    let view = self.view * self.scale;
+    let view = self.view /* Matrix4::from_angle_y(Deg(180.0)) */* self.scale;
     
     let mut texture = String::from("default");
     if self.textures.contains_key(draw.get_texture()) {
@@ -626,8 +634,8 @@ impl CoreRender for RawGl {
   
   fn screen_resized(&mut self) {
     let dimensions = self.get_dimensions();
-    let projection_2d = cgmath::ortho(0.0, dimensions[0] as f32, 0.0, dimensions[1] as f32, -1.0, 1.0);
-    let projection_3d = cgmath::perspective(cgmath::Deg(45.0), { dimensions[0] as f32 / dimensions[1] as f32 }, 0.01, 100.0); //* cgmath::Matrix4::from_scale(-100.0);
+    let projection_2d = RawGl::load_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     self.window.resize_screen(dimensions);
     
     unsafe {
@@ -684,7 +692,7 @@ impl CoreRender for RawGl {
     //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
     let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
     
-    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
+    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x-x_rot, camera.y, camera.z-z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
   }
 }
 

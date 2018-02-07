@@ -782,6 +782,9 @@ impl CoreRender for RawVk {
           if self.textures.contains_key(draw.get_texture()) {
             texture = draw.get_texture().clone();
           }
+          if draw.get_texture() == "terrain" {
+            texture = String::from("oakfloor");
+          }
           
           let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_3d.clone().unwrap(), 0)
                 .add_buffer(uniform_buffer_subbuffer).unwrap()
