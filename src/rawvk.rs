@@ -250,19 +250,7 @@ impl RawVk {
 
         uniform_buffer: uniform_3d,
       },
-/*
-      depth_buffer: None,
       
-      models: HashMap::new(),
-      
-      pipeline_3d: None,
-      
-      projection_3d: proj_3d,
-      view: view,
-      scale: scale,
-
-      uniform_buffer_3d: uniform_3d,*/
-
       //2D
       vk2d: VK2D {
         vao: Model {

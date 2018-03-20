@@ -14,6 +14,7 @@ use vulkano::device::Device;
 use vulkano::format;
 use vulkano::instance::Instance;
 use vulkano::swapchain::Swapchain;
+use vulkano::swapchain::Surface;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::PresentMode;
 use vulkano::instance::PhysicalDevice;
@@ -31,11 +32,11 @@ use glutin::GlContext;
 
 pub struct VkWindow {
   events: EventsLoop,
-  window: vulkano_win::Window,
+  surface: Arc<Surface<winit::Window>>,
   queue: Arc<Queue>,
   device: Arc<Device>,
-  swapchain: Arc<Swapchain>,
-  images: Vec<Arc<SwapchainImage>>,
+  swapchain: Arc<Swapchain<winit::Window>>,
+  images: Vec<Arc<SwapchainImage<winit::Window>>>,
 }
 
 pub struct GlWindow {
@@ -149,8 +150,8 @@ impl VkWindow {
     };
     
     let events_loop = winit::EventsLoop::new();
-    let window = {
-      let temp_window: vulkano_win::Window;
+    let surface = {
+      let temp_surface: Arc<Surface<winit::Window>>;
        
       if fullscreen {
        let monitor = {
@@ -166,19 +167,23 @@ impl VkWindow {
         };
         
         // Fullscreen
-        temp_window = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
+        temp_surface = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
                                            .with_title("Vulkan Fullscreen")
                                            .build_vk_surface(&events_loop, instance.clone())
-                                           .unwrap();
+                                           .unwrap()
+    /*    temp_window = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
+                                           .with_title("Vulkan Fullscreen")
+                                           .build_vk_surface(&events_loop, instance.clone())
+                                           .unwrap();*/
       } else {
         // Windowed
-        temp_window = winit::WindowBuilder::new().with_dimensions(width, height)
+        temp_surface = winit::WindowBuilder::new().with_dimensions(width, height)
                                             .with_min_dimensions(min_width, min_height)
                                            .with_title("Vulkan Windowed")
                                            .build_vk_surface(&events_loop, instance.clone())
-                                           .unwrap();
+                                           .unwrap()
       }
-      temp_window
+      temp_surface
     };
     
     println!("Winit Vulkan Window created");
@@ -192,7 +197,7 @@ impl VkWindow {
         physical = PhysicalDevice::from_index(&instance, device.index()).unwrap();
         
         for family in physical.queue_families() {
-          if family.supports_graphics() && window.surface().is_supported(family).unwrap_or(false) {
+          if family.supports_graphics() && surface.is_supported(family).unwrap_or(false) {
            found_suitable_device = true;
            break;
           }
@@ -205,7 +210,7 @@ impl VkWindow {
       }
       
       let queue = physical.queue_families().find(|&q| {
-          q.supports_graphics() && window.surface().is_supported(q).unwrap_or(false)
+          q.supports_graphics() && surface.is_supported(q).unwrap_or(false)
         }
       ).expect("couldn't find a graphical queue family");
       
@@ -223,7 +228,7 @@ impl VkWindow {
   
     let queue = queues.next().unwrap();
     let (swapchain, images) = {
-      let caps = window.surface()
+      let caps = surface
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
       
@@ -242,24 +247,25 @@ impl VkWindow {
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
       
-      Swapchain::new(device.clone(), window.surface().clone(), min_image_count, format,
+      Swapchain::new(device.clone(), surface.clone(), min_image_count, format,
                      dimensions, 1, supported_usage_flags, &queue,
                      SurfaceTransform::Identity, alpha, PresentMode::Fifo, true, None
                     ).expect("failed to create swapchain")
     };
     
-    VkWindow { window: window,
-            events: events_loop,
-            queue: queue,
-            device: device,
-            swapchain: swapchain,
-            images: images,
-          }
+    VkWindow {
+      surface: surface,
+      events: events_loop,
+      queue: queue,
+      device: device,
+      swapchain: swapchain,
+      images: images,
+    }
   }
   
   /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
-    self.window.set_title(title);
+    self.surface.window().set_title(&title);
   }
   
   // Returns a clone of device
@@ -278,8 +284,8 @@ impl VkWindow {
   }
   
   // Recrates the swapchain to keep it relevant to the surface dimensions
-  pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain>, Vec<Arc<SwapchainImage>>), SwapchainCreationError> {
-    let caps = self.window.surface()
+  pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
+    let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
    
@@ -293,22 +299,22 @@ impl VkWindow {
   }
   
   // Replaces entire swap chain memory with parameter swapchain
-  pub fn replace_swapchain(&mut self, new_swapchain: Arc<Swapchain>) {
+  pub fn replace_swapchain(&mut self, new_swapchain: Arc<Swapchain<winit::Window>>) {
     mem::replace(&mut self.swapchain, new_swapchain);
   }
   
   // Returns a reference to the current swapchain image
-  pub fn get_images(&self) -> &Vec<Arc<SwapchainImage>> {
+  pub fn get_images(&self) -> &Vec<Arc<SwapchainImage<winit::Window>>> {
     &self.images
   }
   
   // Replaces the current swapchain image with parameter image with mem::replace
-  pub fn replace_images(&mut self, new_images: Vec<Arc<SwapchainImage>>) {
+  pub fn replace_images(&mut self, new_images: Vec<Arc<SwapchainImage<winit::Window>>>) {
     mem::replace(&mut self.images, new_images);
   }
   
   // Returns a clone of the swapchain
-  pub fn get_swapchain(&self) -> Arc<Swapchain> {
+  pub fn get_swapchain(&self) -> Arc<Swapchain<winit::Window>> {
     self.swapchain.clone()
   }
   
@@ -319,7 +325,7 @@ impl VkWindow {
   
   /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> [u32; 2] {
-    let (width, height) = self.window.window().get_inner_size_pixels().unwrap();
+    let (width, height) = self.surface.window().get_inner_size_pixels().unwrap();
     [width as u32, height as u32]
   }
   
@@ -332,16 +338,16 @@ impl VkWindow {
   ///
   /// Needed to solve issues with Hidpi monitors
   pub fn get_dpi_scale(&self) -> f32 {
-    self.window.hidpi_factor()
+    self.surface.window().hidpi_factor()
   }
   
   /// Enables the cursor to be drawn whilst over the window
   pub fn show_cursor(&mut self) {
-    self.window.set_cursor(winit::MouseCursor::Default);
+    self.surface.window().set_cursor(winit::MouseCursor::Default);
   }
   
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
-    self.window.set_cursor(winit::MouseCursor::NoneCursor);
+    self.surface.window().set_cursor(winit::MouseCursor::NoneCursor);
   }
 }
