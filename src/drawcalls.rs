@@ -30,7 +30,7 @@ impl DrawCall {
   pub fn new_draw(x: f32, y: f32, z: f32) -> DrawCall {
     DrawCall {
       position: Vector3::new(x, y, z),
-      rotation: Vector3::new(0.0, 0.0, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
       size: Vector2::new(0.0, 0.0),
       texture: String::from(""),
       colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
@@ -78,7 +78,7 @@ impl DrawCall {
   pub fn texture(x: f32, y: f32, texture: String) -> DrawCall {
     DrawCall {
       position: Vector3::new(x, y, 0.0),
-      rotation: Vector3::new(0.0, 0.0, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
       size: Vector2::new(0.0, 0.0),
       texture: texture,
       colour: Vector4::new(1.0, 1.0, 1.0, -1.0),
@@ -368,7 +368,7 @@ impl DrawMath {
   
   pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32> {
     let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
-    let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(rotation));
+    let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(450.0-rotation));
     
     let mut model = Matrix4::from_translation(translation)*rotation;
     model = model * Matrix4::from_nonuniform_scale(size.x, size.y, 1.0);

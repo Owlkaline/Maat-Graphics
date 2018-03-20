@@ -6,6 +6,7 @@ use shaders::ShaderProgram;
 use shaders::ShaderTexture;
 use shaders::ShaderText;
 use shaders::Shader3D;
+use graphics;
 use graphics::CoreRender;
 use settings::Settings;
 use font::GenericFont;
@@ -148,7 +149,8 @@ impl Vao {
 pub struct GL2D {
   shaders: Vec<Box<ShaderFunctions>>,
   vao: Vao,
-  projection: Matrix4<f32>
+  projection: Matrix4<f32>,
+  custom_vao: HashMap<String, Vao>,
 }
 
 pub struct GL3D {
@@ -222,6 +224,7 @@ impl RawGl {
         shaders: Vec::new(),
         vao: Vao::new(),
         projection: proj_2d,
+        custom_vao: HashMap::new(),
       },
       
       gl3D: GL3D {
@@ -269,6 +272,24 @@ impl RawGl {
     
     self.gl2D.vao.set_vertex_attrib(0, 2, 4, 0);
     self.gl2D.vao.set_vertex_attrib(1, 2, 4, 2);
+  }
+  
+  fn load_custom_2d_vao(&mut self, reference: String, verts: Vec<GLfloat>, indicies: Vec<GLuint>, is_dynamic: bool) {
+    let mut vao = Vao::new();
+    vao.bind();
+    
+    if is_dynamic {
+      vao.create_ebo(indicies, gl::STREAM_DRAW);
+      vao.create_vbo(verts, gl::STREAM_DRAW);
+    } else {
+      vao.create_ebo(indicies, gl::STATIC_DRAW);
+      vao.create_vbo(verts, gl::STATIC_DRAW);
+    }
+    
+    vao.set_vertex_attrib(0, 2, 4, 0);
+    vao.set_vertex_attrib(1, 2, 4, 2);
+    
+    self.gl2D.custom_vao.insert(reference, vao);
   }
   
   fn draw_3d(&mut self, draw: &DrawCall) {
@@ -351,7 +372,7 @@ impl RawGl {
       value
     };
     
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()+180.0));
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
@@ -400,6 +421,38 @@ impl RawGl {
 }
 
 impl CoreRender for RawGl {
+  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+    let mut verts: Vec<GLfloat> = Vec::new();
+    verticies.iter().map(|v| {
+      verts.push(v.position[0] as GLfloat);
+      verts.push(v.position[1] as GLfloat);
+      verts.push(v.uv[0] as GLfloat);
+      verts.push(v.uv[1] as GLfloat);
+    });
+    
+    let index = indices.iter().map(|i| {
+      *i as GLuint
+    }).collect::<Vec<GLuint>>();
+    
+    self.load_custom_2d_vao(reference, verts, index, false);
+  }
+  
+  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+    let mut verts: Vec<GLfloat> = Vec::new();
+    verticies.iter().map(|v| {
+      verts.push(v.position[0] as GLfloat);
+      verts.push(v.position[1] as GLfloat);
+      verts.push(v.uv[0] as GLfloat);
+      verts.push(v.uv[1] as GLfloat);
+    });
+    
+    let index = indices.iter().map(|i| {
+      *i as GLuint
+    }).collect::<Vec<GLuint>>();
+    
+    self.load_custom_2d_vao(reference, verts, index, true);
+  }
+  
   fn preload_model(&mut self, reference: String, location: String, texture: String) {
     self.load_model(reference.clone(), location, texture.clone());
     self.load_texture(reference, texture);

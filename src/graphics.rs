@@ -2,6 +2,7 @@ use drawcalls::DrawCall;
 use std::collections::HashMap;
 use font::GenericFont;
 use camera::Camera;
+use graphics;
 
 use winit;
 
@@ -9,6 +10,9 @@ use std::vec::Vec;
 
 use cgmath::Vector2;
 use cgmath::Vector3;
+
+#[derive(Debug, Clone)]
+pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
 
 pub trait CoreRender {
   fn preload_model(&mut self, reference: String, location: String, texture: String);
@@ -22,6 +26,9 @@ pub trait CoreRender {
   fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String);
   fn add_font(&mut self, reference: String, font: &[u8], font_texture: String);  
   fn load_font(&mut self, reference: String, font: &[u8]);
+  
+  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
+  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
   
   fn load_shaders(&mut self);
   fn init(&mut self);

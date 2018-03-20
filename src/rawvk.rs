@@ -2,6 +2,7 @@ use font::GenericFont;
 use window::VkWindow;
 use drawcalls::DrawCall;
 use drawcalls::DrawMath;
+use graphics;
 use graphics::CoreRender;
 use settings::Settings;
 use camera::Camera;
@@ -18,6 +19,7 @@ use vulkano::memory;
 use vulkano::sync::now;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::NowFuture;
+use vulkano::sync::FlushError;
 
 use vulkano::swapchain;
 use vulkano::swapchain::AcquireError;
@@ -69,10 +71,7 @@ use cgmath::SquareMatrix;
 use cgmath::Rotation3;
 use cgmath::InnerSpace;
 
-#[derive(Debug, Clone)]
-struct Vertex { position: [f32; 2], uv: [f32; 2] }
-
-impl_vertex!(Vertex, position, uv);
+impl_vertex!(graphics::Vertex2d, position, uv);
 
 mod vs_texture {
   #[derive(VulkanoShader)]
@@ -123,8 +122,33 @@ pub struct ModelInfo {
 }
 
 pub struct Model {
-  vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>,
-  index_buffer: Arc<ImmutableBuffer<[u16]>>,
+  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  index_buffer: Option<Arc<ImmutableBuffer<[u16]>>>,
+}
+
+pub struct VK2D {
+  vao: Model,
+  projection: Matrix4<f32>,
+  
+  pipeline_texture: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  uniform_buffer_texture: cpu_pool::CpuBufferPool<vs_texture::ty::Data>,
+  
+  pipeline_text: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  uniform_buffer_text: cpu_pool::CpuBufferPool<vs_text::ty::Data>,
+}
+
+pub struct VK3D {
+  depth_buffer: Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>>,
+  
+  models: HashMap<String, Model>,
+  
+  pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  
+  projection: Matrix4<f32>,
+  view: Matrix4<f32>,
+  scale: Matrix4<f32>,
+  
+  uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
 }
 
 pub struct RawVk {
@@ -139,10 +163,11 @@ pub struct RawVk {
   framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
   render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
 
-  depth_buffer: Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>>,
+  //depth_buffer: Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>>,
   
   //3D
-  models: HashMap<String, Model>,
+  vk3d: VK3D,
+  /*models: HashMap<String, Model>,
   
   pipeline_3d: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   
@@ -150,19 +175,10 @@ pub struct RawVk {
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
   
-  uniform_buffer_3d: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
+  uniform_buffer_3d: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,*/
 
   //2D
-  vertex_buffer_2d: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer_2d: Option<Arc<ImmutableBuffer<[u16]>>>,
-
-  pipeline_text: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  pipeline_texture: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-
-  projection_2d: Matrix4<f32>,
-
-  uniform_buffer_texture: cpu_pool::CpuBufferPool<vs_texture::ty::Data>,
-  uniform_buffer_text: cpu_pool::CpuBufferPool<vs_text::ty::Data>,
+  vk2d: VK2D,
 
   // Vk System stuff
   pub window: VkWindow,
@@ -220,9 +236,23 @@ impl RawVk {
       framebuffers: None,
       render_pass: None,
 
-      depth_buffer: None,
-
       // 3D
+      vk3d: VK3D {
+        depth_buffer: None,
+        
+        models: HashMap::new(),
+        
+        pipeline: None,
+        
+        projection: proj_3d,
+        view: view,
+        scale: scale,
+
+        uniform_buffer: uniform_3d,
+      },
+/*
+      depth_buffer: None,
+      
       models: HashMap::new(),
       
       pipeline_3d: None,
@@ -231,20 +261,23 @@ impl RawVk {
       view: view,
       scale: scale,
 
-      uniform_buffer_3d: uniform_3d,
+      uniform_buffer_3d: uniform_3d,*/
 
       //2D
-      vertex_buffer_2d: None,
-      index_buffer_2d: None,
+      vk2d: VK2D {
+        vao: Model {
+          vertex_buffer: None,
+          index_buffer: None,
+        },
+        projection: proj_2d,
+        
+        pipeline_texture: None,
+        uniform_buffer_texture: texture_uniform,
+        
+        pipeline_text: None,
+        uniform_buffer_text: text_uniform,
+      },
       
-      pipeline_texture: None,
-      pipeline_text: None,
-      
-      projection_2d: proj_2d,
-            
-      uniform_buffer_texture: texture_uniform,
-      uniform_buffer_text: text_uniform,
-
       // Vk System
       window: window,
       sampler: sampler,
@@ -261,17 +294,12 @@ impl RawVk {
   }
   
   pub fn create_2d_vertex(&self) -> Arc<BufferAccess + Send + Sync> {
-    #[derive(Debug, Clone)]
-    struct Vertex { position: [f32; 2], uv: [f32; 2] }
-
-    impl_vertex!(Vertex, position, uv);
-    
     let square = {
       [
-          Vertex { position: [  0.5 ,   0.5 ], uv: [1.0, 0.0] },
-          Vertex { position: [ -0.5,    0.5 ], uv: [0.0, 0.0] },
-          Vertex { position: [ -0.5,   -0.5 ], uv: [0.0, 1.0] },
-          Vertex { position: [  0.5 ,  -0.5 ], uv: [1.0, 1.0] },
+          graphics::Vertex2d { position: [  0.5 ,   0.5 ], uv: [1.0, 0.0] },
+          graphics::Vertex2d { position: [ -0.5,    0.5 ], uv: [0.0, 0.0] },
+          graphics::Vertex2d { position: [ -0.5,   -0.5 ], uv: [0.0, 1.0] },
+          graphics::Vertex2d { position: [  0.5 ,  -0.5 ], uv: [1.0, 1.0] },
       ]
     };
     
@@ -283,13 +311,7 @@ impl RawVk {
   
   pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u16]>>,
                                     CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-    //Flickering at top and sides
-    //let indicies: [u16; 6] = [1, 2, 3, 0, 3, 1];
     
-    // Better, no flickering at top but worse flickering in corner
-    //let indicies: [u16; 6] = [0, 3, 1, 1, 2, 3];
-    
-    //let indicies: [u16; 6] = [2, 3, 1, 0, 1, 3];
     let indicies: [u16; 6] = [0, 1, 2, 2, 3, 0];
     ImmutableBuffer::from_iter(indicies.iter().cloned(), 
                                BufferUsage::index_buffer(), 
@@ -325,12 +347,12 @@ impl RawVk {
     };
     
     let uniform_data = vs_texture::ty::Data {
-      projection: self.projection_2d.into(),
+      projection: self.vk2d.projection.into(),
       model: model.into(),
       colour: draw.get_colour().into(),
       has_texture: Vector4::new(has_texture, 0.0, 0.0, 0.0).into(),
     };
-    self.uniform_buffer_texture.next(uniform_data).unwrap()
+    self.vk2d.uniform_buffer_texture.next(uniform_data).unwrap()
   }
   
   pub fn create_3d_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, 
@@ -384,14 +406,14 @@ impl RawVk {
     
     let uniform_data = vs_3d::ty::Data {
       transformation: transformation.into(),
-      view : (self.view * self.scale).into(),
-      proj : self.projection_3d.into(),
+      view : (self.vk3d.view * self.vk3d.scale).into(),
+      proj : self.vk3d.projection.into(),
       lightpositions: lighting_position.into(),
       lightcolours: lighting_colour.into(),
       attenuations: attenuation.into(),
     };
 
-    self.uniform_buffer_3d.next(uniform_data).unwrap()
+    self.vk3d.uniform_buffer.next(uniform_data).unwrap()
   }
   
   pub fn create_2d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
@@ -411,7 +433,15 @@ impl RawVk {
   }
 }
 
-impl CoreRender for RawVk {  
+impl CoreRender for RawVk {
+  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
+  
+  }
+  
+  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
+  
+  }
+  
   fn preload_model(&mut self, reference: String, location: String, texture: String) {
     self.load_model(reference.clone(), location, texture.clone());
     self.load_texture(reference, texture);
@@ -431,10 +461,10 @@ impl CoreRender for RawVk {
     let (idx_3d_buffer, future_3d_idx) = self.create_index(model.get_indicies().iter().cloned()); 
     
     let model = Model {
-      vertex_buffer: vec!(vert3d_buffer),
-      index_buffer: idx_3d_buffer,
+      vertex_buffer: Some(vec!(vert3d_buffer)),
+      index_buffer: Some(idx_3d_buffer),
     };
-    self.models.insert(reference, model);
+    self.vk3d.models.insert(reference, model);
     
     self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
@@ -477,7 +507,7 @@ impl CoreRender for RawVk {
   }
   
   fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String) {
-    self.load_font(reference.clone(), font);    
+    self.load_font(reference.clone(), font);
     self.load_texture(reference, font_texture);
   }
   
@@ -501,17 +531,17 @@ impl CoreRender for RawVk {
       self.window.get_dimensions()
     };
     
-    self.projection_2d = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
-    self.projection_3d = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     
-    self.depth_buffer = self.create_depth_buffer();
+    self.vk3d.depth_buffer = self.create_depth_buffer();
     
     // 2D
     let vert_buffer = self.create_2d_vertex();
     let (idx_buffer, future_idx) = self.create_2d_index();
     
-    self.vertex_buffer_2d = Some(vec!(vert_buffer));
-    self.index_buffer_2d = Some(idx_buffer);
+    self.vk2d.vao.vertex_buffer = Some(vec!(vert_buffer));
+    self.vk2d.vao.index_buffer = Some(idx_buffer);
     
     self.previous_frame_end = Some(Box::new(future_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
@@ -543,7 +573,7 @@ impl CoreRender for RawVk {
       }
     ).unwrap()));
    
-    self.pipeline_3d = Some(Arc::new(pipeline::GraphicsPipeline::start()
+    self.vk3d.pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<model_data::Vertex>()
         .vertex_shader(vs_3d.main_entry_point(), ())
         .triangle_list()
@@ -555,8 +585,8 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
 
-    self.pipeline_texture = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex>()
+    self.vk2d.pipeline_texture = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_texture.main_entry_point(), ())
         .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
@@ -567,8 +597,8 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
         
-    self.pipeline_text = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex>()
+    self.vk2d.pipeline_text = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_text.main_entry_point(), ())
         .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
@@ -578,50 +608,49 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
    
-    self.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
+    self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
-    self.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
-    
+    self.vk2d.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
     // Terrain stuff
-		let size = 800;
-		let vertex_count = 128;
-		
-		let count = vertex_count*vertex_count;
-		
-		let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(count);
-		let mut normals: Vec<[f32; 3]> = Vec::with_capacity(count);
-		let mut uv: Vec<[f32; 2]> = Vec::with_capacity(count);
-	  let mut indices: Vec<u16> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
-	  
-	  for i in 0..vertex_count {
-	    for j in 0..vertex_count {
-	      vertices.push(
-	        [j as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5,
-				  0.0,
-				  i as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5]);
-				normals.push([0.0, 1.0, 0.0]);
-				uv.push([j as f32/(vertex_count - 1) as f32,
-				         i as f32/(vertex_count - 1) as f32]);
-	    }
-	  }
-	  
-	  for gz in 0..vertex_count-1 {
-	    for gx in 0..vertex_count-1 {
-	      let top_left: u16 = ((gz*vertex_count)+gx) as u16;
-	      let top_right: u16 = (top_left + 1) as u16;
-	      let bottom_left: u16 = (((gz+1)*vertex_count)+gx) as u16;
-	      let bottom_right: u16 = (bottom_left + 1) as u16;
-	      indices.push(top_left);
-	      indices.push(bottom_left);
-	      indices.push(top_right);
-	      indices.push(top_right);
-	      indices.push(bottom_left);
-	      indices.push(bottom_right);
-	    }
-	  }
-	  
-	  let mut vertex: Vec<model_data::Vertex> = Vec::new();
+    let size = 800;
+    let vertex_count = 128;
+    
+    let count = vertex_count*vertex_count;
+    
+    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(count);
+    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(count);
+    let mut uv: Vec<[f32; 2]> = Vec::with_capacity(count);
+    let mut indices: Vec<u16> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
+    
+    for i in 0..vertex_count {
+      for j in 0..vertex_count {
+        vertices.push(
+          [j as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5,
+          0.0,
+          i as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5]);
+        normals.push([0.0, 1.0, 0.0]);
+        uv.push([j as f32/(vertex_count - 1) as f32,
+                 i as f32/(vertex_count - 1) as f32]);
+      }
+    }
+    
+    for gz in 0..vertex_count-1 {
+      for gx in 0..vertex_count-1 {
+      let top_left: u16 = ((gz*vertex_count)+gx) as u16;
+        let top_right: u16 = (top_left + 1) as u16;
+        let bottom_left: u16 = (((gz+1)*vertex_count)+gx) as u16;
+        let bottom_right: u16 = (bottom_left + 1) as u16;
+        indices.push(top_left);
+        indices.push(bottom_left);
+        indices.push(top_right);
+        indices.push(top_right);
+        indices.push(bottom_left);
+        indices.push(bottom_right);
+      }
+    }
+    
+    let mut vertex: Vec<model_data::Vertex> = Vec::new();
     
     for i in 0..vertices.len() {      
       vertex.push(model_data::Vertex {
@@ -636,11 +665,11 @@ impl CoreRender for RawVk {
     let (idx_3d_buffer, future_3d_idx) = self.create_index(indices.iter().cloned()); 
     
     let model = Model {
-      vertex_buffer: vec!(vert3d_buffer),
-      index_buffer: idx_3d_buffer,
+      vertex_buffer: Some(vec!(vert3d_buffer)),
+      index_buffer: Some(idx_3d_buffer),
     };
     
-    self.models.insert(String::from("terrain"), model);
+    self.vk3d.models.insert(String::from("terrain"), model);
     
     self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
@@ -728,14 +757,14 @@ impl CoreRender for RawVk {
       self.recreate_swapchain = false;
       
       let new_depth_buffer = self.create_depth_buffer();
-      mem::replace(&mut self.depth_buffer, new_depth_buffer);
+      mem::replace(&mut self.vk3d.depth_buffer, new_depth_buffer);
       
-      self.projection_2d = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
-      self.projection_3d = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
+      self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+      self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     }
     
     if self.framebuffers.is_none() {
-      let depth_buffer = self.depth_buffer.clone();
+      let depth_buffer = self.vk3d.depth_buffer.clone();
       
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
@@ -770,7 +799,7 @@ impl CoreRender for RawVk {
       let build_start = tmp_cmd_buffer;
         
     //  tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![[0.2, 0.3, 0.3, 1.0].into(), 1f32.into()]).unwrap(); 
-      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];   
+      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![clear.into(), 1f32.into()]).unwrap();
       for draw in draw_calls {
         
@@ -786,7 +815,7 @@ impl CoreRender for RawVk {
             texture = String::from("oakfloor");
           }
           
-          let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_3d.clone().unwrap(), 0)
+          let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)
                 .add_buffer(uniform_buffer_subbuffer).unwrap()
                 .add_sampled_image(self.textures.get(&texture).unwrap().clone(), self.sampler.clone()).unwrap()
                 .build().unwrap()
@@ -796,7 +825,7 @@ impl CoreRender for RawVk {
             let cb = tmp_cmd_buffer;
 
             tmp_cmd_buffer = cb.draw_indexed(
-                  self.pipeline_3d.clone().unwrap(),
+                  self.vk3d.pipeline.clone().unwrap(),
                   DynamicState {
                         line_width: None,
                         viewports: Some(vec![pipeline::viewport::Viewport {
@@ -806,8 +835,8 @@ impl CoreRender for RawVk {
                         }]),
                         scissors: None,
                   },
-                  self.models.get(draw.get_texture()).expect("Invalid model name").vertex_buffer.clone(),
-                  self.models.get(draw.get_texture()).expect("Invalid model name").index_buffer.clone(), set_3d.clone(), ()).unwrap();
+                  self.vk3d.models.get(draw.get_texture()).expect("Invalid model name").vertex_buffer.clone().unwrap(),
+                  self.vk3d.models.get(draw.get_texture()).expect("Invalid model name").index_buffer.clone().unwrap(), set_3d.clone(), ()).unwrap();
           }
         } else {
           // Render Text
@@ -835,19 +864,19 @@ impl CoreRender for RawVk {
                   edge_width: edge_width.into(),
                   letter_uv: letter_uv.into(),
                   model: model.into(),
-                  projection: self.projection_2d.into(),
+                  projection: self.vk2d.projection.into(),
                 };
-                self.uniform_buffer_text.next(uniform_data).unwrap()
+                self.vk2d.uniform_buffer_text.next(uniform_data).unwrap()
               };
               
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_text.clone().unwrap(), 0)
+              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_text.clone().unwrap(), 0)
                                          .add_sampled_image(self.textures.get(draw.get_texture()).unwrap().clone(), self.sampler.clone()).unwrap()
                                          .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
                                          .build().unwrap());
               
               {
                 let cb = tmp_cmd_buffer;
-                tmp_cmd_buffer = cb.draw_indexed(self.pipeline_text.clone().unwrap(),
+                tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_text.clone().unwrap(),
                                               DynamicState {
                                                       line_width: None,
                                                       viewports: Some(vec![Viewport {
@@ -857,11 +886,9 @@ impl CoreRender for RawVk {
                                                       }]),
                                                       scissors: None,
                                               },
-                                              self.vertex_buffer_2d.clone().unwrap(),
-                                              self.index_buffer_2d.clone().unwrap(),
+                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
+                                              self.vk2d.vao.index_buffer.clone().unwrap(),
                                               uniform_set.clone(), ()).unwrap();
-              
-              
               }
             }
           } else {
@@ -869,7 +896,7 @@ impl CoreRender for RawVk {
             
             // No Texture
             if draw.get_texture() == &String::from("") {
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
+              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
                                          .add_sampled_image(self.textures.get("Arial").expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
                                          .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                          .build().unwrap());
@@ -877,7 +904,7 @@ impl CoreRender for RawVk {
               {
                 let cb = tmp_cmd_buffer;
                 
-                tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
+                tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
                                               DynamicState {
                                                       line_width: None,
                                                       viewports: Some(vec![Viewport {
@@ -887,15 +914,15 @@ impl CoreRender for RawVk {
                                                       }]),
                                                       scissors: None,
                                               },
-                                              self.vertex_buffer_2d.clone().unwrap(),
-                                              self.index_buffer_2d.clone().unwrap(),
+                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
+                                              self.vk2d.vao.index_buffer.clone().unwrap(),
                                               uniform_set.clone(), ()).unwrap();
               }
             } else {
               // Texture
               let texture = draw.get_texture();
               
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.pipeline_texture.clone().unwrap(), 0)
+              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
                                       .add_sampled_image(self.textures.get(draw.get_texture()).expect(&("Unknown Texture".to_string() + texture)).clone(), self.sampler.clone()).unwrap()
                                       .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                       .build().unwrap());
@@ -903,7 +930,7 @@ impl CoreRender for RawVk {
               {
                 let cb = tmp_cmd_buffer;
 
-                tmp_cmd_buffer = cb.draw_indexed(self.pipeline_texture.clone().unwrap(),
+                tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
                                               DynamicState {
                                                       line_width: None,
                                                       viewports: Some(vec![Viewport {
@@ -913,8 +940,8 @@ impl CoreRender for RawVk {
                                                       }]),
                                                       scissors: None,
                                               },
-                                              self.vertex_buffer_2d.clone().unwrap(),
-                                              self.index_buffer_2d.clone().unwrap(),
+                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
+                                              self.vk2d.vao.index_buffer.clone().unwrap(),
                                               uniform_set.clone(), ()).unwrap();
               }
             }
@@ -928,10 +955,23 @@ impl CoreRender for RawVk {
     };
   
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
-      .then_execute(self.window.get_queue(), command_buffer).unwrap()
+      .then_execute(self.window.get_queue(), command_buffer).expect("future")
       .then_swapchain_present(self.window.get_queue(), self.window.get_swapchain(), image_num)
-      .then_signal_fence_and_flush().unwrap();
+      .then_signal_fence_and_flush();
     
+    match future {
+      Ok(future) => {
+        self.previous_frame_end = Some(Box::new(future) as Box<_>);
+      }
+      Err(FlushError::OutOfDate) => {
+        self.recreate_swapchain = true;
+        self.previous_frame_end = Some(Box::new(now(self.window.get_device())) as Box<_>);
+      }
+      Err(e) => {
+        println!("{:?}", e);
+        self.previous_frame_end = Some(Box::new(now(self.window.get_device())) as Box<_>);
+      }
+    }
     // <hacks>
     /*    match future.wait(Some(Duration::from_millis(100))) {
             Ok(x) => x,  // type unit
@@ -939,7 +979,7 @@ impl CoreRender for RawVk {
         }*/
     // </hacks>
     
-    self.previous_frame_end = Some(Box::new(future) as Box<_>);
+   // self.previous_frame_end = Some(Box::new(future) as Box<_>);
   }
   
   /// Tells engine it needs to update as window resize has occured
@@ -992,7 +1032,7 @@ impl CoreRender for RawVk {
     //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
     let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
     
-    self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
+    self.vk3d.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
   }
   
   // Sets the clear colour for the window to display if nothing is draw in an area

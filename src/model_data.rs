@@ -1,3 +1,5 @@
+use opengex_parser::OpengexData;
+
 use opengex;
 
 use piston_meta::parse;
@@ -7,11 +9,68 @@ use piston_meta_search::Search;
 use piston_meta::ParseError;
 use range::Range;
 
+use nom::*;
+use nom::{alpha,IResult,space};
+
+use std::str;
 use std::fs::File;
 use std::io::Read;
+use std::num::ParseIntError;
 
 use cgmath::Vector4;
 use cgmath::Matrix4;
+
+named!(next_openbracket, take_until!("{"));
+
+named!(to_next_enter, take_until!("\n"));
+
+named!(name_identifier, take_until!("$"));
+named!(next_geomtry, take_until!("GeometryNode $node"));
+named!(geometry_name, take!(18));
+
+named!(next_transform, take_until!("Transform"));
+
+named!(int32 <&str, Result<i32,ParseIntError>>,
+    map!(digit, str::FromStr::from_str)
+);
+
+pub fn get_geometry_node_n(text: &&[u8], index: i32) -> (String, bool) {
+  let mut result: bool = false;
+  
+  let text = next_geomtry(text);
+  let text = geometry_name(text.unwrap().0);
+  let value = int32(str::from_utf8(text.clone().unwrap().0).expect("failed str parse")).unwrap().1.unwrap();
+  
+  if value == index {
+    result = true;
+  }
+  
+  let text = str::from_utf8(text.unwrap().0).expect("failed str parse").to_string();
+  
+  println!("{:?}", text);
+  
+  (text, result)
+}
+
+pub fn get_goemetry_name(text: &&[u8]) -> String {
+  let text = next_geomtry(&text.as_bytes());
+  let text = geometry_name(text.unwrap().0);
+  let text = name_identifier(text.unwrap().0);
+  let text = to_next_enter(text.unwrap().0);
+  
+ // str::from_utf8(text.expect("Unwrapping failed").1).expect("Error parsing").to_string()
+ "".to_string()
+}
+
+pub fn get_goemetry_transform(text: &&[u8]) -> String {
+  let text = next_transform(&text.as_bytes());
+  let text = geometry_name(text.unwrap().0);
+  let text = name_identifier(text.unwrap().0);
+  let text = to_next_enter(text.unwrap().0);
+  
+  //str::from_utf8(text.expect("Unwrapping failed").1).expect("Error parsing").to_string()
+  "".to_string()
+}
 
 #[derive(Copy, Clone)]
 pub struct Vertex {
@@ -34,15 +93,40 @@ impl Loader {
     file_h.read_to_string(&mut source).unwrap();
     let rules = stderr_unwrap(&source, syntax(&source));
     
-    let mut file_h = File::open(location).unwrap();
+    let mut file_h = File::open(location.clone()).unwrap();
     let mut source = String::new();
     file_h.read_to_string(&mut source).unwrap();
     let mut data = vec![];
     stderr_unwrap(&source, parse(&rules, &source, &mut data));
     
-    for i in data.len()-20 .. data.len() {
-      println!("{:?}", data[i]);
+    if location.clone() == "resources/models/cube.ogex" {
+      //let custom_text = source.to_owned();
+     // let text = get_geometry_node_n(&custom_text.as_bytes(), 1);
+     
+   //  let mut file_data = OpengexData::new(String::from("resources/models/Holostand/Holostandsubed.ogex"));
+     
+     
+      //let text = get_goemetry_name(&custom_text.as_bytes());
+     /* let text = next_geomtry(&custom_text.as_bytes());
+      let text = geometry_name(text.unwrap().0);
+      let text = name_identifier(text.unwrap().0);
+      let text = to_next_enter(text.unwrap().0);
+      
+      let text = str::from_utf8(text.expect("Unwrapping failed").1).expect("Error parsing");*/
+      
+    //  let s = take_node_name(text.as_bytes());
+     // let s = brackets_after(text.as_bytes());
+      /*
+      let s = match str::from_utf8(s.unwrap().1) {
+        Ok(v) => v,
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+      };*/
+      
+      //println!("{:?}", text);
     }
+ /*   for i in data.len()-20 .. data.len() {
+      println!("{:?}", data[i]);
+    }*/
     let s = Search::new(&data);
     
     let transform: Matrix4<f32> = stderr_unwrap(&source, s.for_node("Transform",
@@ -52,7 +136,7 @@ impl Loader {
                 vs.push(
                    match s.f64("val") {
                      Ok(t)  => t,
-                     Err(e) => break,
+                     Err(_e) => break,
                    } as f32,
                 );
             }
@@ -76,7 +160,7 @@ impl Loader {
                 vs.push([
                    match s.f64("x") {
                      Ok(t)  => t,
-                     Err(e) => break,
+                     Err(_e) => break,
                    } as f32,
                     try!(s.f64("y")) as f32,
                     try!(s.f64("z")) as f32
@@ -92,7 +176,7 @@ impl Loader {
                 vs.push([
                    match s.f64("x") {
                      Ok(t)  => t,
-                     Err(e) => break,
+                     Err(_e) => break,
                    } as f32,
                    // try!(s.f64("x")) as f32,
                     try!(s.f64("y")) as f32,
@@ -140,7 +224,7 @@ impl Loader {
                       [
                         match s.f64("x") {
                           Ok(t)  => t,
-                          Err(e) => break,
+                          Err(_e) => break,
                         } as f32,
                        try!(s.f64("y")) as f32
                       ]);
@@ -178,7 +262,7 @@ impl Loader {
                 is.push(
                    match s.f64("a") {
                      Ok(t)  => t,
-                     Err(e) => break,
+                     Err(_e) => break,
                    } as u16);
                 is.push(try!(s.f64("b")) as u16);
                 is.push(try!(s.f64("c")) as u16);

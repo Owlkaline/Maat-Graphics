@@ -117,17 +117,21 @@ extern crate piston_meta;
 extern crate piston_meta_search;
 extern crate range;
 
+#[macro_use]
+extern crate nom;
+
 pub mod graphics;
 pub mod drawcalls;
+pub mod settings;
+pub mod camera;
 pub mod rawgl;
 pub mod rawvk;
 pub mod font;
-mod shaders;
 mod window;
-mod vulkano_win_updated;
-pub mod settings;
+mod shaders;
 mod model_data;
-pub mod camera;
+mod opengex_parser;
+mod vulkano_win_updated;
 
 #[cfg(test)]
 mod tests {

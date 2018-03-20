@@ -88,7 +88,7 @@ void main() {
 //    float falloff = (clamp(1-(distance/lightRadius)^4)^2)/distance*distance+1;
     
     float attenuation = 1.0 / pow(distance, lightType[i]);
-    vec3 radiance = lightColour[i] *falloff; //* attenuation;
+    vec3 radiance = lightColour[i] * attenuation; //*falloff; 
     
     float NDF = DistributionGGX(N, H, clamp(roughness, 0.3, 1.0));
     float G   = GeometrySmith(N, V, L, roughness);
