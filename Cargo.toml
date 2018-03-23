@@ -19,6 +19,6 @@ range = "*"
 nom = "^3.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.9"
-objc = "0.2"
-metal-rs = "0.4.3"
+cocoa = "0.13"
+objc = "0.2.2"
+metal-rs = "0.6"

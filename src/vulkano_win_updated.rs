@@ -21,14 +21,15 @@ use vulkano::swapchain::SurfaceCreationError;
 use winit::{EventsLoop, WindowBuilder};
 use winit::CreationError as WindowCreationError;
 
+//aids
 #[cfg(target_os = "macos")]
-use cocoa::appkit::{NSView, NSWindow};
+use vulkano_win_updated::cocoa::appkit::{NSView, NSWindow};
 #[cfg(target_os = "macos")]
-use cocoa::base::id as cocoa_id;
+use vulkano_win_updated::cocoa::base::id as cocoa_id;
 #[cfg(target_os = "macos")]
-use metal::*;
+use self:: metal::*; // SELF!?!
 #[cfg(target_os = "macos")]
-use objc::runtime::YES;
+use vulkano_win_updated::objc::runtime::YES;
 
 #[cfg(target_os = "macos")]
 use std::mem;
