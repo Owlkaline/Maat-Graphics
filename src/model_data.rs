@@ -299,7 +299,7 @@ impl Loader {
     self.vertex.clone()
   }
   
-  pub fn get_indicies(&self) -> Vec<u16> {
+  pub fn get_indices(&self) -> Vec<u16> {
     self.index.clone()
   }
 }

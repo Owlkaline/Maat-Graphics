@@ -106,6 +106,7 @@ impl Vao {
   
   pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
     let mut vbo: GLuint = 0;
+    println!("{:?}", vertices);
     unsafe {
       gl::GenBuffers(1, &mut vbo);
       gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -277,7 +278,7 @@ impl RawGl {
   fn load_custom_2d_vao(&mut self, reference: String, verts: Vec<GLfloat>, indicies: Vec<GLuint>, is_dynamic: bool) {
     let mut vao = Vao::new();
     vao.bind();
-    
+    println!("{:?}", verts);
     if is_dynamic {
       vao.create_ebo(indicies, gl::STREAM_DRAW);
       vao.create_vbo(verts, gl::STREAM_DRAW);
@@ -375,6 +376,7 @@ impl RawGl {
     let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
+    
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
     self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
@@ -382,7 +384,11 @@ impl RawGl {
       self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
     }
     
-    self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    if draw.is_custom_vao() {
+      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    } else {
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    }
   }
   
   fn draw_text(&self, draw: &DrawCall) {
@@ -421,15 +427,15 @@ impl RawGl {
 }
 
 impl CoreRender for RawGl {
-  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
     let mut verts: Vec<GLfloat> = Vec::new();
-    verticies.iter().map(|v| {
+    for v in vertices {
       verts.push(v.position[0] as GLfloat);
       verts.push(v.position[1] as GLfloat);
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
-    });
-    
+    };
+    println!("{:?}", verts);
     let index = indices.iter().map(|i| {
       *i as GLuint
     }).collect::<Vec<GLuint>>();
@@ -485,7 +491,7 @@ impl CoreRender for RawGl {
       vertices.push(vertex.uv[1]);
     }
     
-    let indices = model.get_indicies().iter().map( |index| {
+    let indices = model.get_indices().iter().map( |index| {
         *index as GLuint
       }
     ).collect::<Vec<GLuint>>();
@@ -654,7 +660,7 @@ impl CoreRender for RawGl {
     for draw in draw_calls {
       if draw.is_3d_model() {
         self.draw_3d(draw);
-      } else if draw.get_text() != "" {
+      } else if !draw.is_custom_vao() && draw.get_text() != "" {
         self.draw_text(draw);
       } else {
         self.draw_square(draw);

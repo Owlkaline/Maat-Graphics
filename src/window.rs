@@ -171,10 +171,6 @@ impl VkWindow {
                                            .with_title("Vulkan Fullscreen")
                                            .build_vk_surface(&events_loop, instance.clone())
                                            .unwrap()
-    /*    temp_window = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
-                                           .with_title("Vulkan Fullscreen")
-                                           .build_vk_surface(&events_loop, instance.clone())
-                                           .unwrap();*/
       } else {
         // Windowed
         temp_surface = winit::WindowBuilder::new().with_dimensions(width, height)

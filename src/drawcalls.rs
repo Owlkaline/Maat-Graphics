@@ -24,6 +24,7 @@ pub struct DrawCall {
   centered: bool,
   edge_width: Vector4<f32>,
   is_model: bool,
+  custom_vao: bool,
 }
 
 impl DrawCall {
@@ -40,6 +41,41 @@ impl DrawCall {
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
       is_model: false,
+      custom_vao: false,
+    }
+  }
+  
+  pub fn new_custom_textured_draw(x: f32, y: f32, texture: String, custom_vao: String) -> DrawCall {
+    DrawCall {
+      position: Vector3::new(x, y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      size: Vector2::new(0.0, 0.0),
+      texture: texture,
+      colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      outline_colour: Vector3::new(0.0, 0.0, 0.0),
+      text: custom_vao,
+      text_wrapping: 0,
+      centered: false,
+      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      is_model: false,
+      custom_vao: true,
+    }
+  }
+  
+  pub fn new_custom_draw(x: f32, y: f32, r: f32, g: f32, b: f32, custom_vao: String) -> DrawCall {
+    DrawCall {
+      position: Vector3::new(x, y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      size: Vector2::new(0.0, 0.0),
+      texture: String::from(""),
+      colour: Vector4::new(r, g, b, 1.0),
+      outline_colour: Vector3::new(0.0, 0.0, 0.0),
+      text: custom_vao,
+      text_wrapping: 0,
+      centered: false,
+      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      is_model: false,
+      custom_vao: true,
     }
   }
   
@@ -56,6 +92,7 @@ impl DrawCall {
       centered: false,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
       is_model: false,
+      custom_vao: false,
     }
   }
   
@@ -72,6 +109,7 @@ impl DrawCall {
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
       is_model: true,
+      custom_vao: false,
     }
   }
   
@@ -88,6 +126,7 @@ impl DrawCall {
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
       is_model: false,
+      custom_vao: false,
     }
   }
   
@@ -170,6 +209,7 @@ impl DrawCall {
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
       is_model: false,
+      custom_vao: false,
     }
   }
   
@@ -186,6 +226,7 @@ impl DrawCall {
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
       is_model: false,
+      custom_vao: false,
     }
   }
   
@@ -203,6 +244,7 @@ impl DrawCall {
       edge_width: edge_width, // (Fatness, Edge fade, outline Fatness, outline fade away)
       // GLOW EFFECT (0.4, 0.1, 0.4, 0.6)
       is_model: false,
+      custom_vao: false,
     }
   }
   
@@ -276,6 +318,10 @@ impl DrawCall {
   
   pub fn is_3d_model(&self) -> bool {
     self.is_model
+  }
+  
+  pub fn is_custom_vao(&self) -> bool {
+    self.custom_vao
   }
 }
 
