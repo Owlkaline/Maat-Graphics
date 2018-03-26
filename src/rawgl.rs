@@ -585,6 +585,7 @@ impl CoreRender for RawGl {
     unsafe {
       gl::Enable(gl::BLEND);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+     // gl::Enable(gl::POLYGON_SMOOTH);
     }
     
     self.load_2d_vao();

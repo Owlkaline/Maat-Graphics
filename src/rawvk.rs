@@ -163,6 +163,7 @@ pub struct RawVk {
   
   framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
   render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  samples: u32,
   
   //3D
   vk3d: VK3D,
@@ -214,6 +215,8 @@ impl RawVk {
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
+    let samples = 8;
+    
     RawVk {
       ready: false,
       fonts: HashMap::new(),
@@ -225,6 +228,7 @@ impl RawVk {
 
       framebuffers: None,
       render_pass: None,
+      samples: samples,
 
       // 3D
       vk3d: VK3D {
@@ -552,22 +556,37 @@ impl CoreRender for RawVk {
     
     self.render_pass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
       attachments: {
-        colour: {
+        multisample_colour: {
           load: Clear,
+          store: DontCare,
+          format: self.window.get_swapchain().format(),
+          samples: self.samples,
+        },
+        multisample_depth: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::D16Unorm,
+          samples: self.samples,
+        },
+        resolve_colour: {
+          load: DontCare,
           store: Store,
           format: self.window.get_swapchain().format(),
           samples: 1,
         },
-        depth: {
-          load: Clear,
-          store: DontCare,
+        resolve_depth: {
+          load: DontCare,
+          store: Store,
           format: format::Format::D16Unorm,
           samples: 1,
+          initial_layout: ImageLayout::Undefined,
+          final_layout: ImageLayout::DepthStencilAttachmentOptimal,
         }
       },
       pass: {
-        color: [colour],
-        depth_stencil: {depth}
+        color: [multisample_colour],
+        depth_stencil: {multisample_depth},
+        resolve: [resolve_colour],
       }
     ).unwrap()));
    
@@ -766,9 +785,15 @@ impl CoreRender for RawVk {
       
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
+             let dim = self.window.get_dimensions();
+             let multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, self.samples, self.window.get_swapchain().format()).unwrap();
+             let multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, self.samples, format::Format::D16Unorm).unwrap();
              let fb = framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
+                      .add(multisample_image.clone()).unwrap()
+                      .add(multisample_depth.clone()).unwrap()
                       .add(image.clone()).unwrap()
                       .add(depth_buffer.clone().unwrap()).unwrap()
+                      //.add(self.sampled_image.clone()).unwrap()
                       .build().unwrap();
              Arc::new(fb) as Arc<framebuffer::FramebufferAbstract + Send + Sync>
              }).collect::<Vec<_>>());
@@ -797,7 +822,7 @@ impl CoreRender for RawVk {
       let build_start = tmp_cmd_buffer;
       
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![clear.into(), 1f32.into()]).unwrap();
+      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![clear.into(), 1f32.into(), format::ClearValue::None, format::ClearValue::None]).unwrap();
       for draw in draw_calls {
         
         if draw.is_3d_model() {
@@ -978,8 +1003,14 @@ impl CoreRender for RawVk {
         }
       }
       
+      let buf = CpuAccessibleBuffer::from_iter(self.window.get_device(), BufferUsage::all(),
+                                             (0 .. self.get_dimensions()[0] * self.get_dimensions()[0] * self.samples).map(|_| 0u8))
+.expect("failed to create buffer");
+      
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
+     //   .copy_image_to_buffer(self.sampled_image.clone(), buf.clone())
+//.unwrap()
         .build().unwrap() as AutoCommandBuffer
     };
   
