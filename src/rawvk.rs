@@ -163,6 +163,8 @@ pub struct RawVk {
   
   framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
   render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  multisample_image: Arc<vkimage::AttachmentImage>,
+  multisample_depth: Arc<vkimage::AttachmentImage>,
   samples: u32,
   
   //3D
@@ -217,6 +219,10 @@ impl RawVk {
     
     let samples = 8;
     
+    let dim = window.get_dimensions();
+    let multisample_image = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();
+    let multisample_depth = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    
     RawVk {
       ready: false,
       fonts: HashMap::new(),
@@ -228,6 +234,8 @@ impl RawVk {
 
       framebuffers: None,
       render_pass: None,
+      multisample_image: multisample_image,
+      multisample_depth: multisample_depth,
       samples: samples,
 
       // 3D
@@ -778,16 +786,19 @@ impl CoreRender for RawVk {
       
       self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
       self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
+      
+      self.multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, self.window.get_swapchain().format()).unwrap();
+      self.multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
     }
     
     if self.framebuffers.is_none() {
       let depth_buffer = self.vk3d.depth_buffer.clone();
+      let multisample_image = self.multisample_image.clone();
+      let multisample_depth = self.multisample_depth.clone();
       
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
-             let dim = self.window.get_dimensions();
-             let multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, self.samples, self.window.get_swapchain().format()).unwrap();
-             let multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, self.samples, format::Format::D16Unorm).unwrap();
+
              let fb = framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
                       .add(multisample_image.clone()).unwrap()
                       .add(multisample_depth.clone()).unwrap()
@@ -862,7 +873,7 @@ impl CoreRender for RawVk {
           }
         } else {
           // Render Text
-          if !draw.is_custom_vao() && draw.get_text() != "" {
+          if draw.is_text() {
             let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
             let size = draw.get_x_size();
             
@@ -1003,14 +1014,8 @@ impl CoreRender for RawVk {
         }
       }
       
-      let buf = CpuAccessibleBuffer::from_iter(self.window.get_device(), BufferUsage::all(),
-                                             (0 .. self.get_dimensions()[0] * self.get_dimensions()[0] * self.samples).map(|_| 0u8))
-.expect("failed to create buffer");
-      
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
-     //   .copy_image_to_buffer(self.sampled_image.clone(), buf.clone())
-//.unwrap()
         .build().unwrap() as AutoCommandBuffer
     };
   
@@ -1032,8 +1037,6 @@ impl CoreRender for RawVk {
         self.previous_frame_end = Some(Box::new(now(self.window.get_device())) as Box<_>);
       }
     }
-    
-   // self.previous_frame_end = Some(Box::new(future) as Box<_>);
   }
   
   /// Tells engine it needs to update as window resize has occured

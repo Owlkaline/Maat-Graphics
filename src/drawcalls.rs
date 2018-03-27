@@ -1,6 +1,8 @@
 use font::GenericCharacter;
 use font::GenericFont;
 
+use graphics;
+
 use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
@@ -10,6 +12,15 @@ use cgmath::Matrix4;
 use cgmath::InnerSpace;
 
 use std::collections::HashMap;
+
+#[derive(Clone, PartialEq)]
+enum DrawType {
+  SQUARE,
+  CUSTOM_VAO,
+  UPDATE_VAO,
+  TEXT,
+  MODEL,
+}
 
 #[derive(Clone)]
 pub struct DrawCall {
@@ -23,11 +34,28 @@ pub struct DrawCall {
   text_wrapping: i32,
   centered: bool,
   edge_width: Vector4<f32>,
-  is_model: bool,
-  custom_vao: bool,
+  draw_type: DrawType,
+  new_vao: (Vec<graphics::Vertex2d>, Vec<u16>),
 }
 
 impl DrawCall {
+  pub fn update_vao(verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>, custom_vao: String) -> DrawCall {
+    DrawCall {
+      position: Vector3::new(0.0, 0.0, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      size: Vector2::new(0.0, 0.0),
+      texture: String::from(""),
+      colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      outline_colour: Vector3::new(0.0, 0.0, 0.0),
+      text: custom_vao,
+      text_wrapping: 0,
+      centered: false,
+      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      draw_type: DrawType::UPDATE_VAO,
+      new_vao: (verticies, indices),
+    }
+  }
+  
   pub fn new_draw(x: f32, y: f32, z: f32) -> DrawCall {
     DrawCall {
       position: Vector3::new(x, y, z),
@@ -40,8 +68,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::SQUARE,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -57,8 +85,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      is_model: false,
-      custom_vao: true,
+      draw_type: DrawType::SQUARE,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -74,8 +102,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      is_model: false,
-      custom_vao: true,
+      draw_type: DrawType::CUSTOM_VAO,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -91,8 +119,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::TEXT,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -108,8 +136,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      is_model: true,
-      custom_vao: false,
+      draw_type: DrawType::MODEL,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -125,8 +153,8 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::SQUARE,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -208,8 +236,8 @@ impl DrawCall {
       text_wrapping: wrap_length,
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::TEXT,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -225,8 +253,8 @@ impl DrawCall {
       text_wrapping: wrap_length,
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::TEXT,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -243,8 +271,8 @@ impl DrawCall {
       centered: centered,
       edge_width: edge_width, // (Fatness, Edge fade, outline Fatness, outline fade away)
       // GLOW EFFECT (0.4, 0.1, 0.4, 0.6)
-      is_model: false,
-      custom_vao: false,
+      draw_type: DrawType::TEXT,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -316,14 +344,30 @@ impl DrawCall {
     self.rotation.z
   }
   
+  pub fn get_new_vertices(&self) -> Vec<graphics::Vertex2d> {
+    self.new_vao.clone().0
+  }
+  
+  pub fn get_new_indices(&self) -> Vec<u16> {
+    self.new_vao.clone().1
+  }
+  
+  pub fn is_text(&self) -> bool {
+    self.draw_type == DrawType::TEXT
+  }
+  
   pub fn is_3d_model(&self) -> bool {
-    self.is_model
+    self.draw_type == DrawType::MODEL
   }
   
   pub fn is_custom_vao(&self) -> bool {
-    self.custom_vao
+    self.draw_type == DrawType::CUSTOM_VAO
   }
-}
+  
+  pub fn is_vao_update(&self) -> bool {
+    self.draw_type == DrawType::UPDATE_VAO
+  }
+} 
 
 pub struct DrawMath { 
   

@@ -106,7 +106,6 @@ impl Vao {
   
   pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
     let mut vbo: GLuint = 0;
-    println!("{:?}", vertices);
     unsafe {
       gl::GenBuffers(1, &mut vbo);
       gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -121,6 +120,31 @@ impl Vao {
   pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
     unsafe {
       gl::GenBuffers(1, &mut self.ebo);
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*indices.len()) as isize,
+                     mem::transmute(&indices[0]),
+                     draw_type);
+      self.num_indices = indices.len() as GLint;
+    }
+  }
+  
+  pub fn update_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
+    let mut vbo: GLuint = 0;
+    println!("{:?}", vertices);
+    unsafe {
+      gl::GenBuffers(1, &mut vbo);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+      gl::BufferData(gl::ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
+                     mem::transmute(&vertices[0]),
+                     draw_type);
+      self.num_vertices = (vertices.len()/3) as GLint;
+    }
+  }
+  
+  pub fn update_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
+    unsafe {
       gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
       gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
                      (mem::size_of::<GLuint>()*indices.len()) as isize,
@@ -291,6 +315,24 @@ impl RawGl {
     vao.set_vertex_attrib(1, 2, 4, 2);
     
     self.gl2D.custom_vao.insert(reference, vao);
+  }
+  
+  fn update_vao(&mut self, draw: &DrawCall) {
+    let mut verts: Vec<GLfloat> = Vec::new();
+    for v in draw.get_new_vertices() {
+      verts.push(v.position[0] as GLfloat);
+      verts.push(v.position[1] as GLfloat);
+      verts.push(v.uv[0] as GLfloat);
+      verts.push(v.uv[1] as GLfloat);
+    };
+    println!("{:?}", verts);
+    let index = draw.get_new_indices().iter().map(|i| {
+      *i as GLuint
+    }).collect::<Vec<GLuint>>();
+    
+    self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
+    //self.gl2D.custom_vao.get(draw.get_text()).unwrap().update_vbo(verts, gl::STREAM_DRAW);
+    //self.gl2D.custom_vao.get(draw.get_text()).unwrap().update_ebo(index, gl::STREAM_DRAW);
   }
   
   fn draw_3d(&mut self, draw: &DrawCall) {
@@ -585,7 +627,6 @@ impl CoreRender for RawGl {
     unsafe {
       gl::Enable(gl::BLEND);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-     // gl::Enable(gl::POLYGON_SMOOTH);
     }
     
     self.load_2d_vao();
@@ -661,8 +702,10 @@ impl CoreRender for RawGl {
     for draw in draw_calls {
       if draw.is_3d_model() {
         self.draw_3d(draw);
-      } else if !draw.is_custom_vao() && draw.get_text() != "" {
+      } else if draw.is_text() {
         self.draw_text(draw);
+      } else if draw.is_vao_update() {
+        self.update_vao(draw);
       } else {
         self.draw_square(draw);
       }

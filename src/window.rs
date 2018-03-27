@@ -80,7 +80,7 @@ impl GlWindow {
     
     let context = glutin::ContextBuilder::new()
         .with_vsync(true)
-        .with_multisampling(8);
+        .with_multisampling(0);
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
     
     unsafe {
