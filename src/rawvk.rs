@@ -126,6 +126,11 @@ pub struct Model {
   index_buffer: Option<Arc<ImmutableBuffer<[u16]>>>,
 }
 
+pub struct DynamicModel {
+  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  index_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+}
+
 pub struct VK2D {
   vao: Model,
   custom_vao: HashMap<String, Model>,
@@ -315,7 +320,12 @@ impl RawVk {
     let vert =  CpuAccessibleBuffer::from_iter(self.window.get_device(), 
                                    BufferUsage::vertex_buffer(), 
                                    verts.iter().cloned())
-                                   .expect("failed to create vertex buffer");
+                                   .expect("Vulkan failed to create custom vertex buffer");
+    let idx = CpuAccessibleBuffer::from_iter(self.window.get_device(), 
+                                   BufferUsage::index_buffer(), 
+                                   indices.iter().cloned())
+                                   .expect("Vulkan failed to create custom index buffer");
+    
     let (idx_buffer, future_idx) = ImmutableBuffer::from_iter(indices.iter().cloned(), 
                                BufferUsage::index_buffer(), 
                                self.window.get_queue())

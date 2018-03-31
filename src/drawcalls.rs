@@ -90,13 +90,13 @@ impl DrawCall {
     }
   }
   
-  pub fn new_custom_draw(x: f32, y: f32, r: f32, g: f32, b: f32, custom_vao: String) -> DrawCall {
+  pub fn new_custom_draw(x: f32, y: f32, r: f32, g: f32, b: f32, a: f32, custom_vao: String) -> DrawCall {
     DrawCall {
       position: Vector3::new(x, y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       size: Vector2::new(0.0, 0.0),
       texture: String::from(""),
-      colour: Vector4::new(r, g, b, 1.0),
+      colour: Vector4::new(r, g, b, a),
       outline_colour: Vector3::new(0.0, 0.0, 0.0),
       text: custom_vao,
       text_wrapping: 0,
@@ -547,11 +547,11 @@ impl DrawMath {
      } else if angle_y < q2 {
        angle_y -= q1;
        z_rot = -(angle_y/90.0);
-       x_rot = 1.0-(angle_y/90.0);      
+       x_rot = 1.0-(angle_y/90.0);
      } else if angle_y < q3 {
        angle_y -= q2;
        z_rot = (angle_y/90.0) - 1.0;
-       x_rot = -(angle_y/90.0);      
+       x_rot = -(angle_y/90.0);
      } else {
        angle_y -= q3;
        z_rot = angle_y/90.0;

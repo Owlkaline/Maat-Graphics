@@ -89,6 +89,8 @@ impl GlWindow {
     
     gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
     
+    println!("hidpi: {}", gl_window.hidpi_factor());
+    
     GlWindow {
       events: events_loop,
       window: gl_window,
@@ -229,7 +231,7 @@ impl VkWindow {
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
       
-      let mut settings = Settings::load();
+      let settings = Settings::load();
       let min_width = settings.get_minimum_resolution()[0];
       let min_height = settings.get_minimum_resolution()[1];
       
@@ -286,7 +288,7 @@ impl VkWindow {
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
    
-    let mut settings = Settings::load();
+    let settings = Settings::load();
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
    

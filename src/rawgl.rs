@@ -131,7 +131,7 @@ impl Vao {
   
   pub fn update_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
     let mut vbo: GLuint = 0;
-    println!("{:?}", vertices);
+    
     unsafe {
       gl::GenBuffers(1, &mut vbo);
       gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -231,9 +231,7 @@ impl RawGl {
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.1);
     
-    unsafe {
-      gl::Viewport(0, 0, (width as i32 *2) as i32, (height as i32 *2) as i32);
-    }
+    //RawGl::set_viewport(width as i32, height as i32);
     
     RawGl {
       ready: false,
@@ -262,6 +260,12 @@ impl RawGl {
       scale: scale,
       
       window: window,
+    }
+  }
+  
+  pub fn set_viewport(&self, width: u32, height: u32) {
+    unsafe {
+      gl::Viewport(0, 0, (width as f32 / self.get_dpi_scale()) as i32, (height as f32 / self.get_dpi_scale()) as i32);
     }
   }
   
@@ -302,7 +306,7 @@ impl RawGl {
   fn load_custom_2d_vao(&mut self, reference: String, verts: Vec<GLfloat>, indicies: Vec<GLuint>, is_dynamic: bool) {
     let mut vao = Vao::new();
     vao.bind();
-    println!("{:?}", verts);
+    
     if is_dynamic {
       vao.create_ebo(indicies, gl::STREAM_DRAW);
       vao.create_vbo(verts, gl::STREAM_DRAW);
@@ -331,8 +335,8 @@ impl RawGl {
     }).collect::<Vec<GLuint>>();
     
     self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
-    //self.gl2D.custom_vao.get(draw.get_text()).unwrap().update_vbo(verts, gl::STREAM_DRAW);
-    //self.gl2D.custom_vao.get(draw.get_text()).unwrap().update_ebo(index, gl::STREAM_DRAW);
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_vbo(verts, gl::STREAM_DRAW);
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_ebo(index, gl::STREAM_DRAW);
   }
   
   fn draw_3d(&mut self, draw: &DrawCall) {
@@ -477,9 +481,9 @@ impl CoreRender for RawGl {
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
     };
-    println!("{:?}", verts);
-    let index = indices.iter().map(|i| {
-      *i as GLuint
+   // println!("{:?}", verts);
+    let index = indices.into_iter().map(|i| {
+      i as GLuint
     }).collect::<Vec<GLuint>>();
     
     self.load_custom_2d_vao(reference, verts, index, false);
@@ -624,6 +628,9 @@ impl CoreRender for RawGl {
   }
   
   fn init(&mut self) {
+    let dim = self.get_dimensions();
+    self.set_viewport(dim[0], dim[1]);
+    
     unsafe {
       gl::Enable(gl::BLEND);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
@@ -651,7 +658,6 @@ impl CoreRender for RawGl {
     let frame_start_time = time::Instant::now();
   
     let mut still_loading = false;
-    //let mut to_be_removed: Vec<String> = Vec::new();
     
     let texture_paths_clone = self.texture_paths.clone();
     
@@ -741,16 +747,15 @@ impl CoreRender for RawGl {
     let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     self.window.resize_screen(dimensions);
     
+    self.set_viewport(dimensions[0], dimensions[1]);
+    self.gl2D.shaders[TEXTURE].Use();
+    self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
+    self.gl2D.shaders[TEXT].Use();
+    self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
+    self.gl3D.shaders[MODEL].Use();
+    self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
+    
     unsafe {
-      gl::Viewport(0, 0, dimensions[0] as i32, dimensions[1] as i32);
-      
-      self.gl2D.shaders[TEXTURE].Use();
-      self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
-      self.gl2D.shaders[TEXT].Use();
-      self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
-      self.gl3D.shaders[MODEL].Use();
-      self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
-      
       gl::UseProgram(0);
     }
   }
@@ -790,9 +795,8 @@ impl CoreRender for RawGl {
   
   fn set_camera(&mut self, camera: Camera){}
   fn pre_draw(&mut self) {}
-    fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
-
-    //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
+  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
+    
     let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
     
     self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x-x_rot, camera.y, camera.z-z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
