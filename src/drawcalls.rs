@@ -561,6 +561,43 @@ impl DrawMath {
      (x_rot, z_rot)
    }
    
+   pub fn intersection(center: Vector2<f32>, radius: f32, p1: Vector2<f32>, p2: Vector2<f32>) -> ((f32, f32), (f32, f32)) {
+     let mut dx = p2.x - p1.x;
+     let mut dy = p2.y - p1.y;
+     let mut radius = radius;
+     if dx < 1.0 && dx > -1.0 {
+       if dx <= 0.0 {
+         dx = -1.0;
+       } else {
+         dx = 1.0;
+       }
+     }
+     
+     if dy < 1.0 && dy > -1.0 {
+       if dy <= 0.0 {
+         dy = -1.0;
+       } else {
+         dy = 1.0;
+       }
+     }
+     
+     let a = dx*dx + dy*dy;
+     let b = 2.0* (dx * (p1.x - center.x) + dy * (p1.y - center.y));
+     let mut c = (p1.x - center.x)*(p1.x - center.x) + (p1.y - center.y)*(p1.y - center.y) - radius*radius;
+     
+     let mut discriminit = b*b - 4.0*a*c;
+     if discriminit < 0.0 {
+       radius *= 2.0;
+       c = (p1.x - center.x)*(p1.x - center.x) + (p1.y - center.y)*(p1.y - center.y) - radius*radius;
+       discriminit = b*b - 4.0*a*c;
+     }
+     
+     let t1 = (-b + discriminit.sqrt()) / (2.0 * a);
+     let t2 = (-b - discriminit.sqrt()) / (2.0 * a);
+     
+     ((dx * t1 + p1.x, dy * t1 + p1.y), (dx * t2 + p1.x, dy* t2 + p1.y))
+   }
+   
    /// Simple collision between two cicles given
    /// a Vector3(center_x, center_y, raidus)
    ///
