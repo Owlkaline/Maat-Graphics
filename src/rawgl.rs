@@ -327,7 +327,7 @@ impl RawGl {
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
     };
-    println!("{:?}", verts);
+   // println!("{:?}", verts);
     let index = draw.get_new_indices().iter().map(|i| {
       *i as GLuint
     }).collect::<Vec<GLuint>>();
@@ -335,6 +335,9 @@ impl RawGl {
     self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
     self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_vbo(verts, gl::STREAM_DRAW);
     self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_ebo(index, gl::STREAM_DRAW);
+    
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(0, 2, 4, 0);
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(1, 2, 4, 2);
   }
   
   fn draw_3d(&mut self, draw: &DrawCall) {
