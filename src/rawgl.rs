@@ -263,7 +263,7 @@ impl RawGl {
   
   pub fn set_viewport(&self, width: u32, height: u32) {
     unsafe {
-      gl::Viewport(0, 0, (width as f32 / self.get_dpi_scale()) as i32, (height as f32 / self.get_dpi_scale()) as i32);
+      gl::Viewport(0, 0, (width as f32 * self.get_dpi_scale()) as i32, (height as f32 * self.get_dpi_scale()) as i32);
     }
   }
   
