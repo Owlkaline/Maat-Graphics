@@ -49,6 +49,7 @@ impl GlWindow {
     println!("Using openGL");
     
     glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
+    
     let events_loop = glutin::EventsLoop::new();
     let window = {
       let temp_window: glutin::WindowBuilder;
@@ -78,11 +79,17 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new()
-        .with_vsync(true)
-        .with_multisampling(0);
-    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8);/*{
+      let mut temp_context: glutin::ContextBuilder;
+        temp_context: glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8)
+        
+        let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+        println!("Pixel format of the window's GL context: {:?}", gl_window.get_pixel_format());
+      temp_context
+    };*/
     
+    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+    println!("Pixel format of the window's GL context: {:?}", gl_window.get_pixel_format());
     unsafe {
       gl_window.make_current().unwrap();
     }
@@ -104,7 +111,7 @@ impl GlWindow {
   
   /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> [u32; 2] {
-    let (width, height) = self.window.get_inner_size_pixels().unwrap();
+    let (width, height) = self.window.get_inner_size().unwrap();
     [width as u32, height as u32]
   }
   

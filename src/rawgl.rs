@@ -231,8 +231,6 @@ impl RawGl {
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.1);
     
-    //RawGl::set_viewport(width as i32, height as i32);
-    
     RawGl {
       ready: false,
       shader_id: Vec::with_capacity(2),

@@ -245,3 +245,74 @@ impl ShaderProgram {
     }
   }
 }
+
+// TODO in future versions
+/*
+pub struct Fbo {
+  frame_buffer_id: GLuint,
+  texture: GLuint,
+  width: i32,
+  height: i32,
+}
+
+impl Fbo {
+  pub fn new(width: i32, height: i32) -> Fbo {
+    let mut frame_buffer: GLuint = 0;
+    let mut texture: GLuint = 0;
+    unsafe {
+      gl::GenFramebuffers(1, &mut frame_buffer);
+      gl::BindFramebuffer(gl::FRAMEBUFFER, frame_buffer);
+      gl::DrawBuffer(gl::COLOR_ATTACHMENT0);
+      gl::GenTextures(1, &mut texture);
+      gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+    }
+    
+    Fbo {
+      frame_buffer_id: frame_buffer,
+      texture: texture,
+      width: width,
+      height: height,
+    }
+  }
+  
+  pub fn bind(&mut self) {
+    unsafe {
+      self.cleanup();
+      gl::BindTexture(gl::TEXTURE_2D, 0);
+      gl::GenFramebuffers(1, &mut self.frame_buffer_id);
+      gl::BindFramebuffer(gl::FRAMEBUFFER, self.frame_buffer_id);
+      gl::DrawBuffer(gl::COLOR_ATTACHMENT0);
+      gl::Viewport(0, 0, self.width, self.height);
+      
+      gl::GenTextures(1, &mut self.texture);
+      gl::BindTexture(gl::TEXTURE_2D, self.texture);
+      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as GLint, self.width, self.height, 0, gl::RGB, gl::UNSIGNED_BYTE, ptr::null());
+      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+      gl::TexImage2D(gl::TEXTURE_2D, 0,
+                     gl::RGB as GLint,
+                     self.width as GLsizei,
+                     self.height as GLsizei,
+                     0, gl::RGB, gl::UNSIGNED_BYTE,
+                     ptr::null());
+      gl::FramebufferTexture(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, self.texture, 0);
+    }
+  }
+  
+  pub fn unbind(&self) {
+    unsafe {
+      gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+    }
+  }
+  
+  pub fn get_texture(&self) -> GLuint {
+    self.texture
+  }
+  
+  pub fn cleanup(&mut self) {
+    unsafe {
+      gl::DeleteFramebuffers(1, &mut self.frame_buffer_id);
+      gl::DeleteTextures(1, &mut self.texture);
+    }
+  }
+}*/
