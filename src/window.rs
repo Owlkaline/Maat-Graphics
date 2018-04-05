@@ -79,7 +79,7 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(0);/*{
+    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8);/*{
       let mut temp_context: glutin::ContextBuilder;
         temp_context: glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8)
         
@@ -331,7 +331,7 @@ impl VkWindow {
   
   /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> [u32; 2] {
-    let (width, height) = self.surface.window().get_inner_size_pixels().unwrap();
+    let (width, height) = self.surface.window().get_inner_size().unwrap();
     [width as u32, height as u32]
   }
   

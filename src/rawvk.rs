@@ -290,6 +290,18 @@ impl RawVk {
     self
   }
   
+  pub fn with_samples(mut self, samples: u32) -> RawVk {
+    self.samples = samples;
+    let dim = self.window.get_dimensions();
+    let multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, self.window.get_swapchain().format()).unwrap();
+    let multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    
+    self.multisample_image = multisample_image;
+    self.multisample_depth = multisample_depth;
+    
+    self
+  }
+  
   pub fn create_2d_vertex(&self) -> Arc<BufferAccess + Send + Sync> {
     let square = {
       [
@@ -771,7 +783,7 @@ impl CoreRender for RawVk {
   }
   
   /// Settings up drawing variables before the drawing commences
-  fn pre_draw(&mut self) {    
+  fn pre_draw(&mut self) {
     if self.recreate_swapchain {
       let dimensions = {
         self.window.get_dimensions()
@@ -808,7 +820,6 @@ impl CoreRender for RawVk {
       
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
-
              let fb = framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
                       .add(multisample_image.clone()).unwrap()
                       .add(multisample_depth.clone()).unwrap()
@@ -824,7 +835,11 @@ impl CoreRender for RawVk {
   
   /// Draws everything that is in the drawcall passed to this function
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
-   let (image_num, acquire_future) = match swapchain::acquire_next_image(self.window.get_swapchain(), None) {
+    if self.recreate_swapchain == true {
+      return;
+    }
+    
+    let (image_num, acquire_future) = match swapchain::acquire_next_image(self.window.get_swapchain(), None) {
       Ok(r) => r,
       Err(AcquireError::OutOfDate) => {
         self.recreate_swapchain = true;
