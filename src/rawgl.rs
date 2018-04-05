@@ -44,6 +44,7 @@ pub const MODEL: usize = 0;
 
 pub struct Vao {
   vao: GLuint,
+  vbo: GLuint,
   ebo: GLuint,
   num_vertices: GLint,
   num_indices: GLint,
@@ -59,11 +60,25 @@ impl Vao {
     
     Vao {
       vao: vao,
+      vbo: 0,
       ebo: 0,
       num_vertices: 0,
       num_indices: 0,
       attrib: Vec::new(),
     }
+  }
+  
+  pub fn cleanup(&mut self) {
+    unsafe {
+      gl::DeleteBuffers(1, &mut self.vbo);
+      gl::DeleteBuffers(1, &mut self.ebo);
+      gl::DeleteVertexArrays(1, &mut self.vao);
+      gl::GenVertexArrays(1, &mut self.vao);
+    }
+    
+    self.attrib.clear();
+    self.num_vertices = 0;
+    self.num_indices = 0;
   }
   
   pub fn draw_indexed(&self, draw_type: GLuint) {
@@ -115,6 +130,7 @@ impl Vao {
                      draw_type);
       self.num_vertices = (vertices.len()/3) as GLint;
     }
+    self.vbo = vbo;
   }
   
   pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
@@ -128,7 +144,7 @@ impl Vao {
       self.num_indices = indices.len() as GLint;
     }
   }
-  
+  /*
   pub fn update_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
     let mut vbo: GLuint = 0;
     
@@ -152,7 +168,7 @@ impl Vao {
                      draw_type);
       self.num_indices = indices.len() as GLint;
     }
-  }
+  }*/
   
   pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
     unsafe {
@@ -332,9 +348,25 @@ impl RawGl {
       *i as GLuint
     }).collect::<Vec<GLuint>>();
     
+    let reference = draw.get_text().clone();
+/*
+    self.gl2D.custom_vao.remove(&reference);
+    self.load_custom_2d_vao(reference, verts, index, true);
+    
+    let mut vao = Vao::new();
+    vao.bind();
+     
+      vao.create_ebo(index, gl::STREAM_DRAW);
+      vao.create_vbo(verts, gl::STREAM_DRAW);
+
+    vao.set_vertex_attrib(0, 2, 4, 0);
+    vao.set_vertex_attrib(1, 2, 4, 2);
+    */
+    
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().cleanup();
     self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_vbo(verts, gl::STREAM_DRAW);
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().update_ebo(index, gl::STREAM_DRAW);
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().create_vbo(verts, gl::STREAM_DRAW);
+    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().create_ebo(index, gl::STREAM_DRAW);
     
     self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(0, 2, 4, 0);
     self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(1, 2, 4, 2);

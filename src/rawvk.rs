@@ -328,7 +328,11 @@ impl RawVk {
                                .expect("failed to create immutable index buffer")
   }
   
-  pub fn create_custom_2d_model(&mut self, verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> Model {
+  pub fn create_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> Model {
+    for i in 0..verts.len() {
+      verts[i].position[1] *= -1.0;
+    }
+    
     let vert =  CpuAccessibleBuffer::from_iter(self.window.get_device(), 
                                    BufferUsage::vertex_buffer(), 
                                    verts.iter().cloned())
