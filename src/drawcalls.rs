@@ -20,6 +20,7 @@ enum DrawType {
   UPDATE_VAO,
   TEXT,
   MODEL,
+  INSTANCED,
 }
 
 #[derive(Clone)]
@@ -53,6 +54,23 @@ impl DrawCall {
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
       draw_type: DrawType::UPDATE_VAO,
       new_vao: (verticies, indices),
+    }
+  }
+  
+  pub fn instanced_textured_draw(x: f32, y: f32, texture: String, reference: String) -> DrawCall {
+    DrawCall {
+      position: Vector3::new(x, y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      size: Vector2::new(0.0, 0.0),
+      texture: texture,
+      colour: Vector4::new(1.0, 1.0, 1.0, -1.0),
+      outline_colour: Vector3::new(0.0, 0.0, 0.0),
+      text: reference, // Instance reference name
+      text_wrapping: 0,
+      centered: false,
+      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      draw_type: DrawType::INSTANCED,
+      new_vao: (Vec::new(), Vec::new()),
     }
   }
   
@@ -352,6 +370,10 @@ impl DrawCall {
     self.new_vao.clone().1
   }
   
+  pub fn get_instance_reference(&self) -> String {
+    self.text.clone()
+  }
+  
   pub fn is_text(&self) -> bool {
     self.draw_type == DrawType::TEXT
   }
@@ -366,6 +388,10 @@ impl DrawCall {
   
   pub fn is_vao_update(&self) -> bool {
     self.draw_type == DrawType::UPDATE_VAO
+  }
+  
+  pub fn is_instanced(&self) -> bool {
+    self.draw_type == DrawType::INSTANCED
   }
 } 
 

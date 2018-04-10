@@ -469,6 +469,14 @@ impl RawVk {
 }
 
 impl CoreRender for RawVk {
+  fn load_instanced(&mut self, reference: String, max_instances: i32) {
+    
+  }
+  
+  fn load_instanced_geometry(&mut self, reference: String, max_instances: i32, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
+    
+  }
+  
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
     let model = self.create_custom_2d_model(verticies, indices);
     self.vk2d.custom_vao.insert(reference, model);

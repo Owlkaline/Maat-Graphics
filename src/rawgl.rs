@@ -4,6 +4,7 @@ use drawcalls::DrawMath;
 use shaders::ShaderFunctions;
 use shaders::ShaderProgram;
 use shaders::ShaderTexture;
+use shaders::ShaderTextureInstanced;
 use shaders::ShaderText;
 use shaders::Shader3D;
 use graphics;
@@ -39,8 +40,178 @@ use std::collections::HashMap;
 
 pub const TEXTURE: usize = 0;
 pub const TEXT: usize = 1;
+pub const INSTANCED: usize = 2;
 
 pub const MODEL: usize = 0;
+
+pub const INSTANCE_DATA_LENGTH: usize = 21;
+
+pub struct InstancedVao {
+  vao: GLuint,
+  vbo: [GLuint; 2],
+  ebo: GLuint,
+  num_vertices: GLint,
+  num_indices: GLint,
+  attrib: Vec<GLuint>,
+  vbo_data: Vec<GLfloat>,
+  max_instances: GLuint,
+}
+
+impl InstancedVao {
+  pub fn new(max_instances: i32) -> InstancedVao {
+    let mut vao: GLuint = 0;
+    unsafe {
+      gl::GenVertexArrays(1, &mut vao);
+    }
+    
+    InstancedVao {
+      vao: vao,
+      vbo: [0, 0],
+      ebo: 0,
+      num_vertices: 0,
+      num_indices: 0,
+      attrib: Vec::new(),
+      vbo_data: Vec::new(),
+      max_instances: max_instances as GLuint,
+    }
+  }
+  
+  pub fn cleanup(&mut self) {
+    unsafe {
+      gl::DeleteBuffers(1, &mut self.vbo[0]);
+      gl::DeleteBuffers(1, &mut self.vbo[1]);
+      gl::DeleteBuffers(1, &mut self.ebo);
+      gl::DeleteVertexArrays(1, &mut self.vao);
+      gl::GenVertexArrays(1, &mut self.vao);
+    }
+    
+    self.attrib.clear();
+    self.num_vertices = 0;
+    self.num_indices = 0;
+  }
+  
+  pub fn update_vbodata(&self, size: usize, new_data: Vec<GLfloat>) {
+    //self.vbo_data = new_data;
+    
+    unsafe {
+      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo[1]);
+      gl::BufferSubData(gl::ARRAY_BUFFER, 0, (mem::size_of::<GLfloat>()*size*INSTANCE_DATA_LENGTH) as isize, mem::transmute(&new_data[0]));
+    }
+  }
+  
+  pub fn draw_indexed_instanced(&self, size: usize, draw_type: GLuint) {
+    self.bind();
+    self.bind_ebo();
+    unsafe {
+      gl::DrawElementsInstanced(draw_type, self.num_indices, gl::UNSIGNED_INT, ptr::null(), size as GLint);
+    }
+    self.unbind();
+  }
+  /*
+  pub fn draw(&self, draw_type: GLuint) {
+    self.bind();
+    self.bind_ebo();
+    unsafe {
+      gl::DrawElements(draw_type, self.num_vertices, gl::UNSIGNED_INT, ptr::null());
+    }
+  }*/
+  
+  pub fn unbind(&self) {
+    unsafe {
+      for location in self.attrib.clone() {
+        gl::DisableVertexAttribArray(location);
+      }
+      gl::BindVertexArray(0);
+    }
+  }
+  
+  pub fn bind(&self) {
+    unsafe {
+      gl::BindVertexArray(self.vao);
+      for location in self.attrib.clone() {
+        gl::EnableVertexAttribArray(location);
+      }
+    }
+  }
+  
+  pub fn bind_ebo(&self) {
+    unsafe {
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+    }
+  }
+  
+  pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
+    let mut vbo: GLuint = 0;
+    unsafe {
+      gl::GenBuffers(1, &mut vbo);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+      gl::BufferData(gl::ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
+                     mem::transmute(&vertices[0]),
+                     draw_type);
+      self.set_vertex_attrib(0, 2, 4, 0);
+      self.set_vertex_attrib(1, 2, 4, 2);
+      self.num_vertices = (vertices.len()/3) as GLint;
+    }
+    
+    let mut vbo_data: GLuint = 0;
+    unsafe {
+      gl::GenBuffers(1, &mut vbo_data);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vbo_data);
+      gl::BufferData(gl::ARRAY_BUFFER,
+                     (mem::size_of::<GLfloat>()*self.max_instances as usize*INSTANCE_DATA_LENGTH as usize) as isize,
+                     ptr::null(),
+                     draw_type);
+    }
+    
+    self.set_vertex_instanced_attrib(2, 4, INSTANCE_DATA_LENGTH, 0);
+    self.set_vertex_instanced_attrib(3, 4, INSTANCE_DATA_LENGTH, 4);
+    self.set_vertex_instanced_attrib(4, 4, INSTANCE_DATA_LENGTH, 8);
+    self.set_vertex_instanced_attrib(5, 4, INSTANCE_DATA_LENGTH, 12);
+    self.set_vertex_instanced_attrib(6, 4, INSTANCE_DATA_LENGTH, 16);
+    self.set_vertex_instanced_attrib(7, 1, INSTANCE_DATA_LENGTH, 20);
+    
+    self.vbo = [vbo, vbo_data];
+  }
+  
+  pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
+    unsafe {
+      gl::GenBuffers(1, &mut self.ebo);
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
+                     (mem::size_of::<GLuint>()*indices.len()) as isize,
+                     mem::transmute(&indices[0]),
+                     draw_type);
+      self.num_indices = indices.len() as GLint;
+    }
+  }
+  
+  pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
+    unsafe {
+      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
+                              (total_size * mem::size_of::<GLfloat>()) as i32,
+                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
+      self.attrib.push(location);
+    }
+  }
+  
+  pub fn set_vertex_instanced_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
+    unsafe {
+      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
+                              (total_size * mem::size_of::<GLfloat>()) as i32,
+                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
+      gl::VertexAttribDivisor(location, 1);
+      self.attrib.push(location);
+    }
+  }
+  
+  pub fn activate_texture0(&self, texture: GLuint) {
+    unsafe {
+      gl::ActiveTexture(gl::TEXTURE0);
+      gl::BindTexture(gl::TEXTURE_2D, texture);
+    }
+  }
+}
 
 pub struct Vao {
   vao: GLuint,
@@ -91,7 +262,7 @@ impl Vao {
   
   pub fn draw(&self, draw_type: GLuint) {
     self.bind();
-    self.bind_ebo();
+    //self.bind_ebo();
     unsafe {
       gl::DrawElements(draw_type, self.num_vertices, gl::UNSIGNED_INT, ptr::null());
     }
@@ -144,31 +315,6 @@ impl Vao {
       self.num_indices = indices.len() as GLint;
     }
   }
-  /*
-  pub fn update_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
-    let mut vbo: GLuint = 0;
-    
-    unsafe {
-      gl::GenBuffers(1, &mut vbo);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
-                     mem::transmute(&vertices[0]),
-                     draw_type);
-      self.num_vertices = (vertices.len()/3) as GLint;
-    }
-  }
-  
-  pub fn update_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
-    unsafe {
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*indices.len()) as isize,
-                     mem::transmute(&indices[0]),
-                     draw_type);
-      self.num_indices = indices.len() as GLint;
-    }
-  }*/
   
   pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
     unsafe {
@@ -192,6 +338,7 @@ pub struct GL2D {
   vao: Vao,
   projection: Matrix4<f32>,
   custom_vao: HashMap<String, Vao>,
+  instanced_vao: HashMap<String, InstancedVao>,
 }
 
 pub struct GL3D {
@@ -249,19 +396,20 @@ impl RawGl {
     
     RawGl {
       ready: false,
-      shader_id: Vec::with_capacity(2),
-      fonts: HashMap::with_capacity(10),
-      textures: HashMap::with_capacity(10),
-      texture_paths: HashMap::with_capacity(10),
+      shader_id: Vec::with_capacity(3),
+      fonts: HashMap::with_capacity(1),
+      textures: HashMap::with_capacity(40),
+      texture_paths: HashMap::with_capacity(40),
       model_paths: HashMap::with_capacity(10),
 
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
 
       gl2D: GL2D {
-        shaders: Vec::new(),
+        shaders: Vec::with_capacity(3),
         vao: Vao::new(),
         projection: proj_2d,
         custom_vao: HashMap::new(),
+        instanced_vao: HashMap::new(),
       },
       
       gl3D: GL3D {
@@ -317,6 +465,29 @@ impl RawGl {
     self.gl2D.vao.set_vertex_attrib(1, 2, 4, 2);
   }
   
+  fn load_2d_instanced_vao(&mut self, reference: String, max_instances: i32) {
+    let square_verts: Vec<GLfloat> = vec!(
+       0.5,  0.5, 1.0, 1.0, // top right
+       0.5, -0.5, 1.0, 0.0, // bottom right
+      -0.5, -0.5, 0.0, 0.0, // bottom left
+      -0.5,  0.5, 0.0, 1.0, // top left 
+    );
+  
+    let square_indices: Vec<GLuint> = vec!(  // note that we start from 0!
+      0, 1, 3,   // first triangle
+      1, 2, 3    // second triangle
+    );
+    
+    let mut vao = InstancedVao::new(max_instances);
+    vao.bind();
+    vao.create_ebo(square_indices, gl::STATIC_DRAW);
+    vao.create_vbo(square_verts, gl::STATIC_DRAW);
+    
+    vao.unbind();
+    
+    self.gl2D.instanced_vao.insert(reference, vao);
+  }
+  
   fn load_custom_2d_vao(&mut self, reference: String, verts: Vec<GLfloat>, indicies: Vec<GLuint>, is_dynamic: bool) {
     let mut vao = Vao::new();
     vao.bind();
@@ -343,25 +514,12 @@ impl RawGl {
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
     };
-   // println!("{:?}", verts);
+    
     let index = draw.get_new_indices().iter().map(|i| {
       *i as GLuint
     }).collect::<Vec<GLuint>>();
     
     let reference = draw.get_text().clone();
-/*
-    self.gl2D.custom_vao.remove(&reference);
-    self.load_custom_2d_vao(reference, verts, index, true);
-    
-    let mut vao = Vao::new();
-    vao.bind();
-     
-      vao.create_ebo(index, gl::STREAM_DRAW);
-      vao.create_vbo(verts, gl::STREAM_DRAW);
-
-    vao.set_vertex_attrib(0, 2, 4, 0);
-    vao.set_vertex_attrib(1, 2, 4, 2);
-    */
     
     self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().cleanup();
     self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
@@ -442,6 +600,66 @@ impl RawGl {
     }
   }
   
+  fn draw_instanced(&mut self, draw_calls: Vec<DrawCall>, offset: usize) -> usize {
+    let mut num_instances = 0;
+    
+    let texture = draw_calls[offset].get_texture();
+    
+    for i in offset..draw_calls.len() {
+      if draw_calls[i].is_instanced() && draw_calls[i].get_texture() == texture {
+      //  println!("first: {}, crnt: {}", texture, draw_calls[i].get_texture());
+        num_instances += 1;
+      } else {
+        break;
+      }
+    }
+    
+    let mut new_data: Vec<GLfloat> = Vec::new();
+        
+    let has_texture = {
+      let mut value = 1.0;
+      if draw_calls[offset].get_texture() == &String::from("") {
+        value = 0.0;
+      }
+      value
+    };
+    
+    for i in offset..offset+num_instances {
+      let draw = draw_calls[i].clone();
+      
+      let colour: [f32; 4] = draw.get_colour().into();
+      
+      let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+      let model: [[f32; 4]; 4] = model.into();
+      
+      for row in model.iter() {
+        for element in row {
+          new_data.push(*element)
+        }
+      }
+      
+      for value in colour.iter() {
+        new_data.push(*value)
+      }
+      new_data.push(has_texture);
+    }
+   // println!("num: {}, len: {}", num_instances, new_data.len());
+    
+    let draw = draw_calls[offset].clone();
+    if has_texture == 1.0 {
+      //println!("{}", draw.get_texture());
+      self.gl2D.instanced_vao[&draw.get_instance_reference()].activate_texture0(*self.textures.get(draw.get_texture()).expect("Texture not found!"));
+    }
+    
+    self.gl2D.shaders[INSTANCED].Use();
+    self.gl2D.instanced_vao[&draw.get_instance_reference()].bind();
+    self.gl2D.instanced_vao[&draw.get_instance_reference()].update_vbodata(num_instances, new_data);
+    self.gl2D.instanced_vao[&draw.get_instance_reference()].draw_indexed_instanced(num_instances, gl::TRIANGLES);
+    self.gl2D.instanced_vao[&draw.get_instance_reference()].unbind();
+    
+    num_instances
+  }
+  
   fn draw_square(&self, draw: &DrawCall) {
     let colour = draw.get_colour();
     let has_texture = {
@@ -506,6 +724,14 @@ impl RawGl {
 }
 
 impl CoreRender for RawGl {
+  fn load_instanced(&mut self, reference: String, max_instances: i32) {
+    self.load_2d_instanced_vao(reference, max_instances);
+  }
+  
+  fn load_instanced_geometry(&mut self, reference: String, max_instances: i32, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
+    
+  }
+  
   fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
     let mut verts: Vec<GLfloat> = Vec::new();
     for v in vertices {
@@ -657,6 +883,7 @@ impl CoreRender for RawGl {
   fn load_shaders(&mut self) {
     self.gl2D.shaders.push(Box::new(ShaderTexture::new()));
     self.gl2D.shaders.push(Box::new(ShaderText::new()));
+    self.gl2D.shaders.push(Box::new(ShaderTextureInstanced::new()));
     self.gl3D.shaders.push(Box::new(Shader3D::new()));
   }
   
@@ -674,6 +901,10 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_int(String::from("tex"), 0);
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    self.gl2D.shaders[INSTANCED].Use();
+    self.gl2D.shaders[INSTANCED].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[INSTANCED].set_mat4(String::from("projection"), self.gl2D.projection);
     
     self.gl2D.shaders[TEXT].Use();
     self.gl2D.shaders[TEXT].set_int(String::from("tex"), 0);
@@ -738,15 +969,24 @@ impl CoreRender for RawGl {
   }
   
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
-    for draw in draw_calls {
+    let mut offset = 0;
+    for i in 0..draw_calls.len() {
+      if i+offset >= draw_calls.len() {
+        break;
+      }
+      
+      let draw = draw_calls[i+offset].clone();
+      
       if draw.is_3d_model() {
-        self.draw_3d(draw);
+        self.draw_3d(&draw);
       } else if draw.is_text() {
-        self.draw_text(draw);
+        self.draw_text(&draw);
       } else if draw.is_vao_update() {
-        self.update_vao(draw);
+        self.update_vao(&draw);
+      } else if draw.is_instanced() {
+        offset += self.draw_instanced(draw_calls.clone(), i+offset)-1;
       } else {
-        self.draw_square(draw);
+        self.draw_square(&draw);
       }
     }
   }
@@ -758,6 +998,11 @@ impl CoreRender for RawGl {
       gl::DisableVertexAttribArray(0 as GLuint);
       gl::DisableVertexAttribArray(1 as GLuint);
       gl::DisableVertexAttribArray(2 as GLuint);
+      gl::DisableVertexAttribArray(3 as GLuint);
+      gl::DisableVertexAttribArray(4 as GLuint);
+      gl::DisableVertexAttribArray(5 as GLuint);
+      gl::DisableVertexAttribArray(6 as GLuint);
+      gl::DisableVertexAttribArray(7 as GLuint);
     }
   }
   
@@ -775,12 +1020,19 @@ impl CoreRender for RawGl {
   }
   
   fn screen_resized(&mut self) {
-    let dimensions = self.get_dimensions();
+    let mut dimensions = self.get_dimensions();
+    if dimensions[0] <= 0 {
+      dimensions[0] = 1;
+    }
+    if dimensions[1] <= 0 {
+      dimensions[1] = 1;
+    }
     let projection_2d = RawGl::load_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
     let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     self.window.resize_screen(dimensions);
-    
     self.set_viewport(dimensions[0], dimensions[1]);
+    self.gl2D.shaders[INSTANCED].Use();
+    self.gl2D.shaders[INSTANCED].set_mat4(String::from("projection"), projection_2d);
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
     self.gl2D.shaders[TEXT].Use();

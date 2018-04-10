@@ -12,6 +12,10 @@ use cgmath::Vector4;
 use cgmath::Matrix3;
 use cgmath::Matrix4;
 
+pub struct ShaderTextureInstanced {
+  shader: ShaderData,
+}
+
 pub struct ShaderTexture {
   shader: ShaderData,
 }
@@ -87,7 +91,38 @@ impl ShaderTexture {
   }
 }
 
+impl ShaderTextureInstanced {
+  pub fn new() -> ShaderTexture {
+    let v_string = String::from_utf8_lossy(include_bytes!("shaders/GlTextureInstanced.vert"));
+    let f_string = String::from_utf8_lossy(include_bytes!("shaders/GlTextureInstanced.frag"));
+  
+    let v_src = CString::new(v_string.as_bytes()).unwrap();
+    let f_src = CString::new(f_string.as_bytes()).unwrap();
+  
+    let vs = ShaderProgram::compile_shader(v_src, gl::VERTEX_SHADER);
+    let fs = ShaderProgram::compile_shader(f_src, gl::FRAGMENT_SHADER);
+    let shader_id = ShaderProgram::link_program(vs, fs);
+    
+    ShaderTexture {
+      shader: 
+        ShaderData {
+          id: shader_id,
+        }
+    }
+  }
+}
+
 impl ShaderFunctions for ShaderTexture {
+  fn data(&self) -> &ShaderData {
+    &self.shader
+  }
+  
+  fn mut_data(&mut self) ->&mut ShaderData {
+    &mut self.shader
+  }
+}
+
+impl ShaderFunctions for ShaderTextureInstanced {
   fn data(&self) -> &ShaderData {
     &self.shader
   }

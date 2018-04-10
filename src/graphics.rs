@@ -30,6 +30,9 @@ pub trait CoreRender {
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
   fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
   
+  fn load_instanced(&mut self, reference: String, max_instances: i32);
+  fn load_instanced_geometry(&mut self, reference: String, max_instances: i32, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
+  
   fn load_shaders(&mut self);
   fn init(&mut self);
   fn clear_screen(&mut self);
