@@ -20,5 +20,5 @@ void main() {
   
   vec3 overallColour = mix(outlineColour, new_colour.rgb, alpha / overallAlpha);
   
-  colour = vec4(overallColour, overallAlpha);
+  colour = vec4(overallColour, overallAlpha*new_colour.w);
 }
