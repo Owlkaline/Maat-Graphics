@@ -10,8 +10,12 @@ uniform sampler2D tex;
 
 void main() {
   vec4 drawTexture = colour;
-  if(new_texture == 1.0)
-   drawTexture = texture(tex, uvs);
+  if(new_texture == 1.0) {
+    drawTexture = texture(tex, uvs);
+    if (colour.w != -1.0) {
+      drawTexture.w *= colour.w;
+    }
+  }
   
   outColour = drawTexture;
 }

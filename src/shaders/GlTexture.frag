@@ -10,8 +10,12 @@ uniform float has_texture;
 
 void main() {
   vec4 drawTexture = new_colour;
-  if(has_texture == 1.0)
-   drawTexture = texture(tex, uvs);
+  if(has_texture == 1.0) {
+    drawTexture = texture(tex, uvs);
+    if (new_colour.w != -1.0) {
+      drawTexture.w *= new_colour.w;
+    }
+  }
   
   outColour = drawTexture;
 }
