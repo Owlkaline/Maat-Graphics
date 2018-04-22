@@ -50,6 +50,7 @@ use vulkano::swapchain::SwapchainCreationError;
 
 use std::env;
 use std::mem;
+use std::cmp;
 use std::time;
 use std::iter;
 use std::slice;
@@ -222,7 +223,8 @@ impl RawVk {
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
-    let samples = 4;
+    let samples = cmp::min(4, window.get_max_msaa());
+    println!("MSAA: {}", samples);
     
     let dim = window.get_dimensions();
     let multisample_image = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();

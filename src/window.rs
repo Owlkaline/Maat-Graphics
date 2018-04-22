@@ -249,6 +249,7 @@ impl VkWindow {
       let min_image_count = caps.min_image_count;
       let supported_usage_flags = caps.supported_usage_flags;
       
+      println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
       println!("\nSwapchain:");
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
@@ -272,6 +273,10 @@ impl VkWindow {
   /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
     self.surface.window().set_title(&title);
+  }
+  
+  pub fn get_max_msaa(&self) -> u32 {
+    self.device.physical_device().limits().max_sampler_anisotropy() as u32 / 2
   }
   
   // Returns a clone of device
