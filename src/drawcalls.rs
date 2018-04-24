@@ -202,6 +202,11 @@ impl DrawCall {
     self
   }
   
+  pub fn with_alpha(mut self, alpha: f32) -> DrawCall {
+    self.colour.w = alpha;
+    self
+  }
+  
   pub fn with_2d_rotation(mut self, rot: f32) -> DrawCall {
     self.rotation.x = rot;
     self

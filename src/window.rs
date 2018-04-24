@@ -13,6 +13,7 @@ use vulkano::device::Queue;
 use vulkano::device::Device;
 use vulkano::format;
 use vulkano::instance::Instance;
+use vulkano::instance::Limits;
 use vulkano::swapchain::Swapchain;
 use vulkano::swapchain::Surface;
 use vulkano::image::SwapchainImage;
@@ -79,7 +80,7 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(4);/*{
+    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(0);/*{
       let mut temp_context: glutin::ContextBuilder;
         temp_context: glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8)
         
@@ -150,7 +151,8 @@ impl GlWindow {
 
 impl VkWindow {
   pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool) -> VkWindow {
-    
+    //let app_infos = app_info_from_cargo_toml!();
+    //println!("{:?}", app_infos);
     println!("Using Vulkan");
     
     let instance = {
@@ -158,6 +160,8 @@ impl VkWindow {
       let extensions = required_extensions();
       Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
     };
+    
+   // println!("{}, {}, {}", Limits::max_sampler_allocation_count(&instance), Limits::max_sampler_anisotropy(&instance), Limits::max_descriptor_set_samplers(&instance));
     
     let events_loop = winit::EventsLoop::new();
     let surface = {
@@ -198,6 +202,8 @@ impl VkWindow {
       let mut found_suitable_device = false;
       
       let mut physical = PhysicalDevice::enumerate(&instance).next().expect("no device available");
+      
+      //PhysicalDevice::uuid()
       
       for device in PhysicalDevice::enumerate(&instance) {
         physical = PhysicalDevice::from_index(&instance, device.index()).unwrap();
@@ -249,6 +255,7 @@ impl VkWindow {
       let min_image_count = caps.min_image_count;
       let supported_usage_flags = caps.supported_usage_flags;
       
+      println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
       println!("\nSwapchain:");
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
@@ -272,6 +279,10 @@ impl VkWindow {
   /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
     self.surface.window().set_title(&title);
+  }
+  
+  pub fn get_max_msaa(&self) -> u32 {
+    self.device.physical_device().limits().max_sampler_anisotropy() as u32 / 2
   }
   
   // Returns a clone of device

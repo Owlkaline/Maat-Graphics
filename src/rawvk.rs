@@ -134,6 +134,7 @@ pub struct DynamicModel {
 pub struct VK2D {
   vao: Model,
   custom_vao: HashMap<String, Model>,
+  custom_dynamic_vao: HashMap<String, DynamicModel>,
   projection: Matrix4<f32>,
   
   pipeline_texture: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
@@ -222,7 +223,7 @@ impl RawVk {
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
-    let samples = 4;
+    let samples = window.get_max_msaa();//4;
     
     let dim = window.get_dimensions();
     let multisample_image = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();
@@ -265,6 +266,7 @@ impl RawVk {
           index_buffer: None,
         },
         custom_vao: HashMap::new(),
+        custom_dynamic_vao: HashMap::new(),
         
         projection: proj_2d,
         
@@ -483,7 +485,7 @@ impl CoreRender for RawVk {
   }
   
   fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
-  
+    
   }
   
   fn preload_model(&mut self, reference: String, location: String, texture: String) {
