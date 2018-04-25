@@ -893,6 +893,7 @@ impl CoreRender for RawGl {
     
     unsafe {
       gl::Enable(gl::BLEND);
+      gl::Enable(gl::MULTISAMPLE);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
     
