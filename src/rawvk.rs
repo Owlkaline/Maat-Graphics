@@ -378,7 +378,28 @@ impl RawVk {
                                .expect("failed to create immutable index buffer")
   }
   
-  pub fn create_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> Model {
+  pub fn create_dynamic_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> DynamicModel {
+    for i in 0..verts.len() {
+      verts[i].position[0] *= -1.0;
+      verts[i].position[1] *= -1.0;
+    }
+    
+    let vert =  CpuAccessibleBuffer::from_iter(self.window.get_device(), 
+                                   BufferUsage::vertex_buffer(), 
+                                   verts.iter().cloned())
+                                   .expect("Vulkan failed to create custom vertex buffer");
+    let idx = CpuAccessibleBuffer::from_iter(self.window.get_device(),
+                                   BufferUsage::index_buffer(), 
+                                   indices.iter().cloned())
+                                   .expect("Vulkan failed to create custom index buffer");
+    
+    DynamicModel {
+      vertex_buffer: Some(vec!(vert)),
+      index_buffer: Some(idx),
+    }
+  }
+  
+  pub fn create_static_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> Model {
     for i in 0..verts.len() {
       verts[i].position[1] *= -1.0;
     }
@@ -387,10 +408,6 @@ impl RawVk {
                                    BufferUsage::vertex_buffer(), 
                                    verts.iter().cloned())
                                    .expect("Vulkan failed to create custom vertex buffer");
-    let idx = CpuAccessibleBuffer::from_iter(self.window.get_device(), 
-                                   BufferUsage::index_buffer(), 
-                                   indices.iter().cloned())
-                                   .expect("Vulkan failed to create custom index buffer");
     
     let (idx_buffer, future_idx) = ImmutableBuffer::from_iter(indices.iter().cloned(), 
                                BufferUsage::index_buffer(), 
@@ -527,13 +544,14 @@ impl CoreRender for RawVk {
     
   }
   
-  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
-    let model = self.create_custom_2d_model(verticies, indices);
+  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+    let model = self.create_static_custom_2d_model(vertices, indices);
     self.vk2d.custom_vao.insert(reference, model);
   }
   
-  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
-    
+  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+    let model = self.create_dynamic_custom_2d_model(vertices, indices);
+    self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
   
   fn preload_model(&mut self, reference: String, location: String, texture: String) {
@@ -959,8 +977,27 @@ impl CoreRender for RawVk {
                   self.vk3d.models.get(draw.get_texture()).expect("Invalid model name").index_buffer.clone().unwrap(), set_3d.clone(), ()).unwrap();
           }
         } else {
-          // Render Text
-          if draw.is_text() {
+          if draw.is_vao_update() {
+           // self.update_vao(&draw);
+            let reference = draw.get_text().clone();
+            
+            if self.vk2d.custom_dynamic_vao.contains_key(&reference) {
+              let mut verts = draw.get_new_vertices();
+              let mut index = draw.get_new_indices();
+              
+              let new_model = self.create_dynamic_custom_2d_model(verts, index);
+              
+              if let Some(d_model) = self.vk2d.custom_dynamic_vao.get_mut(&reference) {
+                *d_model = new_model;
+              }
+              //self.vk2d.custom_dynamic_vao.get_mut(&reference).unwrap() = &mut self.create_dynamic_custom_2d_model(verts, index);
+              
+            } else {
+              println!("Error: Dynamic vao update doesn't exist: {:?}", reference);
+              continue;
+            }
+            
+          } else if draw.is_text() {// Render Text
             let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
             let size = draw.get_x_size();
             

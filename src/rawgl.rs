@@ -92,7 +92,6 @@ impl InstancedVao {
   
   pub fn update_vbodata(&self, size: usize, new_data: Vec<GLfloat>) {
     //self.vbo_data = new_data;
-    
     unsafe {
       gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo[1]);
       gl::BufferSubData(gl::ARRAY_BUFFER, 0, (mem::size_of::<GLfloat>()*size*INSTANCE_DATA_LENGTH) as isize, mem::transmute(&new_data[0]));
@@ -107,14 +106,6 @@ impl InstancedVao {
     }
     self.unbind();
   }
-  /*
-  pub fn draw(&self, draw_type: GLuint) {
-    self.bind();
-    self.bind_ebo();
-    unsafe {
-      gl::DrawElements(draw_type, self.num_vertices, gl::UNSIGNED_INT, ptr::null());
-    }
-  }*/
   
   pub fn unbind(&self) {
     unsafe {
@@ -748,14 +739,14 @@ impl CoreRender for RawGl {
     self.load_custom_2d_vao(reference, verts, index, false);
   }
   
-  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
     let mut verts: Vec<GLfloat> = Vec::new();
-    verticies.iter().map(|v| {
+    for v in vertices {
       verts.push(v.position[0] as GLfloat);
       verts.push(v.position[1] as GLfloat);
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
-    });
+    };
     
     let index = indices.iter().map(|i| {
       *i as GLuint
