@@ -118,8 +118,6 @@ mod fs_3d {
   struct Dummy;
 }
 
-const DEFAULT_TEXTURE: &str = "Arial";
-
 pub fn draw_dynamic(cb: AutoCommandBufferBuilder, 
                     dimensions: [u32; 2], 
                     pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
@@ -227,6 +225,7 @@ pub struct RawVk {
   vk2d: VK2D,
 
   // Vk System stuff
+  min_dimensions: [u32; 2],
   pub window: VkWindow,
   sampler: Arc<sampler::Sampler>,
 
@@ -326,6 +325,7 @@ impl RawVk {
       },
       
       // Vk System
+      min_dimensions: [min_width, min_height],
       window: window,
       sampler: sampler,
 
@@ -438,7 +438,6 @@ impl RawVk {
   
   pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,
                                                                       Arc<memory::pool::StdMemoryPool>> {
-    
     let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
     
     let has_texture = {
@@ -537,10 +536,6 @@ impl RawVk {
 
 impl CoreRender for RawVk {
   fn load_instanced(&mut self, reference: String, max_instances: i32) {
-    
-  }
-  
-  fn load_instanced_geometry(&mut self, reference: String, max_instances: i32, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
     
   }
   
@@ -718,7 +713,6 @@ impl CoreRender for RawVk {
         .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
-        //.blend_collective(pipeline::blend::AttachmentBlend::alpha_blending())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
@@ -865,9 +859,16 @@ impl CoreRender for RawVk {
   /// Settings up drawing variables before the drawing commences
   fn pre_draw(&mut self) {
     if self.recreate_swapchain {
-      let dimensions = {
+      let mut dimensions = {
         self.window.get_dimensions()
       };
+      
+      if dimensions[0] <= 0 {
+        dimensions[0] = self.min_dimensions[0];
+      }
+      if dimensions[1] <= 0 {
+        dimensions[1] = self.min_dimensions[1];
+      }
       
       let (new_swapchain, new_images) = match self.window.recreate_swapchain(dimensions) {
         Ok(r) => r,
@@ -945,7 +946,7 @@ impl CoreRender for RawVk {
           
           let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone());
           
-          let mut texture: String = String::from("default");
+          let mut texture: String = String::from(graphics::DEFAULT_TEXTURE);
           if self.textures.contains_key(draw.get_texture()) {
             texture = draw.get_texture().clone();
           }
@@ -978,7 +979,6 @@ impl CoreRender for RawVk {
           }
         } else {
           if draw.is_vao_update() {
-           // self.update_vao(&draw);
             let reference = draw.get_text().clone();
             
             if self.vk2d.custom_dynamic_vao.contains_key(&reference) {
@@ -990,7 +990,6 @@ impl CoreRender for RawVk {
               if let Some(d_model) = self.vk2d.custom_dynamic_vao.get_mut(&reference) {
                 *d_model = new_model;
               }
-              //self.vk2d.custom_dynamic_vao.get_mut(&reference).unwrap() = &mut self.create_dynamic_custom_2d_model(verts, index);
               
             } else {
               println!("Error: Dynamic vao update doesn't exist: {:?}", reference);
@@ -1000,6 +999,19 @@ impl CoreRender for RawVk {
           } else if draw.is_text() {// Render Text
             let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
             let size = draw.get_x_size();
+            
+            if !self.fonts.contains_key(draw.get_texture()) || !self.textures.contains_key(draw.get_texture()) {
+              println!("Error: text couldn't draw, Texture: {:?}", draw.get_texture());
+              continue;
+            }
+            
+            let pipeline = self.vk2d.pipeline_text.clone().unwrap();
+            let vertex_buffer = self.vk2d
+                                    .vao.vertex_buffer.clone()
+                                    .expect("Error: Unwrapping text vertex buffer failed!");
+            let index_buffer = self.vk2d
+                                    .vao.index_buffer.clone()
+                                    .expect("Error: Unwrapping text index buffer failed!");
             
             for letter in wrapped_draw {
               let char_letter = {
@@ -1033,14 +1045,7 @@ impl CoreRender for RawVk {
               
               {
                 let cb = tmp_cmd_buffer;
-                let pipeline = self.vk2d.pipeline_text.clone().unwrap();
-                let vertex_buffer = self.vk2d
-                                        .vao.vertex_buffer.clone()
-                                        .expect("Error: Unwrapping text vertex buffer failed!");
-                let index_buffer = self.vk2d
-                                        .vao.index_buffer.clone()
-                                        .expect("Error: Unwrapping text index buffer failed!");
-                tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
               }
             }
           } else {
@@ -1049,7 +1054,7 @@ impl CoreRender for RawVk {
             // No Texture
             if draw.get_texture() == &String::from("") {
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
-                                         .add_sampled_image(self.textures.get(DEFAULT_TEXTURE).expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
+                                         .add_sampled_image(self.textures.get(graphics::DEFAULT_TEXTURE).expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
                                          .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                          .build().unwrap());
               
@@ -1097,7 +1102,7 @@ impl CoreRender for RawVk {
               }
             } else {
               // Texture
-              let default_texture = String::from(DEFAULT_TEXTURE);
+              let default_texture = String::from(graphics::DEFAULT_TEXTURE);
               let mut texture = draw.get_texture(); 
               
               if !self.textures.contains_key(texture) {

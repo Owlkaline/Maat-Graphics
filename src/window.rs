@@ -28,6 +28,8 @@ use vulkano::swapchain::CompositeAlpha;
 use std::mem;
 use std::sync::Arc;
 
+use gl::types::*;
+
 use glutin;
 use glutin::GlContext;
 
@@ -80,14 +82,7 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(0);/*{
-      let mut temp_context: glutin::ContextBuilder;
-        temp_context: glutin::ContextBuilder::new().with_vsync(true).with_multisampling(8)
-        
-        let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
-        println!("Pixel format of the window's GL context: {:?}", gl_window.get_pixel_format());
-      temp_context
-    };*/
+    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(16);
     
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
     println!("Pixel format of the window's GL context: {:?}", gl_window.get_pixel_format());
@@ -97,7 +92,11 @@ impl GlWindow {
     
     gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
     
-    println!("hidpi: {}", gl_window.hidpi_factor());
+    let mut samples: GLint = 0;
+    unsafe {
+      gl::GetIntegerv(gl::MAX_FRAMEBUFFER_SAMPLES, &mut samples);
+    }
+    println!("Max Framebuffer Samples: {}\n", samples);
     
     GlWindow {
       events: events_loop,

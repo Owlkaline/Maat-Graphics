@@ -360,6 +360,7 @@ pub struct RawGl {
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
   
+  min_dimensions: [u32; 2],
   pub window: GlWindow,
 }
 
@@ -412,6 +413,7 @@ impl RawGl {
       view: view,
       scale: scale,
       
+      min_dimensions: [min_width, min_height],
       window: window,
     }
   }
@@ -512,79 +514,85 @@ impl RawGl {
     
     let reference = draw.get_text().clone();
     
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().cleanup();
-    self.gl2D.custom_vao.get(draw.get_text()).unwrap().bind();
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().create_vbo(verts, gl::STREAM_DRAW);
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().create_ebo(index, gl::STREAM_DRAW);
-    
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(0, 2, 4, 0);
-    self.gl2D.custom_vao.get_mut(draw.get_text()).unwrap().set_vertex_attrib(1, 2, 4, 2);
+    if let Some(custom_vao) = self.gl2D.custom_vao.get_mut(&reference) {
+      custom_vao.cleanup();
+      custom_vao.bind();
+      custom_vao.create_vbo(verts, gl::STREAM_DRAW);
+      custom_vao.create_ebo(index, gl::STREAM_DRAW);
+      custom_vao.set_vertex_attrib(0, 2, 4, 0);
+      custom_vao.set_vertex_attrib(1, 2, 4, 2);
+    } else {
+      println!("Error: custom vao doesnt exist: {:?}", reference);
+    }
   }
   
   fn draw_3d(&mut self, draw: &DrawCall) {
-    
     unsafe {
       gl::Enable(gl::DEPTH_TEST);
       gl::DepthFunc(gl::LESS);
     }
     
-    let model = self.gl3D.models.get(draw.get_texture()).expect("Invalid model name").clone();
-    
-    let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
-    let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
-    let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
+    if self.gl3D.models.contains_key(draw.get_texture()) {
+      let model = self.gl3D.models.get(draw.get_texture()).expect("Invalid model name").clone();
       
-    let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation()) * cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
-    
-    let lighting_position: Matrix4<f32> =
-      Matrix4::from_cols(
-        Vector4::new(0.0, -0.6, 25.0, -1.0),
-        Vector4::new(7.0, -0.6, 25.0, -1.0),
-        Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    let reflectivity = 1.0;
-    let shine_damper = 10.0;
-    
-    let lighting_colour: Matrix4<f32> =
-      // (R, G, B, n/a)
-      Matrix4::from_cols(
-        Vector4::new(0.0, 0.0, 1.0, -1.0), // colour + shinedamper
-        Vector4::new(1.0, 0.0, 0.0, -1.0),  // colour + reflectivity
-        Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    // (Intensity, 1)
-    let attenuation: Matrix4<f32> =
-      Matrix4::from_cols(
-        Vector4::new(0.1, 0.25, 0.25, -1.0),
-        Vector4::new(0.1, 0.25, 0.25, -1.0),
-        Vector4::new(0.5, 0.0, 0.0, -1.0),
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    let view = self.view /* Matrix4::from_angle_y(Deg(180.0)) */* self.scale;
-    
-    let mut texture = String::from("default");
-    if self.textures.contains_key(draw.get_texture()) {
-      texture = draw.get_texture().clone();
+      let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
+      let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
+      let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
+        
+      let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation()) * cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
+      
+      let lighting_position: Matrix4<f32> =
+        Matrix4::from_cols(
+          Vector4::new(0.0, -0.6, 25.0, -1.0),
+          Vector4::new(7.0, -0.6, 25.0, -1.0),
+          Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
+          Vector4::new(0.0, 0.0, 0.0, -1.0)
+        );
+      
+      let reflectivity = 1.0;
+      let shine_damper = 10.0;
+      
+      let lighting_colour: Matrix4<f32> =
+        // (R, G, B, n/a)
+        Matrix4::from_cols(
+          Vector4::new(0.0, 0.0, 1.0, -1.0), // colour + shinedamper
+          Vector4::new(1.0, 0.0, 0.0, -1.0),  // colour + reflectivity
+          Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
+          Vector4::new(0.0, 0.0, 0.0, -1.0)
+        );
+      
+      // (Intensity, 1)
+      let attenuation: Matrix4<f32> =
+        Matrix4::from_cols(
+          Vector4::new(0.1, 0.25, 0.25, -1.0),
+          Vector4::new(0.1, 0.25, 0.25, -1.0),
+          Vector4::new(0.5, 0.0, 0.0, -1.0),
+          Vector4::new(0.0, 0.0, 0.0, -1.0)
+        );
+      
+      let view = self.view /* Matrix4::from_angle_y(Deg(180.0)) */* self.scale;
+      
+      let mut texture = String::from(graphics::DEFAULT_TEXTURE);
+      if self.textures.contains_key(draw.get_texture()) {
+        texture = draw.get_texture().clone();
+      }
+      let texture = *self.textures.get(&texture).unwrap();
+      
+      self.gl3D.shaders[MODEL].Use();
+      self.gl3D.shaders[MODEL].set_mat4(String::from("transformation"), transformation);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("view"), view);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("lightpositions"), lighting_position);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("lightcolours"), lighting_colour);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("attenuations"), attenuation);
+      self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
+      self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
+      
+      model.activate_texture0(texture);
+      model.draw_indexed(gl::TRIANGLES);
+    } else {
+      println!("Error: 3D model not found: {:?}", draw.get_texture());
     }
-    let texture = *self.textures.get(&texture).unwrap();
-    
-    self.gl3D.shaders[MODEL].Use();
-    self.gl3D.shaders[MODEL].set_mat4(String::from("transformation"), transformation);
-    self.gl3D.shaders[MODEL].set_mat4(String::from("view"), view);
-    self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
-    self.gl3D.shaders[MODEL].set_mat4(String::from("lightpositions"), lighting_position);
-    self.gl3D.shaders[MODEL].set_mat4(String::from("lightcolours"), lighting_colour);
-    self.gl3D.shaders[MODEL].set_mat4(String::from("attenuations"), attenuation);
-    self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
-    self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
-    
-    model.activate_texture0(texture);
-    model.draw_indexed(gl::TRIANGLES);
     
     unsafe {
       gl::Disable(gl::DEPTH_TEST);
@@ -594,11 +602,15 @@ impl RawGl {
   fn draw_instanced(&mut self, draw_calls: Vec<DrawCall>, offset: usize) -> usize {
     let mut num_instances = 0;
     
+    if !self.gl2D.instanced_vao.contains_key(&draw_calls[offset].get_instance_reference()) {
+      println!("Error: Instanced vao not found: {:?}", draw_calls[offset].get_instance_reference());
+      return 0;
+    }
+    
     let texture = draw_calls[offset].get_texture();
     
     for i in offset..draw_calls.len() {
       if draw_calls[i].is_instanced() && draw_calls[i].get_texture() == texture {
-      //  println!("first: {}, crnt: {}", texture, draw_calls[i].get_texture());
         num_instances += 1;
       } else {
         break;
@@ -664,12 +676,15 @@ impl RawGl {
     let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
-    
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
     self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
     if has_texture == 1.0 {
-      self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+      if self.textures.contains_key(draw.get_texture()) {
+        self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+      } else {
+        println!("Error: Texture not found: {:?}", draw.get_texture());
+      }
     }
     
     if draw.is_custom_vao() {
@@ -680,6 +695,11 @@ impl RawGl {
   }
   
   fn draw_text(&self, draw: &DrawCall) {
+    if !self.textures.contains_key(draw.get_texture()) {
+      println!("Error: Font texture not found: {:?}", draw.get_texture());
+      return;
+    }
+    
     let mut translation = draw.get_translation();
     
     let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
@@ -719,10 +739,6 @@ impl CoreRender for RawGl {
     self.load_2d_instanced_vao(reference, max_instances);
   }
   
-  fn load_instanced_geometry(&mut self, reference: String, max_instances: i32, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>) {
-    
-  }
-  
   fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
     let mut verts: Vec<GLfloat> = Vec::new();
     for v in vertices {
@@ -731,7 +747,7 @@ impl CoreRender for RawGl {
       verts.push(v.uv[0] as GLfloat);
       verts.push(v.uv[1] as GLfloat);
     };
-   // println!("{:?}", verts);
+    
     let index = indices.into_iter().map(|i| {
       i as GLuint
     }).collect::<Vec<GLuint>>();
@@ -884,7 +900,6 @@ impl CoreRender for RawGl {
     
     unsafe {
       gl::Enable(gl::BLEND);
-      gl::Enable(gl::MULTISAMPLE);
       gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
     
@@ -1014,10 +1029,10 @@ impl CoreRender for RawGl {
   fn screen_resized(&mut self) {
     let mut dimensions = self.get_dimensions();
     if dimensions[0] <= 0 {
-      dimensions[0] = 1;
+      dimensions[0] = self.min_dimensions[0];
     }
     if dimensions[1] <= 0 {
-      dimensions[1] = 1;
+      dimensions[1] = self.min_dimensions[1];
     }
     let projection_2d = RawGl::load_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
     let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
