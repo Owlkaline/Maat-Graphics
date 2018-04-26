@@ -48,12 +48,13 @@ pub struct GlWindow {
 }
 
 impl GlWindow {
-  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool) -> GlWindow {
+  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool, samples: u32, vsync: bool) -> GlWindow {
     println!("Using openGL");
     
     glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
     
     let events_loop = glutin::EventsLoop::new();
+    
     let window = {
       let temp_window: glutin::WindowBuilder;
        
@@ -82,10 +83,10 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(true).with_multisampling(16);
+    let context = glutin::ContextBuilder::new().with_vsync(vsync).with_multisampling(samples as u16);
     
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
-    println!("Pixel format of the window's GL context: {:?}", gl_window.get_pixel_format());
+    
     unsafe {
       gl_window.make_current().unwrap();
     }

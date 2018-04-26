@@ -377,8 +377,10 @@ impl RawGl {
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     let fullscreen = settings.is_fullscreen();
+    let msaa = settings.get_msaa();
+    let vsync = settings.vsync_enabled();
     
-    let window = GlWindow::new(width, height, min_width, min_height, fullscreen);
+    let window = GlWindow::new(width, height, min_width, min_height, fullscreen, msaa, vsync);
     
     let proj_2d = RawGl::load_2d_projection(width as f32, height as f32);
     let proj_3d = RawGl::load_3d_projection(width as f32, height as f32);
