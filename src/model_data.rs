@@ -1,4 +1,4 @@
-use opengex_parser::OpengexData;
+//use opengex_parser::OpengexData;
 
 use opengex;
 
@@ -19,7 +19,7 @@ use std::num::ParseIntError;
 
 use cgmath::Vector4;
 use cgmath::Matrix4;
-
+/*
 named!(next_openbracket, take_until!("{"));
 
 named!(to_next_enter, take_until!("\n"));
@@ -70,7 +70,7 @@ pub fn get_goemetry_transform(text: &&[u8]) -> String {
   
   //str::from_utf8(text.expect("Unwrapping failed").1).expect("Error parsing").to_string()
   "".to_string()
-}
+}*/
 
 #[derive(Copy, Clone)]
 pub struct Vertex {

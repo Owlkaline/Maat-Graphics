@@ -118,12 +118,14 @@ mod fs_3d {
   struct Dummy;
 }
 
-pub fn draw_immutable(cb: AutoCommandBufferBuilder, 
-                      dimensions: [u32; 2], 
-                      pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
-                      vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
-                      index_buffer: Arc<ImmutableBuffer<[u16]>>, 
-                      uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {//Arc<descriptor_set::PersistentDescriptorSet<pipeline_layout::PipelineLayoutAbstract, ()>> ) -> AutoCommandBufferBuilder {
+const DEFAULT_TEXTURE: &str = "Arial";
+
+pub fn draw_dynamic(cb: AutoCommandBufferBuilder, 
+                    dimensions: [u32; 2], 
+                    pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
+                    vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
+                    index_buffer: Arc<CpuAccessibleBuffer<[u16]>>, 
+                    uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
   cb.draw_indexed(pipeline,
                   DynamicState {
                     line_width: None,
@@ -134,8 +136,29 @@ pub fn draw_immutable(cb: AutoCommandBufferBuilder,
                     }]),
                     scissors: None,
                   },
-                  vertex_buffer,//self.vk2d.vao.vertex_buffer.clone().unwrap(),
-                  index_buffer, //self.vk2d.vao.index_buffer.clone().unwrap(),
+                  vertex_buffer,
+                  index_buffer,
+                  uniform_buffer, ()).unwrap()
+}
+
+pub fn draw_immutable(cb: AutoCommandBufferBuilder, 
+                      dimensions: [u32; 2], 
+                      pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
+                      vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
+                      index_buffer: Arc<ImmutableBuffer<[u16]>>, 
+                      uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
+  cb.draw_indexed(pipeline,
+                  DynamicState {
+                    line_width: None,
+                    viewports: Some(vec![Viewport {
+                      origin: [0.0, 0.0],
+                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                      depth_range: 0.0 .. 1.0,
+                    }]),
+                    scissors: None,
+                  },
+                  vertex_buffer,
+                  index_buffer,
                   uniform_buffer, ()).unwrap()
 }
 
@@ -152,7 +175,7 @@ pub struct Model {
 
 pub struct DynamicModel {
   vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<CpuAccessibleBuffer<[u16]>>>//Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  index_buffer: Option<Arc<CpuAccessibleBuffer<[u16]>>>
 }
 
 pub struct VK2D {
@@ -973,19 +996,14 @@ impl CoreRender for RawVk {
               
               {
                 let cb = tmp_cmd_buffer;
-                tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_text.clone().unwrap(),
-                                              DynamicState {
-                                                      line_width: None,
-                                                      viewports: Some(vec![Viewport {
-                                                        origin: [0.0, 0.0],
-                                                        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                        depth_range: 0.0 .. 1.0,
-                                                      }]),
-                                                      scissors: None,
-                                              },
-                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
-                                              self.vk2d.vao.index_buffer.clone().unwrap(),
-                                              uniform_set.clone(), ()).unwrap();
+                let pipeline = self.vk2d.pipeline_text.clone().unwrap();
+                let vertex_buffer = self.vk2d
+                                        .vao.vertex_buffer.clone()
+                                        .expect("Error: Unwrapping text vertex buffer failed!");
+                let index_buffer = self.vk2d
+                                        .vao.index_buffer.clone()
+                                        .expect("Error: Unwrapping text index buffer failed!");
+                tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
               }
             }
           } else {
@@ -994,87 +1012,65 @@ impl CoreRender for RawVk {
             // No Texture
             if draw.get_texture() == &String::from("") {
               let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
-                                         .add_sampled_image(self.textures.get("Arial").expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
+                                         .add_sampled_image(self.textures.get(DEFAULT_TEXTURE).expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
                                          .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                          .build().unwrap());
               
               {
                 let cb = tmp_cmd_buffer;
                 
+                let pipeline = self.vk2d.pipeline_texture.clone().unwrap();
                 if draw.is_custom_vao() {
-                  let mut is_dynamic = false;
-                  
-                  let mut vertex_buffer;// = self.vk2d.custom_vao.get(draw.get_text()).unwrap().vertex_buffer.clone().unwrap();
-                  let mut index_buffer;// = self.vk2d.custom_vao.get(draw.get_text()).unwrap().index_buffer.clone().unwrap();
-                //  let mut dynamic_index_buffer;
-                  vertex_buffer = self.vk2d
+                  if self.vk2d.custom_vao.contains_key(draw.get_text()) {
+                    let vertex_buffer = self.vk2d
                                         .custom_vao.get(draw.get_text()).unwrap()
                                         .vertex_buffer.clone()
                                         .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    index_buffer = self.vk2d
+                    let index_buffer = self.vk2d
                                         .custom_vao.get(draw.get_text()).unwrap()
                                         .index_buffer.clone()
                                         .expect("Error: Unwrapping static custom index buffer failed!");
-                  let pipeline = self.vk2d.pipeline_texture.clone().unwrap();
-                /*  if self.vk2d.custom_vao.contains_key(draw.get_text()) {
-                    vertex_buffer = self.vk2d
-                                        .custom_vao.get(draw.get_text()).unwrap()
-                                        .vertex_buffer.clone()
-                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    index_buffer = self.vk2d
-                                        .custom_vao.get(draw.get_text()).unwrap()
-                                        .index_buffer.clone()
-                                        .expect("Error: Unwrapping static custom index buffer failed!");
+                    
+                    tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
-                    vertex_buffer = self.vk2d
+                    let vertex_buffer = self.vk2d
                                         .custom_dynamic_vao.get(draw.get_text()).unwrap()
                                         .vertex_buffer.clone()
-                                        .expect("Error: Unwrapping dynamic custom vertex buffer failed!");
-                    index_buffer = self.vk2d
-                                       .custom_dynamic_vao.get(draw.get_text()).unwrap()
-                                       .index_buffer.clone()
-                                       .expect("Error: Unwrapping dynamic custom index buffer failed!");
+                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
+                    let index_buffer = self.vk2d
+                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
+                                        .index_buffer.clone()
+                                        .expect("Error: Unwrapping static custom index buffer failed!");
+                    
+                    tmp_cmd_buffer = draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else {
                     println!("Error: custom vao {:?} does not exist!", draw.get_text());
+                    tmp_cmd_buffer = cb;
                     continue;
-                  }*/
-                  
-                  tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                  /*tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
-                                              DynamicState {
-                                                      line_width: None,
-                                                      viewports: Some(vec![Viewport {
-                                                        origin: [0.0, 0.0],
-                                                        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                        depth_range: 0.0 .. 1.0,
-                                                      }]),
-                                                      scissors: None,
-                                              },
-                                              vertex_buffer,//self.vk2d.custom_vao.get(draw.get_text()).unwrap().vertex_buffer.clone().unwrap(),
-                                              index_buffer,//self.vk2d.custom_vao.get(draw.get_text()).unwrap().index_buffer.clone().unwrap(),
-                                              uniform_set.clone(), ()).unwrap();*/
+                  }
                 } else {
-                  tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
-                                              DynamicState {
-                                                      line_width: None,
-                                                      viewports: Some(vec![Viewport {
-                                                        origin: [0.0, 0.0],
-                                                        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                        depth_range: 0.0 .. 1.0,
-                                                      }]),
-                                                      scissors: None,
-                                              },
-                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
-                                              self.vk2d.vao.index_buffer.clone().unwrap(),
-                                              uniform_set.clone(), ()).unwrap();
+                  let vertex_buffer = self.vk2d
+                                          .vao.vertex_buffer.clone()
+                                          .expect("Error: Unwrapping main vertex buffer failed!");
+                  let index_buffer = self.vk2d
+                                          .vao.index_buffer.clone()
+                                         .expect("Error: Unwrapping main index buffer failed!");
+                  tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                 }
               }
             } else {
               // Texture
-              let texture = draw.get_texture();
+              let default_texture = String::from(DEFAULT_TEXTURE);
+              let mut texture = draw.get_texture(); 
               
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
-                                      .add_sampled_image(self.textures.get(draw.get_texture()).expect(&("Unknown Texture".to_string() + texture)).clone(), self.sampler.clone()).unwrap()
+              if !self.textures.contains_key(texture) {
+                println!("Texture not found: {}", texture);
+                texture = &default_texture;
+              }
+              
+              let pipeline = self.vk2d.pipeline_texture.clone().unwrap();
+              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                                      .add_sampled_image(self.textures.get(texture).unwrap().clone(), self.sampler.clone()).unwrap()
                                       .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
                                       .build().unwrap());
               
@@ -1082,36 +1078,37 @@ impl CoreRender for RawVk {
                 let cb = tmp_cmd_buffer;
                 
                 if draw.is_custom_vao() {
-                  let vertex_buffer = self.vk2d.custom_vao.get(draw.get_text()).unwrap().vertex_buffer.clone().unwrap();
-                  let index_buffer = self.vk2d.custom_vao.get(draw.get_text()).unwrap().index_buffer.clone().unwrap();
-                  
-                  tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
-                                              DynamicState {
-                                                      line_width: None,
-                                                      viewports: Some(vec![Viewport {
-                                                        origin: [0.0, 0.0],
-                                                        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                        depth_range: 0.0 .. 1.0,
-                                                      }]),
-                                                      scissors: None,
-                                              },
-                                              vertex_buffer,
-                                              index_buffer,
-                                              uniform_set.clone(), ()).unwrap();
+                  if self.vk2d.custom_vao.contains_key(draw.get_text()) {
+                    let vertex_buffer = self.vk2d
+                                            .custom_vao.get(draw.get_text()).unwrap()
+                                            .vertex_buffer.clone()
+                                            .expect("Error: Unwrapping static custom vertex buffer failed!");
+                    let index_buffer = self.vk2d
+                                           .custom_vao.get(draw.get_text()).unwrap()
+                                           .index_buffer.clone()
+                                           .expect("Error: Unwrapping static custom index buffer failed!");
+                    
+                    tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                  } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
+                    let vertex_buffer = self.vk2d
+                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
+                                        .vertex_buffer.clone()
+                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
+                    let index_buffer = self.vk2d
+                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
+                                        .index_buffer.clone()
+                                        .expect("Error: Unwrapping static custom index buffer failed!");
+                    
+                    tmp_cmd_buffer = draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                  } else {
+                    println!("Error: custom vao {:?} does not exist!", draw.get_text());
+                    tmp_cmd_buffer = cb;
+                    continue;
+                  }
                 } else {
-                  tmp_cmd_buffer = cb.draw_indexed(self.vk2d.pipeline_texture.clone().unwrap(),
-                                              DynamicState {
-                                                      line_width: None,
-                                                      viewports: Some(vec![Viewport {
-                                                        origin: [0.0, 0.0],
-                                                        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                                        depth_range: 0.0 .. 1.0,
-                                                      }]),
-                                                      scissors: None,
-                                              },
-                                              self.vk2d.vao.vertex_buffer.clone().unwrap(),
-                                              self.vk2d.vao.index_buffer.clone().unwrap(),
-                                              uniform_set.clone(), ()).unwrap();
+                  let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
+                  let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
+                  tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                 }
               }
             }

@@ -130,7 +130,7 @@ pub mod font;
 mod window;
 mod shaders;
 mod model_data;
-mod opengex_parser;
+//mod opengex_parser;
 mod vulkano_win_updated;
 
 #[cfg(test)]

@@ -301,7 +301,7 @@ impl VkWindow {
   }
   
   // Recrates the swapchain to keep it relevant to the surface dimensions
-  pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
+  pub fn recreate_swapchain(&self, _dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
     let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");

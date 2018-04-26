@@ -542,9 +542,9 @@ impl DrawMath {
    }
    
    pub fn rotate(angle: f32) -> (f32, f32) {
-     let mut crnt_pos = Vector2::new(0.0, 1.0);
+     let crnt_pos = Vector2::new(0.0, 1.0);
      
-     let mut rotation_mat = Matrix2::new(
+     let rotation_mat = Matrix2::new(
        angle.cos(), -(angle.sin()),
        angle.sin(), angle.cos()
      );
