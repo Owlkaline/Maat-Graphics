@@ -1,7 +1,23 @@
-//use std::fs::File;
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 //use std::io::prelude::*;
 //use std::path::Path;
 //use std::str::FromStr;
+
+//use std::fs;
+
+const SETTINGS_LOCATION: &str = "./settings.ini";
+const TRUE: &str = " True\n";
+const FALSE: &str = " False\n";
+const VULKAN: &str = "Vulkan";
+const FULLSCREEN: &str = "Fullscreen";
+const MSAA: &str = "MSAA";
+
+enum SaveOptions {
+  Vulkan,
+  Fullscreen,
+  MSAA
+}
 
 pub struct Settings {
   vulkan: bool,
@@ -37,6 +53,31 @@ impl Settings {
     }*/
     
     println!("contents {}", contents);*/
+    if let Ok(file) = File::open("./settings.ini") {
+      println!("Settings file exists");
+    } else {
+      println!("Settings file not found");
+       let data = VULKAN.to_owned() + FALSE + 
+                  FULLSCREEN + FALSE + 
+                  MSAA + " 0\n";
+       let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
+       let mut f = BufWriter::new(f);
+       f.write_all(data.as_bytes()).expect("Unable to write data");
+    }
+    /*
+    let data = "Some data!\nyeee";
+    let f = File::create("./settings.ini").expect("Unable to create file");
+    let mut f = BufWriter::new(f);
+    f.write_all(data.as_bytes()).expect("Unable to write data");*/
+    
+    /*
+    let f = File::open("/etc/hosts").expect("Unable to open file");
+    let f = BufReader::new(f);
+
+    for line in f.lines() {
+        let line = line.expect("Unable to read line");
+        println!("Line: {}", line);
+    }*/
     
     Settings {
       vulkan: true,
