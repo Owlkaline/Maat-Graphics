@@ -126,7 +126,7 @@ pub mod settings;
 pub mod camera;
 pub mod rawgl;
 pub mod rawvk;
-pub mod font;
+mod font;
 mod window;
 mod shaders;
 mod model_data;

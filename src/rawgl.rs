@@ -1,8 +1,7 @@
 use window::GlWindow;
 use drawcalls::DrawCall;
 use drawcalls::DrawMath;
-use shaders::ShaderFunctions;
-use shaders::ShaderProgram;
+use shaders::traits::ShaderFunctions;
 use shaders::ShaderTexture;
 use shaders::ShaderTextureInstanced;
 use shaders::ShaderText;

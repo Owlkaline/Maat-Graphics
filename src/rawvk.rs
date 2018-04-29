@@ -79,42 +79,42 @@ impl_vertex!(graphics::Vertex2d, position, uv);
 mod vs_texture {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
-  #[path = "src/shaders/VkTexture.vert"]
+  #[path = "src/shaders/glsl/VkTexture.vert"]
   struct Dummy;
 }
 
 mod fs_texture {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
-  #[path = "src/shaders/VkTexture.frag"]
+  #[path = "src/shaders/glsl/VkTexture.frag"]
   struct Dummy;
 }
 
 mod vs_text {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
-  #[path = "src/shaders/VkText.vert"]
+  #[path = "src/shaders/glsl/VkText.vert"]
   struct Dummy;
 }
 
 mod fs_text {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
-  #[path = "src/shaders/VkText.frag"]
+  #[path = "src/shaders/glsl/VkText.frag"]
   struct Dummy;
 }
 
 mod vs_3d {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
-  #[path = "src/shaders/Vk3D.vert"]
+  #[path = "src/shaders/glsl/Vk3D.vert"]
   struct Dummy;
 }
 
 mod fs_3d {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
-  #[path = "src/shaders/Vk3D.frag"]
+  #[path = "src/shaders/glsl/Vk3D.frag"]
   struct Dummy;
 }
 
