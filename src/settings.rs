@@ -99,6 +99,10 @@ impl Settings {
        f.write_all(data.as_bytes()).expect("Unable to write data");
     }
     
+    
+    //GLint max_samples;
+    //glGetIntegerv(GL_MAX_SAMPLES, &max_samples);
+    
     Settings {
       vsync: vsync,
       vulkan: use_vulkan,

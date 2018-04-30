@@ -83,7 +83,7 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(vsync).with_multisampling(samples as u16);
+    let context = glutin::ContextBuilder::new().with_vsync(vsync);//.with_multisampling(samples as u16);
     
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
     

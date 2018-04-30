@@ -6,6 +6,7 @@ use shaders::ShaderTexture;
 use shaders::ShaderTextureInstanced;
 use shaders::ShaderText;
 use shaders::Shader3D;
+use shaders::traits::Fbo;
 use graphics;
 use graphics::CoreRender;
 use settings::Settings;
@@ -355,6 +356,7 @@ pub struct RawGl {
   
   gl2D: GL2D,
   gl3D: GL3D,
+  framebuffer: Fbo,
   
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
@@ -410,6 +412,7 @@ impl RawGl {
         models: HashMap::new(),
         projection: proj_3d,
       },
+      framebuffer: Fbo::new(msaa as i32, 1200 as i32, 800 as i32),
       
       view: view,
       scale: scale,
@@ -733,6 +736,30 @@ impl RawGl {
       translation.x+=c.get_advance() as f32 * (size/640.0); 
     }
   }
+  
+  fn draw_framebuffer(&self) {
+    let draw = self.framebuffer.draw_screen_texture();
+    
+    let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);//draw.get_colour();
+    let has_texture = 1.0;
+    
+    let texture = self.framebuffer.get_screen_texture();
+    
+    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    
+    self.gl2D.shaders[TEXTURE].Use();
+    self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
+    self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
+    self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
+    
+    self.gl2D.vao.activate_texture0(texture);
+    
+    if draw.is_custom_vao() {
+      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    } else {
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    }
+  }
 }
 
 impl CoreRender for RawGl {
@@ -897,6 +924,8 @@ impl CoreRender for RawGl {
   
   fn init(&mut self) {
     let dim = self.get_dimensions();
+    
+    self.framebuffer.init();
     self.set_viewport(dim[0], dim[1]);
     
     unsafe {
@@ -977,6 +1006,12 @@ impl CoreRender for RawGl {
   }
   
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
+    let dimensions = self.get_dimensions();
+    
+    self.framebuffer.bind();
+    
+    self.clear_screen();
+    
     let mut offset = 0;
     for i in 0..draw_calls.len() {
       if i+offset >= draw_calls.len() {
@@ -997,6 +1032,13 @@ impl CoreRender for RawGl {
         self.draw_square(&draw);
       }
     }
+    
+    self.framebuffer.blit_to_post();
+    self.framebuffer.bind_default();
+    
+    self.clear_screen();
+    
+    self.draw_framebuffer();
   }
   
   fn post_draw(&self) {
@@ -1035,6 +1077,7 @@ impl CoreRender for RawGl {
     if dimensions[1] <= 0 {
       dimensions[1] = self.min_dimensions[1];
     }
+    
     let projection_2d = RawGl::load_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
     let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     self.window.resize_screen(dimensions);
