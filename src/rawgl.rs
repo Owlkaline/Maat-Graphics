@@ -737,8 +737,8 @@ impl RawGl {
     }
   }
   
-  fn draw_framebuffer(&self) {
-    let draw = self.framebuffer.draw_screen_texture();
+  fn draw_framebuffer(&self, x: f32, y: f32, width: f32, height: f32) {
+    let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     
     let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);//draw.get_colour();
     let has_texture = 1.0;
@@ -1038,7 +1038,7 @@ impl CoreRender for RawGl {
     
     self.clear_screen();
     
-    self.draw_framebuffer();
+    self.draw_framebuffer(dimensions[0] as f32*0.5, dimensions[1] as f32*0.5, dimensions[0] as f32, dimensions[1] as f32);
   }
   
   fn post_draw(&self) {
@@ -1090,6 +1090,8 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
     self.gl3D.shaders[MODEL].Use();
     self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
+    
+    self.framebuffer.resize(dimensions[0] as f32, dimensions[1] as f32);
     
     unsafe {
       gl::UseProgram(0);

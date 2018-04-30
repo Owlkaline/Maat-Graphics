@@ -41,6 +41,15 @@ impl Fbo {
     }
   }
   
+  pub fn clean(&mut self) {
+    unsafe {
+      gl::DeleteFramebuffers(1, &mut self.ms_framebuffer);
+      gl::DeleteFramebuffers(1, &mut self.framebuffer);
+      gl::DeleteRenderbuffers(1, &mut self.renderbuffer);
+      gl::DeleteTextures(1, &mut self.screen_texture);
+    }
+  }
+  
   pub fn is_3d(mut self) -> Self {
     self.depth_enabled = true;
     self
@@ -91,17 +100,20 @@ impl Fbo {
     }
   }
   
-  pub fn draw_screen_texture(&self) -> DrawCall {
-    DrawCall::new_draw(self.dimensions[0] as f32*0.5, self.dimensions[1] as f32*0.5, 0.0)
-              .with_scale(self.dimensions[0] as f32, self.dimensions[1] as f32)
+  pub fn draw_screen_texture(&self, x: f32, y: f32, width: f32, height: f32) -> DrawCall {
+    DrawCall::new_draw(x, y, 0.0)
+              .with_scale(width, height)
   }
   
   pub fn get_screen_texture(&self) -> GLuint {
     self.screen_texture
   }
   
-  pub fn resize(&mut self) {
-    
+  pub fn resize(&mut self, width: f32, height: f32) {
+    println!("resized: {}, {}", width, height);
+    self.dimensions = [width as i32, height as i32];
+    self.clean();
+    self.init();
   }
 }
 
