@@ -16,7 +16,6 @@ piston-opengex = "*"
 piston_meta = "*"
 piston_meta_search = "*"
 range = "*"
-nom = "^3.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.13"

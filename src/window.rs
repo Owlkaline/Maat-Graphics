@@ -48,7 +48,7 @@ pub struct GlWindow {
 }
 
 impl GlWindow {
-  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool, samples: u32, vsync: bool) -> GlWindow {
+  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool) -> GlWindow {
     println!("Using openGL");
     
     glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
@@ -83,7 +83,7 @@ impl GlWindow {
       temp_window
     };
     
-    let context = glutin::ContextBuilder::new().with_vsync(vsync);//.with_multisampling(samples as u16);
+    let context = glutin::ContextBuilder::new().with_vsync(vsync);
     
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
     
@@ -92,12 +92,6 @@ impl GlWindow {
     }
     
     gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-    
-    let mut samples: GLint = 0;
-    unsafe {
-      gl::GetIntegerv(gl::MAX_FRAMEBUFFER_SAMPLES, &mut samples);
-    }
-    println!("Max Framebuffer Samples: {}\n", samples);
     
     GlWindow {
       events: events_loop,
@@ -255,11 +249,12 @@ impl VkWindow {
       let min_image_count = caps.min_image_count;
       let supported_usage_flags = caps.supported_usage_flags;
       
-      println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
+    //  println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
       println!("\nSwapchain:");
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
       
+      //PresentMode::Relaxed PresentMode::Fifo
       Swapchain::new(device.clone(), surface.clone(), min_image_count, format,
                      dimensions, 1, supported_usage_flags, &queue,
                      SurfaceTransform::Identity, alpha, PresentMode::Fifo, true, None
@@ -282,7 +277,7 @@ impl VkWindow {
   }
   
   pub fn get_max_msaa(&self) -> u32 {
-    self.device.physical_device().limits().max_sampler_anisotropy() as u32 / 2
+    self.device.physical_device().limits().max_sampler_anisotropy() as u32
   }
   
   // Returns a clone of device

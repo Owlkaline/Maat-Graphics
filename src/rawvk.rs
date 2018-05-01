@@ -44,6 +44,7 @@ use vulkano::pipeline::viewport::Scissor;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
 use vulkano::format;
+use vulkano::format::ClearValue;
 use vulkano::image::ImmutableImage;
 use vulkano::descriptor;
 use vulkano::descriptor::descriptor_set;
@@ -269,8 +270,17 @@ impl RawVk {
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
-    let samples = cmp::min(4, window.get_max_msaa());
-    println!("MSAA: {}", samples);
+    let mut msaa_samples = settings.get_msaa();
+    if msaa_samples <= 0 {
+      msaa_samples = 1;
+    }
+    
+    let mut max_samples = window.get_max_msaa();
+    
+    println!("Max MSAA: x{}", max_samples);
+    
+    let samples = cmp::min(msaa_samples, max_samples as u32);
+    println!("Current MSAA: x{}\n", samples);
     
     let dim = window.get_dimensions();
     let multisample_image = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();
@@ -858,6 +868,8 @@ impl CoreRender for RawVk {
   
   /// Settings up drawing variables before the drawing commences
   fn pre_draw(&mut self) {
+    self.clear_screen();
+    
     if self.recreate_swapchain {
       let mut dimensions = {
         self.window.get_dimensions()
@@ -939,7 +951,7 @@ impl CoreRender for RawVk {
       let build_start = tmp_cmd_buffer;
       
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![clear.into(), 1f32.into(), format::ClearValue::None, format::ClearValue::None]).unwrap();
+      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
       for draw in draw_calls {
         
         if draw.is_3d_model() {
@@ -952,6 +964,11 @@ impl CoreRender for RawVk {
           }
           if draw.get_texture() == "terrain" {
             texture = String::from("oakfloor");
+          }
+          
+          if !self.textures.contains_key(&texture.clone()) {
+            println!("Error: Model doesn't exist {}", texture.clone());
+            continue;
           }
           
           let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)

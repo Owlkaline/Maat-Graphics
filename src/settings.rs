@@ -93,15 +93,11 @@ impl Settings {
       println!("Settings file not found");
        let data = VULKAN.to_owned() + SPACE + FALSE + NL + 
                   FULLSCREEN        + SPACE + FALSE + NL +
-                  MSAA              + SPACE + "0"   + NL;
+                  MSAA              + SPACE + "4"   + NL;
        let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
        let mut f = BufWriter::new(f);
        f.write_all(data.as_bytes()).expect("Unable to write data");
     }
-    
-    
-    //GLint max_samples;
-    //glGetIntegerv(GL_MAX_SAMPLES, &max_samples);
     
     Settings {
       vsync: vsync,

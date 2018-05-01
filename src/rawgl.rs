@@ -32,6 +32,7 @@ use gl::types::*;
 use std::env;
 use std::ptr;
 use std::mem;
+use std::cmp;
 use std::time;
 use std::f32::consts;
 use std::ffi::CString;
@@ -378,16 +379,29 @@ impl RawGl {
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     let fullscreen = settings.is_fullscreen();
-    let msaa = settings.get_msaa();
+    let mut msaa_samples = settings.get_msaa();
     let vsync = settings.vsync_enabled();
     
-    let window = GlWindow::new(width, height, min_width, min_height, fullscreen, msaa, vsync);
+    let window = GlWindow::new(width, height, min_width, min_height, fullscreen, vsync);
     
     let proj_2d = RawGl::load_2d_projection(width as f32, height as f32);
     let proj_3d = RawGl::load_3d_projection(width as f32, height as f32);
     
     let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.1);
+    
+    if msaa_samples <= 0 {
+      msaa_samples = 1;
+    }
+    
+    let mut max_samples: GLint = 1;
+    unsafe {
+      gl::GetIntegerv(gl::MAX_FRAMEBUFFER_SAMPLES, &mut max_samples);
+    }
+    
+    println!("Max MSAA: x{}", max_samples);
+    let msaa_samples: i32 = cmp::min(msaa_samples, max_samples as u32) as i32;
+    println!("Current MSAA: x{}\n", msaa_samples);
     
     RawGl {
       ready: false,
@@ -412,7 +426,7 @@ impl RawGl {
         models: HashMap::new(),
         projection: proj_3d,
       },
-      framebuffer: Fbo::new(msaa as i32, 1200 as i32, 800 as i32),
+      framebuffer: Fbo::new(msaa_samples, width as i32, height as i32),
       
       view: view,
       scale: scale,

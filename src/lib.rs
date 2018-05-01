@@ -117,9 +117,6 @@ extern crate piston_meta;
 extern crate piston_meta_search;
 extern crate range;
 
-#[macro_use]
-extern crate nom;
-
 pub mod graphics;
 pub mod drawcalls;
 pub mod settings;
@@ -130,7 +127,7 @@ mod font;
 mod window;
 mod shaders;
 mod model_data;
-//mod opengex_parser;
+mod opengex_parser;
 mod vulkano_win_updated;
 
 #[cfg(test)]
