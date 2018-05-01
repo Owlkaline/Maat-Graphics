@@ -16,8 +16,9 @@ pub struct Fbo {
   framebuffer: GLuint,
   renderbuffer: GLuint,
   
-  colour_attachment: Vec<GLuint>,
-  colour_attachment_type: Vec<GLuint>
+  colour_attachments: Vec<GLuint>,
+  colour_attachment_type: Vec<GLuint>,
+  framebuffer_type: GLuint,
   
   samples: i32,
   depth_enabled: bool,
@@ -25,17 +26,19 @@ pub struct Fbo {
 }
 
 impl Fbo {
-  pub fn new(num_colour_attachments: i32, attachment_types: Vec<GLuint>, width: i32, height: i32) -> Fbo {
+  pub fn new(num_colour_attachments: i32, attachment_types: Vec<GLuint>, framebuffer_type: GLuint, width: i32, height: i32) -> Fbo {
     debug_assert!(num_colour_attachments == attachment_types.len(), "Debug Error: Colour attachments recieved not equal to num of colour attachments specified");
+    debug_assert!(num_colour_attachments <= 3 && num_colour_attachments > 0, "Debug Error: Incorrect number of colour attachments given!");
     
     Fbo {
       framebuffer: 0,
       renderbuffer: 0,
       
-      colour_attachment: Vec::with_capacity(num_colour_attachments),
+      colour_attachments: Vec::with_capacity(num_colour_attachments),
       colour_attachment_type: attachment_types,
+      framebuffer_type: framebuffer_type,
       
-      samples: -1,
+      samples: 1,
       depth_enabled: false,
       dimensions: [width, height],
     }
@@ -47,10 +50,13 @@ impl Fbo {
   
   pub fn clean(&mut self) {
     unsafe {
-      gl::DeleteFramebuffers(1, &mut self.ms_framebuffer);
       gl::DeleteFramebuffers(1, &mut self.framebuffer);
       gl::DeleteRenderbuffers(1, &mut self.renderbuffer);
-      gl::DeleteTextures(1, &mut self.screen_texture);
+      unsafe {
+        for attachment in &mut self.colour_attachments {
+          gl::DeleteTextures(1, attachment);
+        }
+      }
     }
   }
   
@@ -61,23 +67,43 @@ impl Fbo {
   
   pub fn init(&mut self) {
     unsafe {
-      gl::GenFramebuffers(1, &mut self.ms_framebuffer);
       gl::GenFramebuffers(1, &mut self.framebuffer);
       gl::GenRenderbuffers(1, &mut self.renderbuffer);
       
-      gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.ms_framebuffer);
+      gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.framebuffer);
       gl::BindRenderbuffer(gl::RENDERBUFFER, self.renderbuffer);
-      gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, gl::RGB, self.dimensions[0], self.dimensions[1]);
-      gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.renderbuffer);
+      
+      if samples > 1 {
+        gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, self.framebuffer_type, self.dimensions[0], self.dimensions[1]);
+      } else {
+        gl::RenderbufferStorage(gl::RENDERBUFFER, self.framebuffer_type, self.dimensions[0], self.dimensions[1]);
+      }
+      
+      match self.num_colour_attachments {
+        1 => {
+          gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.renderbuffer);
+        },
+        2 => {
+          gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 | gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.renderbuffer);
+        },
+        3 => {
+          gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 | gl::COLOR_ATTACHMENT1 | gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, self.renderbuffer);
+        },
+        _ => {
+          gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.renderbuffer);
+        }
+      }
       
       gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
       
-      gl::GenTextures(1, &mut self.screen_texture);
-      gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
-      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGB, gl::UNSIGNED_BYTE, mem::transmute(0i64));
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-      gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.screen_texture, 0);
+      for i in self.num_colour_attachments {
+        gl::GenTextures(1, &mut self.colour_attachments[i]);
+        gl::BindTexture(gl::TEXTURE_2D, self.colour_attachments[i]);
+        gl::TexImage2D(gl::TEXTURE_2D, 0, self.colour_attachments[i] as GLint, self.dimensions[0], self.dimensions[1], 0, self.colour_attachments[i], gl::UNSIGNED_BYTE, mem::transmute(0i64));
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 + i, gl::TEXTURE_2D, self.colour_attachments[i], 0);
+      }
       
       gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
@@ -86,15 +112,17 @@ impl Fbo {
   pub fn bind(&self) {
     unsafe {
       gl::BindTexture(gl::TEXTURE_2D, 0);
-      gl::BindFramebuffer(gl::FRAMEBUFFER, self.ms_framebuffer);
+      gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
     }
   }
   
-  pub fn blit_to_post(&self) {
+  pub fn blit_to_framebuffer(&self, target_framebuffer: GLuint, 
+                                    x1: i32, y1: i32, x2: i32, y2: i32, 
+                                    x3: i32, y3: i32, x4: i32, y4: i32) {
     unsafe {
-      gl::BindFramebuffer(gl::READ_FRAMEBUFFER, self.ms_framebuffer);
-      gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.framebuffer);
-      gl::BlitFramebuffer(self.dimensions[0], 0, 0, self.dimensions[1], self.dimensions[0], self.dimensions[1], 0, 0, gl::COLOR_BUFFER_BIT, gl::NEAREST);
+      gl::BindFramebuffer(gl::READ_FRAMEBUFFER, self.framebuffer);
+      gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, target_framebuffer);
+      gl::BlitFramebuffer(x1, y1, x2, y2, x3, y3, x4, y4, gl::COLOR_BUFFER_BIT, gl::NEAREST);
     }
   }
   
@@ -104,13 +132,13 @@ impl Fbo {
     }
   }
   
-  pub fn draw_screen_texture(&self, x: f32, y: f32, width: f32, height: f32) -> DrawCall {
+  pub fn draw_attachment(&self, x: f32, y: f32, width: f32, height: f32) -> DrawCall {
     DrawCall::new_draw(x, y, 0.0)
               .with_scale(width, height)
   }
   
-  pub fn get_screen_texture(&self) -> GLuint {
-    self.screen_texture
+  pub fn get_colour_attachment(&self, index: usize) -> GLuint {
+    self.colour_attachments[i]
   }
   
   pub fn resize(&mut self, width: f32, height: f32) {
@@ -224,7 +252,6 @@ impl Fbo {
     self.init();
   }
 }
-
 
 pub struct ShaderData {
   id: GLuint,
