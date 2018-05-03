@@ -119,6 +119,48 @@ mod fs_3d {
   struct Dummy;
 }
 
+mod vs_post_bloom {
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkPostBloom.vert"]
+  struct Dummy;
+}
+
+mod fs_post_bloom {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkPostBloom.frag"]
+  struct Dummy;
+}
+
+mod vs_post_blur {
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkPostBlur.vert"]
+  struct Dummy;
+}
+
+mod fs_post_blur {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkPostBlur.frag"]
+  struct Dummy;
+}
+
+mod vs_post_final {
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkPostFinal.vert"]
+  struct Dummy;
+}
+
+mod fs_post_final {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkPostFinal.frag"]
+  struct Dummy;
+}
+
 pub fn draw_dynamic(cb: AutoCommandBufferBuilder, 
                     dimensions: [u32; 2], 
                     pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
@@ -204,6 +246,19 @@ pub struct VK3D {
   uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
 }
 
+pub struct VKPOST {
+  bloom_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  bloom_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  bloom_framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
+  bloom_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_bloom::ty::Data>,
+  bloom_attachment: Arc<vkimage::AttachmentImage>,
+  
+  final_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  final_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  final_framebuffer: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
+  final_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_final::ty::Data>,
+}
+
 pub struct RawVk {
   ready: bool,
   fonts: HashMap<String, GenericFont>,
@@ -213,23 +268,27 @@ pub struct RawVk {
   
   clear_colour: Vector4<f32>,
   
-  framebuffers: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync>>>,
-  render_pass: Option<Arc<RenderPassAbstract + Send + Sync>>,
-  multisample_image: Arc<vkimage::AttachmentImage>,
-  multisample_depth: Arc<vkimage::AttachmentImage>,
+  framebuffers: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
+  main_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
+  fullcolour_attachment: Arc<vkimage::AttachmentImage>,
+  ms_colour_attachment: Arc<vkimage::AttachmentImage>,
+  ms_depth_attachment: Arc<vkimage::AttachmentImage>,
   samples: u32,
   
   //3D
   vk3d: VK3D,
-
+  
   //2D
   vk2d: VK2D,
-
+  
+  // Post Processing
+  vkpost: VKPOST,
+  
   // Vk System stuff
   min_dimensions: [u32; 2],
   pub window: VkWindow,
   sampler: Arc<sampler::Sampler>,
-
+  
   recreate_swapchain: bool,
   
   previous_frame_end: Option<Box<GpuFuture>>,
@@ -268,6 +327,8 @@ impl RawVk {
     let text_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
+    let post_final_uniform = cpu_pool::CpuBufferPool::<vs_post_final::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
+    let post_bloom_uniform = cpu_pool::CpuBufferPool::<vs_post_bloom::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
     let mut msaa_samples = settings.get_msaa();
@@ -283,8 +344,10 @@ impl RawVk {
     println!("Current MSAA: x{}\n", samples);
     
     let dim = window.get_dimensions();
-    let multisample_image = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();
-    let multisample_depth = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    let fullcolour_attachment = vkimage::AttachmentImage::sampled(window.get_device(), dim, window.get_swapchain().format()).unwrap();
+    let bloom_attachment = vkimage::AttachmentImage::sampled(window.get_device(), dim, window.get_swapchain().format()).unwrap();
+    let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, window.get_swapchain().format()).unwrap();
+    let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
     
     RawVk {
       ready: false,
@@ -296,9 +359,10 @@ impl RawVk {
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
 
       framebuffers: None,
-      render_pass: None,
-      multisample_image: multisample_image,
-      multisample_depth: multisample_depth,
+      main_renderpass: None,
+      fullcolour_attachment: fullcolour_attachment,
+      ms_colour_attachment: ms_colour_attachment,
+      ms_depth_attachment: ms_depth_attachment,
       samples: samples,
 
       // 3D
@@ -334,6 +398,20 @@ impl RawVk {
         uniform_buffer_text: text_uniform,
       },
       
+      // Post Processing
+      vkpost: VKPOST {
+        final_renderpass: None,
+        final_pipeline: None,
+        final_framebuffer: None,
+        final_uniformbuffer: post_final_uniform,
+        
+        bloom_renderpass: None,
+        bloom_pipeline: None,
+        bloom_framebuffer: None,
+        bloom_uniformbuffer: post_bloom_uniform,
+        bloom_attachment: bloom_attachment,
+      },
+      
       // Vk System
       min_dimensions: [min_width, min_height],
       window: window,
@@ -353,11 +431,11 @@ impl RawVk {
   pub fn with_samples(mut self, samples: u32) -> RawVk {
     self.samples = samples;
     let dim = self.window.get_dimensions();
-    let multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, self.window.get_swapchain().format()).unwrap();
-    let multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, self.window.get_swapchain().format()).unwrap();
+    let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
     
-    self.multisample_image = multisample_image;
-    self.multisample_depth = multisample_depth;
+    self.ms_colour_attachment = ms_colour_attachment;
+    self.ms_depth_attachment = ms_depth_attachment;
     
     self
   }
@@ -668,8 +746,12 @@ impl CoreRender for RawVk {
     let fs_texture = fs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_text = vs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_text = fs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_post_final = vs_post_final::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_post_final = fs_post_final::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_post_bloom = vs_post_bloom::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_post_bloom = fs_post_bloom::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
-    self.render_pass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
+    self.main_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
       attachments: {
         multisample_colour: {
           load: Clear,
@@ -677,31 +759,55 @@ impl CoreRender for RawVk {
           format: self.window.get_swapchain().format(),
           samples: self.samples,
         },
-        multisample_depth: {
+        ms_depth_attachment: {
           load: Clear,
           store: DontCare,
           format: format::Format::D16Unorm,
           samples: self.samples,
         },
-        resolve_colour: {
+        resolve_fullcolour: {
           load: DontCare,
           store: Store,
           format: self.window.get_swapchain().format(),
           samples: 1,
-        },
-        resolve_depth: {
-          load: DontCare,
-          store: Store,
-          format: format::Format::D16Unorm,
-          samples: 1,
-          initial_layout: ImageLayout::Undefined,
-          final_layout: ImageLayout::DepthStencilAttachmentOptimal,
         }
       },
       pass: {
         color: [multisample_colour],
-        depth_stencil: {multisample_depth},
-        resolve: [resolve_colour],
+        depth_stencil: {ms_depth_attachment},
+        resolve: [resolve_fullcolour],
+      }
+    ).unwrap()));
+    
+    self.vkpost.bloom_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
+      attachments: {
+        out_colour: {
+          load: DontCare,
+          store: Store,
+          format: self.window.get_swapchain().format(),
+          samples: 1,
+        }
+      },
+      pass: {
+        color: [out_colour],
+        depth_stencil: {},
+        resolve: [],
+      }
+    ).unwrap()));
+    
+    self.vkpost.final_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
+      attachments: {
+        out_colour: {
+          load: DontCare,
+          store: Store,
+          format: self.window.get_swapchain().format(),
+          samples: 1,
+        }
+      },
+      pass: {
+        color: [out_colour],
+        depth_stencil: {},
+        resolve: [],
       }
     ).unwrap()));
    
@@ -713,31 +819,67 @@ impl CoreRender for RawVk {
         .fragment_shader(fs_3d.main_entry_point(), ())
         .depth_stencil_simple_depth()
         .cull_mode_front()
-        .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
 
     self.vk2d.pipeline_texture = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_texture.main_entry_point(), ())
-        .triangle_strip()
+       // .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
         .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
         
     self.vk2d.pipeline_text = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_text.main_entry_point(), ())
-        .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_text.main_entry_point(), ())
         .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(self.render_pass.clone().unwrap(), 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
+        
+   self.vkpost.bloom_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<graphics::Vertex2d>()
+        .vertex_shader(vs_post_bloom.main_entry_point(), ())
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_post_bloom.main_entry_point(), ())
+        .blend_alpha_blending()
+        .render_pass(framebuffer::Subpass::from(self.vkpost.bloom_renderpass.clone().unwrap() , 0).unwrap())
+        .build(self.window.get_device())
+        .unwrap()));
+        
+   self.vkpost.final_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<graphics::Vertex2d>()
+        .vertex_shader(vs_post_final.main_entry_point(), ())
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_post_final.main_entry_point(), ())
+        .blend_alpha_blending()
+        .render_pass(framebuffer::Subpass::from(self.vkpost.final_renderpass.clone().unwrap() , 0).unwrap())
+        .build(self.window.get_device())
+        .unwrap()));
+    
+    let main_renderpass = self.main_renderpass.clone().unwrap();
+    
+    self.framebuffers = Some(Arc::new({
+        framebuffer::Framebuffer::start(main_renderpass.clone())
+            .add(self.ms_colour_attachment.clone()).unwrap()
+            .add(self.ms_depth_attachment.clone()).unwrap()
+            .add(self.fullcolour_attachment.clone()).unwrap()
+            .build().unwrap()
+    }));
+    
+    let bloom_renderpass = self.vkpost.bloom_renderpass.clone().unwrap();
+    self.vkpost.bloom_framebuffer = Some(Arc::new({
+        framebuffer::Framebuffer::start(bloom_renderpass.clone())
+                .add(self.vkpost.bloom_attachment.clone()).unwrap()
+                .build().unwrap()
+    }));
    
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
@@ -807,7 +949,7 @@ impl CoreRender for RawVk {
   
   /// Initalises some variables
   fn init(&mut self) {
-    self.framebuffers = None;
+   // self.framebuffers = None;
     
     self.recreate_swapchain = false;
   }
@@ -893,7 +1035,8 @@ impl CoreRender for RawVk {
       self.window.replace_swapchain(new_swapchain);
       self.window.replace_images(new_images);
       
-      self.framebuffers = None;
+      //self.framebuffers = None;
+      self.vkpost.final_framebuffer = None;
       self.recreate_swapchain = false;
       
       let new_depth_buffer = self.create_depth_buffer();
@@ -902,27 +1045,37 @@ impl CoreRender for RawVk {
       self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
       self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
       
-      self.multisample_image = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, self.window.get_swapchain().format()).unwrap();
-      self.multisample_depth = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
+      self.ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, self.window.get_swapchain().format()).unwrap();
+      self.ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
+      self.fullcolour_attachment = vkimage::AttachmentImage::sampled(self.window.get_device(), dimensions, self.window.get_swapchain().format()).unwrap();
+      self.vkpost.bloom_attachment = vkimage::AttachmentImage::sampled(self.window.get_device(), dimensions, self.window.get_swapchain().format()).unwrap();
+      
+      let main_renderpass = self.main_renderpass.clone().unwrap();
+      self.framebuffers = Some(Arc::new({
+        framebuffer::Framebuffer::start(main_renderpass.clone())
+                .add(self.ms_colour_attachment.clone()).unwrap()
+                .add(self.ms_depth_attachment.clone()).unwrap()
+                .add(self.fullcolour_attachment.clone()).unwrap()
+                .build().unwrap()
+      }));
+      
+      let bloom_renderpass = self.vkpost.bloom_renderpass.clone().unwrap();
+      self.vkpost.bloom_framebuffer = Some(Arc::new({
+        framebuffer::Framebuffer::start(bloom_renderpass.clone())
+                .add(self.vkpost.bloom_attachment.clone()).unwrap()
+                .build().unwrap()
+      }));
     }
     
-    if self.framebuffers.is_none() {
-      let depth_buffer = self.vk3d.depth_buffer.clone();
-      let multisample_image = self.multisample_image.clone();
-      let multisample_depth = self.multisample_depth.clone();
-      
+    if self.vkpost.final_framebuffer.is_none() {
       let new_framebuffers = 
         Some(self.window.get_images().iter().map( |image| {
-             let fb = framebuffer::Framebuffer::start(self.render_pass.clone().unwrap())
-                      .add(multisample_image.clone()).unwrap()
-                      .add(multisample_depth.clone()).unwrap()
+             let fb = framebuffer::Framebuffer::start(self.vkpost.final_renderpass.clone().unwrap())
                       .add(image.clone()).unwrap()
-                      .add(depth_buffer.clone().unwrap()).unwrap()
-                      //.add(self.sampled_image.clone()).unwrap()
                       .build().unwrap();
              Arc::new(fb) as Arc<framebuffer::FramebufferAbstract + Send + Sync>
              }).collect::<Vec<_>>());
-      mem::replace(&mut self.framebuffers, new_framebuffers);
+      mem::replace(&mut self.vkpost.final_framebuffer, new_framebuffers);
     }
   }
   
@@ -951,7 +1104,7 @@ impl CoreRender for RawVk {
       let build_start = tmp_cmd_buffer;
       
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
+      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
       for draw in draw_calls {
         
         if draw.is_3d_model() {
@@ -1174,6 +1327,81 @@ impl CoreRender for RawVk {
           }
         }
       }
+      /*
+      * Bloom framebuffer
+      */
+      let build_start = tmp_cmd_buffer.end_render_pass().unwrap();
+      
+      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
+      let cb = build_start.begin_render_pass(self.vkpost.bloom_framebuffer.as_ref().unwrap().clone(), false, vec![ClearValue::None]).unwrap();
+      
+      let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
+      let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
+      let pipeline = self.vkpost.bloom_pipeline.clone().unwrap();
+      
+      let model = DrawMath::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.5, dimensions[1] as f32 * 0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
+      
+      let uniform_data = vs_post_bloom::ty::Data {
+        projection: self.vk2d.projection.into(),
+        model: model.into(),
+      };
+      
+      let uniform_subbuffer = self.vkpost.bloom_uniformbuffer.next(uniform_data).unwrap();
+      
+      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                             .add_buffer(uniform_subbuffer.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
+                             .build().unwrap());
+                          
+      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+      
+      
+      /*
+      * Final Framebuffer
+      */
+      let build_start = tmp_cmd_buffer.end_render_pass().unwrap();
+      
+      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
+      let cb = build_start.begin_render_pass(self.vkpost.final_framebuffer.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::None]).unwrap();
+      
+      let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
+      let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
+      let pipeline = self.vkpost.final_pipeline.clone().unwrap();
+      
+      let model = DrawMath::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.5, dimensions[1] as f32 * 0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
+      
+      let uniform_data = vs_post_final::ty::Data {
+        projection: self.vk2d.projection.into(),
+        model: model.into(),
+      };
+      
+      let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
+      
+      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                             .add_buffer(uniform_subbuffer.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.bloom_attachment.clone(), self.sampler.clone()).unwrap()
+                             .build().unwrap());
+      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
+      
+      let cb = tmp_cmd_buffer;
+      
+      let model = DrawMath::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.125, dimensions[1] as f32 * 0.125, 0.0), Vector2::new(dimensions[0] as f32*0.25, dimensions[1] as f32*0.25), 90.0);
+      
+      let uniform_data = vs_post_final::ty::Data {
+        projection: self.vk2d.projection.into(),
+        model: model.into(),
+      };
+      
+      let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
+      
+      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                             .add_buffer(uniform_subbuffer.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.bloom_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
+                             .build().unwrap());
+      
+      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
       
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
