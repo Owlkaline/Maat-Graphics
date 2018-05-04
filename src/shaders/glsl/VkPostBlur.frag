@@ -8,7 +8,7 @@ layout(location = 0) out vec4 outColour;
 layout(set = 0, binding = 1) uniform sampler2D tex;
 
 void main() {
-  float[6] kernal;
+  /*float[6] kernal;
   kernal[0] = 0.382925;
   kernal[1] = 0.24173;
   kernal[2] = 0.060598;
@@ -26,7 +26,28 @@ void main() {
     vec2 offset = two_px * float(i) - half_px;
     colour_sum += k * texture(tex, -offset + uvs);
     colour_sum += k * texture(tex, -offset + uvs);
+  }*/
+  
+  float[5] kernal;
+  kernal[0] = 0.227027;
+  kernal[1] = 0.1945946;
+  kernal[2] = 0.1216216;
+  kernal[3] = 0.054054;
+  kernal[4] = 0.016216;
+  
+  vec2 tex_offset = 1.0 / textureSize(tex, 0);
+  vec3 result = texture(tex, uvs).rgb * kernal[0];
+  if (dir.x == 1.0) {
+    for (int i = 1; i < 5; ++i) {
+      result += texture(tex, uvs + vec2(tex_offset.x * i, 0.0)).rgb * kernal[i];
+      result += texture(tex, uvs - vec2(tex_offset.x * i, 0.0)).rgb * kernal[i];
+    }
+  } else {
+    for (int i = 1; i < 5; ++i) {
+      result += texture(tex, uvs + vec2(tex_offset.y * i, 0.0)).rgb * kernal[i];
+      result += texture(tex, uvs - vec2(tex_offset.y * i, 0.0)).rgb * kernal[i];
+    }
   }
   
-  outColour = colour_sum;
+  outColour = vec4(result, 1.0);
 }

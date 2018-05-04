@@ -13,7 +13,7 @@ layout(set = 0, binding = 0) uniform Data {
 } uniforms;
 
 void main() {
-  
+  dir = uniforms.direction;
   uvs = uv;
   gl_Position = uniforms.projection * uniforms.model * vec4(position, 0.0, 1.0);
 }
