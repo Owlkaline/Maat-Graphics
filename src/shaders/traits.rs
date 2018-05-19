@@ -7,6 +7,7 @@ use std::ffi::CString;
 use std::mem;
 use std::ptr;
 
+use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix3;
@@ -294,6 +295,12 @@ pub trait ShaderFunctions {
   fn set_float(&self, name: String, value: GLfloat) {
     unsafe {
       gl::Uniform1f(gl::GetUniformLocation(self.data().id, CString::new(name).unwrap().as_ptr()), value);
+    }
+  }
+  
+  fn set_vec2(&self, name: String, value: Vector2<GLfloat>) {
+    unsafe {
+      gl::Uniform2f(gl::GetUniformLocation(self.data().id, CString::new(name).unwrap().as_ptr()), value.x, value.y);
     }
   }
   

@@ -35,6 +35,7 @@ pub struct DrawCall {
   text_wrapping: i32,
   centered: bool,
   edge_width: Vector4<f32>,
+  bw: bool,
   draw_type: DrawType,
   new_vao: (Vec<graphics::Vertex2d>, Vec<u16>),
 }
@@ -52,6 +53,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::UPDATE_VAO,
       new_vao: (verticies, indices),
     }
@@ -69,6 +71,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      bw: false,
       draw_type: DrawType::INSTANCED,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -86,6 +89,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::SQUARE,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -103,6 +107,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::SQUARE,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -120,6 +125,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::CUSTOM_VAO,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -137,6 +143,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::TEXT,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -154,6 +161,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      bw: false,
       draw_type: DrawType::MODEL,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -171,6 +179,7 @@ impl DrawCall {
       text_wrapping: 0,
       centered: false,
       edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      bw: false,
       draw_type: DrawType::SQUARE,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -178,6 +187,11 @@ impl DrawCall {
   
   pub fn center_text(mut self) -> DrawCall {
     self.centered = true;
+    self
+  }
+  
+  pub fn black_and_white(mut self, enabled: bool) -> DrawCall {
+    self.bw = enabled;
     self
   }
   
@@ -259,6 +273,7 @@ impl DrawCall {
       text_wrapping: wrap_length,
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
+      bw: false,
       draw_type: DrawType::TEXT,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -276,6 +291,7 @@ impl DrawCall {
       text_wrapping: wrap_length,
       centered: centered,
       edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
+      bw: false,
       draw_type: DrawType::TEXT,
       new_vao: (Vec::new(), Vec::new()),
     }
@@ -294,9 +310,14 @@ impl DrawCall {
       centered: centered,
       edge_width: edge_width, // (Fatness, Edge fade, outline Fatness, outline fade away)
       // GLOW EFFECT (0.4, 0.1, 0.4, 0.6)
+      bw: false,
       draw_type: DrawType::TEXT,
       new_vao: (Vec::new(), Vec::new()),
     }
+  }
+  
+  pub fn is_back_and_white(&self) -> bool {
+    self.bw
   }
   
   pub fn get_text(&self) -> &String {

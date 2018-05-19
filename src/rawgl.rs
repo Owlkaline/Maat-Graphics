@@ -45,7 +45,7 @@ pub const INSTANCED: usize = 2;
 
 pub const MODEL: usize = 0;
 
-pub const INSTANCE_DATA_LENGTH: usize = 21;
+pub const INSTANCE_DATA_LENGTH: usize = 22;
 
 pub struct InstancedVao {
   vao: GLuint,
@@ -161,7 +161,7 @@ impl InstancedVao {
     self.set_vertex_instanced_attrib(4, 4, INSTANCE_DATA_LENGTH, 8);
     self.set_vertex_instanced_attrib(5, 4, INSTANCE_DATA_LENGTH, 12);
     self.set_vertex_instanced_attrib(6, 4, INSTANCE_DATA_LENGTH, 16);
-    self.set_vertex_instanced_attrib(7, 1, INSTANCE_DATA_LENGTH, 20);
+    self.set_vertex_instanced_attrib(7, 2, INSTANCE_DATA_LENGTH, 20);
     
     self.vbo = [vbo, vbo_data];
   }
@@ -649,6 +649,10 @@ impl RawGl {
       let draw = draw_calls[i].clone();
       
       let colour: [f32; 4] = draw.get_colour().into();
+      let mut bw: f32 = 0.0;
+      if draw.is_back_and_white() {
+        bw = 1.0;
+      }
       
       let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
       let model: [[f32; 4]; 4] = model.into();
@@ -663,6 +667,7 @@ impl RawGl {
         new_data.push(*value)
       }
       new_data.push(has_texture);
+      new_data.push(bw);
     }
    // println!("num: {}, len: {}", num_instances, new_data.len());
     
@@ -691,12 +696,18 @@ impl RawGl {
       value
     };
     
+    let mut is_blackwhite = 0.0;
+    if draw.is_back_and_white() {
+      is_blackwhite = 1.0;
+    }
+    let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
+    
     let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
-    self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
+    self.gl2D.shaders[TEXTURE].set_vec2(String::from("textured_blackwhite"), textured_blackwhite);
     if has_texture == 1.0 {
       if self.textures.contains_key(draw.get_texture()) {
         self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
@@ -756,6 +767,11 @@ impl RawGl {
     
     let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);//draw.get_colour();
     let has_texture = 1.0;
+    let mut is_blackwhite = 0.0;
+    if draw.is_back_and_white() {
+      is_blackwhite = 1.0;
+    }
+    let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
     
     let texture = self.framebuffer.get_screen_texture();
     
@@ -764,7 +780,7 @@ impl RawGl {
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
-    self.gl2D.shaders[TEXTURE].set_float(String::from("has_texture"), has_texture);
+    self.gl2D.shaders[TEXTURE].set_vec2(String::from("textured_blackwhite"), textured_blackwhite);
     
     self.gl2D.vao.activate_texture0(texture);
     
