@@ -607,11 +607,16 @@ impl RawVk {
       value
     };
     
+    let mut bw: f32 = 0.0;
+    if draw.is_back_and_white() {
+      bw = 1.0;
+    }
+    
     let uniform_data = vs_texture::ty::Data {
       projection: self.vk2d.projection.into(),
       model: model.into(),
       colour: draw.get_colour().into(),
-      has_texture: Vector4::new(has_texture, 0.0, 0.0, 0.0).into(),
+      has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
     };
     self.vk2d.uniform_buffer_texture.next(uniform_data).unwrap()
   }
