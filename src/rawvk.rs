@@ -1,7 +1,8 @@
 use font::GenericFont;
 use window::VkWindow;
+use drawcalls;
 use drawcalls::DrawCall;
-use drawcalls::DrawMath;
+use math;
 use graphics;
 use graphics::CoreRender;
 use settings::Settings;
@@ -597,7 +598,7 @@ impl RawVk {
   
   pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,
                                                                       Arc<memory::pool::StdMemoryPool>> {
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
     
     let has_texture = {
       let mut value = 1.0;
@@ -1358,7 +1359,7 @@ impl CoreRender for RawVk {
             }
             
           } else if draw.is_text() {// Render Text
-            let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
+            let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), self.fonts.clone());
             let size = draw.get_x_size();
             
             if !self.fonts.contains_key(draw.get_texture()) || !self.textures.contains_key(draw.get_texture()) {
@@ -1381,8 +1382,8 @@ impl CoreRender for RawVk {
               
               let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
 
-              let model = DrawMath::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-              let letter_uv = DrawMath::calculate_text_uv(&c.clone());
+              let model = drawcalls::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
+              let letter_uv = drawcalls::calculate_text_uv(&c.clone());
               let colour = letter.get_colour();
               let outline = letter.get_outline_colour();
               let edge_width = letter.get_edge_width(); 
@@ -1529,7 +1530,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.bloom_pipeline.clone().unwrap();
       
-      let model = DrawMath::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.5, dimensions[1] as f32 * 0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.5, dimensions[1] as f32 * 0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
       
       let uniform_data = vs_post_bloom::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1559,7 +1560,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.blur_ping_pipeline.clone().unwrap();
       
-      let model = DrawMath::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
       
       let uniform_data = vs_post_blur::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1586,7 +1587,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.blur_pong_pipeline.clone().unwrap();
       
-      let model = DrawMath::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
       
       let uniform_data = vs_post_blur::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1619,7 +1620,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.final_pipeline.clone().unwrap();
       
-      let model = DrawMath::calculate_texture_model(Vector3::new(dimensions[0] as f32*0.5, dimensions[1] as f32*0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(dimensions[0] as f32*0.5, dimensions[1] as f32*0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
       
       let uniform_data = vs_post_final::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1710,7 +1711,7 @@ impl CoreRender for RawVk {
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
 
     //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
-    let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
+    let (x_rot, z_rot) = drawcalls::rotate(camera_rot.y);
     
     self.vk3d.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
   }

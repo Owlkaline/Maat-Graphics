@@ -123,6 +123,7 @@ pub mod settings;
 pub mod camera;
 pub mod rawgl;
 pub mod rawvk;
+pub mod math;
 mod font;
 mod window;
 mod shaders;

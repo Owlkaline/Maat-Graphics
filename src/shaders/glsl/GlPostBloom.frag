@@ -1,10 +1,10 @@
-#version 450
+#version 330 core
 
-layout(location = 0) in vec2 uvs;
+in vec2 uvs;
 
-layout(location = 0) out vec4 outColour;
+out vec4 outColour;
 
-layout(set = 0, binding = 1) uniform sampler2D tex;
+uniform sampler2D tex;
 
 void main() {
   vec4 bloom = texture(tex, uvs);
@@ -13,7 +13,7 @@ void main() {
   float brightness = dot(bloom.rgb, vec3(0.2126, 0.7152, 0.0722));
   
   if(brightness < 0.5) {
-    bloom = vec4(0.0, 0.0, 0.0, 0.0);
+    bloom = vec4(0.0, 0.0, 0.0, 1.0);
   }
   
   outColour = bloom;

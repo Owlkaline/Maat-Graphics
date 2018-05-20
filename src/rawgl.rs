@@ -1,10 +1,14 @@
 use window::GlWindow;
+use drawcalls;
 use drawcalls::DrawCall;
-use drawcalls::DrawMath;
+use math;
 use shaders::traits::ShaderFunctions;
 use shaders::ShaderTexture;
 use shaders::ShaderTextureInstanced;
 use shaders::ShaderText;
+use shaders::ShaderBloom;
+use shaders::ShaderBlur;
+use shaders::ShaderFinal;
 use shaders::Shader3D;
 use shaders::traits::Fbo;
 use graphics;
@@ -39,9 +43,14 @@ use std::ffi::CString;
 use std::os::raw::c_void;
 use std::collections::HashMap;
 
+pub const BLUR_DIM: u32 = 512;
+
 pub const TEXTURE: usize = 0;
 pub const TEXT: usize = 1;
 pub const INSTANCED: usize = 2;
+pub const BLOOM: usize = 3;
+pub const BLUR: usize = 4;
+pub const FINAL: usize = 5;
 
 pub const MODEL: usize = 0;
 
@@ -197,9 +206,9 @@ impl InstancedVao {
     }
   }
   
-  pub fn activate_texture0(&self, texture: GLuint) {
+  pub fn activate_texture(&self, i: u32, texture: GLuint) {
     unsafe {
-      gl::ActiveTexture(gl::TEXTURE0);
+      gl::ActiveTexture(gl::TEXTURE0 + i);
       gl::BindTexture(gl::TEXTURE_2D, texture);
     }
   }
@@ -317,9 +326,9 @@ impl Vao {
     }
   }
   
-  pub fn activate_texture0(&self, texture: GLuint) {
+  pub fn activate_texture(&self, i: u32, texture: GLuint) {
     unsafe {
-      gl::ActiveTexture(gl::TEXTURE0);
+      gl::ActiveTexture(gl::TEXTURE0 + i);
       gl::BindTexture(gl::TEXTURE_2D, texture);
     }
   }
@@ -358,6 +367,8 @@ pub struct RawGl {
   gl2D: GL2D,
   gl3D: GL3D,
   framebuffer: Fbo,
+  framebuffer_bloom: Fbo,
+  framebuffer_blur: Fbo,
   
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
@@ -427,6 +438,8 @@ impl RawGl {
         projection: proj_3d,
       },
       framebuffer: Fbo::new(msaa_samples, width as i32, height as i32),
+      framebuffer_bloom: Fbo::new(1, width as i32, height as i32),
+      framebuffer_blur: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
       
       view: view,
       scale: scale,
@@ -606,7 +619,7 @@ impl RawGl {
       self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
       self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
       
-      model.activate_texture0(texture);
+      model.activate_texture(0, texture);
       model.draw_indexed(gl::TRIANGLES);
     } else {
       println!("Error: 3D model not found: {:?}", draw.get_texture());
@@ -654,7 +667,7 @@ impl RawGl {
         bw = 1.0;
       }
       
-      let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+      let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
       let model: [[f32; 4]; 4] = model.into();
       
       for row in model.iter() {
@@ -674,7 +687,7 @@ impl RawGl {
     let draw = draw_calls[offset].clone();
     if has_texture == 1.0 {
       //println!("{}", draw.get_texture());
-      self.gl2D.instanced_vao[&draw.get_instance_reference()].activate_texture0(*self.textures.get(draw.get_texture()).expect("Texture not found!"));
+      self.gl2D.instanced_vao[&draw.get_instance_reference()].activate_texture(0, *self.textures.get(draw.get_texture()).expect("Texture not found!"));
     }
     
     self.gl2D.shaders[INSTANCED].Use();
@@ -702,7 +715,7 @@ impl RawGl {
     }
     let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
     
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
@@ -710,7 +723,7 @@ impl RawGl {
     self.gl2D.shaders[TEXTURE].set_vec2(String::from("textured_blackwhite"), textured_blackwhite);
     if has_texture == 1.0 {
       if self.textures.contains_key(draw.get_texture()) {
-        self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+        self.gl2D.vao.activate_texture(0, *self.textures.get(draw.get_texture()).unwrap());
       } else {
         println!("Error: Texture not found: {:?}", draw.get_texture());
       }
@@ -731,7 +744,7 @@ impl RawGl {
     
     let mut translation = draw.get_translation();
     
-    let wrapped_draw = DrawMath::setup_correct_wrapping(draw.clone(), self.fonts.clone());
+    let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), self.fonts.clone());
     let size = draw.get_x_size();
     
     for letter in wrapped_draw {
@@ -741,8 +754,8 @@ impl RawGl {
       
       let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
       
-      let model = DrawMath::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-      let letter_uv = DrawMath::calculate_text_uv(&c.clone());
+      let model = drawcalls::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
+      let letter_uv = drawcalls::calculate_text_uv(&c.clone());
       let colour = letter.get_colour();
       let outline = letter.get_outline_colour();
       let edge_width = letter.get_edge_width(); 
@@ -754,7 +767,7 @@ impl RawGl {
       self.gl2D.shaders[TEXT].set_vec3(String::from("outlineColour"), outline);
       self.gl2D.shaders[TEXT].set_vec4(String::from("edge_width"), edge_width);
       
-      self.gl2D.vao.activate_texture0(*self.textures.get(draw.get_texture()).unwrap());
+      self.gl2D.vao.activate_texture(0, *self.textures.get(draw.get_texture()).unwrap());
       
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
       
@@ -762,9 +775,7 @@ impl RawGl {
     }
   }
   
-  fn draw_framebuffer(&self, x: f32, y: f32, width: f32, height: f32) {
-    let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
-    
+  fn draw_framebuffer(&self, draw: DrawCall, texture: GLuint) {
     let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);//draw.get_colour();
     let has_texture = 1.0;
     let mut is_blackwhite = 0.0;
@@ -773,16 +784,66 @@ impl RawGl {
     }
     let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
     
-    let texture = self.framebuffer.get_screen_texture();
-    
-    let model = DrawMath::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
     self.gl2D.shaders[TEXTURE].set_vec2(String::from("textured_blackwhite"), textured_blackwhite);
     
-    self.gl2D.vao.activate_texture0(texture);
+    self.gl2D.vao.activate_texture(0, texture);
+    
+    if draw.is_custom_vao() {
+      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    } else {
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    }
+  }
+  
+  fn draw_bloom(&self, draw: DrawCall, texture: GLuint) {
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    
+    self.gl2D.shaders[BLOOM].Use();
+    self.gl2D.shaders[BLOOM].set_mat4(String::from("model"), model);
+    
+    self.gl2D.vao.activate_texture(0, texture);
+    
+    if draw.is_custom_vao() {
+      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    } else {
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    }
+  }
+  
+  fn draw_blur(&self, draw: DrawCall, texture: GLuint, direction: Vector2<f32>) {
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    
+    self.gl2D.shaders[BLUR].Use();
+    self.gl2D.shaders[BLUR].set_mat4(String::from("model"), model);
+    self.gl2D.shaders[BLUR].set_vec2(String::from("direction"), direction);
+    
+    self.gl2D.vao.activate_texture(0, texture);
+    
+    if draw.is_custom_vao() {
+      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    } else {
+      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+    }
+  }
+  
+  fn draw_final_frame(&self, draw: DrawCall, base_texture: GLuint, bloom_texture: GLuint, bloom: bool) {
+    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    
+    self.gl2D.shaders[FINAL].Use();
+    self.gl2D.shaders[FINAL].set_mat4(String::from("model"), model);
+    if bloom {
+      self.gl2D.shaders[FINAL].set_float(String::from("bloom_enabled"), 2.0);
+    } else {
+      self.gl2D.shaders[FINAL].set_float(String::from("bloom_enabled"), 0.0);
+    }
+    
+    self.gl2D.vao.activate_texture(0, base_texture);
+    self.gl2D.vao.activate_texture(1, bloom_texture);
     
     if draw.is_custom_vao() {
       self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
@@ -949,6 +1010,9 @@ impl CoreRender for RawGl {
     self.gl2D.shaders.push(Box::new(ShaderTexture::new()));
     self.gl2D.shaders.push(Box::new(ShaderText::new()));
     self.gl2D.shaders.push(Box::new(ShaderTextureInstanced::new()));
+    self.gl2D.shaders.push(Box::new(ShaderBloom::new()));
+    self.gl2D.shaders.push(Box::new(ShaderBlur::new()));
+    self.gl2D.shaders.push(Box::new(ShaderFinal::new()));
     self.gl3D.shaders.push(Box::new(Shader3D::new()));
   }
   
@@ -956,6 +1020,8 @@ impl CoreRender for RawGl {
     let dim = self.get_dimensions();
     
     self.framebuffer.init();
+    self.framebuffer_bloom.init();
+    self.framebuffer_blur.init();
     self.set_viewport(dim[0], dim[1]);
     
     unsafe {
@@ -976,6 +1042,19 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[TEXT].Use();
     self.gl2D.shaders[TEXT].set_int(String::from("tex"), 0);
     self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    self.gl2D.shaders[BLOOM].Use();
+    self.gl2D.shaders[BLOOM].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[BLOOM].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    self.gl2D.shaders[BLUR].Use();
+    self.gl2D.shaders[BLUR].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[BLUR].set_mat4(String::from("projection"), self.gl2D.projection);
+    
+    self.gl2D.shaders[FINAL].Use();
+    self.gl2D.shaders[FINAL].set_int(String::from("tex"), 0);
+    self.gl2D.shaders[FINAL].set_int(String::from("bloom"), 0);
+    self.gl2D.shaders[FINAL].set_mat4(String::from("projection"), self.gl2D.projection);
     
     self.gl3D.shaders[MODEL].Use();
     self.gl3D.shaders[MODEL].set_int(String::from("tex"), 0);
@@ -1064,11 +1143,55 @@ impl CoreRender for RawGl {
     }
     
     self.framebuffer.blit_to_post();
+    
+    let x = dimensions[0] as f32*0.5;
+    let y = dimensions[1] as f32*0.5;
+    let width = dimensions[0] as f32;
+    let height = dimensions[1] as f32;
+    
+    let blur_x = BLUR_DIM as f32*0.5;
+    let blur_y = BLUR_DIM as f32*0.5;
+    let blur_width = BLUR_DIM as f32;
+    let blur_height = BLUR_DIM as f32;
+    
+    // Bloom Draw
+    self.framebuffer_bloom.bind();
+    
+    self.clear_screen();
+    let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
+    let texture = self.framebuffer.get_screen_texture();
+    self.draw_bloom(draw, texture);
+    self.framebuffer_bloom.blit_to_post();
+    
+    self.framebuffer_blur.bind();
+    
+    // Horizontal blur
+    self.clear_screen();
+    let draw = self.framebuffer_bloom.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
+    let texture = self.framebuffer_bloom.get_screen_texture();
+    self.draw_blur(draw, texture, Vector2::new(1.0, 0.0));
+    self.framebuffer_blur.blit_to_post();
+    
+    // Verticle blur
+    self.clear_screen();
+    let draw = self.framebuffer_blur.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
+    let texture = self.framebuffer_blur.get_screen_texture();
+    self.draw_blur(draw, texture, Vector2::new(0.0, 1.0));
+    self.framebuffer_blur.blit_to_post();
+    
+    // Final Draw
     self.framebuffer.bind_default();
     
     self.clear_screen();
     
-    self.draw_framebuffer(dimensions[0] as f32*0.5, dimensions[1] as f32*0.5, dimensions[0] as f32, dimensions[1] as f32);
+    let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
+    let base_texture = self.framebuffer.get_screen_texture();
+    let bloom_texture = self.framebuffer_blur.get_screen_texture();
+    self.draw_final_frame(draw, base_texture, bloom_texture, true);
+    
+    let draw = self.framebuffer.draw_screen_texture(x, y, width*0.25, height*0.25);
+    let texture = self.framebuffer_blur.get_screen_texture();
+    self.draw_final_frame(draw, texture, texture, false);
   }
   
   fn post_draw(&self) {
@@ -1118,6 +1241,12 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("projection"), projection_2d);
     self.gl2D.shaders[TEXT].Use();
     self.gl2D.shaders[TEXT].set_mat4(String::from("projection"), projection_2d);
+    self.gl2D.shaders[BLOOM].Use();
+    self.gl2D.shaders[BLOOM].set_mat4(String::from("projection"), projection_2d);
+    self.gl2D.shaders[BLUR].Use();
+    self.gl2D.shaders[BLUR].set_mat4(String::from("projection"), projection_2d);
+    self.gl2D.shaders[FINAL].Use();
+    self.gl2D.shaders[FINAL].set_mat4(String::from("projection"), projection_2d);
     self.gl3D.shaders[MODEL].Use();
     self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
     
@@ -1165,13 +1294,9 @@ impl CoreRender for RawGl {
   fn pre_draw(&mut self) {}
   fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
     
-    let (x_rot, z_rot) = DrawMath::rotate(camera_rot.y);
+    let (x_rot, z_rot) = drawcalls::rotate(camera_rot.y);
     
     self.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x-x_rot, camera.y, camera.z-z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
   }
 }
-
-
-
-
 
