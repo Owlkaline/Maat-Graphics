@@ -201,14 +201,14 @@ impl Fbo {
       
       gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.ms_framebuffer);
       gl::BindRenderbuffer(gl::RENDERBUFFER, self.renderbuffer);
-      gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, gl::RGB, self.dimensions[0], self.dimensions[1]);
+      gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, gl::RGBA, self.dimensions[0], self.dimensions[1]);
       gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.renderbuffer);
       
       gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
       
       gl::GenTextures(1, &mut self.screen_texture);
       gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
-      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGB, gl::UNSIGNED_BYTE, mem::transmute(0i64));
+      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(0i64));
       gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
       gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
       gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.screen_texture, 0);

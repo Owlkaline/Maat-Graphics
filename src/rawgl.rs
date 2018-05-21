@@ -368,7 +368,8 @@ pub struct RawGl {
   gl3D: GL3D,
   framebuffer: Fbo,
   framebuffer_bloom: Fbo,
-  framebuffer_blur: Fbo,
+  framebuffer_blur_ping: Fbo,
+  framebuffer_blur_pong: Fbo,
   
   view: Matrix4<f32>,
   scale: Matrix4<f32>,
@@ -439,7 +440,8 @@ impl RawGl {
       },
       framebuffer: Fbo::new(msaa_samples, width as i32, height as i32),
       framebuffer_bloom: Fbo::new(1, width as i32, height as i32),
-      framebuffer_blur: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
+      framebuffer_blur_ping: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
+      framebuffer_blur_pong: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
       
       view: view,
       scale: scale,
@@ -1021,7 +1023,8 @@ impl CoreRender for RawGl {
     
     self.framebuffer.init();
     self.framebuffer_bloom.init();
-    self.framebuffer_blur.init();
+    self.framebuffer_blur_ping.init();
+    self.framebuffer_blur_pong.init();
     self.set_viewport(dim[0], dim[1]);
     
     unsafe {
@@ -1163,21 +1166,23 @@ impl CoreRender for RawGl {
     self.draw_bloom(draw, texture);
     self.framebuffer_bloom.blit_to_post();
     
-    self.framebuffer_blur.bind();
+    self.framebuffer_blur_ping.bind();
     
     // Horizontal blur
     self.clear_screen();
     let draw = self.framebuffer_bloom.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_bloom.get_screen_texture();
     self.draw_blur(draw, texture, Vector2::new(1.0, 0.0));
-    self.framebuffer_blur.blit_to_post();
+    self.framebuffer_blur_ping.blit_to_post();
+    
+    self.framebuffer_blur_pong.bind();
     
     // Verticle blur
     self.clear_screen();
-    let draw = self.framebuffer_blur.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
-    let texture = self.framebuffer_blur.get_screen_texture();
+    let draw = self.framebuffer_blur_ping.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
+    let texture = self.framebuffer_blur_ping.get_screen_texture();
     self.draw_blur(draw, texture, Vector2::new(0.0, 1.0));
-    self.framebuffer_blur.blit_to_post();
+    self.framebuffer_blur_pong.blit_to_post();
     
     // Final Draw
     self.framebuffer.bind_default();
@@ -1186,12 +1191,16 @@ impl CoreRender for RawGl {
     
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     let base_texture = self.framebuffer.get_screen_texture();
-    let bloom_texture = self.framebuffer_blur.get_screen_texture();
+    let bloom_texture = self.framebuffer_blur_pong.get_screen_texture();
     self.draw_final_frame(draw, base_texture, bloom_texture, true);
-    
-    let draw = self.framebuffer.draw_screen_texture(x, y, width*0.25, height*0.25);
-    let texture = self.framebuffer_blur.get_screen_texture();
+    /*
+    let draw = self.framebuffer.draw_screen_texture(x-width*0.5, y, width*0.5, height*0.5);
+    let texture = self.framebuffer_bloom.get_screen_texture();
     self.draw_final_frame(draw, texture, texture, false);
+    
+    let draw = self.framebuffer.draw_screen_texture(x, y, width*0.5, height*0.5);
+    let texture = self.framebuffer_blur.get_screen_texture();
+    self.draw_final_frame(draw, texture, texture, false);*/
   }
   
   fn post_draw(&self) {
