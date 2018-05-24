@@ -212,6 +212,13 @@ impl InstancedVao {
       gl::BindTexture(gl::TEXTURE_2D, texture);
     }
   }
+  
+  pub fn activate_texture1(&self, i: u32, texture: GLuint) {
+    unsafe {
+      gl::ActiveTexture(gl::TEXTURE1);
+      gl::BindTexture(gl::TEXTURE_2D, texture);
+    }
+  }
 }
 
 pub struct Vao {
@@ -329,6 +336,13 @@ impl Vao {
   pub fn activate_texture(&self, i: u32, texture: GLuint) {
     unsafe {
       gl::ActiveTexture(gl::TEXTURE0 + i);
+      gl::BindTexture(gl::TEXTURE_2D, texture);
+    }
+  }
+  
+  pub fn activate_texture1(&self, i: u32, texture: GLuint) {
+    unsafe {
+      gl::ActiveTexture(gl::TEXTURE1);
       gl::BindTexture(gl::TEXTURE_2D, texture);
     }
   }
@@ -1056,7 +1070,7 @@ impl CoreRender for RawGl {
     
     self.gl2D.shaders[FINAL].Use();
     self.gl2D.shaders[FINAL].set_int(String::from("tex"), 0);
-    self.gl2D.shaders[FINAL].set_int(String::from("bloom"), 0);
+    self.gl2D.shaders[FINAL].set_int(String::from("bloom"), 1);
     self.gl2D.shaders[FINAL].set_mat4(String::from("projection"), self.gl2D.projection);
     
     self.gl3D.shaders[MODEL].Use();
@@ -1166,18 +1180,18 @@ impl CoreRender for RawGl {
     self.draw_bloom(draw, texture);
     self.framebuffer_bloom.blit_to_post();
     
+    // Horizontal blur
     self.framebuffer_blur_ping.bind();
     
-    // Horizontal blur
     self.clear_screen();
     let draw = self.framebuffer_bloom.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_bloom.get_screen_texture();
     self.draw_blur(draw, texture, Vector2::new(1.0, 0.0));
     self.framebuffer_blur_ping.blit_to_post();
     
+    // Verticle blur
     self.framebuffer_blur_pong.bind();
     
-    // Verticle blur
     self.clear_screen();
     let draw = self.framebuffer_blur_ping.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_blur_ping.get_screen_texture();
@@ -1199,7 +1213,7 @@ impl CoreRender for RawGl {
     self.draw_final_frame(draw, texture, texture, false);
     
     let draw = self.framebuffer.draw_screen_texture(x, y, width*0.5, height*0.5);
-    let texture = self.framebuffer_blur.get_screen_texture();
+    let texture = self.framebuffer_blur_pong.get_screen_texture();
     self.draw_final_frame(draw, texture, texture, false);*/
   }
   
