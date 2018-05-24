@@ -23,7 +23,7 @@ void main() {
   vec2 tex_offset = 1.0 / textureSize(tex, 0) * blurScale; // gets size of single texel
   vec3 result = texture(tex, uvs).rgb * weight[0]; // current fragment's contribution
   for(int i = 1; i < 5; ++i) {
-    if (dir.x >= 1) {
+    if (direction.x >= 1) {
       // H
       result += texture(tex, uvs + vec2(tex_offset.x * i, 0.0)).rgb * weight[i] * blurStrength;
       result += texture(tex, uvs - vec2(tex_offset.x * i, 0.0)).rgb * weight[i] * blurStrength;

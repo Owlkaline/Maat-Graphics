@@ -1207,14 +1207,6 @@ impl CoreRender for RawGl {
     let base_texture = self.framebuffer.get_screen_texture();
     let bloom_texture = self.framebuffer_blur_pong.get_screen_texture();
     self.draw_final_frame(draw, base_texture, bloom_texture, true);
-    /*
-    let draw = self.framebuffer.draw_screen_texture(x-width*0.5, y, width*0.5, height*0.5);
-    let texture = self.framebuffer_bloom.get_screen_texture();
-    self.draw_final_frame(draw, texture, texture, false);
-    
-    let draw = self.framebuffer.draw_screen_texture(x, y, width*0.5, height*0.5);
-    let texture = self.framebuffer_blur_pong.get_screen_texture();
-    self.draw_final_frame(draw, texture, texture, false);*/
   }
   
   fn post_draw(&self) {

@@ -228,7 +228,7 @@ impl Fbo {
     unsafe {
       gl::BindFramebuffer(gl::READ_FRAMEBUFFER, self.ms_framebuffer);
       gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.framebuffer);
-      gl::BlitFramebuffer(self.dimensions[0], 0, 0, self.dimensions[1], self.dimensions[0], self.dimensions[1], 0, 0, gl::COLOR_BUFFER_BIT, gl::NEAREST);
+      gl::BlitFramebuffer(0, 0, self.dimensions[0], self.dimensions[1], self.dimensions[0], self.dimensions[1], 0, 0, gl::COLOR_BUFFER_BIT, gl::NEAREST);
     }
   }
   
