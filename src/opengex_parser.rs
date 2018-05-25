@@ -14,10 +14,16 @@ const Y: &str = "\"y\"";
 const Z: &str = "\"z\"";
 
 const STRING: &str = "{string";
-
+const REF: &str = "{ref";
 const FLOAT: &str = "{float";
-//const FLOAT3
-//const FLOAT16
+const INDEX: &str = "(index";
+const PRIMITIVE: &str = "(primitive";
+const ATTRIB: &str = "(attrib";
+const POSITION: &str = "\"position\")";
+const NORMAL: &str = "\"normal\")";
+
+const FLOAT3: &str = "float[3]";
+const FLOAT16: &str = "float[16]";
 
 
 const METRIC: &str = "Metric";
@@ -30,10 +36,20 @@ const TIME: &str = "\"time\")";
 const UP: &str = "\"up\")";
 
 const GEOMETRY_NODE: &str = "GeometryNode";
+const GEOMETRY_OBJECT: &str = "GeometryObject";
 const OPEN_BRACKET: &str = "{";
+const CLOSE_BRACKET: &str = "}";
+
+const ZERO_BRACKET: &str = "0)";
 
 const TAB: &str = "\t";
 const NAME: &str = "Name";
+const OBJECT_REF: &str = "ObjectRef";
+const MATERIAL_REF: &str = "MaterialRef";
+const TRANSFORM: &str = "Transform";
+
+const MESH: &str = "Mesh";
+const VERTEXARRAY: &str = "VertexArray";
 
 fn get_float(v: Vec<&str>) -> Option<f32> {
   let mut result = None;
@@ -53,19 +69,33 @@ fn get_string_value(v: Vec<&str>) -> Option<&str> {
   let v: Vec<&str> = v[0].split("{").collect();
   let v: Vec<&str> = v[1].split("}").collect();
   result = Some(v[0]);
-
   
   result
+}
+
+fn remove_brackets(v: &str) -> &str {
+  let v = v.trim_matches('{');
+  let v = v.trim_matches('}');
+  let v = v.trim_matches(')');
+  let v = v.trim_matches('(');
+  let v = v.trim_matches('\"');
+  let v = v.trim_matches('/');
+  let v = v.trim_matches(',');
+  let v = v.trim_matches('}');
+  let v = v.trim();
+  v
 }
 
 fn to_utf8(text: &[u8]) -> String {
   str::from_utf8(text.clone()).expect("Error converting &[u8] to  String").to_string()
 }
 
+#[derive(Debug)]
 pub struct Normal {
   normal: [f32; 3],
 }
 
+#[derive(Debug)]
 pub struct Vertex {
   vertex: [f32; 3],
 }
@@ -103,7 +133,7 @@ impl Material {
 }
 
 struct GeometryObject {
-  object_ref: String,
+  mesh: String,
   vertex: Vec<Vertex>,
   index: Vec<Index>,
   normal: Vec<Normal>,
@@ -113,7 +143,7 @@ struct GeometryObject {
 impl GeometryObject {
   pub fn new() -> GeometryObject {
     GeometryObject {
-      object_ref: "".to_string(),
+      mesh: "".to_string(),
       vertex: Vec::new(),
       index: Vec::new(),
       normal: Vec::new(),
@@ -171,7 +201,17 @@ impl OpengexPaser {
     let mut num_nodes: i32 = 0;
     let mut geometry: Vec<GeometryNode> = Vec::new();
     
-    let mut still_in_node = false;
+    let mut in_geometrynode = (-1, false);
+    let mut in_transform = (-1, false);
+    let mut in_float3 = (-1, false);
+    let mut in_float16 = (-1, false, 0);
+    let mut in_values = (-1, false);
+    
+    let mut in_geometryobject = (-1, false, 0);
+    let mut in_vertexposition = (-1, false);
+    let mut in_vertexnormal = (-1, false);
+    let mut in_index = (-1, false);
+    
     let mut num_brackets_open = 0;
     
     if let Ok(file) = File::open(location.clone()) {
@@ -179,10 +219,15 @@ impl OpengexPaser {
       
       for line in file.lines() {
         let line = line.expect("Unable to read line");
-        let v: Vec<&str> = line.split(" ").collect();
+        let line = line.trim();
+        let line = line.trim_left();
+        let line = line.trim_matches('\t');
+        let mut v: Vec<&str> = line.split(" ").collect();
+        
         println!("{:?}", v);
-        
-        
+        if v[0].contains(FLOAT3) {
+          v[0] = remove_brackets(v[0]);
+        }
         
         match v[0] {
           METRIC => {
@@ -227,29 +272,215 @@ impl OpengexPaser {
             }
           },
           GEOMETRY_NODE => {
-            still_in_node = true;
+            in_geometrynode = (num_brackets_open, true);
+            num_nodes += 1;
             geometry.push(GeometryNode::new(v[1].to_string()));
             println!("GeometryNode Found!");
           },
           NAME => {
             println!("Name found!");
-          },
-          
-          OPEN_BRACKET => {
-            if num_brackets_open < 2 {
-              num_brackets_open += 1;
-            } else {
-              
+            if v[1] == STRING {
+              let name = remove_brackets(v[2]);
+              if in_geometrynode.1 {
+                geometry[(num_nodes-1) as usize].name = name.to_string();
+              }
             }
           },
-          _ => {
+          OBJECT_REF => {
+            println!("Object ref found!");
+            if v[1] == REF {
+              let objectref = remove_brackets(v[2]);
+              if in_geometrynode.1 {
+                geometry[(num_nodes-1) as usize].object_ref = objectref.to_string();
+              }
+            }
+          },
+          MATERIAL_REF => {
+            if v[1] == INDEX {
+              if v[2] == EQUALS {
+                if v[3] == ZERO_BRACKET {
+                  if v[4] == REF {
+                    if in_geometrynode.1 {
+                      let materialref = remove_brackets(v[5]);
+                      geometry[(num_nodes-1) as usize].material_ref = (0, materialref.to_string());
+                    }
+                  }
+                }
+              }
+            }
+          },
+          TRANSFORM => {
+            in_transform = (num_brackets_open, true);
+          },
+          FLOAT3 => {
+            in_float3 = (num_brackets_open, true);
+          },
+          FLOAT16 => {
+            in_float16 = (num_brackets_open, true, 0);
+          },
+          GEOMETRY_OBJECT => {
+            println!("geomtry object found!");
+            let name = remove_brackets(v[1]);
+            println!("{}", name);
+            for i in 0..geometry.len() {
+              if name == geometry[i].object_ref {
+                in_geometryobject = (num_brackets_open, true, i);
+                break;
+              }
+            }
+          },
+          MESH => {
+            if in_geometryobject.1 {
+              if v[1] == PRIMITIVE {
+                if v[2] == EQUALS {
+                  let mesh_name = remove_brackets(v[3]);
+                  geometry[in_geometryobject.2].geometry_object.mesh = mesh_name.to_string();
+                }
+              }
+            }
+          },
+          VERTEXARRAY => {
+            if in_geometryobject.1 {
+              if v[1] == ATTRIB {
+                if v[2] == EQUALS {
+                  if v[3] == POSITION {
+                    println!("Vertex array found!");
+                    in_vertexposition = (num_brackets_open, true);
+                  } else
+                  if v[3] == NORMAL {
+                    println!("Normal array found!");
+                    in_vertexnormal = (num_brackets_open, true);
+                  }
+                }
+              }
+            }
+          },
+          OPEN_BRACKET => {
+            num_brackets_open += 1;
+            println!("open bracket");
+          },
+          CLOSE_BRACKET => {
+            num_brackets_open -= 1;
+            if in_geometrynode.1 {
+              if in_geometrynode.0 == num_brackets_open {
+                in_geometrynode = (-1, false);
+              }
+            }
+            if in_transform.1 {
+              if in_transform.0 == num_brackets_open {
+                in_transform = (-1, false);
+              }
+            }
+            if in_float3.1 {
+              if in_float3.0 == num_brackets_open {
+                in_float3 = (-1, false);
+              }
+            }
+            if in_float16.1 {
+              if in_float16.0 == num_brackets_open {
+                in_float16 = (-1, false, 0);
+              }
+            }
+            if in_values.1 {
+              if in_values.0 == num_brackets_open {
+                in_values = (-1, false);
+              }
+            }
+            if in_geometryobject.1 {
+              if in_geometryobject.0 == num_brackets_open {
+                in_geometryobject = (-1, false, 0);
+              }
+            }
+            if in_vertexposition.1 {
+              if in_vertexposition.0 == num_brackets_open {
+                in_vertexposition = (-1, false);
+              }
+            }
+            if in_vertexnormal.1 {
+              if in_vertexnormal.0 == num_brackets_open {
+                in_vertexnormal = (-1, false);
+              }
+            }
+            if in_index.1 {
+              if in_index.0 == num_brackets_open {
+                in_index = (-1, false);
+              }
+            }
             
+            println!("close bracket");
+          },
+          _ => {
+            if v[0].len() > 1 && v[0].contains(char::is_numeric) {
+              if in_geometrynode.1 {
+                if in_float16.1 {
+                  println!("numbers");
+                  for i in 0..v.len() {
+                    let value = remove_brackets(v[i]);
+                    if let Ok(float) = value.parse::<f32>() {
+                      geometry[(num_nodes-1) as usize].transform[in_float16.2] = float;
+                      in_float16.2 += 1;
+                    }
+                  }
+                }
+              }
+              if in_geometryobject.1 {
+                if in_vertexposition.1 {
+                  if in_float3.1 {
+                    let mut vtx: Vertex = Vertex { vertex: [0.0,0.0,0.0] };
+                    let mut idx = 0;
+                    for i in 0..v.len() {
+                      let value = remove_brackets(v[i]);
+                      if let Ok(float) = value.parse::<f32>() {
+                        vtx.vertex[idx] = float;
+                        idx += 1;
+                        if idx == 3 {
+                          let temp_vtx = vtx;
+                          geometry[(in_geometryobject.2) as usize].geometry_object.vertex.push(temp_vtx);
+                          idx = 0;
+                          vtx = Vertex { vertex: [0.0, 0.0, 0.0] };
+                        }
+                      }
+                    }
+                  }
+                }
+                if in_vertexnormal.1 {
+                  if in_float3.1 {
+                    let mut nrml: Normal = Normal { normal: [0.0,0.0,0.0] };
+                    let mut idx = 0;
+                    for i in 0..v.len() {
+                      let value = remove_brackets(v[i]);
+                      if let Ok(float) = value.parse::<f32>() {
+                        nrml.normal[idx] = float;
+                        idx += 1;
+                        if idx == 3 {
+                          let temp_nrml = nrml;
+                          geometry[(in_geometryobject.2) as usize].geometry_object.normal.push(temp_nrml);
+                          idx = 0;
+                          nrml = Normal { normal: [0.0, 0.0, 0.0] };
+                        }
+                      }
+                    }
+                  }
+                }
+                if in_index.1 {
+                  
+                }
+              }
+            }
           }
         }
       }
     } else {
       println!("Error: Model file at location {:?} does not exist!", location);
     }
+    
+    println!("{}", geometry[0].name);
+    println!("{}", geometry[0].object_ref);
+    println!("{:?}", geometry[0].material_ref);
+    println!("{:?}", geometry[0].transform);
+    println!("{:?}", geometry[0].geometry_object.mesh);
+    //println!("{:?}", geometry[0].geometry_object.vertex);
+    //println!("{:?}", geometry[0].geometry_object.normal);
     
     OpengexPaser {
       metric_dist: metric_dist,
