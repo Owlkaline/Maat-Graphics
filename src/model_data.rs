@@ -35,9 +35,9 @@ pub struct Loader {
 
 impl Loader {
   pub fn load_opengex(location: String, texture: String) -> Loader {
-    if location.clone() == "resources/models/cube.ogex" {
+ //   if location.clone() == "resources/models/cube.ogex" {
       OpengexPaser::new(location.clone());
-    }
+   // }
     
     let mut file_h = File::open("resources/models/opengex-syntax.txt").unwrap();
     let mut source = String::new();

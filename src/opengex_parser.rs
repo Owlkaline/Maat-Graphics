@@ -24,7 +24,7 @@ const NORMAL: &str = "\"normal\")";
 
 const FLOAT3: &str = "float[3]";
 const FLOAT16: &str = "float[16]";
-
+const UNSIGNED_INT3: &str = "unsigned_int32[3]";
 
 const METRIC: &str = "Metric";
 const KEY: &str = "(key";
@@ -50,6 +50,7 @@ const TRANSFORM: &str = "Transform";
 
 const MESH: &str = "Mesh";
 const VERTEXARRAY: &str = "VertexArray";
+const INDEXARRAY: &str = "IndexArray";
 
 fn get_float(v: Vec<&str>) -> Option<f32> {
   let mut result = None;
@@ -100,6 +101,7 @@ pub struct Vertex {
   vertex: [f32; 3],
 }
 
+#[derive(Debug)]
 pub struct Index {
   index: u16,
 }
@@ -205,6 +207,7 @@ impl OpengexPaser {
     let mut in_transform = (-1, false);
     let mut in_float3 = (-1, false);
     let mut in_float16 = (-1, false, 0);
+    let mut in_unsigned_int3 = (-1, false);
     let mut in_values = (-1, false);
     
     let mut in_geometryobject = (-1, false, 0);
@@ -224,8 +227,11 @@ impl OpengexPaser {
         let line = line.trim_matches('\t');
         let mut v: Vec<&str> = line.split(" ").collect();
         
-        println!("{:?}", v);
+        //println!("{:?}", v);
         if v[0].contains(FLOAT3) {
+          v[0] = remove_brackets(v[0]);
+        }
+        if v[0].contains(UNSIGNED_INT3) {
           v[0] = remove_brackets(v[0]);
         }
         
@@ -236,13 +242,13 @@ impl OpengexPaser {
                 DISTANCE => {
                   if v[4] == FLOAT {
                     if let Some(float) = get_float(vec!(v[5])) {
-                      println!("Metric Distance found!");
+                      //println!("Metric Distance found!");
                       metric_dist = float;
                     }
                   }
                 },
                 ANGLE => {
-                  println!("Metric Angle found!");
+                  //println!("Metric Angle found!");
                   if v[4] == FLOAT {
                     if let Some(float) = get_float(vec!(v[5])) {
                       metric_angle = float;
@@ -250,7 +256,7 @@ impl OpengexPaser {
                   }
                 },
                 TIME => {
-                  println!("Metric Time found!");
+                  //println!("Metric Time found!");
                   if v[4] == FLOAT {
                     if let Some(float) = get_float(vec!(v[5])) {
                       metric_time = float;
@@ -258,7 +264,7 @@ impl OpengexPaser {
                   }
                 },
                 UP => {
-                  println!("Metric Up found!");
+                  //println!("Metric Up found!");
                    if v[4] == STRING {
                      if let Some(dir) = get_string_value(vec!(v[5])) {
                        metric_up = dir.to_string();
@@ -275,10 +281,10 @@ impl OpengexPaser {
             in_geometrynode = (num_brackets_open, true);
             num_nodes += 1;
             geometry.push(GeometryNode::new(v[1].to_string()));
-            println!("GeometryNode Found!");
+            //println!("GeometryNode Found!");
           },
           NAME => {
-            println!("Name found!");
+            //println!("Name found!");
             if v[1] == STRING {
               let name = remove_brackets(v[2]);
               if in_geometrynode.1 {
@@ -287,7 +293,7 @@ impl OpengexPaser {
             }
           },
           OBJECT_REF => {
-            println!("Object ref found!");
+            //println!("Object ref found!");
             if v[1] == REF {
               let objectref = remove_brackets(v[2]);
               if in_geometrynode.1 {
@@ -317,6 +323,9 @@ impl OpengexPaser {
           },
           FLOAT16 => {
             in_float16 = (num_brackets_open, true, 0);
+          },
+          UNSIGNED_INT3 => {
+            in_unsigned_int3 = (num_brackets_open, true);
           },
           GEOMETRY_OBJECT => {
             println!("geomtry object found!");
@@ -355,9 +364,15 @@ impl OpengexPaser {
               }
             }
           },
+          INDEXARRAY => {
+            if in_geometryobject.1 {
+              println!("Index array found!");
+              in_index = (num_brackets_open, true);
+            }
+          },
           OPEN_BRACKET => {
             num_brackets_open += 1;
-            println!("open bracket");
+            //println!("open bracket");
           },
           CLOSE_BRACKET => {
             num_brackets_open -= 1;
@@ -379,6 +394,11 @@ impl OpengexPaser {
             if in_float16.1 {
               if in_float16.0 == num_brackets_open {
                 in_float16 = (-1, false, 0);
+              }
+            }
+            if in_unsigned_int3.1 {
+              if in_unsigned_int3.0 == num_brackets_open {
+                in_unsigned_int3 = (-1, false);
               }
             }
             if in_values.1 {
@@ -407,7 +427,7 @@ impl OpengexPaser {
               }
             }
             
-            println!("close bracket");
+            //println!("close bracket");
           },
           _ => {
             if v[0].len() > 1 && v[0].contains(char::is_numeric) {
@@ -463,7 +483,14 @@ impl OpengexPaser {
                   }
                 }
                 if in_index.1 {
-                  
+                  if in_unsigned_int3.1 {
+                    for i in 0..v.len() {
+                      let value = remove_brackets(v[i]);
+                      if let Ok(unsigned) = value.parse::<u16>() {
+                        geometry[(in_geometryobject.2) as usize].geometry_object.index.push(Index { index: unsigned });
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -474,13 +501,16 @@ impl OpengexPaser {
       println!("Error: Model file at location {:?} does not exist!", location);
     }
     
-    println!("{}", geometry[0].name);
-    println!("{}", geometry[0].object_ref);
-    println!("{:?}", geometry[0].material_ref);
-    println!("{:?}", geometry[0].transform);
-    println!("{:?}", geometry[0].geometry_object.mesh);
+    for i in 0..geometry.len() {
+      println!("{}", geometry[i].name);
+      println!("{}", geometry[i].object_ref);
+      println!("{:?}", geometry[i].material_ref);
+      println!("{:?}", geometry[i].transform);
+      println!("{:?}", geometry[i].geometry_object.mesh);
+    }
     //println!("{:?}", geometry[0].geometry_object.vertex);
     //println!("{:?}", geometry[0].geometry_object.normal);
+    //println!("{:?}", geometry[0].geometry_object.index);
     
     OpengexPaser {
       metric_dist: metric_dist,
