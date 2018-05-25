@@ -21,7 +21,9 @@ const PRIMITIVE: &str = "(primitive";
 const ATTRIB: &str = "(attrib";
 const POSITION: &str = "\"position\")";
 const NORMAL: &str = "\"normal\")";
+const TEXCOORD: &str = "\"texcoord\")";
 
+const FLOAT2: &str = "float[2]";
 const FLOAT3: &str = "float[3]";
 const FLOAT16: &str = "float[16]";
 const UNSIGNED_INT3: &str = "unsigned_int32[3]";
@@ -106,6 +108,7 @@ pub struct Index {
   index: u16,
 }
 
+#[derive(Debug)]
 pub struct UV {
   uv: [f32; 2],
 }
@@ -205,6 +208,7 @@ impl OpengexPaser {
     
     let mut in_geometrynode = (-1, false);
     let mut in_transform = (-1, false);
+    let mut in_float2 = (-1, false);
     let mut in_float3 = (-1, false);
     let mut in_float16 = (-1, false, 0);
     let mut in_unsigned_int3 = (-1, false);
@@ -213,6 +217,7 @@ impl OpengexPaser {
     let mut in_geometryobject = (-1, false, 0);
     let mut in_vertexposition = (-1, false);
     let mut in_vertexnormal = (-1, false);
+    let mut in_texcoord = (-1, false);
     let mut in_index = (-1, false);
     
     let mut num_brackets_open = 0;
@@ -228,10 +233,7 @@ impl OpengexPaser {
         let mut v: Vec<&str> = line.split(" ").collect();
         
         //println!("{:?}", v);
-        if v[0].contains(FLOAT3) {
-          v[0] = remove_brackets(v[0]);
-        }
-        if v[0].contains(UNSIGNED_INT3) {
+        if v[0].contains(FLOAT2) || v[0].contains(FLOAT3) ||  v[0].contains(UNSIGNED_INT3) {
           v[0] = remove_brackets(v[0]);
         }
         
@@ -318,6 +320,10 @@ impl OpengexPaser {
           TRANSFORM => {
             in_transform = (num_brackets_open, true);
           },
+          FLOAT2 => {
+            in_float2 = (num_brackets_open, true);
+            println!("float 2");
+          },
           FLOAT3 => {
             in_float3 = (num_brackets_open, true);
           },
@@ -359,6 +365,10 @@ impl OpengexPaser {
                   if v[3] == NORMAL {
                     println!("Normal array found!");
                     in_vertexnormal = (num_brackets_open, true);
+                  } else
+                  if v[3] == TEXCOORD {
+                    println!("Texcoord array found!");
+                    in_texcoord = (num_brackets_open, true);
                   }
                 }
               }
@@ -384,6 +394,11 @@ impl OpengexPaser {
             if in_transform.1 {
               if in_transform.0 == num_brackets_open {
                 in_transform = (-1, false);
+              }
+            }
+            if in_float2.1 {
+              if in_float2.0 == num_brackets_open {
+                in_float2 = (-1, false);
               }
             }
             if in_float3.1 {
@@ -419,6 +434,11 @@ impl OpengexPaser {
             if in_vertexnormal.1 {
               if in_vertexnormal.0 == num_brackets_open {
                 in_vertexnormal = (-1, false);
+              }
+            }
+            if in_texcoord.1 {
+              if in_texcoord.0 == num_brackets_open {
+                in_texcoord = (-1, false);
               }
             }
             if in_index.1 {
@@ -482,6 +502,26 @@ impl OpengexPaser {
                     }
                   }
                 }
+                if in_texcoord.1 {
+                  if in_float2.1 {
+                    let mut uv: UV = UV { uv: [0.0,0.0] };
+                    let mut idx = 0;
+                    for i in 0..v.len() {
+                      let value = remove_brackets(v[i]);
+                      if let Ok(float) = value.parse::<f32>() {
+                        println!("{}", float);
+                        uv.uv[idx] = float;
+                        idx += 1;
+                        if idx == 2 {
+                          let temp_uv = uv;
+                          geometry[(in_geometryobject.2) as usize].geometry_object.uv.push(temp_uv);
+                          idx = 0;
+                          uv = UV { uv: [0.0, 0.0] };
+                        }
+                      }
+                    }
+                  }
+                }
                 if in_index.1 {
                   if in_unsigned_int3.1 {
                     for i in 0..v.len() {
@@ -508,9 +548,10 @@ impl OpengexPaser {
       println!("{:?}", geometry[i].transform);
       println!("{:?}", geometry[i].geometry_object.mesh);
     }
-    //println!("{:?}", geometry[0].geometry_object.vertex);
+   // println!("{:?}", geometry[0].geometry_object.vertex);
     //println!("{:?}", geometry[0].geometry_object.normal);
     //println!("{:?}", geometry[0].geometry_object.index);
+    println!("{:?}", geometry[0].geometry_object.uv);
     
     OpengexPaser {
       metric_dist: metric_dist,
