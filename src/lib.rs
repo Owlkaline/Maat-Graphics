@@ -98,6 +98,8 @@
 //! 
 //! 
 //! 
+extern crate opengex_parser;
+
 extern crate glutin;
 extern crate gl;
 extern crate cgmath;
@@ -112,11 +114,6 @@ extern crate vulkano_shader_derive;
 extern crate winit;
 extern crate vulkano_win;
 
-extern crate opengex;
-extern crate piston_meta;
-extern crate piston_meta_search;
-extern crate range;
-
 pub mod graphics;
 pub mod drawcalls;
 pub mod settings;
@@ -128,7 +125,6 @@ mod font;
 mod window;
 mod shaders;
 mod model_data;
-mod opengex_parser;
 mod vulkano_win_updated;
 
 #[cfg(test)]

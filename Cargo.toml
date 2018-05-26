@@ -4,6 +4,7 @@ version = "0.2.0"
 authors = ["Lilith645 <lilith@inet-sys.com>"]
 
 [dependencies]
+opengex_parser = {path = "../opengex_parser"}
 cgmath = "*"
 gl = "0.6.0"
 image = "*"
@@ -12,10 +13,6 @@ vulkano-shader-derive = "0.9.0"
 vulkano-win = "0.9.0"
 winit = "0.11.2"
 glutin = "0.13.1"
-piston-opengex = "*"
-piston_meta = "*"
-piston_meta_search = "*"
-range = "*"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.13"
