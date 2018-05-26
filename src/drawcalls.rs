@@ -37,11 +37,11 @@ pub struct DrawCall {
   edge_width: Vector4<f32>,
   bw: bool,
   draw_type: DrawType,
-  new_vao: (Vec<graphics::Vertex2d>, Vec<u16>),
+  new_vao: (Vec<graphics::Vertex2d>, Vec<u32>),
 }
 
 impl DrawCall {
-  pub fn update_vao(verticies: Vec<graphics::Vertex2d>, indices: Vec<u16>, custom_vao: String) -> DrawCall {
+  pub fn update_vao(verticies: Vec<graphics::Vertex2d>, indices: Vec<u32>, custom_vao: String) -> DrawCall {
     DrawCall {
       position: Vector3::new(0.0, 0.0, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
@@ -392,7 +392,7 @@ impl DrawCall {
     self.new_vao.clone().0
   }
   
-  pub fn get_new_indices(&self) -> Vec<u16> {
+  pub fn get_new_indices(&self) -> Vec<u32> {
     self.new_vao.clone().1
   }
   

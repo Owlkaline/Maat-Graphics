@@ -39,8 +39,8 @@ pub trait CoreRender {
   fn load_font(&mut self, reference: String, font: &[u8]);
   
   // Load custom goemetry
-  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
-  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u16>);
+  fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
+  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
   
   // Creates the data buffer needed for rendering instanced objects
   fn load_instanced(&mut self, reference: String, max_instances: i32);

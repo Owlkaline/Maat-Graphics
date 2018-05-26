@@ -874,7 +874,7 @@ impl CoreRender for RawGl {
     self.load_2d_instanced_vao(reference, max_instances);
   }
   
-  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>) {
     let mut verts: Vec<GLfloat> = Vec::new();
     for v in vertices {
       verts.push(v.position[0] as GLfloat);
@@ -890,7 +890,7 @@ impl CoreRender for RawGl {
     self.load_custom_2d_vao(reference, verts, index, false);
   }
   
-  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>) {
     let mut verts: Vec<GLfloat> = Vec::new();
     for v in vertices {
       verts.push(v.position[0] as GLfloat);

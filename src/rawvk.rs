@@ -169,7 +169,7 @@ pub fn draw_dynamic(cb: AutoCommandBufferBuilder,
                     dimensions: [u32; 2], 
                     pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
                     vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
-                    index_buffer: Arc<CpuAccessibleBuffer<[u16]>>, 
+                    index_buffer: Arc<CpuAccessibleBuffer<[u32]>>, 
                     uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
   cb.draw_indexed(pipeline,
                   DynamicState {
@@ -190,7 +190,7 @@ pub fn draw_immutable(cb: AutoCommandBufferBuilder,
                       dimensions: [u32; 2], 
                       pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
                       vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
-                      index_buffer: Arc<ImmutableBuffer<[u16]>>, 
+                      index_buffer: Arc<ImmutableBuffer<[u32]>>, 
                       uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
   cb.draw_indexed(pipeline,
                   DynamicState {
@@ -236,12 +236,12 @@ pub struct ModelInfo {
 
 pub struct Model {
   vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<ImmutableBuffer<[u16]>>>,
+  index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
 }
 
 pub struct DynamicModel {
   vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<CpuAccessibleBuffer<[u16]>>>
+  index_buffer: Option<Arc<CpuAccessibleBuffer<[u32]>>>
 }
 
 pub struct VK2D {
@@ -528,17 +528,17 @@ impl RawVk {
                                    .expect("failed to create vertex buffer")
   }
   
-  pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u16]>>,
+  pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u32]>>,
                                     CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     
-    let indices: [u16; 6] = [0, 1, 2, 2, 3, 0];
+    let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
     ImmutableBuffer::from_iter(indices.iter().cloned(), 
                                BufferUsage::index_buffer(), 
                                self.window.get_queue())
                                .expect("failed to create immutable index buffer")
   }
   
-  pub fn create_dynamic_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> DynamicModel {
+  pub fn create_dynamic_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u32>) -> DynamicModel {
     for i in 0..verts.len() {
       verts[i].position[0] *= -1.0;
       verts[i].position[1] *= -1.0;
@@ -559,7 +559,7 @@ impl RawVk {
     }
   }
   
-  pub fn create_static_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u16>) -> Model {
+  pub fn create_static_custom_2d_model(&mut self, mut verts: Vec<graphics::Vertex2d>, indices: Vec<u32>) -> Model {
     for i in 0..verts.len() {
       verts[i].position[1] *= -1.0;
     }
@@ -589,7 +589,7 @@ impl RawVk {
                                      .expect("failed to create vertex buffer")
   }
   
-  pub fn create_index(&self, indices: iter::Cloned<slice::Iter<u16>>) -> (Arc<ImmutableBuffer<[u16]>>,
+  pub fn create_index(&self, indices: iter::Cloned<slice::Iter<u32>>) -> (Arc<ImmutableBuffer<[u32]>>,
                                                                            CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
       ImmutableBuffer::from_iter(indices, BufferUsage::index_buffer(), 
                                  self.window.get_queue())
@@ -704,12 +704,12 @@ impl CoreRender for RawVk {
     
   }
   
-  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_static_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>) {
     let model = self.create_static_custom_2d_model(vertices, indices);
     self.vk2d.custom_vao.insert(reference, model);
   }
   
-  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u16>) {
+  fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>) {
     let model = self.create_dynamic_custom_2d_model(vertices, indices);
     self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
@@ -1053,7 +1053,7 @@ impl CoreRender for RawVk {
     let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(count);
     let mut normals: Vec<[f32; 3]> = Vec::with_capacity(count);
     let mut uv: Vec<[f32; 2]> = Vec::with_capacity(count);
-    let mut indices: Vec<u16> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
+    let mut indices: Vec<u32> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
     
     for i in 0..vertex_count {
       for j in 0..vertex_count {
@@ -1069,10 +1069,10 @@ impl CoreRender for RawVk {
     
     for gz in 0..vertex_count-1 {
       for gx in 0..vertex_count-1 {
-      let top_left: u16 = ((gz*vertex_count)+gx) as u16;
-        let top_right: u16 = (top_left + 1) as u16;
-        let bottom_left: u16 = (((gz+1)*vertex_count)+gx) as u16;
-        let bottom_right: u16 = (bottom_left + 1) as u16;
+      let top_left: u32 = ((gz*vertex_count)+gx) as u32;
+        let top_right: u32 = (top_left + 1) as u32;
+        let bottom_left: u32 = (((gz+1)*vertex_count)+gx) as u32;
+        let bottom_right: u32 = (bottom_left + 1) as u32;
         indices.push(top_left);
         indices.push(bottom_left);
         indices.push(top_right);

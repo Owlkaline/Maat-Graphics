@@ -19,7 +19,7 @@ impl_vertex!(Vertex, position, normal, uv);
 
 pub struct Loader {
   vertex: Vec<Vertex>,
-  index: Vec<u16>,
+  index: Vec<u32>,
 }
 
 impl Loader {
@@ -38,12 +38,17 @@ impl Loader {
       if uvs.len() > i {
         uv = uvs[i];
       }
-      vertex.push(Vertex { position: vtx[i], normal: nrml[i], uv: uv });
+      vertex.push(Vertex { 
+                    position: vtx[i], 
+                    normal: nrml[i],
+                    uv: uv });
     }
+    
+    let index = idx;//.iter().map(|i| *i as u16 ).collect::<Vec<u16>>();
     
     Loader {
       vertex: vertex,
-      index: idx,
+      index: index,
     }
   }
   
@@ -51,7 +56,7 @@ impl Loader {
     self.vertex.clone()
   }
   
-  pub fn get_indices(&self) -> Vec<u16> {
+  pub fn get_indices(&self) -> Vec<u32> {
     self.index.clone()
   }
 }
