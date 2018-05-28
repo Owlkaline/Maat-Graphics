@@ -211,20 +211,62 @@ pub struct CustomRenderpass {
   renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
-//  uniformbuffer: cpu_pool::CpuBufferPool<vs_post_bloom::ty::Data>,
-  attachments: Vec<Arc<vkimage::AttachmentImage>>,
+  attachment: Arc<vkimage::AttachmentImage>,
 }
 
 impl CustomRenderpass {
-  pub fn new(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachments: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
-    //make framebuffer here
+  pub fn new(attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
+    CustomRenderpass {
+      renderpass: None,
+      pipeline: None,
+      framebuffer: None,
+      attachment: attachment,
+    }
+  }
+  
+  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: Some(renderpass),
       pipeline: Some(pipeline),
       framebuffer: None,
-      //uniformbuffer: cpu_pool::CpuBufferPool<vs_post_bloom::ty::Data>,
-      attachments: attachments,
+      attachment: attachment,
     }
+  }
+  
+  pub fn renderpass(&self) -> Arc<RenderPassAbstract + Send + Sync> {
+    self.renderpass.clone().unwrap()
+  }
+  
+  pub fn pipeline(&self) -> Arc<GraphicsPipelineAbstract + Send + Sync> {
+    self.pipeline.clone().unwrap()
+  }
+  
+  pub fn framebuffer(&self) -> Arc<framebuffer::FramebufferAbstract + Send + Sync> {
+    self.framebuffer.clone().unwrap()
+  }
+  
+  pub fn framebuffer_ref(&self) -> Arc<framebuffer::FramebufferAbstract + Send + Sync> {
+    self.framebuffer.as_ref().unwrap().clone()
+  }
+  
+  pub fn attachment(&self) -> Arc<vkimage::AttachmentImage> {
+    self.attachment.clone()
+  }
+  
+  pub fn set_renderpass(&mut self, renderpass: Arc<RenderPassAbstract + Send + Sync>) {
+    self.renderpass = Some(renderpass);
+  }
+  
+  pub fn set_pipeline(&mut self, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>) {
+    self.pipeline = Some(pipeline);
+  }
+  
+  pub fn set_framebuffer(&mut self, framebuffer: Arc<framebuffer::FramebufferAbstract + Send + Sync>) {
+    self.framebuffer = Some(framebuffer);
+  }
+  
+  pub fn set_attachment(&mut self, attachment: Arc<vkimage::AttachmentImage>) {
+    self.attachment = attachment;
   }
 }
 
@@ -272,17 +314,15 @@ pub struct VK3D {
 }
 
 pub struct VKPOST {
-  bloom_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
-  bloom_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  bloom_framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
+  bloom_renderpass: CustomRenderpass,
   bloom_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_bloom::ty::Data>,
-  bloom_attachment: Arc<vkimage::AttachmentImage>,
   
   blur_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_blur::ty::Data>,
   blur_ping_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   blur_ping_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   blur_ping_framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
   blur_ping_attachment: Arc<vkimage::AttachmentImage>,
+  
   blur_pong_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   blur_pong_pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   blur_pong_framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
@@ -459,11 +499,12 @@ impl RawVk {
       
       // Post Processing
       vkpost: VKPOST {
-        bloom_renderpass: None,
-        bloom_pipeline: None,
-        bloom_framebuffer: None,
+        //bloom_renderpass: None,
+        //bloom_pipeline: None,
+        //bloom_framebuffer: None,
+        bloom_renderpass: CustomRenderpass::new(bloom_attachment),
         bloom_uniformbuffer: post_bloom_uniform,
-        bloom_attachment: bloom_attachment,
+        //bloom_attachment: bloom_attachment,
         
         blur_uniformbuffer: post_blur_uniform,
         blur_ping_renderpass: None,
@@ -858,7 +899,7 @@ impl CoreRender for RawVk {
       }
     ).unwrap()));
     
-    self.vkpost.bloom_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
+    let bloom_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
       attachments: {
         out_colour: {
           load: DontCare,
@@ -872,7 +913,7 @@ impl CoreRender for RawVk {
         depth_stencil: {},
         resolve: [],
       }
-    ).unwrap()));
+    ).unwrap());
     
     self.vkpost.blur_ping_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
       attachments: {
@@ -954,18 +995,18 @@ impl CoreRender for RawVk {
         .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
-        
-   self.vkpost.bloom_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+    
+    let bloom_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_post_bloom.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_post_bloom.main_entry_point(), ())
         .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(self.vkpost.bloom_renderpass.clone().unwrap() , 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(bloom_renderpass.clone(), 0).unwrap())
         .build(self.window.get_device())
-        .unwrap()));
-        
-   self.vkpost.blur_ping_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .unwrap());
+    
+    self.vkpost.blur_ping_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_post_blur.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
@@ -975,7 +1016,7 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
         
-   self.vkpost.blur_pong_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+    self.vkpost.blur_pong_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_post_blur.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
@@ -985,7 +1026,7 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
         
-   self.vkpost.final_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
+    self.vkpost.final_pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<graphics::Vertex2d>()
         .vertex_shader(vs_post_final.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
@@ -1019,12 +1060,12 @@ impl CoreRender for RawVk {
             .build().unwrap()
     }));
     
-    let bloom_renderpass = self.vkpost.bloom_renderpass.clone().unwrap();
-    self.vkpost.bloom_framebuffer = Some(Arc::new({
+    let bloom_attachment = self.vkpost.bloom_renderpass.attachment();
+    self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(bloom_renderpass.clone())
-                .add(self.vkpost.bloom_attachment.clone()).unwrap()
+                .add(bloom_attachment).unwrap()
                 .build().unwrap()
-    }));
+      }));
     
     let blur_ping_renderpass = self.vkpost.blur_ping_renderpass.clone().unwrap();
     self.vkpost.blur_ping_framebuffer = Some(Arc::new({
@@ -1039,6 +1080,9 @@ impl CoreRender for RawVk {
                 .add(self.vkpost.blur_pong_attachment.clone()).unwrap()
                 .build().unwrap()
     }));
+    
+    self.vkpost.bloom_renderpass.set_renderpass(bloom_renderpass);
+    self.vkpost.bloom_renderpass.set_pipeline(bloom_pipeline);
     
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
@@ -1217,7 +1261,7 @@ impl CoreRender for RawVk {
       };
       
       self.fullcolour_attachment = vkimage::AttachmentImage::sampled(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm).unwrap();
-      self.vkpost.bloom_attachment = vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, src_usage).unwrap();
+      self.vkpost.bloom_renderpass.set_attachment(vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, src_usage).unwrap());
       /*
       self.vkpost.blur_ping_attachment = vkimage::AttachmentImage::sampled(self.window.get_device(), [blur_dim, blur_dim], self.window.get_swapchain().format()).unwrap();
       self.vkpost.blur_pong_attachment = vkimage::AttachmentImage::with_usage(self.window.get_device(), [blur_dim, blur_dim], self.window.get_swapchain().format(), src_usage).unwrap();*/
@@ -1236,10 +1280,11 @@ impl CoreRender for RawVk {
                 .build().unwrap()
       }));
       
-      let bloom_renderpass = self.vkpost.bloom_renderpass.clone().unwrap();
-      self.vkpost.bloom_framebuffer = Some(Arc::new({
-        framebuffer::Framebuffer::start(bloom_renderpass.clone())
-                .add(self.vkpost.bloom_attachment.clone()).unwrap()
+      let bloom_renderpass = self.vkpost.bloom_renderpass.renderpass();
+      let bloom_attachment = self.vkpost.bloom_renderpass.attachment();
+      self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
+        framebuffer::Framebuffer::start(bloom_renderpass)
+                .add(bloom_attachment).unwrap()
                 .build().unwrap()
       }));
       
@@ -1300,7 +1345,6 @@ impl CoreRender for RawVk {
       for draw in draw_calls {
         
         if draw.is_3d_model() {
-          
           let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone());
           
           let mut texture: String = String::from(graphics::DEFAULT_TEXTURE);
@@ -1324,7 +1368,7 @@ impl CoreRender for RawVk {
           
           {
             let cb = tmp_cmd_buffer;
-
+            
             tmp_cmd_buffer = cb.draw_indexed(
                   self.vk3d.pipeline.clone().unwrap(),
                   DynamicState {
@@ -1524,11 +1568,11 @@ impl CoreRender for RawVk {
       * Bloom framebuffer
       */
       let build_start = tmp_cmd_buffer.end_render_pass().unwrap();
-      let cb = build_start.begin_render_pass(self.vkpost.bloom_framebuffer.as_ref().unwrap().clone(), false, vec![ClearValue::None]).unwrap();
+      let cb = build_start.begin_render_pass(self.vkpost.bloom_renderpass.framebuffer_ref(), false, vec![ClearValue::None]).unwrap();
       
       let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
-      let pipeline = self.vkpost.bloom_pipeline.clone().unwrap();
+      let pipeline = self.vkpost.bloom_renderpass.pipeline();
       
       let model = math::calculate_texture_model(Vector3::new(dimensions[0] as f32 * 0.5, dimensions[1] as f32 * 0.5, 0.0), Vector2::new(dimensions[0] as f32, dimensions[1] as f32), 90.0);
       
@@ -1550,7 +1594,7 @@ impl CoreRender for RawVk {
       /*
       * Blur ping framebuffer
       */
-      let build_start = build_end.blit_image(self.vkpost.bloom_attachment.clone(), [0,0,0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0, 
+      let build_start = build_end.blit_image(self.vkpost.bloom_renderpass.attachment(), [0,0,0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0, 
                                              self.vkpost.blur_downscale_attachment.clone(), [0, 0, 0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
                                              1, sampler::Filter::Linear).expect("Failed to scale down bloom image to blur image");
       
