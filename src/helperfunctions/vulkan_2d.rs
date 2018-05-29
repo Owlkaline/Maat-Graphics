@@ -25,7 +25,7 @@ pub fn create_vertex(device: Arc<Device>) -> Arc<BufferAccess + Send + Sync> {
     ]
   };
   
-  CpuAccessibleBuffer::from_iter(device,//self.window.get_device(), 
+  CpuAccessibleBuffer::from_iter(device,
                                  BufferUsage::vertex_buffer(), 
                                  square.iter().cloned())
                                  .expect("failed to create vertex buffer")
@@ -35,8 +35,7 @@ pub fn create_index(queue: Arc<Queue>) -> (Arc<ImmutableBuffer<[u32]>>,
                                   CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
   let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
   ImmutableBuffer::from_iter(indices.iter().cloned(), 
-                             BufferUsage::index_buffer(), 
-                             //self.window.get_queue())
+                             BufferUsage::index_buffer(),
                              queue)
                              .expect("failed to create immutable index buffer")
 }
@@ -47,11 +46,11 @@ pub fn create_dynamic_custom_model(device: Arc<Device>, mut verts: Vec<Vertex2d>
     verts[i].position[1] *= -1.0;
   }
   
-  let vert =  CpuAccessibleBuffer::from_iter(device.clone(),//self.window.get_device(), 
+  let vert =  CpuAccessibleBuffer::from_iter(device.clone(),
                                  BufferUsage::vertex_buffer(), 
                                  verts.iter().cloned())
                                  .expect("Vulkan failed to create custom vertex buffer");
-  let idx = CpuAccessibleBuffer::from_iter(device,//self.window.get_device(),
+  let idx = CpuAccessibleBuffer::from_iter(device,
                                  BufferUsage::index_buffer(), 
                                  indices.iter().cloned())
                                  .expect("Vulkan failed to create custom index buffer");
@@ -67,17 +66,15 @@ pub fn create_static_custom_model(device: Arc<Device>, queue: Arc<Queue>, mut ve
     verts[i].position[1] *= -1.0;
   }
   
-  let vert =  CpuAccessibleBuffer::from_iter(device,//self.window.get_device(), 
+  let vert =  CpuAccessibleBuffer::from_iter(device,
                                  BufferUsage::vertex_buffer(), 
                                  verts.iter().cloned())
                                  .expect("Vulkan failed to create custom vertex buffer");
   
   let (idx_buffer, future_idx) = ImmutableBuffer::from_iter(indices.iter().cloned(), 
                              BufferUsage::index_buffer(), 
-                             queue)//self.window.get_queue())
+                             queue)
                              .expect("failed to create immutable index buffer");
-  
-//  self.previous_frame_end = Some(Box::new(future_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   
   let model = Model {
     vertex_buffer: Some(vec!(vert)),

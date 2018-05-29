@@ -491,20 +491,6 @@ impl RawVk {
     self
   }
   
-  pub fn create_vertex(&self, verticies: iter::Cloned<slice::Iter<Vertex3d>>) -> Arc<BufferAccess + Send + Sync> {
-      CpuAccessibleBuffer::from_iter(self.window.get_device(), 
-                                     BufferUsage::vertex_buffer(), 
-                                     verticies)
-                                     .expect("failed to create vertex buffer")
-  }
-  
-  pub fn create_index(&self, indices: iter::Cloned<slice::Iter<u32>>) -> (Arc<ImmutableBuffer<[u32]>>,
-                                                                           CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-      ImmutableBuffer::from_iter(indices, BufferUsage::index_buffer(), 
-                                 self.window.get_queue())
-                                 .expect("failed to create immutable teapot index buffer")
-  }
-  
   pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,
                                                                       Arc<memory::pool::StdMemoryPool>> {
     let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
@@ -657,8 +643,8 @@ impl CoreRender for RawVk {
         vertex3d.push(convert_to_vertex3d(vertex[i][j], normal[i][j], uv));
       }
       
-      let vert3d_buffer = self.create_vertex(vertex3d.iter().cloned());
-      let (idx_3d_buffer, future_3d_idx) = self.create_index(index[i].iter().cloned()); 
+      let vert3d_buffer = vulkan_3d::create_vertex(self.window.get_device(), vertex3d.iter().cloned());
+      let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), index[i].iter().cloned()); 
       
       let geometry_node = Model {
         vertex_buffer: Some(vec!(vert3d_buffer)),
@@ -923,20 +909,6 @@ impl CoreRender for RawVk {
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_post_final.main_entry_point(), ())
         .blend_alpha_blending()
-        /*
-.blend_collective(AttachmentBlend {
-                    enabled: true,
-                    color_op: BlendOp::Add,
-                    color_source: BlendFactor::One,
-                    color_destination: BlendFactor::One,
-                    alpha_op: BlendOp::Max,
-                    alpha_source: BlendFactor::One,
-                    alpha_destination: BlendFactor::One,
-                    mask_red: true,
-                    mask_green: true,
-                    mask_blue: true,
-                    mask_alpha: true,
-})*/
         .render_pass(framebuffer::Subpass::from(self.vkpost.final_renderpass.clone().unwrap() , 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
@@ -1032,8 +1004,8 @@ impl CoreRender for RawVk {
       );
     }
     
-    let vert3d_buffer = self.create_vertex(vertex.iter().cloned());
-    let (idx_3d_buffer, future_3d_idx) = self.create_index(indices.iter().cloned()); 
+    let vert3d_buffer = vulkan_3d::create_vertex(self.window.get_device(), vertex.iter().cloned());
+    let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), indices.iter().cloned()); 
     
     let model = Model {
       vertex_buffer: Some(vec!(vert3d_buffer)),
