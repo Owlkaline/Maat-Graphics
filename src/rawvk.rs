@@ -11,6 +11,8 @@ use settings::Settings;
 use camera::Camera;
 use opengex_parser::OpengexPaser;
 use helperfunctions::convert_to_vertex3d;
+use helperfunctions::vulkan_2d;
+use helperfunctions::vulkan_3d;
 //use model_data;
 
 use image;
@@ -80,6 +82,8 @@ use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 use cgmath::Rotation3;
 use cgmath::InnerSpace;
+
+use helperfunctions::vulkan_helper;
 
 impl_vertex!(Vertex2d, position, uv);
 impl_vertex!(Vertex3d, position, normal, uv);
@@ -170,48 +174,6 @@ mod fs_post_final {
   struct Dummy;
 }
 
-pub fn draw_dynamic(cb: AutoCommandBufferBuilder, 
-                    dimensions: [u32; 2], 
-                    pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
-                    vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
-                    index_buffer: Arc<CpuAccessibleBuffer<[u32]>>, 
-                    uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
-  cb.draw_indexed(pipeline,
-                  DynamicState {
-                    line_width: None,
-                    viewports: Some(vec![Viewport {
-                      origin: [0.0, 0.0],
-                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                      depth_range: 0.0 .. 1.0,
-                    }]),
-                    scissors: None,
-                  },
-                  vertex_buffer,
-                  index_buffer,
-                  uniform_buffer, ()).unwrap()
-}
-
-pub fn draw_immutable(cb: AutoCommandBufferBuilder, 
-                      dimensions: [u32; 2], 
-                      pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, 
-                      vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>, 
-                      index_buffer: Arc<ImmutableBuffer<[u32]>>, 
-                      uniform_buffer: Arc<descriptor::DescriptorSet + Send + Sync>) -> AutoCommandBufferBuilder {
-  cb.draw_indexed(pipeline,
-                  DynamicState {
-                    line_width: None,
-                    viewports: Some(vec![Viewport {
-                      origin: [0.0, 0.0],
-                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                      depth_range: 0.0 .. 1.0,
-                    }]),
-                    scissors: None,
-                  },
-                  vertex_buffer,
-                  index_buffer,
-                  uniform_buffer, ()).unwrap()
-}
-
 pub struct CustomRenderpass {
   renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
@@ -282,13 +244,13 @@ pub struct ModelInfo {
 }
 
 pub struct Model {
-  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
+  pub vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  pub index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
 }
 
 pub struct DynamicModel {
-  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<CpuAccessibleBuffer<[u32]>>>
+  pub vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  pub index_buffer: Option<Arc<CpuAccessibleBuffer<[u32]>>>
 }
 
 pub struct VK2D {
@@ -529,76 +491,6 @@ impl RawVk {
     self
   }
   
-  pub fn create_2d_vertex(&self) -> Arc<BufferAccess + Send + Sync> {
-    let square = {
-      [
-          Vertex2d { position: [  0.5 ,   0.5 ], uv: [1.0, 0.0] },
-          Vertex2d { position: [ -0.5,    0.5 ], uv: [0.0, 0.0] },
-          Vertex2d { position: [ -0.5,   -0.5 ], uv: [0.0, 1.0] },
-          Vertex2d { position: [  0.5 ,  -0.5 ], uv: [1.0, 1.0] },
-      ]
-    };
-    
-    CpuAccessibleBuffer::from_iter(self.window.get_device(), 
-                                   BufferUsage::vertex_buffer(), 
-                                   square.iter().cloned())
-                                   .expect("failed to create vertex buffer")
-  }
-  
-  pub fn create_2d_index(&self) -> (Arc<ImmutableBuffer<[u32]>>,
-                                    CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-    
-    let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
-    ImmutableBuffer::from_iter(indices.iter().cloned(), 
-                               BufferUsage::index_buffer(), 
-                               self.window.get_queue())
-                               .expect("failed to create immutable index buffer")
-  }
-  
-  pub fn create_dynamic_custom_2d_model(&mut self, mut verts: Vec<Vertex2d>, indices: Vec<u32>) -> DynamicModel {
-    for i in 0..verts.len() {
-      verts[i].position[0] *= -1.0;
-      verts[i].position[1] *= -1.0;
-    }
-    
-    let vert =  CpuAccessibleBuffer::from_iter(self.window.get_device(), 
-                                   BufferUsage::vertex_buffer(), 
-                                   verts.iter().cloned())
-                                   .expect("Vulkan failed to create custom vertex buffer");
-    let idx = CpuAccessibleBuffer::from_iter(self.window.get_device(),
-                                   BufferUsage::index_buffer(), 
-                                   indices.iter().cloned())
-                                   .expect("Vulkan failed to create custom index buffer");
-    
-    DynamicModel {
-      vertex_buffer: Some(vec!(vert)),
-      index_buffer: Some(idx),
-    }
-  }
-  
-  pub fn create_static_custom_2d_model(&mut self, mut verts: Vec<Vertex2d>, indices: Vec<u32>) -> Model {
-    for i in 0..verts.len() {
-      verts[i].position[1] *= -1.0;
-    }
-    
-    let vert =  CpuAccessibleBuffer::from_iter(self.window.get_device(), 
-                                   BufferUsage::vertex_buffer(), 
-                                   verts.iter().cloned())
-                                   .expect("Vulkan failed to create custom vertex buffer");
-    
-    let (idx_buffer, future_idx) = ImmutableBuffer::from_iter(indices.iter().cloned(), 
-                               BufferUsage::index_buffer(), 
-                               self.window.get_queue())
-                               .expect("failed to create immutable index buffer");
-    
-    self.previous_frame_end = Some(Box::new(future_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    
-    Model {
-      vertex_buffer: Some(vec!(vert)),
-      index_buffer: Some(idx_buffer),
-    }
-  }
-  
   pub fn create_vertex(&self, verticies: iter::Cloned<slice::Iter<Vertex3d>>) -> Arc<BufferAccess + Send + Sync> {
       CpuAccessibleBuffer::from_iter(self.window.get_device(), 
                                      BufferUsage::vertex_buffer(), 
@@ -722,12 +614,13 @@ impl CoreRender for RawVk {
   }
   
   fn load_static_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
-    let model = self.create_static_custom_2d_model(vertices, indices);
+    let (model, future) = vulkan_2d::create_static_custom_model(self.window.get_device(), self.window.get_queue(), vertices, indices);
+    self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     self.vk2d.custom_vao.insert(reference, model);
   }
   
   fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
-    let model = self.create_dynamic_custom_2d_model(vertices, indices);
+    let model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), vertices, indices);
     self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
   
@@ -848,8 +741,8 @@ impl CoreRender for RawVk {
     self.vk3d.depth_buffer = self.create_depth_buffer();
     
     // 2D
-    let vert_buffer = self.create_2d_vertex();
-    let (idx_buffer, future_idx) = self.create_2d_index();
+    let vert_buffer = vulkan_2d::create_vertex(self.window.get_device());
+    let (idx_buffer, future_idx) = vulkan_2d::create_index(self.window.get_queue());
     
     self.vk2d.vao.vertex_buffer = Some(vec!(vert_buffer));
     self.vk2d.vao.index_buffer = Some(idx_buffer);
@@ -1397,7 +1290,7 @@ impl CoreRender for RawVk {
               let mut verts = draw.get_new_vertices();
               let mut index = draw.get_new_indices();
               
-              let new_model = self.create_dynamic_custom_2d_model(verts, index);
+              let new_model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), verts, index);
               
               if let Some(d_model) = self.vk2d.custom_dynamic_vao.get_mut(&reference) {
                 *d_model = new_model;
@@ -1457,7 +1350,7 @@ impl CoreRender for RawVk {
               
               {
                 let cb = tmp_cmd_buffer;
-                tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
+                tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
               }
             }
           } else {
@@ -1485,7 +1378,7 @@ impl CoreRender for RawVk {
                                         .index_buffer.clone()
                                         .expect("Error: Unwrapping static custom index buffer failed!");
                     
-                    tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                    tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
                     let vertex_buffer = self.vk2d
                                         .custom_dynamic_vao.get(draw.get_text()).unwrap()
@@ -1496,7 +1389,7 @@ impl CoreRender for RawVk {
                                         .index_buffer.clone()
                                         .expect("Error: Unwrapping static custom index buffer failed!");
                     
-                    tmp_cmd_buffer = draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                    tmp_cmd_buffer = vulkan_helper::draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else {
                     println!("Error: custom vao {:?} does not exist!", draw.get_text());
                     tmp_cmd_buffer = cb;
@@ -1509,7 +1402,7 @@ impl CoreRender for RawVk {
                   let index_buffer = self.vk2d
                                           .vao.index_buffer.clone()
                                          .expect("Error: Unwrapping main index buffer failed!");
-                  tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                  tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                 }
               }
             } else {
@@ -1542,7 +1435,7 @@ impl CoreRender for RawVk {
                                            .index_buffer.clone()
                                            .expect("Error: Unwrapping static custom index buffer failed!");
                     
-                    tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                    tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
                     let vertex_buffer = self.vk2d
                                         .custom_dynamic_vao.get(draw.get_text()).unwrap()
@@ -1553,7 +1446,7 @@ impl CoreRender for RawVk {
                                         .index_buffer.clone()
                                         .expect("Error: Unwrapping static custom index buffer failed!");
                     
-                    tmp_cmd_buffer = draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                    tmp_cmd_buffer = vulkan_helper::draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                   } else {
                     println!("Error: custom vao {:?} does not exist!", draw.get_text());
                     tmp_cmd_buffer = cb;
@@ -1562,7 +1455,7 @@ impl CoreRender for RawVk {
                 } else {
                   let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
                   let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
-                  tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+                  tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
                 }
               }
             }
@@ -1594,7 +1487,7 @@ impl CoreRender for RawVk {
                              .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
                              .build().unwrap());
                           
-      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
       /*
@@ -1625,7 +1518,7 @@ impl CoreRender for RawVk {
                              .add_sampled_image(self.vkpost.blur_downscale_attachment.clone(), self.sampler.clone()).unwrap()
                              .build().unwrap());
                           
-      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
+      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
       /*
       * Blur pong framebuffer
@@ -1652,7 +1545,7 @@ impl CoreRender for RawVk {
                              .add_sampled_image(self.vkpost.blur_ping_renderpass.attachment(), self.sampler.clone()).unwrap()
                              .build().unwrap());
                           
-      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
       /*
@@ -1686,7 +1579,7 @@ impl CoreRender for RawVk {
                              .add_sampled_image(self.vkpost.blur_upscale_attachment.clone(), self.sampler.clone()).unwrap()
                              .build().unwrap());
       
-      tmp_cmd_buffer = draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
+      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
