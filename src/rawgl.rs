@@ -16,7 +16,7 @@ use graphics::CoreRender;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
-use model_data;
+//use model_data;
 
 use cgmath;
 use cgmath::Deg;
@@ -918,7 +918,7 @@ impl CoreRender for RawGl {
   
   fn load_model(&mut self, reference: String, location: String, texture: String) {
     let start_time = time::Instant::now();
-    
+    /*
     let model = model_data::Loader::load_opengex(location.clone(), texture);
     
     let vertex = model.get_verticies();
@@ -953,7 +953,7 @@ impl CoreRender for RawGl {
     vao.set_vertex_attrib(1, 3, 8, 3);
     vao.set_vertex_attrib(2, 2, 8, 6);
     
-    self.gl3D.models.insert(reference, vao);
+    self.gl3D.models.insert(reference, vao);*/
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);

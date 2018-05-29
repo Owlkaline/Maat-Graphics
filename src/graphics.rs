@@ -11,8 +11,11 @@ use std::vec::Vec;
 use cgmath::Vector2;
 use cgmath::Vector3;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
+
+#[derive(Clone)]
+pub struct Vertex3d { pub position: [f32; 3], pub normal: [f32; 3], pub uv: [f32; 2] }
 
 pub const DEFAULT_TEXTURE: &str = "Arial";
 

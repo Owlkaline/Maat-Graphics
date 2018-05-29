@@ -18,8 +18,9 @@ pub struct Vertex {
 impl_vertex!(Vertex, position, normal, uv);
 
 pub struct Loader {
-  vertex: Vec<Vertex>,
-  index: Vec<u32>,
+  num_nodes: i32,
+  vertex: Vec<Vec<Vertex>>,
+  index: Vec<Vec<u32>>,
 }
 
 impl Loader {
@@ -31,17 +32,19 @@ impl Loader {
     let idx = model.get_index();
     let uvs = model.get_uv();
     
-    let mut vertex: Vec<Vertex> = Vec::new();
+    let mut vertex: Vec<Vec<Vertex>> = Vec::with_capacity(vtx.len());
     
     for i in 0..vtx.len() {
-      let mut uv = [0.0, 0.0];
-      if uvs.len() > i {
-        uv = uvs[i];
+      for j in 0..vtx[i].len() {
+        let mut uv = [0.0, 0.0];
+        if uvs[i].len() > j {
+          uv = uvs[i][j];
+        }
+        vertex[i].push(Vertex { 
+                      position: vtx[i][j], 
+                      normal: nrml[i][j],
+                      uv: uv });
       }
-      vertex.push(Vertex { 
-                    position: vtx[i], 
-                    normal: nrml[i],
-                    uv: uv });
     }
     
     let index = idx;//.iter().map(|i| *i as u16 ).collect::<Vec<u16>>();
@@ -52,11 +55,11 @@ impl Loader {
     }
   }
   
-  pub fn get_verticies(&self) -> Vec<Vertex> {
+  pub fn get_verticies(&self) -> Vec<Vec<Vertex>> {
     self.vertex.clone()
   }
   
-  pub fn get_indices(&self) -> Vec<u32> {
+  pub fn get_indices(&self) -> Vec<Vec<u32>> {
     self.index.clone()
   }
 }

@@ -124,7 +124,7 @@ pub mod math;
 mod font;
 mod window;
 mod shaders;
-mod model_data;
+mod helperfunctions;
 mod vulkano_win_updated;
 
 #[cfg(test)]
