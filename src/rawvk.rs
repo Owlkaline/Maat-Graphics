@@ -273,8 +273,9 @@ pub struct VK3D {
   
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   
+  camera: Camera,
+  
   projection: Matrix4<f32>,
-  view: Matrix4<f32>,
   scale: Matrix4<f32>,
   
   uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
@@ -351,7 +352,6 @@ impl RawVk {
     let proj_2d = Matrix4::identity();
     let proj_3d = Matrix4::identity();
     
-    let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.0, 0.0, -1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
     let scale = cgmath::Matrix4::from_scale(0.1);
     
     let sampler = sampler::Sampler::new(window.get_device(), sampler::Filter::Linear,
@@ -432,8 +432,9 @@ impl RawVk {
         
         pipeline: None,
         
+        camera: Camera::default_vk(),
+        
         projection: proj_3d,
-        view: view,
         scale: scale,
 
         uniform_buffer: uniform_3d,
@@ -565,9 +566,11 @@ impl RawVk {
         Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
     
+    let view = self.vk3d.camera.get_view_matrix();
+    
     let uniform_data = vs_3d::ty::Data {
       transformation: transformation.into(),
-      view : (self.vk3d.view * self.vk3d.scale).into(),
+      view : (view * self.vk3d.scale).into(),
       proj : self.vk3d.projection.into(),
       lightpositions: lighting_position.into(),
       lightcolours: lighting_colour.into(),
@@ -1218,7 +1221,7 @@ impl CoreRender for RawVk {
             texture = draw.get_texture().clone();
           }
           if draw.get_texture() == "terrain" {
-            texture = String::from("oakfloor");
+           // texture = String::from("oakfloor");
           }
           
           if !self.textures.contains_key(&texture.clone()) {
@@ -1621,23 +1624,19 @@ impl CoreRender for RawVk {
     self.window.hide_cursor();
   }
   
-  /// Sets camera location based on a position Vector3 and rotation in the x 
-  /// and y axis with a Vector2
-  fn set_camera_location(&mut self, camera: Vector3<f32>, camera_rot: Vector2<f32>) {
-
-    //let (x_rot, z_rot) = DrawMath::calculate_y_rotation(camera_rot.y);
-    let (x_rot, z_rot) = drawcalls::rotate(camera_rot.y);
-    
-    self.vk3d.view = cgmath::Matrix4::look_at(cgmath::Point3::new(camera.x, camera.y, camera.z), cgmath::Point3::new(camera.x+x_rot, camera.y, camera.z+z_rot), cgmath::Vector3::new(0.0, -1.0, 0.0));
-  }
-  
   // Sets the clear colour for the window to display if nothing is draw in an area
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     self.clear_colour = Vector4::new(r,g,b,a);
   }
   
   /// Sets the camera location, rotation, view given a Camera object
-  fn set_camera(&mut self, camera: Camera) {}
+  fn set_camera(&mut self, camera: Camera) {
+    self.vk3d.camera = camera;
+  }
+  
+  fn get_camera(&self) -> Camera {
+    self.vk3d.camera.to_owned()
+  }
   
   /// does nothing in vulkan
   fn post_draw(&self) {}

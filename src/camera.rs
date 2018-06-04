@@ -11,6 +11,8 @@ pub enum Direction {
   Backward,
   Left,
   Right,
+  Up,
+  Down,
 }
 
 #[derive(Clone)]
@@ -60,7 +62,7 @@ impl Camera {
       yaw: 0.0,
       pitch: 0.0,
       move_speed: 1.0,
-      mouse_sensitivity: 0.0,
+      mouse_sensitivity: 1.0,
       zoom: 90.0,
     }
   }
@@ -77,7 +79,7 @@ impl Camera {
       yaw: 0.0,
       pitch: 0.0,
       move_speed: 1.0,
-      mouse_sensitivity: 0.0,
+      mouse_sensitivity: 1.0,
       zoom: 90.0,
     }
   }
@@ -112,25 +114,31 @@ impl Camera {
     self.update_camera_vector();
   }
   
-  pub fn process_movement(&mut self, direction: Direction) {  
+  pub fn process_movement(&mut self, direction: Direction, delta_time: f32) {
     match direction {
       Direction::Forward => {
-        self.position += self.front*self.move_speed;
+        self.position += self.front*self.move_speed*delta_time;
       },
       Direction::Backward => {
-        self.position -= self.front*self.move_speed; 
+        self.position -= self.front*self.move_speed*delta_time; 
       },
       Direction::Right => {
-        self.position += self.right*self.move_speed;
+        self.position += self.right*self.move_speed*delta_time;
       },
       Direction::Left => {
-        self.position -= self.right*self.move_speed;
+        self.position -= self.right*self.move_speed*delta_time;
+      },
+      Direction::Up => {
+        self.position += self.up*self.move_speed*delta_time;
+      },
+      Direction::Down => {
+        self.position -= self.up*self.move_speed*delta_time;
       }
     }
   }
-    
+  
   pub fn get_view_matrix(&self) -> Matrix4<f32> {
     Matrix4::look_at(Point3::from_vec(self.position), Point3::from_vec(self.position +
                      self.front), self.up)
-  }  
+  }
 }
