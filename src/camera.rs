@@ -61,7 +61,7 @@ impl Camera {
       
       yaw: 0.0,
       pitch: 0.0,
-      move_speed: 1.0,
+      move_speed: 5.0,
       mouse_sensitivity: 1.0,
       zoom: 90.0,
     }
@@ -78,7 +78,7 @@ impl Camera {
   
       yaw: 0.0,
       pitch: 0.0,
-      move_speed: 1.0,
+      move_speed: 5.0,
       mouse_sensitivity: 1.0,
       zoom: 90.0,
     }
@@ -140,5 +140,9 @@ impl Camera {
   pub fn get_view_matrix(&self) -> Matrix4<f32> {
     Matrix4::look_at(Point3::from_vec(self.position), Point3::from_vec(self.position +
                      self.front), self.up)
+  }
+  
+  pub fn get_position(&self) -> Vector3<f32> {
+    self.position
   }
 }

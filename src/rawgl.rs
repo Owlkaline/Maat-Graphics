@@ -16,7 +16,7 @@ use graphics::CoreRender;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
-//use model_data;
+use opengex_parser::OpengexPaser;
 
 use cgmath;
 use cgmath::Deg;
@@ -38,6 +38,7 @@ use std::ptr;
 use std::mem;
 use std::cmp;
 use std::time;
+use std::ffi::CStr;
 use std::f32::consts;
 use std::ffi::CString;
 use std::os::raw::c_void;
@@ -394,6 +395,13 @@ pub struct RawGl {
   pub window: GlWindow,
 }
 
+extern "system" fn opengl_debug(source: GLenum, _type: GLenum, id: GLuint, severity: GLenum, 
+                    length: GLsizei, messages: *const GLchar, user: *mut c_void) {
+  unsafe {
+    println!("Source: {}, type: {}, id: {}, severity: {}, Message: {:?}", source, _type, id, severity,  CStr::from_ptr(messages));
+  }
+}
+
 impl RawGl {
   pub fn new() -> RawGl {
     #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
@@ -430,6 +438,11 @@ impl RawGl {
     println!("Max MSAA: x{}", max_samples);
     let msaa_samples: i32 = cmp::min(msaa_samples, max_samples as u32) as i32;
     println!("Current MSAA: x{}\n", msaa_samples);
+    
+    unsafe {
+      gl::Enable(gl::DEBUG_OUTPUT);
+      gl::DebugMessageCallback(opengl_debug, 0 as *const c_void);
+    }
     
     RawGl {
       ready: false,
@@ -537,6 +550,7 @@ impl RawGl {
     vao.bind();
     
     if is_dynamic {
+      println!("is dynamic");
       vao.create_ebo(indicies, gl::STREAM_DRAW);
       vao.create_vbo(verts, gl::STREAM_DRAW);
     } else {
@@ -621,7 +635,7 @@ impl RawGl {
           Vector4::new(0.0, 0.0, 0.0, -1.0)
         );
       
-      let view = self.view /* Matrix4::from_angle_y(Deg(180.0)) */* self.scale;
+      let view = self.gl3D.camera.get_view_matrix();/*self.scale;*///self.view Matrix4::from_angle_y(Deg(180.0))  self.scale;
       
       let mut texture = String::from(graphics::DEFAULT_TEXTURE);
       if self.textures.contains_key(draw.get_texture()) {
@@ -922,6 +936,51 @@ impl CoreRender for RawGl {
   
   fn load_model(&mut self, reference: String, location: String, texture: String) {
     let start_time = time::Instant::now();
+    let model_data = OpengexPaser::new(location.clone());
+    
+    let vertex = model_data.get_vertex();
+    let normal = model_data.get_normal();
+    let uvs = model_data.get_uv();
+    let index = model_data.get_index();
+    
+    let i = 0;
+    
+    let mut vertices: Vec<GLfloat> = Vec::with_capacity(vertex[i].len());
+    for j in 0..vertex[i].len() {
+      let mut uv = [0.0, 0.0];
+      if uvs[i].len() > j {
+        uv = uvs[i][j];
+      }
+      
+      vertices.push(vertex[i][j][0]);
+      vertices.push(vertex[i][j][1]);
+      vertices.push(vertex[i][j][2]);
+      
+      vertices.push(normal[i][j][0]);
+      vertices.push(normal[i][j][1]);
+      vertices.push(normal[i][j][2]);
+      
+      vertices.push(uv[0]);
+      vertices.push(uv[1]);
+    }
+    
+    let indices = index[i].iter().map( |index| {
+        *index as GLuint
+      }
+    ).collect::<Vec<GLuint>>();
+    
+    let mut vao: Vao = Vao::new();
+    
+    vao.bind();
+    vao.create_ebo(indices, gl::STATIC_DRAW);
+    vao.create_vbo(vertices, gl::STATIC_DRAW);
+    
+    vao.set_vertex_attrib(0, 3, 8, 0);
+    vao.set_vertex_attrib(1, 3, 8, 3);
+    vao.set_vertex_attrib(2, 2, 8, 6);
+    
+    self.gl3D.models.insert(reference, vao);
+    
     /*
     let model = model_data::Loader::load_opengex(location.clone(), texture);
     
@@ -1130,9 +1189,15 @@ impl CoreRender for RawGl {
   
   fn clear_screen(&mut self) {
     unsafe {
+      gl::DepthMask(gl::TRUE);
       gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
       gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+      //gl::DepthMask(gl::FALSE);
     }
+  }
+  
+  fn pre_draw(&mut self) {
+    self.clear_screen();
   }
   
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
@@ -1163,7 +1228,7 @@ impl CoreRender for RawGl {
       }
     }
     
-    self.framebuffer.blit_to_post();
+    self.framebuffer.resolve_multisample();
     
     let x = dimensions[0] as f32*0.5;
     let y = dimensions[1] as f32*0.5;
@@ -1182,7 +1247,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     let texture = self.framebuffer.get_screen_texture();
     self.draw_bloom(draw, texture);
-    self.framebuffer_bloom.blit_to_post();
+    //self.framebuffer_bloom.resolve_multisample();
     
     // Horizontal blur
     self.framebuffer_blur_ping.bind();
@@ -1191,7 +1256,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer_bloom.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_bloom.get_screen_texture();
     self.draw_blur(draw, texture, Vector2::new(1.0, 0.0));
-    self.framebuffer_blur_ping.blit_to_post();
+    //self.framebuffer_blur_ping.resolve_multisample();
     
     // Verticle blur
     self.framebuffer_blur_pong.bind();
@@ -1200,7 +1265,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer_blur_ping.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_blur_ping.get_screen_texture();
     self.draw_blur(draw, texture, Vector2::new(0.0, 1.0));
-    self.framebuffer_blur_pong.blit_to_post();
+    //self.framebuffer_blur_pong.resolve_multisample();
     
     // Final Draw
     self.framebuffer.bind_default();
@@ -1309,8 +1374,12 @@ impl CoreRender for RawGl {
     self.window.hide_cursor();
   }
   
-  fn set_camera(&mut self, camera: Camera){}
-  fn get_camera(&self) -> Camera { self.gl3D.camera.to_owned() }
-  fn pre_draw(&mut self) {}
+  fn set_camera(&mut self, camera: Camera){
+    self.gl3D.camera = camera;
+  }
+  
+  fn get_camera(&self) -> Camera { 
+    self.gl3D.camera.to_owned() 
+  }
 }
 

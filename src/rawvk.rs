@@ -570,7 +570,7 @@ impl RawVk {
     
     let uniform_data = vs_3d::ty::Data {
       transformation: transformation.into(),
-      view : (view * self.vk3d.scale).into(),
+      view : (view /* self.vk3d.scale*/).into(),
       proj : self.vk3d.projection.into(),
       lightpositions: lighting_position.into(),
       lightcolours: lighting_colour.into(),

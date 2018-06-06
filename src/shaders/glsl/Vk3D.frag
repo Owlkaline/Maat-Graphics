@@ -85,7 +85,7 @@ void main() {
     
     float falloff = (clamp_dist*clamp_dist) / (distance*distance+1);
 
-//    float falloff = (clamp(1-(distance/lightRadius)^4)^2)/distance*distance+1;
+    //float falloff = (clamp(1-(distance/lightRadius)^4)^2)/distance*distance+1;
     
     float attenuation = 1.0 / pow(distance, lightType[i]);
     vec3 radiance = lightColour[i] * attenuation; //*falloff; 
