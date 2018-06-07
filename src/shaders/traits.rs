@@ -159,16 +159,35 @@ pub struct Fbo {
   renderbuffer_depth: GLuint,
   renderbuffer_resolvedepth: GLuint,
   
-  multisampled_texture: GLuint,
-  screen_texture: GLuint,
+  ms_colour_attachments: Vec<GLuint>,
+  colour_attachments: Vec<GLuint>,
   
+  hdr: bool,
   samples: i32,
-  depth_enabled: bool,
   dimensions: [i32; 2],
 }
 
 impl Fbo {
-  pub fn new(samples: i32, width: i32, height: i32) -> Fbo {
+  pub fn new(samples: i32, num_colour_attachments: usize, hdr: bool,  width: i32, height: i32) -> Fbo {
+    debug_assert!(num_colour_attachments >= 1);
+    debug_assert!(samples >= 1);
+    debug_assert!(width > 0|| height > 0);
+    
+    let mut num_ms_colour_attachments = num_colour_attachments;
+    if samples < 1 {
+      num_ms_colour_attachments = 0;
+    }
+    
+    let mut ms_colour_attachments = Vec::with_capacity(num_ms_colour_attachments);
+    for i in 0..num_colour_attachments {
+      ms_colour_attachments.push(0);
+    }
+    
+    let mut colour_attachments = Vec::with_capacity(num_colour_attachments);
+    for i in 0..num_colour_attachments {
+      colour_attachments.push(0);
+    }
+    
     Fbo {
       ms_framebuffer: 0,
       framebuffer: 0,
@@ -176,11 +195,11 @@ impl Fbo {
       renderbuffer_depth: 0,
       renderbuffer_resolvedepth: 0,
       
-      multisampled_texture: 0,
-      screen_texture: 0,
+      ms_colour_attachments: ms_colour_attachments,
+      colour_attachments: colour_attachments,
       
+      hdr: hdr,
       samples: samples,
-      depth_enabled: false,
       dimensions: [width, height],
     }
   }
@@ -190,115 +209,92 @@ impl Fbo {
       if self.samples > 1 {
         gl::DeleteFramebuffers(1, &mut self.ms_framebuffer);
         gl::DeleteRenderbuffers(1, &mut self.renderbuffer_depth);
-        gl::DeleteTextures(1, &mut self.multisampled_texture);
+        for i in 0..self.ms_colour_attachments.len() {
+          gl::DeleteTextures(1, &mut self.ms_colour_attachments[i]);
+        }
       }
       
       gl::DeleteFramebuffers(1, &mut self.framebuffer);
       gl::DeleteRenderbuffers(1, &mut self.renderbuffer_resolvedepth);
-      gl::DeleteTextures(1, &mut self.screen_texture);
+      for i in 0..self.colour_attachments.len() {
+        gl::DeleteTextures(1, &mut self.colour_attachments[i]);
+      }
     }
   }
   
-  pub fn is_3d(mut self) -> Self {
-    self.depth_enabled = true;
-    self
-  }
-  
   pub fn init(&mut self) {
+    let mut colour_format = gl::RGBA;
+    let mut byte_type = gl::UNSIGNED_BYTE;
+    if self.hdr {
+      colour_format = gl::RGBA16F;
+      byte_type = gl::FLOAT;
+    }
+    
     unsafe {
-     
       if self.samples > 1 {
-        // Generate objects
+        // Generate multisample objects
         gl::GenFramebuffers(1, &mut self.ms_framebuffer);
         gl::GenRenderbuffers(1, &mut self.renderbuffer_depth);
-        gl::GenTextures(1, &mut self.multisampled_texture);
+        for i in 0..self.ms_colour_attachments.len() {
+          gl::GenTextures(1, &mut self.ms_colour_attachments[i]);
+        }
         
         // Depth renderbuffer
         gl::BindRenderbuffer(gl::RENDERBUFFER, self.renderbuffer_depth);
         gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, gl::DEPTH_COMPONENT, self.dimensions[0], self.dimensions[1]);
         
-        // Multisample texture
-        gl::BindTexture(gl::TEXTURE_2D_MULTISAMPLE, self.multisampled_texture);
-        gl::TexImage2DMultisample(gl::TEXTURE_2D_MULTISAMPLE, self.samples, gl::RGBA as GLuint, self.dimensions[0], self.dimensions[1], gl::TRUE);
+        // Multisample texture attachment
+        for i in 0..self.ms_colour_attachments.len() {
+          gl::BindTexture(gl::TEXTURE_2D_MULTISAMPLE, self.ms_colour_attachments[i]);
+          gl::TexImage2DMultisample(gl::TEXTURE_2D_MULTISAMPLE, self.samples, colour_format as GLuint, self.dimensions[0], self.dimensions[1], gl::TRUE);
+        }
         gl::BindTexture(gl::TEXTURE_2D_MULTISAMPLE, 0);
         
         // Multisample Framebuffer
         gl::BindFramebuffer(gl::FRAMEBUFFER, self.ms_framebuffer);
         gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::RENDERBUFFER, self.renderbuffer_depth);
-        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D_MULTISAMPLE, self.multisampled_texture, 0);
+        
+        for i in 0..self.ms_colour_attachments.len() {
+          gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 + i as u32, gl::TEXTURE_2D_MULTISAMPLE, self.ms_colour_attachments[i], 0);
+        }
         
         opengl_helper::check_framebufferstatus(self.ms_framebuffer);
       }
       
       gl::GenFramebuffers(1, &mut self.framebuffer);
       gl::GenRenderbuffers(1, &mut self.renderbuffer_resolvedepth);
-      gl::GenTextures(1, &mut self.screen_texture);
+      
+      // New colour attachment gen
+      for i in 0..self.colour_attachments.len() {
+        gl::GenTextures(1, &mut self.colour_attachments[i]);
+      }
       
       // Resolve depth renderbuffer
       gl::BindRenderbuffer(gl::RENDERBUFFER, self.renderbuffer_resolvedepth);
       gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH_COMPONENT as GLuint, self.dimensions[0], self.dimensions[1]);
       
-      // Screen texture
-      gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
-      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(0i64));
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
+      // Resolve Texture attachment
+      for i in 0..self.colour_attachments.len() {
+        gl::BindTexture(gl::TEXTURE_2D, self.colour_attachments[i]);
+        gl::TexImage2D(gl::TEXTURE_2D, 0, colour_format as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGBA, byte_type, mem::transmute(0i64));
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
+      }
       gl::BindTexture(gl::TEXTURE_2D, 0);
       
       // Standard Framebuffer
       gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
       gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::RENDERBUFFER, self.renderbuffer_resolvedepth);
-      gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.screen_texture, 0);
       
+      for i in 0..self.colour_attachments.len() {
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 + i as u32, gl::TEXTURE_2D, self.colour_attachments[i], 0);
+      }
       
       gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
       
       opengl_helper::check_framebufferstatus(self.framebuffer);
-      
-      /*
-      let mut total_messages = 0;
-      let mut max_len = 0;
-      let mut severities = 0;
-      let mut messages = 0;
-      
-      gl::GetIntegerv(gl::DEBUG_LOGGED_MESSAGES, &mut total_messages);
-      gl::GetIntegerv(gl::MAX_DEBUG_MESSAGE_LENGTH, &mut max_len);
-      
-      gl::GetDebugMessageLog(10,  max_len * 10, ptr::null() , ptr::null() , ptr::null(), severities , lens , messages);
-      
-      println!("Total messages {}", total_messages);*/
-      
-      
-      
-      //opengl_helper::check_glerror();
-
-    /*  gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.ms_framebuffer);
-      
-      gl::GenTextures(1, &mut self.multisampled_colour_texture);
-      gl::BindTexture(gl::TEXTURE_2D_MULTISAMPLE, self.multisampled_colour_texture);
-      gl::TexImage2DMultisample(gl::TEXTURE_2D_MULTISAMPLE, self.samples, gl::RGBA as GLuint, self.dimensions[0], self.dimensions[1], gl::TRUE);
-      gl::BindTexture(gl::TEXTURE_2D_MULTISAMPLE, 0);
-       gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D_MULTISAMPLE, self.multisampled_colour_texture, 0);
-      
-      gl::BindRenderbuffer(gl::RENDERBUFFER, self.renderbuffer);
-      
-      gl::RenderbufferStorageMultisample(gl::RENDERBUFFER, self.samples, gl::DEPTH24_STENCIL8, self.dimensions[0], self.dimensions[1]);
-      
-      gl::BindRenderbuffer(gl::RENDERBUFFER, 0);
-      gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, self.renderbuffer);
-      
-      gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
-      
-      gl::GenTextures(1, &mut self.screen_texture);
-      gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
-      gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA16F as GLint, self.dimensions[0], self.dimensions[1], 0, gl::RGBA, gl::UNSIGNED_BYTE, mem::transmute(0i64));
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
-      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
-      gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.screen_texture, 0);*/
     }
   }
   
@@ -318,8 +314,7 @@ impl Fbo {
       unsafe {
         gl::BindFramebuffer(gl::READ_FRAMEBUFFER, self.ms_framebuffer);
         gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, self.framebuffer);
-        //gl::BlitFramebuffer(0, 0, self.dimensions[0], self.dimensions[1], self.dimensions[0], self.dimensions[1], 0, 0, gl::COLOR_BUFFER_BIT, gl::NEAREST);
-        gl::BlitFramebuffer(0, 0, self.dimensions[0], self.dimensions[1], 0, 0, self.dimensions[0], self.dimensions[1], gl::COLOR_BUFFER_BIT, gl::NEAREST);
+        gl::BlitFramebuffer(0, 0, self.dimensions[0], self.dimensions[1], 0, 0, self.dimensions[0], self.dimensions[1], gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT, gl::NEAREST);
       }
     }
   }
@@ -335,8 +330,8 @@ impl Fbo {
               .with_scale(-width, -height)
   }
   
-  pub fn get_screen_texture(&self) -> GLuint {
-    self.screen_texture
+  pub fn get_screen_texture(&self, attachment_index: usize) -> GLuint {
+    self.colour_attachments[attachment_index]
   }
   
   pub fn resize(&mut self, width: f32, height: f32) {

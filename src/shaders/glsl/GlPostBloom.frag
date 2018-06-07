@@ -12,7 +12,7 @@ void main() {
   // Convert to grayscale and compute brightness
   float brightness = dot(bloom.rgb, vec3(0.2126, 0.7152, 0.0722));
   
-  if(brightness < 0.5) {
+  if(brightness < 0.95) {
     bloom = vec4(0.0, 0.0, 0.0, 1.0);
   }
   

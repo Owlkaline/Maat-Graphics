@@ -347,6 +347,24 @@ impl Vao {
       gl::BindTexture(gl::TEXTURE_2D, texture);
     }
   }
+  
+  pub fn update_vbo(&mut self, vertices: Vec<GLfloat>) {
+    unsafe {
+      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+      gl::BufferSubData(gl::ARRAY_BUFFER, 0, 
+                        (mem::size_of::<GLuint>()*vertices.len()) as isize,
+                        mem::transmute(&vertices[0]));
+    }
+  }
+  
+  pub fn update_ebo(&mut self, indices: Vec<GLuint>) {
+    unsafe {
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+      gl::BufferSubData(gl::ELEMENT_ARRAY_BUFFER, 0,
+                     (mem::size_of::<GLuint>()*indices.len()) as isize,
+                     mem::transmute(&indices[0]));
+    }
+  }
 }
 
 pub struct GL2D {
@@ -469,10 +487,11 @@ impl RawGl {
         models: HashMap::new(),
         projection: proj_3d,
       },
-      framebuffer: Fbo::new(msaa_samples, width as i32, height as i32),
-      framebuffer_bloom: Fbo::new(1, width as i32, height as i32),
-      framebuffer_blur_ping: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
-      framebuffer_blur_pong: Fbo::new(1, BLUR_DIM as i32, BLUR_DIM as i32),
+      
+      framebuffer: Fbo::new(msaa_samples, 1, false, width as i32, height as i32),
+      framebuffer_bloom: Fbo::new(1, 1, false, width as i32, height as i32),
+      framebuffer_blur_ping: Fbo::new(1, 1, false, BLUR_DIM as i32, BLUR_DIM as i32),
+      framebuffer_blur_pong: Fbo::new(1, 1, false, BLUR_DIM as i32, BLUR_DIM as i32),
       
       view: view,
       scale: scale,
@@ -551,8 +570,8 @@ impl RawGl {
     
     if is_dynamic {
       println!("is dynamic");
-      vao.create_ebo(indicies, gl::STREAM_DRAW);
-      vao.create_vbo(verts, gl::STREAM_DRAW);
+      vao.create_ebo(indicies, gl::DYNAMIC_DRAW);
+      vao.create_vbo(verts, gl::DYNAMIC_DRAW);
     } else {
       vao.create_ebo(indicies, gl::STATIC_DRAW);
       vao.create_vbo(verts, gl::STATIC_DRAW);
@@ -580,12 +599,8 @@ impl RawGl {
     let reference = draw.get_text().clone();
     
     if let Some(custom_vao) = self.gl2D.custom_vao.get_mut(&reference) {
-      custom_vao.cleanup();
-      custom_vao.bind();
-      custom_vao.create_vbo(verts, gl::STREAM_DRAW);
-      custom_vao.create_ebo(index, gl::STREAM_DRAW);
-      custom_vao.set_vertex_attrib(0, 2, 4, 0);
-      custom_vao.set_vertex_attrib(1, 2, 4, 2);
+      custom_vao.update_vbo(verts);
+      custom_vao.update_ebo(index);
     } else {
       println!("Error: custom vao doesnt exist: {:?}", reference);
     }
@@ -810,7 +825,7 @@ impl RawGl {
   }
   
   fn draw_framebuffer(&self, draw: DrawCall, texture: GLuint) {
-    let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);//draw.get_colour();
+    let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);
     let has_texture = 1.0;
     let mut is_blackwhite = 0.0;
     if draw.is_back_and_white() {
@@ -980,43 +995,6 @@ impl CoreRender for RawGl {
     vao.set_vertex_attrib(2, 2, 8, 6);
     
     self.gl3D.models.insert(reference, vao);
-    
-    /*
-    let model = model_data::Loader::load_opengex(location.clone(), texture);
-    
-    let vertex = model.get_verticies();
-    
-    let mut vertices: Vec<GLfloat> = Vec::new();
-    
-    for vertex in model.get_verticies() {
-      vertices.push(vertex.position[0]);
-      vertices.push(vertex.position[1]);
-      vertices.push(vertex.position[2]);
-      
-      vertices.push(vertex.normal[0]);
-      vertices.push(vertex.normal[1]);
-      vertices.push(vertex.normal[2]);
-      
-      vertices.push(vertex.uv[0]);
-      vertices.push(vertex.uv[1]);
-    }
-    
-    let indices = model.get_indices().iter().map( |index| {
-        *index as GLuint
-      }
-    ).collect::<Vec<GLuint>>();
-    
-    let mut vao: Vao = Vao::new();
-    
-    vao.bind();
-    vao.create_ebo(indices, gl::STATIC_DRAW);
-    vao.create_vbo(vertices, gl::STATIC_DRAW);
-    
-    vao.set_vertex_attrib(0, 3, 8, 0);
-    vao.set_vertex_attrib(1, 3, 8, 3);
-    vao.set_vertex_attrib(2, 2, 8, 6);
-    
-    self.gl3D.models.insert(reference, vao);*/
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);
@@ -1245,27 +1223,24 @@ impl CoreRender for RawGl {
     
     self.clear_screen();
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
-    let texture = self.framebuffer.get_screen_texture();
+    let texture = self.framebuffer.get_screen_texture(0);
     self.draw_bloom(draw, texture);
-    //self.framebuffer_bloom.resolve_multisample();
     
     // Horizontal blur
     self.framebuffer_blur_ping.bind();
     
     self.clear_screen();
     let draw = self.framebuffer_bloom.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
-    let texture = self.framebuffer_bloom.get_screen_texture();
+    let texture = self.framebuffer_bloom.get_screen_texture(0);
     self.draw_blur(draw, texture, Vector2::new(1.0, 0.0));
-    //self.framebuffer_blur_ping.resolve_multisample();
     
     // Verticle blur
     self.framebuffer_blur_pong.bind();
     
     self.clear_screen();
     let draw = self.framebuffer_blur_ping.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
-    let texture = self.framebuffer_blur_ping.get_screen_texture();
+    let texture = self.framebuffer_blur_ping.get_screen_texture(0);
     self.draw_blur(draw, texture, Vector2::new(0.0, 1.0));
-    //self.framebuffer_blur_pong.resolve_multisample();
     
     // Final Draw
     self.framebuffer.bind_default();
@@ -1273,8 +1248,8 @@ impl CoreRender for RawGl {
     self.clear_screen();
     
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
-    let base_texture = self.framebuffer.get_screen_texture();
-    let bloom_texture = self.framebuffer_blur_pong.get_screen_texture();
+    let base_texture = self.framebuffer.get_screen_texture(0);
+    let bloom_texture = self.framebuffer_blur_pong.get_screen_texture(0);
     self.draw_final_frame(draw, base_texture, bloom_texture, true);
   }
   
