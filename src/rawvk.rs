@@ -239,8 +239,8 @@ impl CustomRenderpass {
 
 #[derive(Clone)]
 pub struct ModelInfo {
-  location: String,
-  texture: String,
+  directory: String,
+  model_name: String,
 }
 
 pub struct Model {
@@ -404,9 +404,15 @@ impl RawVk {
     let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
     let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
     
-    let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: blur_dim, height: blur_dim}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families()).unwrap();
+    let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: blur_dim, height: blur_dim}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
+          q.supports_graphics()
+        }
+      )).unwrap();
     
-    let blur_upscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: dim[0], height: dim[1]}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families()).unwrap();
+    let blur_upscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: dim[0], height: dim[1]}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
+          q.supports_graphics()
+        }
+      )).unwrap();
     
     RawVk {
       ready: false,
@@ -618,15 +624,15 @@ impl CoreRender for RawVk {
     self.load_texture(reference, texture);
   }
   
-  fn add_model(&mut self, reference: String, location: String, texture: String) {
-    self.model_paths.insert(reference.clone(), ModelInfo {location: location, texture: texture.clone()});
-    self.add_texture(reference, texture);
+  fn add_model(&mut self, reference: String, directory: String, model_name: String) {
+    self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone(), model_name: model_name.clone()});
+    //self.add_texture(reference, texture);
   }
   
-  fn load_model(&mut self, reference: String, location: String, texture: String) {
+  fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
     
-    let model_data = OpengexPaser::new(location.clone());
+    let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
     
     let mut model: Vec<Model> = Vec::with_capacity(model_data.num_nodes());
     
@@ -634,6 +640,13 @@ impl CoreRender for RawVk {
     let normal = model_data.get_normal();
     let uvs = model_data.get_uv();
     let index = model_data.get_index();
+    let textures = model_data.get_texture_names();
+    
+    for i in 0..textures.len() {
+      if textures[i] != "" {
+        self.add_texture(reference.clone(), (directory.clone()+&textures[i]));
+      }
+    }
     
     for i in 0..model_data.num_nodes() {
       
@@ -662,7 +675,7 @@ impl CoreRender for RawVk {
     self.vk3d.models.insert(reference, model);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);
+    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory+&model_name);
   }
   
   fn preload_texture(&mut self, reference: String, location: String) {
@@ -685,13 +698,14 @@ impl CoreRender for RawVk {
       let image = image::open(&location).expect(&("No file or Directory at: ".to_string() + &texture)).to_rgba(); 
       let (width, height) = image.dimensions();
       let image_data = image.into_raw().clone();
-
+      
       vkimage::immutable::ImmutableImage::from_iter(
               image_data.iter().cloned(),
               vkimage::Dimensions::Dim2d { width: width, height: height },
               format::R8G8B8A8Unorm,
                self.window.get_queue()).unwrap()
     };
+    
     self.previous_frame_end = Some(Box::new(tex_future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     self.textures.insert(reference.clone(), texture);
    
@@ -1060,7 +1074,7 @@ impl CoreRender for RawVk {
     let model_paths_clone = self.model_paths.clone();
     
     for (reference, model) in &model_paths_clone {
-      self.load_model(reference.clone(), model.location.clone(), model.texture.clone());
+      self.load_model(reference.clone(), model.directory.clone(), model.model_name.clone());
       
       self.model_paths.remove(reference);
       still_loading = true;
@@ -1136,7 +1150,10 @@ impl CoreRender for RawVk {
       self.ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
       self.ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
       
-      self.vkpost.blur_upscale_attachment = vkimage::StorageImage::with_usage(self.window.get_device(), vkimage::Dimensions::Dim2d { width: dimensions[0], height: dimensions[1]}, format::R8G8B8A8Unorm, dst_usage, self.window.get_queue_ref().family().physical_device().queue_families()).unwrap();
+      self.vkpost.blur_upscale_attachment = vkimage::StorageImage::with_usage(self.window.get_device(), vkimage::Dimensions::Dim2d { width: dimensions[0], height: dimensions[1]}, format::R8G8B8A8Unorm, dst_usage, self.window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
+          q.supports_graphics()
+        }
+      )).unwrap();
       
       let main_renderpass = self.main_renderpass.clone().unwrap();
       self.framebuffers = Some(Arc::new({
@@ -1437,7 +1454,7 @@ impl CoreRender for RawVk {
           }
         }
       }
-      
+      /*
       /*
       * Bloom framebuffer
       */
@@ -1529,8 +1546,8 @@ impl CoreRender for RawVk {
       
       let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(), [0,0,0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
                                              self.vkpost.blur_upscale_attachment.clone(),  [0, 0, 0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0,
-                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");
-      
+                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");*/
+      let build_start = tmp_cmd_buffer.end_render_pass().unwrap();
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       let cb = build_start.begin_render_pass(self.vkpost.final_framebuffer.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::None]).unwrap();
       
@@ -1551,16 +1568,18 @@ impl CoreRender for RawVk {
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.blur_upscale_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
                              .build().unwrap());
       
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
+      println!("before");
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
         .build().unwrap() as AutoCommandBuffer
     };
-  
+    println!("after");
+    
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
       .then_execute(self.window.get_queue(), command_buffer).expect("future")
       .then_swapchain_present(self.window.get_queue(), self.window.get_swapchain(), image_num)

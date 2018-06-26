@@ -45,6 +45,7 @@ pub fn required_extensions() -> InstanceExtensions {
         khr_win32_surface: true,
         mvk_ios_surface: true,
         mvk_macos_surface: true,
+        ext_debug_report: true,
         ..InstanceExtensions::none()
     };
 

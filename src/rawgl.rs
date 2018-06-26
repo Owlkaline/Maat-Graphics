@@ -102,7 +102,6 @@ impl InstancedVao {
   }
   
   pub fn update_vbodata(&self, size: usize, new_data: Vec<GLfloat>) {
-    //self.vbo_data = new_data;
     unsafe {
       gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo[1]);
       gl::BufferSubData(gl::ARRAY_BUFFER, 0, (mem::size_of::<GLfloat>()*size*INSTANCE_DATA_LENGTH) as isize, mem::transmute(&new_data[0]));
@@ -120,9 +119,6 @@ impl InstancedVao {
   
   pub fn unbind(&self) {
     unsafe {
-      for location in self.attrib.clone() {
-        gl::DisableVertexAttribArray(location);
-      }
       gl::BindVertexArray(0);
     }
   }
@@ -204,6 +200,7 @@ impl InstancedVao {
                               ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
       gl::VertexAttribDivisor(location, 1);
       self.attrib.push(location);
+      gl::EnableVertexAttribArray(location);
     }
   }
   
@@ -287,9 +284,9 @@ impl Vao {
   pub fn bind(&self) {
     unsafe {
       gl::BindVertexArray(self.vao);
-      for location in self.attrib.clone() {
+ /*     for location in self.attrib.clone() {
         gl::EnableVertexAttribArray(location);
-      }
+      }*/
     }
   }
   
@@ -331,6 +328,7 @@ impl Vao {
                               (total_size * mem::size_of::<GLfloat>()) as i32,
                               ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
       self.attrib.push(location);
+      gl::EnableVertexAttribArray(location);
     }
   }
   
@@ -1257,14 +1255,6 @@ impl CoreRender for RawGl {
     unsafe {
       gl::UseProgram(0);
       gl::BindVertexArray(0);
-      gl::DisableVertexAttribArray(0 as GLuint);
-      gl::DisableVertexAttribArray(1 as GLuint);
-      gl::DisableVertexAttribArray(2 as GLuint);
-      gl::DisableVertexAttribArray(3 as GLuint);
-      gl::DisableVertexAttribArray(4 as GLuint);
-      gl::DisableVertexAttribArray(5 as GLuint);
-      gl::DisableVertexAttribArray(6 as GLuint);
-      gl::DisableVertexAttribArray(7 as GLuint);
     }
   }
   

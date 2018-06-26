@@ -18,12 +18,17 @@ use vulkano::swapchain::Swapchain;
 use vulkano::swapchain::Surface;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::PresentMode;
-use vulkano::instance::PhysicalDevice;
+
 use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
 use vulkano::swapchain::SwapchainCreationError;
 
 use vulkano::swapchain::CompositeAlpha;
+
+use vulkano::instance;
+use vulkano::instance::PhysicalDevice;
+use vulkano::instance::InstanceExtensions;
+use vulkano::instance::debug::{DebugCallback, MessageTypes};
 
 use std::mem;
 use std::sync::Arc;
@@ -152,8 +157,44 @@ impl VkWindow {
     let instance = {
       // Window specific extensions grabbed from vulkano_win
       let extensions = required_extensions();
-      Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
+      
+      println!("List of Vulkan debugging layers available to use:");
+      let mut layers = instance::layers_list().unwrap();
+      while let Some(l) = layers.next() {
+        println!("\t{}", l.name());
+      }
+      
+      let layer = "VK_LAYER_LUNARG_standard_validation";
+      let layers = None;//vec![&layer];
+      
+      //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
+      Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
     };
+    
+    let all = MessageTypes {
+        error: true,
+        warning: true,
+        performance_warning: true,
+        information: true,
+        debug: true,
+    };
+    
+    let _debug_callback = DebugCallback::new(&instance, all, |msg| {
+        let ty = if msg.ty.error {
+            "error"
+        } else if msg.ty.warning {
+            "warning"
+        } else if msg.ty.performance_warning {
+            "performance_warning"
+        } else if msg.ty.information {
+            "information"
+        } else if msg.ty.debug {
+            "debug"
+        } else {
+            panic!("no-impl");
+        };
+        println!("{} {}: {}", msg.layer_prefix, ty, msg.description);
+    }).ok();
     
    // println!("{}, {}, {}", Limits::max_sampler_allocation_count(&instance), Limits::max_sampler_anisotropy(&instance), Limits::max_descriptor_set_samplers(&instance));
     
@@ -192,7 +233,7 @@ impl VkWindow {
     
     println!("Winit Vulkan Window created");
     
-    let (physical, queue) = {
+    let (physical, queue_family) = {
       let mut found_suitable_device = false;
       
       let mut physical = PhysicalDevice::enumerate(&instance).next().expect("no device available");
@@ -229,7 +270,7 @@ impl VkWindow {
         .. DeviceExtensions::none()
       };
       
-      Device::new(physical, physical.supported_features(), &device_ext, [(queue, 0.5)].iter().cloned()).expect("failed to create device")
+      Device::new(physical, physical.supported_features(), &device_ext, [(queue_family, 0.5)].iter().cloned()).expect("failed to create device")
     };
   
     let queue = queues.next().unwrap();
