@@ -619,9 +619,9 @@ impl CoreRender for RawVk {
     self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
   
-  fn preload_model(&mut self, reference: String, location: String, texture: String) {
-    self.load_model(reference.clone(), location, texture.clone());
-    self.load_texture(reference, texture);
+  fn preload_model(&mut self, reference: String, directory: String, texture: String) {
+    self.load_model(reference.clone(), directory, texture.clone());
+    //self.load_texture(reference, texture);
   }
   
   fn add_model(&mut self, reference: String, directory: String, model_name: String) {
@@ -634,26 +634,28 @@ impl CoreRender for RawVk {
     
     let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
     
-    let mut model: Vec<Model> = Vec::with_capacity(model_data.num_nodes());
+    let mut model: Vec<Model> = Vec::new();
     
     let vertex = model_data.get_vertex();
     let normal = model_data.get_normal();
-    let uvs = model_data.get_uv();
+    let uvs = model_data.get_texcoords();
     let index = model_data.get_index();
-    let textures = model_data.get_texture_names();
+    let textures = model_data.get_diffuse_textures();//model_data.get_textures();
     
+    println!("All Diffuse Textures:");
     for i in 0..textures.len() {
       if textures[i] != "" {
-        self.add_texture(reference.clone(), (directory.clone()+&textures[i]));
+        println!("{}", textures[i]);
+        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i]));
       }
     }
     
-    for i in 0..model_data.num_nodes() {
+    for i in 0..vertex.len() {
       
       let mut vertex3d: Vec<Vertex3d> = Vec::with_capacity(vertex[i].len());
       for j in 0..vertex[i].len() {
         let mut uv = [0.0, 0.0];
-        if uvs[i].len() > j {
+        if uvs.len() > i && uvs[i].len() > j {
           uv = uvs[i][j];
         }
         vertex3d.push(convert_to_vertex3d(vertex[i][j], normal[i][j], uv));
@@ -864,7 +866,7 @@ impl CoreRender for RawVk {
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_3d.main_entry_point(), ())
         .depth_stencil_simple_depth()
-        .cull_mode_front()
+       // .cull_mode_front()
         .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
@@ -1233,27 +1235,29 @@ impl CoreRender for RawVk {
         if draw.is_3d_model() {
           let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone());
           
-          let mut texture: String = String::from(DEFAULT_TEXTURE);
-          if self.textures.contains_key(draw.get_texture()) {
-            texture = draw.get_texture().clone();
-          }
-          if draw.get_texture() == "terrain" {
-           // texture = String::from("oakfloor");
-          }
-          
-          if !self.textures.contains_key(&texture.clone()) {
-            println!("Error: Model texture doesn't exist {}", texture.clone());
-            continue;
-          }
-          
-          let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)
-                .add_buffer(uniform_buffer_subbuffer).unwrap()
-                .add_sampled_image(self.textures.get(&texture).unwrap().clone(), self.sampler.clone()).unwrap()
-                .build().unwrap()
-          );
-          
           if let Some(model) = self.vk3d.models.get(draw.get_texture()) {
             for i in 0..model.len() {
+              
+              let mut texture: String = String::from(DEFAULT_TEXTURE);
+              if self.textures.contains_key(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
+                texture = draw.get_texture().clone() + "diffuse" + &(i.to_string());
+              }
+              
+              if draw.get_texture() == "terrain" {
+               // texture = String::from("oakfloor");
+              }
+              
+              if !self.textures.contains_key(&texture.clone()) {
+                println!("Error: Model texture doesn't exist {}", texture.clone());
+                continue;
+              }
+              
+              let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)
+                    .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
+                    .add_sampled_image(self.textures.get(&texture).unwrap().clone(), self.sampler.clone()).unwrap()
+                    .build().unwrap()
+              );
+              
               let cb = tmp_cmd_buffer;
               
               tmp_cmd_buffer = cb.draw_indexed(
@@ -1573,12 +1577,10 @@ impl CoreRender for RawVk {
       
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
-      println!("before");
       tmp_cmd_buffer.end_render_pass()
         .unwrap()
         .build().unwrap() as AutoCommandBuffer
     };
-    println!("after");
     
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
       .then_execute(self.window.get_queue(), command_buffer).expect("future")

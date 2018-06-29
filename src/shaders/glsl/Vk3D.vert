@@ -24,7 +24,7 @@ layout(set = 0, binding = 0) uniform Data {
 void main() {
     vec4 worldPosition = uniforms.transformation * vec4(position, 1.0);
 
-    v_uv = uv;
+    v_uv = vec2(uv.x, 1.0-uv.y);
     v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
     
     toCameraVector = (inverse(uniforms.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;

@@ -26,7 +26,7 @@ pub struct Settings {
 
 impl Settings {
   pub fn load() -> Settings {
-    let mut vsync = true;
+    let mut vsync = false;
     let mut samples = 1;
     let mut use_vulkan = false;
     let mut is_fullscreen = false;

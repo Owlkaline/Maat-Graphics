@@ -13,6 +13,7 @@ use shaders::Shader3D;
 use shaders::traits::Fbo;
 use graphics;
 use graphics::CoreRender;
+use graphics::DEFAULT_TEXTURE;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
@@ -377,7 +378,7 @@ pub struct GL3D {
   camera: Camera,
   
   shaders: Vec<Box<ShaderFunctions>>,
-  models: HashMap<String, Vao>,
+  models: HashMap<String, Vec<Vao>>,
   projection: Matrix4<f32>,
 }
 
@@ -456,8 +457,8 @@ impl RawGl {
     println!("Current MSAA: x{}\n", msaa_samples);
     
     unsafe {
-      gl::Enable(gl::DEBUG_OUTPUT);
-      gl::DebugMessageCallback(opengl_debug, 0 as *const c_void);
+      //gl::Enable(gl::DEBUG_OUTPUT);
+     // gl::DebugMessageCallback(opengl_debug, 0 as *const c_void);
     }
     
     RawGl {
@@ -611,8 +612,6 @@ impl RawGl {
     }
     
     if self.gl3D.models.contains_key(draw.get_texture()) {
-      let model = self.gl3D.models.get(draw.get_texture()).expect("Invalid model name").clone();
-      
       let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
       let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
       let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
@@ -650,12 +649,6 @@ impl RawGl {
       
       let view = self.gl3D.camera.get_view_matrix();/*self.scale;*///self.view Matrix4::from_angle_y(Deg(180.0))  self.scale;
       
-      let mut texture = String::from(graphics::DEFAULT_TEXTURE);
-      if self.textures.contains_key(draw.get_texture()) {
-        texture = draw.get_texture().clone();
-      }
-      let texture = *self.textures.get(&texture).unwrap();
-      
       self.gl3D.shaders[MODEL].Use();
       self.gl3D.shaders[MODEL].set_mat4(String::from("transformation"), transformation);
       self.gl3D.shaders[MODEL].set_mat4(String::from("view"), view);
@@ -666,8 +659,18 @@ impl RawGl {
       self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
       self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
       
-      model.activate_texture(0, texture);
-      model.draw_indexed(gl::TRIANGLES);
+      if let Some(model) = self.gl3D.models.get(draw.get_texture()) {
+        for i in 0..model.len() {
+          let mut texture: String = String::from(DEFAULT_TEXTURE);
+          if self.textures.contains_key(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
+            texture = draw.get_texture().clone() + "diffuse" + &(i.to_string());
+          }
+          let texture = *self.textures.get(&texture).unwrap();
+          
+          model[i].activate_texture(0, texture);
+          model[i].draw_indexed(gl::TRIANGLES);
+        }
+      }
     } else {
       println!("Error: 3D model not found: {:?}", draw.get_texture());
     }
@@ -937,65 +940,77 @@ impl CoreRender for RawGl {
     self.load_custom_2d_vao(reference, verts, index, true);
   }
   
-  fn preload_model(&mut self, reference: String, location: String, texture: String) {
-    self.load_model(reference.clone(), location, texture.clone());
-    self.load_texture(reference, texture);
+  fn preload_model(&mut self, reference: String, directory: String, texture: String) {
+    self.load_model(reference.clone(), directory, texture.clone());
+    //self.load_texture(reference, texture);
   }
   
-  fn add_model(&mut self, reference: String, location: String, texture: String) {
-    self.model_paths.insert(reference.clone(), ModelInfo {location: location, texture: texture.clone()});
-    self.add_texture(reference, texture);
+  fn add_model(&mut self, reference: String, directory: String, model_name: String) {
+    self.model_paths.insert(reference.clone(), ModelInfo {location: directory, texture: model_name.clone()});
+    //self.add_texture(reference, texture);
   }
   
-  fn load_model(&mut self, reference: String, location: String, texture: String) {
+  fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
-    let model_data = OpengexPaser::new(location.clone());
+    let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
+    
+    let mut model: Vec<Vao> = Vec::new();
     
     let vertex = model_data.get_vertex();
     let normal = model_data.get_normal();
-    let uvs = model_data.get_uv();
+    let uvs = model_data.get_texcoords();
     let index = model_data.get_index();
+    let textures = model_data.get_diffuse_textures();
     
-    let i = 0;
-    
-    let mut vertices: Vec<GLfloat> = Vec::with_capacity(vertex[i].len());
-    for j in 0..vertex[i].len() {
-      let mut uv = [0.0, 0.0];
-      if uvs[i].len() > j {
-        uv = uvs[i][j];
+    for i in 0..textures.len() {
+      if textures[i] != "" {
+        println!("{}", textures[i]);
+        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i]));
       }
-      
-      vertices.push(vertex[i][j][0]);
-      vertices.push(vertex[i][j][1]);
-      vertices.push(vertex[i][j][2]);
-      
-      vertices.push(normal[i][j][0]);
-      vertices.push(normal[i][j][1]);
-      vertices.push(normal[i][j][2]);
-      
-      vertices.push(uv[0]);
-      vertices.push(uv[1]);
     }
     
-    let indices = index[i].iter().map( |index| {
-        *index as GLuint
+    for i in 0..vertex.len() {
+      let mut vertices: Vec<GLfloat> = Vec::with_capacity(vertex[i].len());
+      for j in 0..vertex[i].len() {
+        let mut uv = [0.0, 0.0];
+        if uvs.len() > i && uvs[i].len() > j {
+          uv = uvs[i][j];
+        }
+        
+        vertices.push(vertex[i][j][0]);
+        vertices.push(vertex[i][j][1]);
+        vertices.push(vertex[i][j][2]);
+        
+        vertices.push(normal[i][j][0]);
+        vertices.push(normal[i][j][1]);
+        vertices.push(normal[i][j][2]);
+        
+        vertices.push(uv[0]);
+        vertices.push(uv[1]);
       }
-    ).collect::<Vec<GLuint>>();
+      
+      let indices = index[i].iter().map( |index| {
+          *index as GLuint
+        }
+      ).collect::<Vec<GLuint>>();
+      
+      let mut vao: Vao = Vao::new();
+      
+      vao.bind();
+      vao.create_ebo(indices, gl::STATIC_DRAW);
+      vao.create_vbo(vertices, gl::STATIC_DRAW);
+      
+      vao.set_vertex_attrib(0, 3, 8, 0);
+      vao.set_vertex_attrib(1, 3, 8, 3);
+      vao.set_vertex_attrib(2, 2, 8, 6);
+      
+      model.push(vao);
+    }
     
-    let mut vao: Vao = Vao::new();
-    
-    vao.bind();
-    vao.create_ebo(indices, gl::STATIC_DRAW);
-    vao.create_vbo(vertices, gl::STATIC_DRAW);
-    
-    vao.set_vertex_attrib(0, 3, 8, 0);
-    vao.set_vertex_attrib(1, 3, 8, 3);
-    vao.set_vertex_attrib(2, 2, 8, 6);
-    
-    self.gl3D.models.insert(reference, vao);
+    self.gl3D.models.insert(reference, model);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (total_time*1000f64) as f32, location);
+    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory + &model_name);
   }
  
   fn preload_texture(&mut self, reference: String, location: String) {
