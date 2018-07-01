@@ -302,6 +302,7 @@ pub struct RawVk {
   ready: bool,
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
+  diffuse_colours: HashMap<String, [f32; 3]>,
   texture_paths: HashMap<String, String>,
   model_paths: HashMap<String, ModelInfo>,
   
@@ -418,6 +419,7 @@ impl RawVk {
       ready: false,
       fonts: HashMap::new(),
       textures: HashMap::new(),
+      diffuse_colours: HashMap::new(),
       texture_paths: HashMap::new(),
       model_paths: HashMap::new(),
 
@@ -524,7 +526,7 @@ impl RawVk {
     self.vk2d.uniform_buffer_texture.next(uniform_data).unwrap()
   }
   
-  pub fn create_3d_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>> {
+  pub fn create_3d_subbuffer(&self, draw: DrawCall, diffuse_enabeld: bool, diffuse_colour: [f32; 3]) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>> {
     
     let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
     let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
@@ -572,6 +574,19 @@ impl RawVk {
         Vector4::new(0.0, 0.0, 0.0, -1.0)
       );
     
+    let mut diffuse_alpha = 0.0;
+    if diffuse_enabeld {
+      diffuse_alpha = 1.0;
+    }
+    
+    let diffuse_colour_matrix: Matrix4<f32> = 
+      Matrix4::from_cols(
+        Vector4::new(diffuse_colour[0], diffuse_colour[1], diffuse_colour[2], diffuse_alpha),
+        Vector4::new(1.0, 0.25, 0.25, -1.0),
+        Vector4::new(1.0, 0.0, 0.0, -1.0),
+        Vector4::new(0.0, 0.0, 0.0, -1.0)
+      );
+    
     let view = self.vk3d.camera.get_view_matrix();
     
     let uniform_data = vs_3d::ty::Data {
@@ -581,6 +596,7 @@ impl RawVk {
       lightpositions: lighting_position.into(),
       lightcolours: lighting_colour.into(),
       attenuations: attenuation.into(),
+      diffuse_colour: diffuse_colour_matrix.into(),
     };
 
     self.vk3d.uniform_buffer.next(uniform_data).unwrap()
@@ -591,7 +607,7 @@ impl RawVk {
   }
   
   pub fn create_3d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
-    cgmath::perspective(/*cgmath::Rad(consts::FRAC_PI_4)*/cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.01, 100.0)
+    cgmath::perspective(/*cgmath::Rad(consts::FRAC_PI_4)*/cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.1, 100.0)
   }
   
   pub fn create_depth_buffer(&self) -> Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>> {
@@ -644,9 +660,11 @@ impl CoreRender for RawVk {
     
     println!("All Diffuse Textures:");
     for i in 0..textures.len() {
-      if textures[i] != "" {
-        println!("{}", textures[i]);
-        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i]));
+      if textures[i].0 != "" {
+        println!("{}", textures[i].0);
+        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i].0));
+      } else {
+        self.diffuse_colours.insert(reference.clone() + "diffuse" + &(i.to_string()), textures[i].1);
       }
     }
     
@@ -865,6 +883,7 @@ impl CoreRender for RawVk {
         .triangle_list()
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_3d.main_entry_point(), ())
+        .depth_clamp(true)
         .depth_stencil_simple_depth()
        // .cull_mode_front()
         .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
@@ -1233,14 +1252,20 @@ impl CoreRender for RawVk {
       for draw in draw_calls {
         
         if draw.is_3d_model() {
-          let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone());
-          
           if let Some(model) = self.vk3d.models.get(draw.get_texture()) {
             for i in 0..model.len() {
+              
+              let mut enable_diffuse_colour = false;
+              let mut diffuse_colour = [0.0, 0.0, 0.0];
               
               let mut texture: String = String::from(DEFAULT_TEXTURE);
               if self.textures.contains_key(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
                 texture = draw.get_texture().clone() + "diffuse" + &(i.to_string());
+              } else {
+                enable_diffuse_colour = true;
+                if let Some(colour) = self.diffuse_colours.get(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
+                  diffuse_colour = *colour;
+                }
               }
               
               if draw.get_texture() == "terrain" {
@@ -1251,6 +1276,8 @@ impl CoreRender for RawVk {
                 println!("Error: Model texture doesn't exist {}", texture.clone());
                 continue;
               }
+              
+              let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone(), enable_diffuse_colour, diffuse_colour);
               
               let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)
                     .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()

@@ -11,6 +11,7 @@ layout(location = 3) out vec3 toLightVector[4];
 layout(location = 7) out vec3 lightColour[4];
 layout(location = 11) out vec3 attenuation[4];
 layout(location = 15) out float lightType[4];
+layout(location = 19) out float object_colour[4];
 
 layout(set = 0, binding = 0) uniform Data {
     mat4 transformation;
@@ -19,6 +20,7 @@ layout(set = 0, binding = 0) uniform Data {
     mat4 lightpositions;
     mat4 lightcolours;
     mat4 attenuations;
+    mat4 diffuse_colour;
 } uniforms;
 
 void main() {
@@ -35,6 +37,11 @@ void main() {
       lightType[i]     = uniforms.lightcolours[i].w;
       toLightVector[i] = uniforms.lightpositions[i].xyz - worldPosition.xyz;
     }
+    
+    object_colour[0] = uniforms.diffuse_colour[0].x;
+    object_colour[1] = uniforms.diffuse_colour[0].y;
+    object_colour[2] = uniforms.diffuse_colour[0].z;
+    object_colour[3] = uniforms.diffuse_colour[0].w;
     
     gl_Position = uniforms.proj * uniforms.view * worldPosition;
 }

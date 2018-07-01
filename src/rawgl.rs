@@ -963,9 +963,9 @@ impl CoreRender for RawGl {
     let textures = model_data.get_diffuse_textures();
     
     for i in 0..textures.len() {
-      if textures[i] != "" {
-        println!("{}", textures[i]);
-        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i]));
+      if textures[i].0 != "" {
+        println!("{}", textures[i].0);
+        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i].0));
       }
     }
     

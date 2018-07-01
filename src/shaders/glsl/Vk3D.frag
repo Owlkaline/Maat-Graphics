@@ -7,6 +7,7 @@ layout(location = 3) in vec3 toLightVector[4];
 layout(location = 7) in vec3 lightColour[4];
 layout(location = 11) in vec3 attenuation[4];
 layout(location = 15) in float lightType[4];
+layout(location = 19) in float object_colour[4];
 
 layout(location = 0) out vec4 f_colour;
 
@@ -66,7 +67,10 @@ void main() {
   vec3 N = normalize(v_normal);
   vec3 V = normalize(toCameraVector);
   
-  vec3 base_texture = pow(texture(tex, v_uv).rgb, vec3(2.2));
+  vec3 base_texture = pow(vec3(object_colour[0], object_colour[1], object_colour[2]), vec3(2.2));
+  if (object_colour[3] < 0.5) {
+    base_texture = pow(texture(tex, v_uv).rgb, vec3(2.2));
+  }
   
   vec3 F0 = vec3(0.04);
   F0 = mix(F0, base_texture, metallic);
