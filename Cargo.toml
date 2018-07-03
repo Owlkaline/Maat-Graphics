@@ -4,7 +4,7 @@ version = "0.2.0"
 authors = ["Lilith645 <lilith@inet-sys.com>"]
 
 [dependencies]
-opengex_parser = {path = "../opengex_parser"}
+opengex_parser = {path = "opengex_parser"}
 cgmath = "*"
 gl = "0.6.0"
 image = "*"

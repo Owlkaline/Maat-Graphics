@@ -1,0 +1,3 @@
+[submodule "opengex_parser"]
+	path = opengex_parser
+	url = https://github.com/lilith645/opengex_parser
