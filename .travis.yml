@@ -1,0 +1,16 @@
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update                 ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update                               ; fi
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+os:
+  - linux
+  - windows
+  - osx
+matrix:
+  allow_failures:
+    - rust: nightly
+    - os: osx
