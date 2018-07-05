@@ -98,7 +98,9 @@
 //! 
 //! 
 //! 
-extern crate opengex_parser;
+extern crate gltf;
+//extern crate gltf_importer;
+extern crate base64;
 
 extern crate glutin;
 extern crate gl;
@@ -121,6 +123,7 @@ pub mod camera;
 pub mod rawgl;
 pub mod rawvk;
 pub mod math;
+mod gltf_interpreter;
 mod font;
 mod window;
 mod shaders;

@@ -13,6 +13,26 @@ layout(location = 0) out vec4 f_colour;
 
 layout(set = 0, binding = 1) uniform sampler2D tex;
 
+layout(set = 1, binding = 0) uniform MaterialParams {
+    vec4 base_colour_factor;
+    int base_color_texture_tex_coord;
+    float metallic_factor;
+    float roughness_factor;
+   // int metallic_roughness_texture_tex_coord;
+    float normal_texture_scale;
+    //int normal_texture_tex_coord;
+   // int occlusion_texture_tex_coord;
+    float occlusion_texture_strength;
+   // int emissive_texture_tex_coord;
+    vec3 emissive_factor;
+} u_material_params;
+
+layout(set = 1, binding = 1) uniform sampler2D u_base_color;
+/*layout(set = 1, binding = 2) uniform sampler2D u_metallic_roughness;
+layout(set = 1, binding = 3) uniform sampler2D u_normal_texture;
+layout(set = 1, binding = 4) uniform sampler2D u_occlusion_texture;
+layout(set = 1, binding = 5) uniform sampler2D u_emissive_texture;*/
+
 // https://freepbr.com/
 // Start Cell shading
 // float levels = 4.0;
@@ -67,9 +87,15 @@ void main() {
   vec3 N = normalize(v_normal);
   vec3 V = normalize(toCameraVector);
   
-  vec3 base_texture = pow(vec3(object_colour[0], object_colour[1], object_colour[2]), vec3(2.2));
-  if (object_colour[3] < 0.5) {
-    base_texture = pow(texture(tex, v_uv).rgb, vec3(2.2));
+  //vec3 base_texture = pow(vec3(object_colour[0], object_colour[1], object_colour[2]), vec3(2.2));
+  //if (object_colour[3] < 0.5) {
+  //  base_texture = pow(texture(u_base_color, v_uv).rgb, vec3(2.2));
+  //}
+  
+  vec3 base_texture = pow(vec3(u_material_params.base_colour_factor.x, u_material_params.base_colour_factor.y, 
+                          u_material_params.base_colour_factor.z), vec3(2.2));
+  if (u_material_params.base_color_texture_tex_coord == 0) {
+    base_texture = pow(texture(u_base_color, v_uv).rgb, vec3(2.2));
   }
   
   vec3 F0 = vec3(0.04);

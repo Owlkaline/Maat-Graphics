@@ -17,7 +17,7 @@ use graphics::DEFAULT_TEXTURE;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
-use opengex_parser::OpengexPaser;
+//use opengex_parser::OpengexPaser;
 
 use cgmath;
 use cgmath::Deg;
@@ -952,7 +952,7 @@ impl CoreRender for RawGl {
   
   fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
-    let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
+    /*let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
     
     let mut model: Vec<Vao> = Vec::new();
     
@@ -1008,7 +1008,7 @@ impl CoreRender for RawGl {
     }
     
     self.gl3D.models.insert(reference, model);
-    
+    */
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory + &model_name);
   }

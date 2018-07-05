@@ -9,7 +9,7 @@ use graphics::Vertex3d;
 use graphics::CoreRender;
 use settings::Settings;
 use camera::Camera;
-use opengex_parser::OpengexPaser;
+use gltf_interpreter::ModelDetails;
 use helperfunctions::convert_to_vertex3d;
 use helperfunctions::vulkan_2d;
 use helperfunctions::vulkan_3d;
@@ -56,6 +56,7 @@ use vulkano::format::ClearValue;
 use vulkano::image::ImmutableImage;
 use vulkano::descriptor;
 use vulkano::descriptor::descriptor_set;
+use vulkano::descriptor::descriptor_set::DescriptorSet;
 use vulkano::descriptor::pipeline_layout;
 use vulkano::swapchain::SwapchainCreationError;
 
@@ -253,6 +254,12 @@ pub struct DynamicModel {
   pub index_buffer: Option<Arc<CpuAccessibleBuffer<[u32]>>>
 }
 
+pub struct Mesh {
+  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
+  material_desctriptor: Arc<DescriptorSet + Send + Sync>,
+}
+
 pub struct VK2D {
   vao: Model,
   custom_vao: HashMap<String, Model>,
@@ -269,7 +276,7 @@ pub struct VK2D {
 pub struct VK3D {
   depth_buffer: Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>>,
   
-  models: HashMap<String, Vec<Model>>,
+  models: HashMap<String, Vec<Mesh>>,
   
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   
@@ -648,15 +655,160 @@ impl CoreRender for RawVk {
   fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
     
-    let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
+    let mesh_data = ModelDetails::new();//new(directory.clone()+&model_name.clone());
     
-    let mut model: Vec<Model> = Vec::new();
+    let mut mesh: Vec<Mesh> = Vec::new();
     
+    let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
+    let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
+      base_colour_factor: [0.0, 0.0, 0.0, 0.0],
+      base_color_texture_tex_coord: -1,
+      metallic_factor: 0.0,
+      roughness_factor: 0.0,
+      normal_texture_scale: 0.0,
+      occlusion_texture_strength: 0.0,
+      emissive_factor: [0.0, 0.0, 0.0],
+      _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
+    }).unwrap();
+       
+    let sampler = sampler::Sampler::new(self.window.get_device(), sampler::Filter::Linear,
+                                        sampler::Filter::Linear, 
+                                        sampler::MipmapMode::Nearest,
+                                        sampler::SamplerAddressMode::ClampToEdge,
+                                        sampler::SamplerAddressMode::ClampToEdge,
+                                        sampler::SamplerAddressMode::ClampToEdge,
+                                        0.0, 1.0, 0.0, 0.0).unwrap();
+    
+    let (temp_tex, _) = vkimage::immutable::ImmutableImage::from_iter([0u8, 0u8, 0u8, 0u8].iter().cloned(),
+                                            vkimage::Dimensions::Dim2d { width: 1, height: 1 },
+                                            format::R8G8B8A8Unorm, self.window.get_queue())
+                                            .expect("Failed to create immutable image");
+    
+    let default_descriptor_set =
+      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
+              .add_buffer(material_params)
+              .unwrap()
+              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .unwrap()
+              //.add_sampled_image(metallic_roughness.0, metallic_roughness.1)
+              //.unwrap()
+              //.add_sampled_image(normal_texture.0, normal_texture.1)
+              //.unwrap()
+              //.add_sampled_image(occlusion_texture.0, occlusion_texture.1)
+              //.unwrap()
+              //.add_sampled_image(emissive_texture.0, emissive_texture.1)
+              //.unwrap()
+              .build().unwrap());
+    
+    for i in 0..mesh_data.num_models() {
+      mesh.push(Mesh {
+        vertex_buffer: None,
+        index_buffer: None,
+        material_desctriptor: default_descriptor_set.clone(),
+      });
+      
+      let vertex = mesh_data.vertex(i);
+      let texcoord = mesh_data.texcoords(i);
+      let normal = mesh_data.normal(i);
+      let index = mesh_data.index(i);
+      
+      let mut vertices: Vec<Vertex3d> = Vec::with_capacity(vertex.len());
+      for j in 0..vertex.len() {
+        let mut uv = [0.0, 0.0];
+        if texcoord.len() > j {
+          uv = texcoord[j];
+        }
+        vertices.push(Vertex3d { position: vertex[j], normal: normal[j], uv: uv });
+      }
+      
+      let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), index.iter().cloned());
+      mesh[i].vertex_buffer = Some(vec!(vulkan_3d::create_vertex(self.window.get_device(), vertices.iter().cloned())));
+      mesh[i].index_buffer = Some(idx_3d_buffer);
+      
+            
+      self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+      
+      let base_colour = mesh_data.base_colour(i);
+      let mut has_texture = -1;
+      
+      use image::DynamicImage::ImageRgba8;
+      let base_colour_texture: Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>> = {
+        let mut texture = temp_tex.clone();
+        
+        if let Some(ImageRgba8(texture_img)) = mesh_data.base_colour_texture(i) {
+          let dim = texture_img.dimensions();
+          let image_data = texture_img.into_raw().clone();
+          
+          let (buf, future) = vkimage::immutable::ImmutableImage::from_iter(
+            image_data.iter().cloned(),
+            vkimage::Dimensions::Dim2d { width: dim.0, height: dim.1 },
+            format::R8G8B8A8Unorm,
+            self.window.get_queue()).unwrap();
+            
+          self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+          
+          has_texture = 0;
+          texture = buf;
+        }
+        Some(texture)
+      };
+      
+     // let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
+      let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
+         base_colour_factor: mesh_data.base_colour(i),
+         base_color_texture_tex_coord: has_texture,
+         metallic_factor: mesh_data.metallic_factor(i),
+         roughness_factor: mesh_data.roughness_factor(i),
+         normal_texture_scale: mesh_data.normal_texture_scale(i),
+         occlusion_texture_strength: mesh_data.occlusion_texture_strength(i),
+         emissive_factor: mesh_data.emissive_factor(i),
+         _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
+       }).unwrap();
+       /*
+       let sampler = sampler::Sampler::new(self.window.get_device(), sampler::Filter::Linear,
+                                           sampler::Filter::Linear, 
+                                           sampler::MipmapMode::Nearest,
+                                           sampler::SamplerAddressMode::ClampToEdge,
+                                           sampler::SamplerAddressMode::ClampToEdge,
+                                           sampler::SamplerAddressMode::ClampToEdge,
+                                           0.0, 1.0, 0.0, 0.0).unwrap();*/
+       
+       
+       let descriptor_set =
+         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
+              .add_buffer(material_params)
+              .unwrap()
+              .add_sampled_image(base_colour_texture.unwrap(), sampler.clone())
+              .unwrap()
+              //.add_sampled_image(metallic_roughness.0, metallic_roughness.1)
+              //.unwrap()
+              //.add_sampled_image(normal_texture.0, normal_texture.1)
+              //.unwrap()
+              //.add_sampled_image(occlusion_texture.0, occlusion_texture.1)
+              //.unwrap()
+              //.add_sampled_image(emissive_texture.0, emissive_texture.1)
+              //.unwrap()
+              .build().unwrap());
+              
+        mesh[i].material_desctriptor = descriptor_set;
+    }
+    /*
+    image.dimensions();
+      let image_data = image.into_raw().clone();
+      
+      vkimage::immutable::ImmutableImage::from_iter(
+              image_data.iter().cloned(),
+              vkimage::Dimensions::Dim2d { width: width, height: height },
+              format::R8G8B8A8Unorm,
+               self.window.get_queue()).unwrap()
+    };*/
+    
+    /*
     let vertex = model_data.get_vertex();
     let normal = model_data.get_normal();
     let uvs = model_data.get_texcoords();
     let index = model_data.get_index();
-    let textures = model_data.get_diffuse_textures();//model_data.get_textures();
+    //let textures = model_data.get_diffuse_textures();//model_data.get_textures();
     
     println!("All Diffuse Textures:");
     for i in 0..textures.len() {
@@ -691,8 +843,9 @@ impl CoreRender for RawVk {
       
       self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     }
+    */
     
-    self.vk3d.models.insert(reference, model);
+    self.vk3d.models.insert(reference, mesh);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory+&model_name);
@@ -1044,13 +1197,14 @@ impl CoreRender for RawVk {
     
     let vert3d_buffer = vulkan_3d::create_vertex(self.window.get_device(), vertex.iter().cloned());
     let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), indices.iter().cloned()); 
-    
-    let model = Model {
+    /*
+    let model = Mesh {
       vertex_buffer: Some(vec!(vert3d_buffer)),
       index_buffer: Some(idx_3d_buffer),
-    };
+      material_desctriptor: None,
+    };*/
     
-    self.vk3d.models.insert(String::from("terrain"), vec!(model));
+   // self.vk3d.models.insert(String::from("terrain"), vec!(model));
     
     self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
@@ -1285,6 +1439,8 @@ impl CoreRender for RawVk {
                     .build().unwrap()
               );
               
+              let material_set = model[i].material_desctriptor.clone();
+              
               let cb = tmp_cmd_buffer;
               
               tmp_cmd_buffer = cb.draw_indexed(
@@ -1300,7 +1456,7 @@ impl CoreRender for RawVk {
                     },
                     model[i].vertex_buffer.clone().unwrap(),
                     model[i].index_buffer.clone().unwrap(), 
-                    set_3d.clone(), ()).unwrap();
+                    (set_3d.clone(), material_set.clone()), ()).unwrap();
             }
           } else {
             println!("Error: Model {} doesn't exist", draw.get_texture());
