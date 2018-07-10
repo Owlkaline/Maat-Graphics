@@ -11,12 +11,15 @@ use settings::Settings;
 use camera::Camera;
 use gltf_interpreter::ModelDetails;
 use helperfunctions::convert_to_vertex3d;
-use helperfunctions::vulkan_2d;
-use helperfunctions::vulkan_3d;
-//use model_data;
+use vulkan::vulkan_2d;
+use vulkan::vulkan_3d;
+use vulkan::vulkan_draw;
+use vulkan::vulkan_helper;
+use vulkan::renderpass::CustomRenderpass;
 
 use image;
 use winit;
+use winit::dpi::LogicalSize;
 
 use vulkano::image as vkimage;
 use vulkano::sampler;
@@ -84,14 +87,12 @@ use cgmath::SquareMatrix;
 use cgmath::Rotation3;
 use cgmath::InnerSpace;
 
-use helperfunctions::vulkan_helper;
-
 impl_vertex!(Vertex2d, position, uv);
 impl_vertex!(Vertex3d, position, normal, uv);
 
 pub const blur_dim: u32 = 512;
 
-mod vs_texture {
+pub mod vs_texture {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkTexture.vert"]
@@ -105,7 +106,7 @@ mod fs_texture {
   struct Dummy;
 }
 
-mod vs_text {
+pub mod vs_text {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkText.vert"]
@@ -119,7 +120,7 @@ mod fs_text {
   struct Dummy;
 }
 
-mod vs_3d {
+pub mod vs_3d {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/Vk3D.vert"]
@@ -175,69 +176,6 @@ mod fs_post_final {
   struct Dummy;
 }
 
-pub struct CustomRenderpass {
-  renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
-  pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
-  attachment: Arc<vkimage::AttachmentImage>,
-}
-
-impl CustomRenderpass {
-  pub fn new(attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
-    CustomRenderpass {
-      renderpass: None,
-      pipeline: None,
-      framebuffer: None,
-      attachment: attachment,
-    }
-  }
-  
-  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
-    CustomRenderpass {
-      renderpass: Some(renderpass),
-      pipeline: Some(pipeline),
-      framebuffer: None,
-      attachment: attachment,
-    }
-  }
-  
-  pub fn renderpass(&self) -> Arc<RenderPassAbstract + Send + Sync> {
-    self.renderpass.clone().unwrap()
-  }
-  
-  pub fn pipeline(&self) -> Arc<GraphicsPipelineAbstract + Send + Sync> {
-    self.pipeline.clone().unwrap()
-  }
-  
-  pub fn framebuffer(&self) -> Arc<framebuffer::FramebufferAbstract + Send + Sync> {
-    self.framebuffer.clone().unwrap()
-  }
-  
-  pub fn framebuffer_ref(&self) -> Arc<framebuffer::FramebufferAbstract + Send + Sync> {
-    self.framebuffer.as_ref().unwrap().clone()
-  }
-  
-  pub fn attachment(&self) -> Arc<vkimage::AttachmentImage> {
-    self.attachment.clone()
-  }
-  
-  pub fn set_renderpass(&mut self, renderpass: Arc<RenderPassAbstract + Send + Sync>) {
-    self.renderpass = Some(renderpass);
-  }
-  
-  pub fn set_pipeline(&mut self, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>) {
-    self.pipeline = Some(pipeline);
-  }
-  
-  pub fn set_framebuffer(&mut self, framebuffer: Arc<framebuffer::FramebufferAbstract + Send + Sync>) {
-    self.framebuffer = Some(framebuffer);
-  }
-  
-  pub fn set_attachment(&mut self, attachment: Arc<vkimage::AttachmentImage>) {
-    self.attachment = attachment;
-  }
-}
-
 #[derive(Clone)]
 pub struct ModelInfo {
   directory: String,
@@ -255,9 +193,9 @@ pub struct DynamicModel {
 }
 
 pub struct Mesh {
-  vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
-  index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
-  material_desctriptor: Arc<DescriptorSet + Send + Sync>,
+  pub vertex_buffer: Option<Vec<Arc<BufferAccess + Send + Sync>>>,
+  pub index_buffer: Option<Arc<ImmutableBuffer<[u32]>>>,
+  pub material_desctriptor: Arc<DescriptorSet + Send + Sync>,
 }
 
 pub struct VK2D {
@@ -271,6 +209,8 @@ pub struct VK2D {
   
   pipeline_text: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   uniform_buffer_text: cpu_pool::CpuBufferPool<vs_text::ty::Data>,
+  
+  sampler: Arc<sampler::Sampler>,
 }
 
 pub struct VK3D {
@@ -334,7 +274,6 @@ pub struct RawVk {
   // Vk System stuff
   min_dimensions: [u32; 2],
   pub window: VkWindow,
-  sampler: Arc<sampler::Sampler>,
   
   recreate_swapchain: bool,
   
@@ -349,8 +288,8 @@ impl RawVk {
     println!("Forcing x11");
     
     let mut settings = Settings::load();
-    let width = settings.get_resolution()[0];
-    let height = settings.get_resolution()[1];
+    let width = settings.get_resolution()[0] as f64;
+    let height = settings.get_resolution()[1] as f64;
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     let fullscreen = settings.is_fullscreen();
@@ -403,6 +342,7 @@ impl RawVk {
     };
     
     let dim = window.get_dimensions();
+    let dim = [dim.width as u32, dim.height as u32];
     let fullcolour_attachment = vkimage::AttachmentImage::sampled(window.get_device(), dim, format::Format::R16G16B16A16Unorm).unwrap();
     let bloom_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), dim, format::Format::R16G16B16A16Unorm, src_usage).unwrap();
     
@@ -471,6 +411,8 @@ impl RawVk {
         
         pipeline_text: None,
         uniform_buffer_text: text_uniform,
+        
+        sampler: sampler,
       },
       
       // Post Processing
@@ -494,8 +436,7 @@ impl RawVk {
       // Vk System
       min_dimensions: [min_width, min_height],
       window: window,
-      sampler: sampler,
-
+      
       recreate_swapchain: false,
       
       previous_frame_end: previous_frame_end,
@@ -505,124 +446,6 @@ impl RawVk {
   pub fn with_title(mut self, title: String) -> RawVk {
     self.window.set_title(title);
     self
-  }
-  
-  pub fn create_texture_subbuffer(&self, draw: DrawCall) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data,
-                                                                      Arc<memory::pool::StdMemoryPool>> {
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
-    
-    let has_texture = {
-      let mut value = 1.0;
-      if draw.get_texture() == &String::from("") {
-        value = 0.0;
-      }
-      value
-    };
-    
-    let mut bw: f32 = 0.0;
-    if draw.is_back_and_white() {
-      bw = 1.0;
-    }
-    
-    let uniform_data = vs_texture::ty::Data {
-      projection: self.vk2d.projection.into(),
-      model: model.into(),
-      colour: draw.get_colour().into(),
-      has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
-    };
-    self.vk2d.uniform_buffer_texture.next(uniform_data).unwrap()
-  }
-  
-  pub fn create_3d_subbuffer(&self, draw: DrawCall, diffuse_enabeld: bool, diffuse_colour: [f32; 3]) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>> {
-    
-    let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
-    let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
-    let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
-         
-    let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation())* cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
-    
-    let point_light = 2.0;
-    let directional_light = 0.0;
-    let metallic = 1.0;
-    let roughness = 1.0;
-    
-    let lighting_position: Matrix4<f32> =
-      Matrix4::from_cols(
-        // (x, y, z, n/a)
-        Vector4::new(0.0, -0.6, 25.0, -1.0),
-        Vector4::new(7.0, -0.6, 25.0, -1.0),
-        Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    let reflectivity = {
-      let mut temp = 1.0;
-      if draw.get_texture() == "terrain" {
-        temp = 0.0;
-      }
-      temp
-    };
-    
-    let lighting_colour: Matrix4<f32> =
-      // (R, G, B, light type)
-      Matrix4::from_cols(
-        Vector4::new(0.0, 0.0, 1.0, point_light), // blue light
-        Vector4::new(1.0, 0.0, 0.0, point_light),  // red light
-        Vector4::new(0.4, 0.4, 0.4, directional_light), //sun
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    // (Intensity, 1)
-    let attenuation: Matrix4<f32> =
-      Matrix4::from_cols(
-        Vector4::new(1.0, 0.25, 0.25, -1.0),
-        Vector4::new(1.0, 0.25, 0.25, -1.0),
-        Vector4::new(1.0, 0.0, 0.0, -1.0),
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    let mut diffuse_alpha = 0.0;
-    if diffuse_enabeld {
-      diffuse_alpha = 1.0;
-    }
-    
-    let diffuse_colour_matrix: Matrix4<f32> = 
-      Matrix4::from_cols(
-        Vector4::new(diffuse_colour[0], diffuse_colour[1], diffuse_colour[2], diffuse_alpha),
-        Vector4::new(1.0, 0.25, 0.25, -1.0),
-        Vector4::new(1.0, 0.0, 0.0, -1.0),
-        Vector4::new(0.0, 0.0, 0.0, -1.0)
-      );
-    
-    let view = self.vk3d.camera.get_view_matrix();
-    
-    let uniform_data = vs_3d::ty::Data {
-      transformation: transformation.into(),
-      view : (view /* self.vk3d.scale*/).into(),
-      proj : self.vk3d.projection.into(),
-      lightpositions: lighting_position.into(),
-      lightcolours: lighting_colour.into(),
-      attenuations: attenuation.into(),
-      diffuse_colour: diffuse_colour_matrix.into(),
-    };
-
-    self.vk3d.uniform_buffer.next(uniform_data).unwrap()
-  }
-  
-  pub fn create_2d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
-    cgmath::ortho(0.0, width, height, 0.0, -1.0, 1.0)
-  }
-  
-  pub fn create_3d_projection(&self, width: f32, height: f32) -> Matrix4<f32> {
-    cgmath::perspective(/*cgmath::Rad(consts::FRAC_PI_4)*/cgmath::Deg(45.0), { width as f32 / height as f32 }, 0.1, 100.0)
-  }
-  
-  pub fn create_depth_buffer(&self) -> Option<Arc<vkimage::AttachmentImage<format::D16Unorm>>> {
-    Some(vkimage::attachment::AttachmentImage::transient(
-                                self.window.get_device().clone(),
-                                self.window.get_dimensions(),
-                                format::D16Unorm)
-                                .unwrap())
   }
 }
 
@@ -644,30 +467,32 @@ impl CoreRender for RawVk {
   
   fn preload_model(&mut self, reference: String, directory: String, texture: String) {
     self.load_model(reference.clone(), directory, texture.clone());
-    //self.load_texture(reference, texture);
   }
   
   fn add_model(&mut self, reference: String, directory: String, model_name: String) {
     self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone(), model_name: model_name.clone()});
-    //self.add_texture(reference, texture);
   }
   
   fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
     
-    let mesh_data = ModelDetails::new();//new(directory.clone()+&model_name.clone());
+    let mesh_data = ModelDetails::new(directory.clone()+&model_name.clone());
     
     let mut mesh: Vec<Mesh> = Vec::new();
     
     let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
     let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
       base_colour_factor: [0.0, 0.0, 0.0, 0.0],
-      base_color_texture_tex_coord: -1,
+      base_colour_texture_tex_coord: -1,
       metallic_factor: 0.0,
       roughness_factor: 0.0,
+      metallic_roughness_texture_tex_coord: -1,
       normal_texture_scale: 0.0,
+      normal_texture_tex_coord: -1,
       occlusion_texture_strength: 0.0,
+      occlusion_texture_tex_coord: -1,
       emissive_factor: [0.0, 0.0, 0.0],
+      emissive_texture_tex_coord: -1,
       _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
     }).unwrap();
        
@@ -690,14 +515,14 @@ impl CoreRender for RawVk {
               .unwrap()
               .add_sampled_image(temp_tex.clone(), sampler.clone())
               .unwrap()
-              //.add_sampled_image(metallic_roughness.0, metallic_roughness.1)
-              //.unwrap()
-              //.add_sampled_image(normal_texture.0, normal_texture.1)
-              //.unwrap()
-              //.add_sampled_image(occlusion_texture.0, occlusion_texture.1)
-              //.unwrap()
-              //.add_sampled_image(emissive_texture.0, emissive_texture.1)
-              //.unwrap()
+              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .unwrap()
+              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .unwrap()
+              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .unwrap()
+              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .unwrap()
               .build().unwrap());
     
     for i in 0..mesh_data.num_models() {
@@ -711,10 +536,16 @@ impl CoreRender for RawVk {
       let texcoord = mesh_data.texcoords(i);
       let normal = mesh_data.normal(i);
       let index = mesh_data.index(i);
+      let mut base_colour_texture = (temp_tex.clone(), -1);
+      let mut metallic_roughness_texture = (temp_tex.clone(), -1);
+      let mut normal_texture = (temp_tex.clone(), -1);
+      let mut occlusion_texture = (temp_tex.clone(), -1);
+      let mut emissive_texture = (temp_tex.clone(), -1);
+      
       
       let mut vertices: Vec<Vertex3d> = Vec::with_capacity(vertex.len());
       for j in 0..vertex.len() {
-        let mut uv = [0.0, 0.0];
+        let mut uv = [1.0, 1.0];
         if texcoord.len() > j {
           uv = texcoord[j];
         }
@@ -724,44 +555,63 @@ impl CoreRender for RawVk {
       let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), index.iter().cloned());
       mesh[i].vertex_buffer = Some(vec!(vulkan_3d::create_vertex(self.window.get_device(), vertices.iter().cloned())));
       mesh[i].index_buffer = Some(idx_3d_buffer);
-      
             
       self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
       
       let base_colour = mesh_data.base_colour(i);
-      let mut has_texture = -1;
+      let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.base_colour_texture(i));
+      if future_texture.is_some() {
+        let (texture, future) = future_texture.unwrap();
+        self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+
+        base_colour_texture = (texture, 0);
+      }
       
-      use image::DynamicImage::ImageRgba8;
-      let base_colour_texture: Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>> = {
-        let mut texture = temp_tex.clone();
-        
-        if let Some(ImageRgba8(texture_img)) = mesh_data.base_colour_texture(i) {
-          let dim = texture_img.dimensions();
-          let image_data = texture_img.into_raw().clone();
-          
-          let (buf, future) = vkimage::immutable::ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            vkimage::Dimensions::Dim2d { width: dim.0, height: dim.1 },
-            format::R8G8B8A8Unorm,
-            self.window.get_queue()).unwrap();
-            
-          self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-          
-          has_texture = 0;
-          texture = buf;
-        }
-        Some(texture)
-      };
+      let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.metallic_roughness_texture(i));
+      if future_texture.is_some() {
+        let (texture, future) = future_texture.unwrap();
+        self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+
+        metallic_roughness_texture = (texture, 0);
+      }
+      
+      let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.normal_texture(i));
+      if future_texture.is_some() {
+        let (texture, future) = future_texture.unwrap();
+        self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+
+        normal_texture = (texture, 0);
+      }
+      
+      let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.occlusion_texture(i));
+      if future_texture.is_some() {
+        let (texture, future) = future_texture.unwrap();
+        self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+
+        occlusion_texture = (texture, 0);
+      }
+      
+      let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.emissive_texture(i));
+      if future_texture.is_some() {
+        let (texture, future) = future_texture.unwrap();
+        self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+
+        emissive_texture = (texture, 0);
+      }
       
      // let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
       let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
          base_colour_factor: mesh_data.base_colour(i),
-         base_color_texture_tex_coord: has_texture,
+         base_colour_texture_tex_coord: base_colour_texture.1,
          metallic_factor: mesh_data.metallic_factor(i),
          roughness_factor: mesh_data.roughness_factor(i),
+         metallic_roughness_texture_tex_coord: metallic_roughness_texture.1,
          normal_texture_scale: mesh_data.normal_texture_scale(i),
+         normal_texture_tex_coord: normal_texture.1,
          occlusion_texture_strength: mesh_data.occlusion_texture_strength(i),
+         occlusion_texture_tex_coord: occlusion_texture.1,
          emissive_factor: mesh_data.emissive_factor(i),
+         emissive_texture_tex_coord: emissive_texture.1,
          _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
        }).unwrap();
        /*
@@ -778,72 +628,20 @@ impl CoreRender for RawVk {
          Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
               .add_buffer(material_params)
               .unwrap()
-              .add_sampled_image(base_colour_texture.unwrap(), sampler.clone())
+              .add_sampled_image(base_colour_texture.0, sampler.clone())
               .unwrap()
-              //.add_sampled_image(metallic_roughness.0, metallic_roughness.1)
-              //.unwrap()
-              //.add_sampled_image(normal_texture.0, normal_texture.1)
-              //.unwrap()
-              //.add_sampled_image(occlusion_texture.0, occlusion_texture.1)
-              //.unwrap()
-              //.add_sampled_image(emissive_texture.0, emissive_texture.1)
-              //.unwrap()
+              .add_sampled_image(metallic_roughness_texture.0, sampler.clone())
+              .unwrap()
+              .add_sampled_image(normal_texture.0, sampler.clone())
+              .unwrap()
+              .add_sampled_image(occlusion_texture.0, sampler.clone())
+              .unwrap()
+              .add_sampled_image(emissive_texture.0, sampler.clone())
+              .unwrap()
               .build().unwrap());
               
         mesh[i].material_desctriptor = descriptor_set;
     }
-    /*
-    image.dimensions();
-      let image_data = image.into_raw().clone();
-      
-      vkimage::immutable::ImmutableImage::from_iter(
-              image_data.iter().cloned(),
-              vkimage::Dimensions::Dim2d { width: width, height: height },
-              format::R8G8B8A8Unorm,
-               self.window.get_queue()).unwrap()
-    };*/
-    
-    /*
-    let vertex = model_data.get_vertex();
-    let normal = model_data.get_normal();
-    let uvs = model_data.get_texcoords();
-    let index = model_data.get_index();
-    //let textures = model_data.get_diffuse_textures();//model_data.get_textures();
-    
-    println!("All Diffuse Textures:");
-    for i in 0..textures.len() {
-      if textures[i].0 != "" {
-        println!("{}", textures[i].0);
-        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i].0));
-      } else {
-        self.diffuse_colours.insert(reference.clone() + "diffuse" + &(i.to_string()), textures[i].1);
-      }
-    }
-    
-    for i in 0..vertex.len() {
-      
-      let mut vertex3d: Vec<Vertex3d> = Vec::with_capacity(vertex[i].len());
-      for j in 0..vertex[i].len() {
-        let mut uv = [0.0, 0.0];
-        if uvs.len() > i && uvs[i].len() > j {
-          uv = uvs[i][j];
-        }
-        vertex3d.push(convert_to_vertex3d(vertex[i][j], normal[i][j], uv));
-      }
-      
-      let vert3d_buffer = vulkan_3d::create_vertex(self.window.get_device(), vertex3d.iter().cloned());
-      let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), index[i].iter().cloned()); 
-      
-      let geometry_node = Model {
-        vertex_buffer: Some(vec!(vert3d_buffer)),
-        index_buffer: Some(idx_3d_buffer),
-      };
-      
-      model.push(geometry_node);
-      
-      self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    }
-    */
     
     self.vk3d.models.insert(reference, mesh);
     
@@ -908,13 +706,15 @@ impl CoreRender for RawVk {
   /// You must call this function otherwise will result in crash
   fn load_shaders(&mut self) {
     let dimensions = {
-      self.window.get_dimensions()
+      let dim = self.window.get_dimensions();
+      [dim.width as u32, dim.height as u32]
     };
     
-    self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
-    self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    self.vk2d.projection = vulkan_2d::create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+    self.vk3d.projection = vulkan_3d::create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
     
-    self.vk3d.depth_buffer = self.create_depth_buffer();
+    let device = self.window.get_device();
+    self.vk3d.depth_buffer = vulkan_3d::create_depth_buffer(device, dimensions);
     
     // 2D
     let vert_buffer = vulkan_2d::create_vertex(self.window.get_device());
@@ -1276,7 +1076,8 @@ impl CoreRender for RawVk {
     
     if self.recreate_swapchain {
       let mut dimensions = {
-        self.window.get_dimensions()
+        let dim = self.window.get_dimensions();
+        [dim.width as u32, dim.height as u32]
       };
       
       if dimensions[0] <= 0 {
@@ -1301,11 +1102,12 @@ impl CoreRender for RawVk {
       self.vkpost.final_framebuffer = None;
       self.recreate_swapchain = false;
       
-      let new_depth_buffer = self.create_depth_buffer();
+      let device = self.window.get_device();
+      let new_depth_buffer = vulkan_3d::create_depth_buffer(device, dimensions);
       mem::replace(&mut self.vk3d.depth_buffer, new_depth_buffer);
       
-      self.vk2d.projection = self.create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
-      self.vk3d.projection = self.create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
+      self.vk2d.projection = vulkan_2d::create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
+      self.vk3d.projection = vulkan_3d::create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
       
       let src_usage = ImageUsage {
           transfer_source: true,
@@ -1392,7 +1194,8 @@ impl CoreRender for RawVk {
     };
     
     let dimensions = {
-      self.window.get_dimensions()
+      let dim = self.window.get_dimensions();
+      [dim.width as u32, dim.height as u32]
     };
     
     let command_buffer: AutoCommandBuffer = {
@@ -1404,63 +1207,20 @@ impl CoreRender for RawVk {
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
       for draw in draw_calls {
-        
         if draw.is_3d_model() {
-          if let Some(model) = self.vk3d.models.get(draw.get_texture()) {
-            for i in 0..model.len() {
-              
-              let mut enable_diffuse_colour = false;
-              let mut diffuse_colour = [0.0, 0.0, 0.0];
-              
-              let mut texture: String = String::from(DEFAULT_TEXTURE);
-              if self.textures.contains_key(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
-                texture = draw.get_texture().clone() + "diffuse" + &(i.to_string());
-              } else {
-                enable_diffuse_colour = true;
-                if let Some(colour) = self.diffuse_colours.get(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
-                  diffuse_colour = *colour;
-                }
-              }
-              
-              if draw.get_texture() == "terrain" {
-               // texture = String::from("oakfloor");
-              }
-              
-              if !self.textures.contains_key(&texture.clone()) {
-                println!("Error: Model texture doesn't exist {}", texture.clone());
-                continue;
-              }
-              
-              let uniform_buffer_subbuffer = self.create_3d_subbuffer(draw.clone(), enable_diffuse_colour, diffuse_colour);
-              
-              let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 0)
-                    .add_buffer(uniform_buffer_subbuffer.clone()).unwrap()
-                    .add_sampled_image(self.textures.get(&texture).unwrap().clone(), self.sampler.clone()).unwrap()
-                    .build().unwrap()
-              );
-              
-              let material_set = model[i].material_desctriptor.clone();
-              
-              let cb = tmp_cmd_buffer;
-              
-              tmp_cmd_buffer = cb.draw_indexed(
-                    self.vk3d.pipeline.clone().unwrap(),
-                    DynamicState {
-                          line_width: None,
-                          viewports: Some(vec![pipeline::viewport::Viewport {
-                              origin: [0.0, 0.0],
-                              dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                              depth_range: 0.0 .. 1.0,
-                          }]),
-                          scissors: None,
-                    },
-                    model[i].vertex_buffer.clone().unwrap(),
-                    model[i].index_buffer.clone().unwrap(), 
-                    (set_3d.clone(), material_set.clone()), ()).unwrap();
-            }
-          } else {
-            println!("Error: Model {} doesn't exist", draw.get_texture());
-          }
+          let models = &self.vk3d.models;
+          let projection = self.vk3d.projection;
+          let view_matrix = self.vk3d.camera.get_view_matrix();
+          let uniform_buffer = self.vk3d.uniform_buffer.clone();
+          let pipeline = &self.vk3d.pipeline;
+          let subbuffer = vulkan_3d::create_3d_subbuffer(
+                                               draw.clone(), 
+                                               projection, 
+                                               view_matrix, uniform_buffer
+                                             );
+          
+          tmp_cmd_buffer = vulkan_draw::draw_3d(tmp_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
+                               subbuffer, dimensions);
         } else {
           if draw.is_vao_update() {
             let reference = draw.get_text().clone();
@@ -1481,163 +1241,32 @@ impl CoreRender for RawVk {
             }
             
           } else if draw.is_text() {// Render Text
-            let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), self.fonts.clone());
-            let size = draw.get_x_size();
-            
-            if !self.fonts.contains_key(draw.get_texture()) || !self.textures.contains_key(draw.get_texture()) {
-              println!("Error: text couldn't draw, Texture: {:?}", draw.get_texture());
-              continue;
-            }
-            
-            let pipeline = self.vk2d.pipeline_text.clone().unwrap();
-            let vertex_buffer = self.vk2d
-                                    .vao.vertex_buffer.clone()
-                                    .expect("Error: Unwrapping text vertex buffer failed!");
-            let index_buffer = self.vk2d
-                                    .vao.index_buffer.clone()
-                                    .expect("Error: Unwrapping text index buffer failed!");
-            
-            for letter in wrapped_draw {
-              let char_letter = {
-                letter.get_text().as_bytes()[0] 
-              };
-              
-              let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
-
-              let model = drawcalls::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-              let letter_uv = drawcalls::calculate_text_uv(&c.clone());
-              let colour = letter.get_colour();
-              let outline = letter.get_outline_colour();
-              let edge_width = letter.get_edge_width(); 
-               
-              let uniform_buffer_text_subbuffer = {
-                let uniform_data = vs_text::ty::Data {
-                  outlineColour: outline.into(),
-                  colour: colour.into(),
-                  edge_width: edge_width.into(),
-                  letter_uv: letter_uv.into(),
-                  model: model.into(),
-                  projection: self.vk2d.projection.into(),
-                };
-                self.vk2d.uniform_buffer_text.next(uniform_data).unwrap()
-              };
-              
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_text.clone().unwrap(), 0)
-                                         .add_sampled_image(self.textures.get(draw.get_texture()).unwrap().clone(), self.sampler.clone()).unwrap()
-                                         .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
-                                         .build().unwrap());
-              
-              {
-                let cb = tmp_cmd_buffer;
-                tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
-              }
-            }
-          } else {
-            let uniform_buffer_texture_subbuffer = self.create_texture_subbuffer(draw.clone());
-            
-            // No Texture
-            if draw.get_texture() == &String::from("") {
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk2d.pipeline_texture.clone().unwrap(), 0)
-                                         .add_sampled_image(self.textures.get(DEFAULT_TEXTURE).expect("Default texture not loaded!").clone(), self.sampler.clone()).unwrap()
-                                         .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
-                                         .build().unwrap());
-              
-              {
-                let cb = tmp_cmd_buffer;
-                
-                let pipeline = self.vk2d.pipeline_texture.clone().unwrap();
-                if draw.is_custom_vao() {
-                  if self.vk2d.custom_vao.contains_key(draw.get_text()) {
-                    let vertex_buffer = self.vk2d
-                                        .custom_vao.get(draw.get_text()).unwrap()
-                                        .vertex_buffer.clone()
-                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    let index_buffer = self.vk2d
-                                        .custom_vao.get(draw.get_text()).unwrap()
-                                        .index_buffer.clone()
-                                        .expect("Error: Unwrapping static custom index buffer failed!");
-                    
-                    tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                  } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
-                    let vertex_buffer = self.vk2d
-                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
-                                        .vertex_buffer.clone()
-                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    let index_buffer = self.vk2d
-                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
-                                        .index_buffer.clone()
-                                        .expect("Error: Unwrapping static custom index buffer failed!");
-                    
-                    tmp_cmd_buffer = vulkan_helper::draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                  } else {
-                    println!("Error: custom vao {:?} does not exist!", draw.get_text());
-                    tmp_cmd_buffer = cb;
-                    continue;
-                  }
-                } else {
-                  let vertex_buffer = self.vk2d
-                                          .vao.vertex_buffer.clone()
-                                          .expect("Error: Unwrapping main vertex buffer failed!");
-                  let index_buffer = self.vk2d
-                                          .vao.index_buffer.clone()
-                                         .expect("Error: Unwrapping main index buffer failed!");
-                  tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                }
-              }
-            } else {
-              // Texture
-              let default_texture = String::from(DEFAULT_TEXTURE);
-              let mut texture = draw.get_texture(); 
-              
-              if !self.textures.contains_key(texture) {
-                println!("Texture not found: {}", texture);
-                texture = &default_texture;
-              }
-              
-              let pipeline = self.vk2d.pipeline_texture.clone().unwrap();
-              let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
-                                      .add_sampled_image(self.textures.get(texture).unwrap().clone(), self.sampler.clone()).unwrap()
-                                      .add_buffer(uniform_buffer_texture_subbuffer.clone()).unwrap()
-                                      .build().unwrap());
-              
-              {
-                let cb = tmp_cmd_buffer;
-                
-                if draw.is_custom_vao() {
-                  if self.vk2d.custom_vao.contains_key(draw.get_text()) {
-                    let vertex_buffer = self.vk2d
-                                            .custom_vao.get(draw.get_text()).unwrap()
-                                            .vertex_buffer.clone()
-                                            .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    let index_buffer = self.vk2d
-                                           .custom_vao.get(draw.get_text()).unwrap()
-                                           .index_buffer.clone()
-                                           .expect("Error: Unwrapping static custom index buffer failed!");
-                    
-                    tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                  } else if self.vk2d.custom_dynamic_vao.contains_key(draw.get_text()) {
-                    let vertex_buffer = self.vk2d
-                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
-                                        .vertex_buffer.clone()
-                                        .expect("Error: Unwrapping static custom vertex buffer failed!");
-                    let index_buffer = self.vk2d
-                                        .custom_dynamic_vao.get(draw.get_text()).unwrap()
-                                        .index_buffer.clone()
-                                        .expect("Error: Unwrapping static custom index buffer failed!");
-                    
-                    tmp_cmd_buffer = vulkan_helper::draw_dynamic(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                  } else {
-                    println!("Error: custom vao {:?} does not exist!", draw.get_text());
-                    tmp_cmd_buffer = cb;
-                    continue;
-                  }
-                } else {
-                  let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
-                  let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
-                  tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
-                }
-              }
-            }
+            let vao = &self.vk2d.vao;
+            let sampler = self.vk2d.sampler.clone();
+            let textures = &self.textures;
+            let fonts = &self.fonts;
+            let projection = self.vk2d.projection;
+            let pipeline = &self.vk2d.pipeline_text;
+            let uniform_buffer = &self.vk2d.uniform_buffer_text;
+            tmp_cmd_buffer = vulkan_draw::draw_text(tmp_cmd_buffer, draw, textures, 
+                                                    projection, vao, sampler, 
+                                                    uniform_buffer, pipeline, 
+                                                    fonts, dimensions);
+          } else { // 2D texture
+            let uniform_subbuffer = vulkan_2d::create_texture_subbuffer(draw.clone(), self.vk2d.projection, self.vk2d.uniform_buffer_texture.clone());
+            let vao = &self.vk2d.vao;
+            let custom_vao = &self.vk2d.custom_vao;
+            let custom_dynamic_vao = &self.vk2d.custom_dynamic_vao;
+            let sampler = self.vk2d.sampler.clone();
+            let textures = &self.textures;
+            let projection = self.vk2d.projection;
+            let pipeline = &self.vk2d.pipeline_texture;
+            let queue = self.window.get_queue();
+            tmp_cmd_buffer = vulkan_draw::draw_texture(tmp_cmd_buffer, draw, textures,
+                                                       vao, custom_vao, 
+                                                       custom_dynamic_vao, projection, 
+                                                       sampler, uniform_subbuffer, 
+                                                       pipeline, queue, dimensions);
           }
         }
       }
@@ -1754,8 +1383,8 @@ impl CoreRender for RawVk {
       
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
-                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
       
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
@@ -1786,14 +1415,13 @@ impl CoreRender for RawVk {
   }
   
   /// Tells engine it needs to update as window resize has occured
-  fn screen_resized(&mut self) {
+  fn screen_resized(&mut self, window_size: LogicalSize) {
     self.recreate_swapchain = true;
   }
   
   /// Returns the dimensions of the drawing window as u32
-  fn get_dimensions(&self) -> [u32; 2] {
-    let dimensions: [u32; 2] = self.window.get_dimensions();
-    dimensions
+  fn get_dimensions(&self) -> LogicalSize {
+    self.window.get_dimensions()
   }
   
   /// Returns a reference to the events loop
@@ -1809,7 +1437,7 @@ impl CoreRender for RawVk {
   /// Returns the current dpi scale factor
   ///
   /// Needed to solve issues with Hidpi monitors
-  fn get_dpi_scale(&self) -> f32 {
+  fn get_dpi_scale(&self) -> f64 {
     self.window.get_dpi_scale()
   }
   

@@ -12,6 +12,7 @@ use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
 use cgmath::Quaternion;
+use cgmath::Rotation;
 
 use image;
 use image::ImageFormat::{JPEG, PNG};
@@ -127,9 +128,10 @@ impl Material {
 }
 
 impl ModelDetails {
-  pub fn new() -> ModelDetails {
+  pub fn new(source: String) -> ModelDetails {
+    let source = &source;
     //let (gltf, buffers, images) = gltf::import("./examples/ObjectStatic.gltf").unwrap();
-    let source = "./examples/ObjectStatic.gltf";
+//    let source = "./examples/ObjectStatic.gltf";
     /*
     let config = gltf_importer::Config { validation_strategy: ValidationStrategy::Complete };
     let (gltf, buffers) = match gltf_importer::import_with_config(source, &config) {
@@ -142,7 +144,7 @@ impl ModelDetails {
         (gltf::gltf::Gltf, gltf_importer::Buffers)
       },
     };*/
-    
+    println!("{}", source);
     let (gltf, buffers, images) = gltf::import(source).unwrap();
     
     /*
@@ -168,29 +170,44 @@ impl ModelDetails {
       animation: Animation,
   }*/
     
-    for texture in gltf.textures() {
-      println!("Texture: {:?}", texture.source().name());
-    }
+    let gltf_textures = {
+      let mut textures = Vec::new();
+      
+      for texture in gltf.textures() {
+        println!("Texture: {:?}", texture.source().index());
+      //  let sampler = Sampler::simple_repeat_linear(queue.device().clone());
+     //   for texture in gltf.textures() {
+          let img: Option<image::DynamicImage> = texture_to_image(texture, &buffers, &Path::new(&source));
+          textures.push(img);
+      //  }
+      }
+      
+      textures
+    };
     
+    let mut index = 0;
     for node in gltf.nodes() {
       let (translation, rotation, scale) = node.transform().decomposed();
       let scale = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
       let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
       let quaternion = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]);
+      let inverse_quaternion = quaternion.invert();
       
       for mesh in node.mesh() {
+        println!("{}", index);
         println!("Mesh #{}", mesh.index());
-        models.push(FinalModel {
-          vertices: VertexArray { vertex: Vec::new(), morph_index: 0 }, 
-          indices: IndexArray { index: Vec::new() }, 
-          normals: NormalArray { normal: Vec::new() }, 
-          texcoords: TexCoordArray { texcoord: Vec::new() },
-          material: Material::new(),
-          topology: Topology::TriangleStrip, // default
-        //  animation: Animation::new(),
-        });
         
         for primitive in mesh.primitives() {
+          models.push(FinalModel {
+            vertices: VertexArray { vertex: Vec::new(), morph_index: 0 }, 
+            indices: IndexArray { index: Vec::new() }, 
+            normals: NormalArray { normal: Vec::new() }, 
+            texcoords: TexCoordArray { texcoord: Vec::new() },
+            material: Material::new(),
+            topology: Topology::TriangleStrip, // default
+            //  animation: Animation::new(),
+          });
+          
           println!("- Primitive #{}", primitive.index());
           println!("Material: {:?}", primitive.material().index());
           println!("Material name: {:?}", primitive.material().name());
@@ -201,7 +218,7 @@ impl ModelDetails {
             println!("Base Texture name: {:?}", info.texture().source().name());
           }
           
-          models[mesh.index()].topology = match primitive.mode() {
+          models[index].topology = match primitive.mode() {
             gltf::mesh::Mode::Points => Topology::PointList,
             gltf::mesh::Mode::Lines => Topology::LineList,
             gltf::mesh::Mode::LineLoop => panic!("LineLoop not supported"),
@@ -215,29 +232,33 @@ impl ModelDetails {
           let pbr = mat.pbr_metallic_roughness();
           
           let colour_factor = pbr.base_color_factor();
-          models[mesh.index()].material.base_colour_factor = Vector4::new(colour_factor[0], colour_factor[1], colour_factor[2], colour_factor[3]);
+          models[index].material.base_colour_factor = Vector4::new(colour_factor[0], colour_factor[1], colour_factor[2], colour_factor[3]);
 //          models[mesh.index()].material.base_color_texture_tex_coord = pbr.base_color_texture().map(|t| t.tex_coord() as i32).unwrap_or(-1);
-          models[mesh.index()].material.base_colour_texture = pbr.base_color_texture().map(|t| texture_to_image(t.texture(), &buffers, &Path::new(&source))).unwrap_or(None);
-          models[mesh.index()].material.metallic_factor = pbr.metallic_factor();
-          models[mesh.index()].material.roughness_factor = pbr.roughness_factor();
-          models[mesh.index()].material.metallic_roughness_texture = pbr.metallic_roughness_texture().map(|t| texture_to_image(t.texture(), &buffers, &Path::new(&source))).unwrap_or(None);
-          models[mesh.index()].material.normal_texture_scale = mat.normal_texture().map(|t| t.scale()).unwrap_or(0.0);
-          models[mesh.index()].material.normal_texture = mat.normal_texture().map(|t| texture_to_image(t.texture(), &buffers, &Path::new(&source))).unwrap_or(None);
-          models[mesh.index()].material.occlusion_texture = mat.occlusion_texture().map(|t| texture_to_image(t.texture(), &buffers, &Path::new(&source))).unwrap_or(None);
-          models[mesh.index()].material.occlusion_texture_strength = mat.occlusion_texture().map(|t| t.strength()).unwrap_or(0.0);
-          models[mesh.index()].material.emissive_texture = mat.emissive_texture().map(|t| texture_to_image(t.texture(), &buffers, &Path::new(&source))).unwrap_or(None);
+          models[index].material.base_colour_texture = pbr.base_color_texture().map(|t| {
+            gltf_textures[t.texture().index()].clone().unwrap()
+          });
+          models[index].material.metallic_factor = pbr.metallic_factor();
+          models[index].material.roughness_factor = pbr.roughness_factor();
+          models[index].material.metallic_roughness_texture = pbr.metallic_roughness_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.normal_texture_scale = mat.normal_texture().map(|t| t.scale()).unwrap_or(0.0);
+          models[index].material.normal_texture = mat.normal_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.occlusion_texture = mat.occlusion_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.occlusion_texture_strength = mat.occlusion_texture().map(|t| t.strength()).unwrap_or(0.0);
+          models[index].material.emissive_texture = mat.emissive_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
           let emissive_factor = mat.emissive_factor();
-          models[mesh.index()].material.emissive_factor = Vector3::new(emissive_factor[0], emissive_factor[1], emissive_factor[2]);
+          models[index].material.emissive_factor = Vector3::new(emissive_factor[0], emissive_factor[1], emissive_factor[2]);
           
           let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
           if let Some(iter) = reader.read_positions() {
             let mut vertices = Vec::with_capacity(iter.len());
             for vertex_position in iter {
-              let vertex = Vector4::new(vertex_position[0], vertex_position[1], vertex_position[2], 1.0);
+              let vertex = Vector3::new(vertex_position[0], vertex_position[1], vertex_position[2]);
+              let rotq = (quaternion*Quaternion::from_sv(0.0, vertex)*inverse_quaternion).v;
+              let vertex = Vector4::new(rotq.x, rotq.y, rotq.z, 1.0);
               let vertex = (translation*scale)*vertex;
               vertices.push([vertex.x, vertex.y, vertex.z]);
             }
-            models[mesh.index()].vertices.vertex = vertices;
+            models[index].vertices.vertex = vertices;
           }
           if let Some(iter) = reader.read_normals() {
             let mut normals = Vec::with_capacity(iter.len());
@@ -246,22 +267,23 @@ impl ModelDetails {
               let normal = (translation*scale)*normal;
               normals.push([normal.x, normal.y, normal.z]);
             }
-            models[mesh.index()].normals.normal = normals;
+            models[index].normals.normal = normals;
           }
           if let Some(iter) = reader.read_indices() {
             let mut indices = Vec::new();
             for vertex_indices in iter.into_u32() {
               indices.push(vertex_indices);
             }
-            models[mesh.index()].indices.index = indices;
+            models[index].indices.index = indices;
           }
           if let Some(iter) = reader.read_tex_coords(texture_index) {
             let mut texcoords = Vec::new();
             for vertex_texcoords in iter.into_f32() {
               texcoords.push(vertex_texcoords);
             }
-            models[mesh.index()].texcoords.texcoord = texcoords;
+            models[index].texcoords.texcoord = texcoords;
           }
+          index += 1;
         }
       }
     }
@@ -347,7 +369,7 @@ fn texture_to_image(texture: gltf::Texture, buffers: &Vec<gltf::buffer::Data>, b
   let data = texture.source().source();
   let img = match data {
     gltf::image::Source::View { ref view, mime_type } => {
-    let data = &buffers[view.offset()].to_vec();//buffers.view(view).expect("Failed to get buffer view for image");
+      let data = &buffers[view.offset()].to_vec();//buffers.view(view).expect("Failed to get buffer view for image");
       match mime_type {
         "image/jpeg" => image::load_from_memory_with_format(data, JPEG),
         "image/png" => image::load_from_memory_with_format(data, PNG),

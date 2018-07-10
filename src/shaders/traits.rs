@@ -3,7 +3,9 @@ use gl::types::*;
 
 use drawcalls::DrawCall;
 
-use helperfunctions::opengl_helper;
+use opengl::opengl_helper;
+
+use winit::dpi::LogicalSize;
 
 use std::ffi::CString;
 use std::mem;
@@ -209,8 +211,8 @@ impl Fbo {
     self.colour_attachments[attachment_index]
   }
   
-  pub fn resize(&mut self, width: f32, height: f32) {
-    self.dimensions = [width as i32, height as i32];
+  pub fn resize(&mut self, dim: LogicalSize) {
+    self.dimensions = [dim.width as i32, dim.height as i32];
     self.clean();
     self.init();
   }

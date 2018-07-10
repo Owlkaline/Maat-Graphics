@@ -30,6 +30,7 @@ use cgmath::InnerSpace;
 
 use image;
 use winit;
+use winit::dpi::LogicalSize;
 
 use gl;
 use gl::types::*;
@@ -427,8 +428,8 @@ impl RawGl {
     env::set_var("WINIT_UNIX_BACKEND", "x11");
     
     let mut settings = Settings::load();
-    let width = settings.get_resolution()[0];
-    let height = settings.get_resolution()[1];
+    let width = settings.get_resolution()[0] as f64;
+    let height = settings.get_resolution()[1] as f64;
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     let fullscreen = settings.is_fullscreen();
@@ -500,9 +501,9 @@ impl RawGl {
     }
   }
   
-  pub fn set_viewport(&self, width: u32, height: u32) {
+  pub fn set_viewport(&self, dim: LogicalSize) {
     unsafe {
-      gl::Viewport(0, 0, (width as f32 * self.get_dpi_scale()) as i32, (height as f32 * self.get_dpi_scale()) as i32);
+      gl::Viewport(0, 0, (dim.width as f64 * self.get_dpi_scale()) as i32, (dim.height as f64 * self.get_dpi_scale()) as i32);
     }
   }
   
@@ -1093,7 +1094,7 @@ impl CoreRender for RawGl {
     self.framebuffer_bloom.init();
     self.framebuffer_blur_ping.init();
     self.framebuffer_blur_pong.init();
-    self.set_viewport(dim[0], dim[1]);
+    self.set_viewport(dim);
     
     unsafe {
       gl::Enable(gl::BLEND);
@@ -1221,10 +1222,10 @@ impl CoreRender for RawGl {
     
     self.framebuffer.resolve_multisample();
     
-    let x = dimensions[0] as f32*0.5;
-    let y = dimensions[1] as f32*0.5;
-    let width = dimensions[0] as f32;
-    let height = dimensions[1] as f32;
+    let x = dimensions.width as f32*0.5;
+    let y = dimensions.height as f32*0.5;
+    let width = dimensions.width as f32;
+    let height = dimensions.height as f32;
     
     let blur_x = BLUR_DIM as f32*0.5;
     let blur_y = BLUR_DIM as f32*0.5;
@@ -1286,19 +1287,19 @@ impl CoreRender for RawGl {
     self.window.swap_buffers();
   }
   
-  fn screen_resized(&mut self) {
-    let mut dimensions = self.get_dimensions();
-    if dimensions[0] <= 0 {
-      dimensions[0] = self.min_dimensions[0];
+  fn screen_resized(&mut self, window_size: LogicalSize) {
+    let mut window_size = window_size;
+    if window_size.width <= 0.0 {
+      window_size.width = self.min_dimensions[0] as f64;
     }
-    if dimensions[1] <= 0 {
-      dimensions[1] = self.min_dimensions[1];
+    if window_size.height <= 0.0 {
+      window_size.height = self.min_dimensions[1] as f64;
     }
     
-    let projection_2d = RawGl::load_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
-    let projection_3d = RawGl::load_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
-    self.window.resize_screen(dimensions);
-    self.set_viewport(dimensions[0], dimensions[1]);
+    let projection_2d = RawGl::load_2d_projection(window_size.width as f32, window_size.height as f32);
+    let projection_3d = RawGl::load_3d_projection(window_size.width as f32, window_size.height as f32);
+    self.window.resize_screen(window_size);
+    self.set_viewport(window_size);
     self.gl2D.shaders[INSTANCED].Use();
     self.gl2D.shaders[INSTANCED].set_mat4(String::from("projection"), projection_2d);
     self.gl2D.shaders[TEXTURE].Use();
@@ -1314,16 +1315,15 @@ impl CoreRender for RawGl {
     self.gl3D.shaders[MODEL].Use();
     self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), projection_3d);
     
-    self.framebuffer.resize(dimensions[0] as f32, dimensions[1] as f32);
+    self.framebuffer.resize(window_size);
     
     unsafe {
       gl::UseProgram(0);
     }
   }
   
-  fn get_dimensions(&self) -> [u32; 2] {
-    let dimensions: [u32; 2] = self.window.get_dimensions();
-    dimensions
+  fn get_dimensions(&self) -> LogicalSize {
+    self.window.get_dimensions()
   }
   
   fn get_events(&mut self) -> &mut winit::EventsLoop {
@@ -1334,7 +1334,7 @@ impl CoreRender for RawGl {
     self.fonts.clone()
   }
   
-  fn get_dpi_scale(&self) -> f32 {
+  fn get_dpi_scale(&self) -> f64 {
     self.window.get_dpi_scale()
   }
   

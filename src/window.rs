@@ -2,6 +2,8 @@ use gl;
 
 use winit;
 use winit::EventsLoop;
+use winit::dpi::LogicalSize;
+use winit::dpi::PhysicalSize;
 
 use settings::Settings;
 
@@ -53,7 +55,7 @@ pub struct GlWindow {
 }
 
 impl GlWindow {
-  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool) -> GlWindow {
+  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool) -> GlWindow {
     println!("Using openGL");
     
     glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
@@ -82,8 +84,9 @@ impl GlWindow {
         // Windowed
         temp_window = glutin::WindowBuilder::new()
                                             .with_title("OpenGl Windowed").with_decorations(true)
-                                            .with_dimensions(width, height)
-                                            .with_min_dimensions(min_width, min_height);
+                                            .with_dimensions(LogicalSize::new(width, height))
+                                            .with_resizable(false)
+                                           // .with_min_dimensions(min_width, min_height);
       }
       temp_window
     };
@@ -110,9 +113,8 @@ impl GlWindow {
   }
   
   /// Returns the dimensions of the window as u32
-  pub fn get_dimensions(&self) -> [u32; 2] {
-    let (width, height) = self.window.get_inner_size().unwrap();
-    [width as u32, height as u32]
+  pub fn get_dimensions(&self) -> LogicalSize {
+    self.window.get_inner_size().unwrap()
   }
   
   /// Returns a reference to the events loop
@@ -126,15 +128,16 @@ impl GlWindow {
   }
   
   /// Resizes the current window
-  pub fn resize_screen(&mut self, dimensions: [u32; 2]) {
-    self.window.resize(dimensions[0], dimensions[1]);
+  pub fn resize_screen(&mut self, dimensions: LogicalSize) {
+    let hidpi = self.get_dpi_scale();
+    self.window.resize(PhysicalSize::from_logical(dimensions, hidpi));
   }
   
   /// Returns the current dpi scale factor
   ///
   /// Needed to solve issues with Hidpi monitors
-  pub fn get_dpi_scale(&self) -> f32 {
-    self.window.hidpi_factor()
+  pub fn get_dpi_scale(&self) -> f64 {
+    self.window.get_hidpi_factor()
   }
   
   /// Enables the cursor to be drawn whilst over the window
@@ -144,12 +147,12 @@ impl GlWindow {
   
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
-    self.window.set_cursor(winit::MouseCursor::NoneCursor);
+    self.window.set_cursor(winit::MouseCursor::Alias);
   }
 }
 
 impl VkWindow {
-  pub fn new(width: u32, height: u32, min_width: u32, min_height: u32, fullscreen: bool) -> VkWindow {
+  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool) -> VkWindow {
     //let app_infos = app_info_from_cargo_toml!();
     //println!("{:?}", app_infos);
     println!("Using Vulkan");
@@ -165,7 +168,7 @@ impl VkWindow {
       }
       
       let layer = "VK_LAYER_LUNARG_standard_validation";
-      let layers = None;//vec![&layer];
+      let layers = None; //vec![&layer];
       
       //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
       Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
@@ -216,17 +219,19 @@ impl VkWindow {
         };
         
         // Fullscreen
-        temp_surface = winit::WindowBuilder::new().with_fullscreen(Some(monitor))
-                                           .with_title("Vulkan Fullscreen")
-                                           .build_vk_surface(&events_loop, instance.clone())
-                                           .unwrap()
+        temp_surface = winit::WindowBuilder::new()
+                                          .with_fullscreen(Some(monitor))
+                                          .with_title("Vulkan Fullscreen")
+                                          .build_vk_surface(&events_loop, instance.clone())
+                                          .unwrap()
       } else {
         // Windowed
-        temp_surface = winit::WindowBuilder::new().with_dimensions(width, height)
-                                            .with_min_dimensions(min_width, min_height)
-                                           .with_title("Vulkan Windowed")
-                                           .build_vk_surface(&events_loop, instance.clone())
-                                           .unwrap()
+        temp_surface = winit::WindowBuilder::new()
+                                          .with_dimensions(LogicalSize::new(width, height))
+                                          .with_resizable(false)
+                                          .with_title("Vulkan Windowed")
+                                          .build_vk_surface(&events_loop, instance.clone())
+                                          .unwrap()
       }
       temp_surface
     };
@@ -377,9 +382,8 @@ impl VkWindow {
   }
   
   /// Returns the dimensions of the window as u32
-  pub fn get_dimensions(&self) -> [u32; 2] {
-    let (width, height) = self.surface.window().get_inner_size().unwrap();
-    [width as u32, height as u32]
+  pub fn get_dimensions(&self) -> LogicalSize {
+    self.surface.window().get_inner_size().unwrap()
   }
   
   /// Returns a reference to the events loop
@@ -390,8 +394,8 @@ impl VkWindow {
   /// Returns the current dpi scale factor
   ///
   /// Needed to solve issues with Hidpi monitors
-  pub fn get_dpi_scale(&self) -> f32 {
-    self.surface.window().hidpi_factor()
+  pub fn get_dpi_scale(&self) -> f64 {
+    self.surface.window().get_hidpi_factor()
   }
   
   /// Enables the cursor to be drawn whilst over the window
@@ -401,6 +405,6 @@ impl VkWindow {
   
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
-    self.surface.window().set_cursor(winit::MouseCursor::NoneCursor);
+    self.surface.window().set_cursor(winit::MouseCursor::Alias);
   }
 }

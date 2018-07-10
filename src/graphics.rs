@@ -5,6 +5,7 @@ use camera::Camera;
 use graphics;
 
 use winit;
+use winit::dpi::LogicalSize;
 
 use std::vec::Vec;
 
@@ -60,16 +61,16 @@ pub trait CoreRender {
   fn draw(&mut self, draw_calls: &Vec<DrawCall>);
   fn post_draw(&self);
   fn swap_buffers(&mut self);
-  fn screen_resized(&mut self);
+  fn screen_resized(&mut self, window_size: LogicalSize);
   
   // Cleans up program
   fn clean(&self);
   
   // Getters and setters
-  fn get_dimensions(&self) -> [u32; 2];
+  fn get_dimensions(&self) -> LogicalSize;
   fn get_events(&mut self) -> &mut winit::EventsLoop;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
-  fn get_dpi_scale(&self) -> f32;
+  fn get_dpi_scale(&self) -> f64;
   fn is_ready(&self) -> bool;
   fn dynamic_load(&mut self);
   fn show_cursor(&mut self);
