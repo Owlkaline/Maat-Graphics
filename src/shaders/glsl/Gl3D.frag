@@ -37,7 +37,8 @@ uniform sampler2D u_emissive_texture;
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
 const vec3 c_LightColor = vec3(0.4,0.4,0.4);
-const vec3 c_LightDirection = vec3(0.0, 1.0, 0.0);
+//const vec3 c_LightDirection = vec3(0.0, 1.0, 0.0);
+const vec3 c_LightDirection = vec3(-0.4, 0.35, 0.2);
 
 vec3 get_normal() {
   mat3 tbn;

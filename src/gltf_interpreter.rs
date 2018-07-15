@@ -238,6 +238,7 @@ impl ModelDetails {
       let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
       let quaternion = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]);
       let inverse_quaternion = quaternion.invert();
+      let rotation = Matrix4::from(quaternion);
       
       for mesh in node.mesh() {
         println!("{}", index);
@@ -307,9 +308,8 @@ impl ModelDetails {
             let mut vertices = Vec::with_capacity(iter.len());
             for vertex_position in iter {
               let vertex = Vector3::new(vertex_position[0], vertex_position[1], vertex_position[2]);
-              let rotq = (quaternion*Quaternion::from_sv(0.0, vertex)*inverse_quaternion).v;
-              let vertex = Vector4::new(rotq.x, rotq.y, rotq.z, 1.0);
-              let vertex = (translation*scale)*vertex;
+              //let rotq = (quaternion*Quaternion::from_sv(0.0, vertex)*inverse_quaternion).v;
+              let vertex = (translation*scale)*rotation*Vector4::new(vertex.x, vertex.y, vertex.z, 1.0);
               vertices.push([vertex.x, vertex.y, vertex.z]);
             }
             models[index].vertices.vertex = vertices;
@@ -318,7 +318,7 @@ impl ModelDetails {
             let mut normals = Vec::with_capacity(iter.len());
             for vertex_normal in iter {
               let normal = Vector4::new(vertex_normal[0], vertex_normal[1], vertex_normal[2], 1.0);
-              let normal = (translation*scale)*normal;
+              let normal = (translation*scale)*rotation*Vector4::new(normal.x, normal.y, normal.z, 1.0);
               normals.push([normal.x, normal.y, normal.z]);
               
               models[index].has_normals = true;
@@ -329,7 +329,7 @@ impl ModelDetails {
             let mut tangents = Vec::with_capacity(iter.len());
             for vertex_tangent in iter {
               let tangent = Vector4::new(vertex_tangent[0], vertex_tangent[1], vertex_tangent[2], vertex_tangent[3]);
-              let tangent = (translation*scale)*tangent;
+              let normal = (translation*scale)*rotation*Vector4::new(tangent.x, tangent.y, tangent.z, tangent.w);
               tangents.push([tangent.x, tangent.y, tangent.z, tangent.w]);
               
               models[index].has_tangents = true;

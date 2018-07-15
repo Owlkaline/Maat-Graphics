@@ -251,8 +251,8 @@ impl RawGl {
         projection: proj_3d,
       },
       
-      framebuffer: Fbo::new(msaa_samples, 1, false, width as i32, height as i32),
-      framebuffer_bloom: Fbo::new(1, 1, false, width as i32, height as i32),
+      framebuffer: Fbo::new(msaa_samples, 1, true, width as i32, height as i32),
+      framebuffer_bloom: Fbo::new(1, 1, true, width as i32, height as i32),
       framebuffer_blur_ping: Fbo::new(1, 1, false, BLUR_DIM as i32, BLUR_DIM as i32),
       framebuffer_blur_pong: Fbo::new(1, 1, false, BLUR_DIM as i32, BLUR_DIM as i32),
       
@@ -1083,8 +1083,9 @@ impl CoreRender for RawGl {
   fn clear_screen(&mut self) {
     unsafe {
       gl::DepthMask(gl::TRUE);
-      gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
+     
       gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+      gl::ClearColor(self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w);
       //gl::DepthMask(gl::FALSE);
     }
   }
@@ -1165,7 +1166,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     let base_texture = self.framebuffer.get_screen_texture(0);
     let bloom_texture = self.framebuffer_bloom.get_screen_texture(0);
-    self.draw_final_frame(draw, base_texture, bloom_texture, true);
+    self.draw_final_frame(draw, base_texture, bloom_texture, false);
   }
   
   fn post_draw(&self) {

@@ -15,8 +15,8 @@ void main() {
  
   if (bloom_enabled > 1.0) {
     const float gamma = 2.2;
-    
-    bloom = vec3(1.0) - exp(-bloom * 1.0);
+    const float exposure = 0.75;
+    bloom = vec3(1.0) - exp(-bloom * exposure);
     bloom = pow(bloom, vec3(1.0 / gamma));
     colour += bloom;
     

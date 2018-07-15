@@ -1194,12 +1194,12 @@ impl CoreRender for RawVk {
     
     let command_buffer: AutoCommandBuffer = {
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
-      
-      let build_start = tmp_cmd_buffer.clear_color_image(self.vkpost.blur_downscale_attachment.clone(), ClearValue::Float([0.0, 0.0, 0.0, 1.0])).unwrap()
-                                      .clear_color_image(self.vkpost.blur_upscale_attachment.clone(), ClearValue::Float([0.0, 0.0, 0.0, 1.0])).unwrap();
-      
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
+      //println!("{:?}", clear);
+      let build_start = tmp_cmd_buffer.clear_color_image(self.vkpost.blur_downscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap()
+                                      .clear_color_image(self.vkpost.blur_upscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap();
+      
+      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
       for draw in draw_calls {
         if draw.is_3d_model() { // 3D
           let models = &self.vk3d.models;
@@ -1270,7 +1270,7 @@ impl CoreRender for RawVk {
           }
         }
       }
-      /*
+      
       /*
       * Bloom framebuffer
       */
@@ -1292,7 +1292,7 @@ impl CoreRender for RawVk {
       
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.fullcolour_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
                           
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
@@ -1323,7 +1323,7 @@ impl CoreRender for RawVk {
       
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.blur_downscale_attachment.clone(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.blur_downscale_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
                           
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
@@ -1350,7 +1350,7 @@ impl CoreRender for RawVk {
       
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.blur_ping_renderpass.attachment(), self.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.blur_ping_renderpass.attachment(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
                           
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
@@ -1362,9 +1362,8 @@ impl CoreRender for RawVk {
       
       let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(), [0,0,0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
                                              self.vkpost.blur_upscale_attachment.clone(),  [0, 0, 0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0,
-                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");*/
-      let build_start = tmp_cmd_buffer.end_render_pass().unwrap();
-      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
+                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");
+      //tmp_cmd_buffer = build_start.end_render_pass().unwrap();
       let cb = build_start.begin_render_pass(self.vkpost.final_framebuffer.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::None]).unwrap();
       
       let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
@@ -1384,9 +1383,26 @@ impl CoreRender for RawVk {
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
-                             .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
       
+      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
+      let cb = tmp_cmd_buffer;
+      
+       // Draw Bloom view
+       let model = math::calculate_texture_model(Vector3::new(256.0, dimensions[1] as f32-256.0, 0.0), Vector2::new(512.0, 512.0), 90.0);
+      let uniform_data = vs_post_final::ty::Data {
+        projection: self.vk2d.projection.into(),
+        model: model.into(),
+        bloom: 0.0,
+      };
+      let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
+      
+      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                             .add_buffer(uniform_subbuffer.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
+                             .build().unwrap());
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
       tmp_cmd_buffer.end_render_pass()

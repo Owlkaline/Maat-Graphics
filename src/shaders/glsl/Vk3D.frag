@@ -51,8 +51,8 @@ const float c_MinRoughness = 0.04;
 const vec3 c_LightColor = vec3(0.4,0.4,0.4);
 
 // flIP y
-//const vec3 c_LightDirection = vec3(-0.4, 0.35, 0.2);
-const vec3 c_LightDirection = vec3(0.0, 1.0, 0.0);
+const vec3 c_LightDirection = vec3(-0.4, 0.35, 0.2);
+//const vec3 c_LightDirection = vec3(0.0, 1.0, 0.0);
 
 vec3 get_normal() {
   mat3 tbn;
@@ -183,7 +183,7 @@ void main() {
   vec3 colour = NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
   
   // colour += Ambient light colour + intensity + base colour
-  colour += vec3(1.0, 1.0, 1.0) * 0.01 * base_colour.xyz;
+  colour += vec3(1.0, 1.0, 1.0) * 0.2 * base_colour.xyz;
   
   if (u_material_params.occlusion_texture_tex_coord != -1) {
     float ao = texture(u_occlusion_texture, v_uv).r;
