@@ -26,8 +26,9 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                view_matrix: Matrix4<f32>,
                pipeline: &Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
                uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>>,
-               dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
+               dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
+  let mut num_drawcalls = 0;
   
   if let Some(model) = models.get(draw.get_texture()) {
     let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone().unwrap(), 0)
@@ -36,6 +37,7 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
     );
     
     for i in 0..model.len() {
+      num_drawcalls += 1;
       let material_set = model[i].material_desctriptor.clone();
       
       let cb = tmp_cmd_buffer;
@@ -59,7 +61,7 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
     println!("Error: Model {} doesn't exist", draw.get_texture());
   }
   
-  tmp_cmd_buffer
+  (tmp_cmd_buffer, num_drawcalls)
 }
 
 pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
@@ -69,7 +71,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  projection: Matrix4<f32>, sampler: Arc<sampler::Sampler>,
                  uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<memory::pool::StdMemoryPool>>,
                  pipeline: &Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-                 queue: Arc<Queue>, dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
+                 queue: Arc<Queue>, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   // Texture
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   
@@ -160,7 +162,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                                     uniform_set, ()).unwrap()
   }
   
-  tmp_cmd_buffer
+  (tmp_cmd_buffer, 1)
 }
 
 pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
@@ -169,8 +171,8 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  uniform_buffer: &cpu_pool::CpuBufferPool<vs_text::ty::Data>,
                  pipeline: &Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
                  fonts: &HashMap<String, GenericFont>,
-                 dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
-  
+                 dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
+  let mut num_drawcalls = 0;
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   
   let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), fonts.clone());
@@ -178,7 +180,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
   
   if !fonts.contains_key(draw.get_texture()) || !textures.contains_key(draw.get_texture()) {
     println!("Error: text couldn't draw, Texture: {:?}", draw.get_texture());
-    return tmp_cmd_buffer
+    return (tmp_cmd_buffer, 0)
   }
   
   let vertex_buffer = vao.vertex_buffer.clone()
@@ -217,7 +219,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                                .build().unwrap());
     
     let cb = tmp_cmd_buffer;
-    
+    num_drawcalls += 1;
     tmp_cmd_buffer = cb.draw_indexed(pipeline.clone().unwrap(),
                   DynamicState {
                     line_width: None,
@@ -233,5 +235,5 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                   uniform_set, ()).unwrap()
   }
   
-  tmp_cmd_buffer
+  (tmp_cmd_buffer, num_drawcalls)
 }

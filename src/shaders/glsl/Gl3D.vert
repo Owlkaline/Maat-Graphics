@@ -2,36 +2,39 @@
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
-layout(location = 2) in vec2 uv;
+layout(location = 2) in vec4 tangent;
+layout(location = 3) in vec2 uv;
+layout(location = 4) in vec4 colour;
 
+out vec3 v_position;
 out vec3 v_normal;
+out vec4 v_tangent;
 out vec2 v_uv;
+out vec4 v_colours;
+out mat3 v_tbn;
 out vec3 toCameraVector;
-out vec2 damper_reflectivity;
-out vec3 toLightVector[4];
-out vec3 lightColour[4];
-out vec3 attenuation[4];
 
-uniform mat4 transformation;
-uniform mat4 view;
-uniform mat4 projection;
-uniform mat4 lightpositions;
-uniform mat4 lightcolours;
-uniform mat4 attenuations;
+uniform mat4 u_transformation;
+uniform mat4 u_view;
+uniform mat4 u_projection;
 
 void main() {
-    vec4 worldPosition = transformation * vec4(position, 1.0);
-
-    v_uv = uv;
-    v_normal = mat3(transpose(inverse(transformation))) * normal;
-    
-    toCameraVector = (inverse(view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
-    
-    for(int i = 0; i < 4; ++i) {
-      attenuation[i]   = attenuations[i].xyz;
-      lightColour[i]   = lightcolours[i].xyz;
-      toLightVector[i] = lightpositions[i].xyz - worldPosition.xyz;
-    }
-    
-    gl_Position = projection * view * worldPosition;
+  vec3 position = vec3(-position.x, position.yz);
+  vec3 normal = vec3(-normal.x, normal.yz);
+  vec4 worldPosition = u_transformation * vec4(position, 1.0);
+  
+  v_position = vec3(worldPosition.xyz) / worldPosition.w;
+  v_uv = vec2(uv.x, uv.y);
+  v_colours = colour;
+  v_normal = normalize(vec3(u_transformation * vec4(normal.xyz, 0.0)));
+  v_tangent = normalize(vec4(u_transformation * tangent));
+  
+  vec3 normalW = v_normal;
+  vec3 tangentW = normalize(vec3(u_transformation * vec4(tangent.xyz, 0.0)));
+  vec3 bitangentW = cross(normalW, tangentW) * tangent.w;
+  v_tbn = mat3(tangentW, bitangentW, normalW);
+  
+  toCameraVector = (inverse(u_view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
+  
+  gl_Position = u_projection * u_view * worldPosition;
 }

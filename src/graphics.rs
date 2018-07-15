@@ -16,7 +16,7 @@ use cgmath::Vector3;
 pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
 
 #[derive(Clone)]
-pub struct Vertex3d { pub position: [f32; 3], pub normal: [f32; 3], pub uv: [f32; 2] }
+pub struct Vertex3d { pub position: [f32; 3], pub normal: [f32; 3], pub tangent: [f32; 4], pub uv: [f32; 2], pub colour: [f32; 4] }
 
 pub const DEFAULT_TEXTURE: &str = "Arial";
 
@@ -78,5 +78,6 @@ pub trait CoreRender {
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32);
   fn set_camera(&mut self, camera: Camera);
   fn get_camera(&self) -> Camera;
+  fn num_drawcalls(&self) -> u32;
 }
 

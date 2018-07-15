@@ -4,7 +4,11 @@ use std::path::Path;
 use base64;
 
 use gltf;
-use gltf::json::texture::MinFilter;
+use gltf::material::AlphaMode;
+use gltf::texture::MagFilter;
+use gltf::texture::MinFilter;
+use gltf::texture::WrappingMode;
+
 //use gltf_importer;
 //use gltf_importer::config::ValidationStrategy;
 
@@ -42,6 +46,11 @@ struct TexCoordArray {
 }
 
 #[derive(Clone)]
+struct TangentArray {
+  tangent: Vec<[f32; 4]>,
+}
+
+#[derive(Clone)]
 struct NormalArray {
   normal: Vec<[f32; 3]>,
 }
@@ -50,6 +59,19 @@ struct NormalArray {
 struct VertexArray {
   morph_index: u32,
   vertex: Vec<[f32; 3]>,
+}
+
+#[derive(Clone)]
+struct ColourArray {
+  colour: Vec<[f32; 4]>,
+}
+
+#[derive(Clone)]
+pub struct Sampler {
+  pub mag_filter: MagFilter,
+  pub min_filter: MinFilter,
+  pub wrap_s: WrappingMode,
+  pub wrap_t: WrappingMode,
 }
 
 #[derive(Clone)]
@@ -65,16 +87,18 @@ struct Material {
   textures: Vec<Texture>,
   
   base_colour_factor: Vector4<f32>,
-  base_colour_texture: Option<image::DynamicImage>,
+  base_colour_texture: Option<(Option<image::DynamicImage>, Sampler)>,
   metallic_factor: f32,
   roughness_factor: f32,
-  metallic_roughness_texture: Option<image::DynamicImage>,
+  metallic_roughness_texture: Option<(Option<image::DynamicImage>, Sampler)>,
   normal_texture_scale: f32,
-  normal_texture: Option<image::DynamicImage>,
-  occlusion_texture: Option<image::DynamicImage>,
+  normal_texture: Option<(Option<image::DynamicImage>, Sampler)>,
+  occlusion_texture: Option<(Option<image::DynamicImage>, Sampler)>,
   occlusion_texture_strength: f32,
-  emissive_texture: Option<image::DynamicImage>,
+  emissive_texture: Option<(Option<image::DynamicImage>, Sampler)>,
   emissive_factor: Vector3<f32>,
+  alpha_mode: AlphaMode,
+  alpha_cutoff: f32,
 }
 
 #[derive(Clone)]
@@ -82,9 +106,14 @@ struct FinalModel {
   vertices: VertexArray,
   indices: IndexArray,
   normals: NormalArray,
+  tangents: TangentArray,
   texcoords: TexCoordArray,
+  colours: ColourArray,
   material: Material,
   topology: Topology,
+  has_indices: bool,
+  has_normals: bool,
+  has_tangents: bool,
 //  animation: Animation,
 }
 
@@ -97,7 +126,6 @@ impl Texture {
   pub fn new() -> Texture {
     Texture {
       texture: "".to_string(),
-      
       raw_transform: [1.0, 0.0, 0.0, 0.0, 
                       0.0, 1.0, 0.0, 0.0, 
                       0.0, 0.0, 1.0, 0.0, 
@@ -123,8 +151,21 @@ impl Material {
      occlusion_texture_strength: 0.0,
      emissive_texture: None,
      emissive_factor: Vector3::new(0.0, 0.0, 0.0),
+     alpha_mode: AlphaMode::Blend,
+     alpha_cutoff: 0.5,
    }
  }
+}
+
+impl Sampler {
+  pub fn new() -> Sampler {
+    Sampler {
+      mag_filter: MagFilter::Linear,
+      min_filter: MinFilter::Linear,
+      wrap_s: WrappingMode::ClampToEdge,
+      wrap_t: WrappingMode::ClampToEdge,
+    }
+  }
 }
 
 impl ModelDetails {
@@ -170,19 +211,24 @@ impl ModelDetails {
       animation: Animation,
   }*/
     
-    let gltf_textures = {
-      let mut textures = Vec::new();
+    let gltf_textures_samplers: Vec<(Option<image::DynamicImage>, Sampler)> = {
+      let mut textures_samplers = Vec::new();
       
       for texture in gltf.textures() {
         println!("Texture: {:?}", texture.source().index());
-      //  let sampler = Sampler::simple_repeat_linear(queue.device().clone());
-     //   for texture in gltf.textures() {
-          let img: Option<image::DynamicImage> = texture_to_image(texture, &buffers, &Path::new(&source));
-          textures.push(img);
-      //  }
+        let img: Option<image::DynamicImage> = texture_to_image(texture.clone(), &buffers, &Path::new(&source));
+        
+        let texture_sampler = texture.sampler();
+        let sampler = Sampler {
+          mag_filter: texture_sampler.mag_filter().unwrap_or(MagFilter::Linear),
+          min_filter: texture_sampler.min_filter().unwrap_or(MinFilter::Linear),
+          wrap_s: texture_sampler.wrap_s(),
+          wrap_t: texture_sampler.wrap_t(),
+        };
+        textures_samplers.push((img, sampler));
       }
       
-      textures
+      textures_samplers
     };
     
     let mut index = 0;
@@ -201,11 +247,16 @@ impl ModelDetails {
           models.push(FinalModel {
             vertices: VertexArray { vertex: Vec::new(), morph_index: 0 }, 
             indices: IndexArray { index: Vec::new() }, 
-            normals: NormalArray { normal: Vec::new() }, 
+            normals: NormalArray { normal: Vec::new() },
+            tangents: TangentArray { tangent: Vec::new() },
             texcoords: TexCoordArray { texcoord: Vec::new() },
+            colours: ColourArray { colour: Vec::new() },
             material: Material::new(),
             topology: Topology::TriangleStrip, // default
             //  animation: Animation::new(),
+            has_indices: false,
+            has_normals: false,
+            has_tangents: false,
           });
           
           println!("- Primitive #{}", primitive.index());
@@ -231,20 +282,23 @@ impl ModelDetails {
           let mat = primitive.material();
           let pbr = mat.pbr_metallic_roughness();
           
+          models[index].material.alpha_mode = mat.alpha_mode();
+          models[index].material.alpha_cutoff = mat.alpha_cutoff();
+          
           let colour_factor = pbr.base_color_factor();
           models[index].material.base_colour_factor = Vector4::new(colour_factor[0], colour_factor[1], colour_factor[2], colour_factor[3]);
 //          models[mesh.index()].material.base_color_texture_tex_coord = pbr.base_color_texture().map(|t| t.tex_coord() as i32).unwrap_or(-1);
           models[index].material.base_colour_texture = pbr.base_color_texture().map(|t| {
-            gltf_textures[t.texture().index()].clone().unwrap()
+            gltf_textures_samplers[t.texture().index()].clone()
           });
           models[index].material.metallic_factor = pbr.metallic_factor();
           models[index].material.roughness_factor = pbr.roughness_factor();
-          models[index].material.metallic_roughness_texture = pbr.metallic_roughness_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.metallic_roughness_texture = pbr.metallic_roughness_texture().map(|t| gltf_textures_samplers[t.texture().index()].clone());
           models[index].material.normal_texture_scale = mat.normal_texture().map(|t| t.scale()).unwrap_or(0.0);
-          models[index].material.normal_texture = mat.normal_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
-          models[index].material.occlusion_texture = mat.occlusion_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.normal_texture = mat.normal_texture().map(|t| gltf_textures_samplers[t.texture().index()].clone());
+          models[index].material.occlusion_texture = mat.occlusion_texture().map(|t| gltf_textures_samplers[t.texture().index()].clone());
           models[index].material.occlusion_texture_strength = mat.occlusion_texture().map(|t| t.strength()).unwrap_or(0.0);
-          models[index].material.emissive_texture = mat.emissive_texture().map(|t| gltf_textures[t.texture().index()].clone().unwrap());
+          models[index].material.emissive_texture = mat.emissive_texture().map(|t| gltf_textures_samplers[t.texture().index()].clone());
           let emissive_factor = mat.emissive_factor();
           models[index].material.emissive_factor = Vector3::new(emissive_factor[0], emissive_factor[1], emissive_factor[2]);
           
@@ -266,13 +320,28 @@ impl ModelDetails {
               let normal = Vector4::new(vertex_normal[0], vertex_normal[1], vertex_normal[2], 1.0);
               let normal = (translation*scale)*normal;
               normals.push([normal.x, normal.y, normal.z]);
+              
+              models[index].has_normals = true;
             }
             models[index].normals.normal = normals;
+          }
+          if let Some(iter) = reader.read_tangents() {
+            let mut tangents = Vec::with_capacity(iter.len());
+            for vertex_tangent in iter {
+              let tangent = Vector4::new(vertex_tangent[0], vertex_tangent[1], vertex_tangent[2], vertex_tangent[3]);
+              let tangent = (translation*scale)*tangent;
+              tangents.push([tangent.x, tangent.y, tangent.z, tangent.w]);
+              
+              models[index].has_tangents = true;
+            }
+            models[index].tangents.tangent = tangents;
           }
           if let Some(iter) = reader.read_indices() {
             let mut indices = Vec::new();
             for vertex_indices in iter.into_u32() {
               indices.push(vertex_indices);
+              
+              models[index].has_indices = true;
             }
             models[index].indices.index = indices;
           }
@@ -282,6 +351,13 @@ impl ModelDetails {
               texcoords.push(vertex_texcoords);
             }
             models[index].texcoords.texcoord = texcoords;
+          }
+          if let Some(iter) = reader.read_colors(texture_index) {
+            let mut colours = Vec::new();
+            for vertex_colour in iter.into_rgba_f32() {
+              colours.push(vertex_colour);
+            }
+            models[index].colours.colour = colours;
           }
           index += 1;
         }
@@ -298,12 +374,36 @@ impl ModelDetails {
     self.models.len()
   }
   
+  pub fn alphamode(&self, model_index: usize) -> AlphaMode {
+    self.models[model_index].material.alpha_mode
+  }
+  
+  pub fn alphacutoff(&self, model_index: usize) -> f32 {
+    self.models[model_index].material.alpha_cutoff
+  }
+  
+  pub fn has_indices(&self, model_index: usize) -> bool {
+    self.models[model_index].has_indices
+  }
+  
+  pub fn has_normals(&self, model_index: usize) -> bool {
+    self.models[model_index].has_normals
+  }
+  
+  pub fn has_tangents(&self, model_index: usize) -> bool {
+    self.models[model_index].has_tangents
+  }
+  
   pub fn vertex(&self, model_index: usize) -> Vec<[f32; 3]> {
     self.models[model_index].vertices.vertex.clone()
   }
   
   pub fn normal(&self, model_index: usize) -> Vec<[f32; 3]> {
     self.models[model_index].normals.normal.clone()
+  }
+  
+  pub fn tangent(&self, model_index: usize) -> Vec<[f32; 4]> {
+    self.models[model_index].tangents.tangent.clone()
   }
   
   pub fn index(&self, model_index: usize) -> Vec<u32> {
@@ -314,13 +414,29 @@ impl ModelDetails {
     self.models[model_index].texcoords.texcoord.clone()
   }
   
+  pub fn colours(&self, model_index: usize) -> Vec<[f32; 4]> {
+    self.models[model_index].colours.colour.clone()
+  }
+  
   pub fn base_colour(&self, model_index: usize) -> [f32; 4] {
     let colour = self.models[model_index].material.base_colour_factor;
     [colour.x, colour.y, colour.z, colour.w]
   }
   
   pub fn base_colour_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
-    self.models[model_index].material.base_colour_texture.clone()
+    let mut texture = None;
+    if self.models[model_index].material.base_colour_texture.is_some() {
+      texture = self.models[model_index].material.base_colour_texture.clone().unwrap().0;
+    }
+    texture
+  }
+  
+  pub fn base_colour_sampler(&self, model_index: usize) -> Sampler {
+    let mut sampler = Sampler::new();
+    if self.models[model_index].material.base_colour_texture.is_some() {
+      sampler = self.models[model_index].material.base_colour_texture.clone().unwrap().1;
+    }
+    sampler
   }
   
   pub fn metallic_factor(&self, model_index: usize) -> f32 {
@@ -332,7 +448,19 @@ impl ModelDetails {
   }
   
   pub fn metallic_roughness_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
-    self.models[model_index].material.metallic_roughness_texture.clone()
+    let mut texture = None;
+    if self.models[model_index].material.metallic_roughness_texture.is_some() {
+      texture = self.models[model_index].material.metallic_roughness_texture.clone().unwrap().0;
+    }
+    texture
+  }
+  
+  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Sampler {
+    let mut sampler = Sampler::new();
+    if self.models[model_index].material.metallic_roughness_texture.is_some() {
+      sampler = self.models[model_index].material.metallic_roughness_texture.clone().unwrap().1;
+    }
+    sampler
   }
   
   pub fn normal_texture_scale(&self, model_index: usize) -> f32 {
@@ -340,11 +468,35 @@ impl ModelDetails {
   }
   
   pub fn normal_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
-    self.models[model_index].material.normal_texture.clone()
+    let mut texture = None;
+    if self.models[model_index].material.normal_texture.is_some() {
+      texture = self.models[model_index].material.normal_texture.clone().unwrap().0;
+    }
+    texture
+  }
+  
+  pub fn normal_sampler(&self, model_index: usize) -> Sampler {
+    let mut sampler = Sampler::new();
+    if self.models[model_index].material.normal_texture.is_some() {
+      sampler = self.models[model_index].material.normal_texture.clone().unwrap().1
+    }
+    sampler
   }
   
   pub fn occlusion_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
-    self.models[model_index].material.occlusion_texture.clone()
+    let mut texture = None;
+    if self.models[model_index].material.occlusion_texture.is_some() {
+      texture = self.models[model_index].material.occlusion_texture.clone().unwrap().0
+    }
+    texture
+  }
+  
+  pub fn occlusion_sampler(&self, model_index: usize) -> Sampler {
+    let mut sampler = Sampler::new();
+    if self.models[model_index].material.occlusion_texture.is_some() {
+      sampler = self.models[model_index].material.occlusion_texture.clone().unwrap().1
+    }
+    sampler
   }
   
   pub fn occlusion_texture_strength(&self, model_index: usize) -> f32 {
@@ -352,7 +504,19 @@ impl ModelDetails {
   }
   
   pub fn emissive_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
-    self.models[model_index].material.emissive_texture.clone()
+    let mut texture = None;
+    if self.models[model_index].material.emissive_texture.is_some() {
+      texture = self.models[model_index].material.emissive_texture.clone().unwrap().0
+    }
+    texture
+  }
+  
+  pub fn emissive_sampler(&self, model_index: usize) -> Sampler {
+    let mut sampler = Sampler::new();
+    if self.models[model_index].material.emissive_texture.is_some() {
+      sampler = self.models[model_index].material.emissive_texture.clone().unwrap().1
+    }
+    sampler
   }
   
   pub fn emissive_factor(&self, model_index: usize) -> [f32; 3] {
@@ -378,6 +542,7 @@ fn texture_to_image(texture: gltf::Texture, buffers: &Vec<gltf::buffer::Data>, b
       }
     },
     gltf::image::Source::Uri { uri, mime_type } => {
+      println!("{:?}", uri);
       if uri.starts_with("data:") {
         let encoded = uri.split(',').nth(1).unwrap();
         let data = base64::decode(&encoded).unwrap();

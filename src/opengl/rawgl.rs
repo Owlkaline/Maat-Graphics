@@ -17,7 +17,13 @@ use graphics::DEFAULT_TEXTURE;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
-//use opengex_parser::OpengexPaser;
+use opengl::opengl_3d;
+use opengl::vao::Vao;
+use opengl::vao::Vao3D;
+use opengl::vao::InstancedVao;
+
+use gltf_interpreter::ModelDetails;
+use gltf::material::AlphaMode;
 
 use cgmath;
 use cgmath::Deg;
@@ -57,314 +63,31 @@ pub const FINAL: usize = 5;
 
 pub const MODEL: usize = 0;
 
-pub const INSTANCE_DATA_LENGTH: usize = 22;
-
-pub struct InstancedVao {
-  vao: GLuint,
-  vbo: [GLuint; 2],
-  ebo: GLuint,
-  num_vertices: GLint,
-  num_indices: GLint,
-  attrib: Vec<GLuint>,
-  vbo_data: Vec<GLfloat>,
-  max_instances: GLuint,
+struct Uniform3D {
+  alpha_cutoff: f32,
+  base_colour_factor: Vector4<f32>,
+  metallic_roughness_factor: Vector2<f32>,
+  normal_scale: f32,
+  occlusion_strength: f32,
+  emissive_factor: Vector3<f32>,
+  forced_alpha: i32,
+  has_normals: i32,
+  has_tangents: i32,
+  has_colour_texture: i32,
+  has_metallic_roughness_texture: i32,
+  has_normal_texture: i32,
+  has_occlusion_texture: i32,
+  has_emissive_texture: i32,
 }
 
-impl InstancedVao {
-  pub fn new(max_instances: i32) -> InstancedVao {
-    let mut vao: GLuint = 0;
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-    }
-    
-    InstancedVao {
-      vao: vao,
-      vbo: [0, 0],
-      ebo: 0,
-      num_vertices: 0,
-      num_indices: 0,
-      attrib: Vec::new(),
-      vbo_data: Vec::new(),
-      max_instances: max_instances as GLuint,
-    }
-  }
-  
-  pub fn cleanup(&mut self) {
-    unsafe {
-      gl::DeleteBuffers(1, &mut self.vbo[0]);
-      gl::DeleteBuffers(1, &mut self.vbo[1]);
-      gl::DeleteBuffers(1, &mut self.ebo);
-      gl::DeleteVertexArrays(1, &mut self.vao);
-      gl::GenVertexArrays(1, &mut self.vao);
-    }
-    
-    self.attrib.clear();
-    self.num_vertices = 0;
-    self.num_indices = 0;
-  }
-  
-  pub fn update_vbodata(&self, size: usize, new_data: Vec<GLfloat>) {
-    unsafe {
-      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo[1]);
-      gl::BufferSubData(gl::ARRAY_BUFFER, 0, (mem::size_of::<GLfloat>()*size*INSTANCE_DATA_LENGTH) as isize, mem::transmute(&new_data[0]));
-    }
-  }
-  
-  pub fn draw_indexed_instanced(&self, size: usize, draw_type: GLuint) {
-    self.bind();
-    self.bind_ebo();
-    unsafe {
-      gl::DrawElementsInstanced(draw_type, self.num_indices, gl::UNSIGNED_INT, ptr::null(), size as GLint);
-    }
-    self.unbind();
-  }
-  
-  pub fn unbind(&self) {
-    unsafe {
-      gl::BindVertexArray(0);
-    }
-  }
-  
-  pub fn bind(&self) {
-    unsafe {
-      gl::BindVertexArray(self.vao);
-      for location in self.attrib.clone() {
-        gl::EnableVertexAttribArray(location);
-      }
-    }
-  }
-  
-  pub fn bind_ebo(&self) {
-    unsafe {
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-    }
-  }
-  
-  pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
-    let mut vbo: GLuint = 0;
-    unsafe {
-      gl::GenBuffers(1, &mut vbo);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
-                     mem::transmute(&vertices[0]),
-                     draw_type);
-      self.set_vertex_attrib(0, 2, 4, 0);
-      self.set_vertex_attrib(1, 2, 4, 2);
-      self.num_vertices = (vertices.len()/3) as GLint;
-    }
-    
-    let mut vbo_data: GLuint = 0;
-    unsafe {
-      gl::GenBuffers(1, &mut vbo_data);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo_data);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (mem::size_of::<GLfloat>()*self.max_instances as usize*INSTANCE_DATA_LENGTH as usize) as isize,
-                     ptr::null(),
-                     draw_type);
-    }
-    
-    self.set_vertex_instanced_attrib(2, 4, INSTANCE_DATA_LENGTH, 0);
-    self.set_vertex_instanced_attrib(3, 4, INSTANCE_DATA_LENGTH, 4);
-    self.set_vertex_instanced_attrib(4, 4, INSTANCE_DATA_LENGTH, 8);
-    self.set_vertex_instanced_attrib(5, 4, INSTANCE_DATA_LENGTH, 12);
-    self.set_vertex_instanced_attrib(6, 4, INSTANCE_DATA_LENGTH, 16);
-    self.set_vertex_instanced_attrib(7, 2, INSTANCE_DATA_LENGTH, 20);
-    
-    self.vbo = [vbo, vbo_data];
-  }
-  
-  pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
-    unsafe {
-      gl::GenBuffers(1, &mut self.ebo);
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*indices.len()) as isize,
-                     mem::transmute(&indices[0]),
-                     draw_type);
-      self.num_indices = indices.len() as GLint;
-    }
-  }
-  
-  pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
-    unsafe {
-      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
-                              (total_size * mem::size_of::<GLfloat>()) as i32,
-                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
-      self.attrib.push(location);
-    }
-  }
-  
-  pub fn set_vertex_instanced_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
-    unsafe {
-      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
-                              (total_size * mem::size_of::<GLfloat>()) as i32,
-                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
-      gl::VertexAttribDivisor(location, 1);
-      self.attrib.push(location);
-      gl::EnableVertexAttribArray(location);
-    }
-  }
-  
-  pub fn activate_texture(&self, i: u32, texture: GLuint) {
-    unsafe {
-      gl::ActiveTexture(gl::TEXTURE0 + i);
-      gl::BindTexture(gl::TEXTURE_2D, texture);
-    }
-  }
-  
-  pub fn activate_texture1(&self, i: u32, texture: GLuint) {
-    unsafe {
-      gl::ActiveTexture(gl::TEXTURE1);
-      gl::BindTexture(gl::TEXTURE_2D, texture);
-    }
-  }
-}
-
-pub struct Vao {
-  vao: GLuint,
-  vbo: GLuint,
-  ebo: GLuint,
-  num_vertices: GLint,
-  num_indices: GLint,
-  attrib: Vec<GLuint>,
-}
-
-impl Vao {
-  pub fn new() -> Vao {
-    let mut vao: GLuint = 0;
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-    }
-    
-    Vao {
-      vao: vao,
-      vbo: 0,
-      ebo: 0,
-      num_vertices: 0,
-      num_indices: 0,
-      attrib: Vec::new(),
-    }
-  }
-  
-  pub fn cleanup(&mut self) {
-    unsafe {
-      gl::DeleteBuffers(1, &mut self.vbo);
-      gl::DeleteBuffers(1, &mut self.ebo);
-      gl::DeleteVertexArrays(1, &mut self.vao);
-      gl::GenVertexArrays(1, &mut self.vao);
-    }
-    
-    self.attrib.clear();
-    self.num_vertices = 0;
-    self.num_indices = 0;
-  }
-  
-  pub fn draw_indexed(&self, draw_type: GLuint) {
-    self.bind();
-    self.bind_ebo();
-    unsafe {
-      gl::DrawElements(draw_type, self.num_indices, gl::UNSIGNED_INT, ptr::null());
-    }
-  }
-  
-  pub fn draw(&self, draw_type: GLuint) {
-    self.bind();
-    //self.bind_ebo();
-    unsafe {
-      gl::DrawElements(draw_type, self.num_vertices, gl::UNSIGNED_INT, ptr::null());
-    }
-  }
-  
-  pub fn unbind(&self) {
-    unsafe {
-      gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-      gl::BindVertexArray(0);
-    }
-  }
-  
-  pub fn bind(&self) {
-    unsafe {
-      gl::BindVertexArray(self.vao);
- /*     for location in self.attrib.clone() {
-        gl::EnableVertexAttribArray(location);
-      }*/
-    }
-  }
-  
-  pub fn bind_ebo(&self) {
-    unsafe {
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-    }
-  }
-  
-  pub fn create_vbo(&mut self, vertices: Vec<GLfloat>, draw_type: GLuint) {
-    let mut vbo: GLuint = 0;
-    unsafe {
-      gl::GenBuffers(1, &mut vbo);
-      gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-      gl::BufferData(gl::ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*vertices.len()) as isize,
-                     mem::transmute(&vertices[0]),
-                     draw_type);
-      self.num_vertices = (vertices.len()/3) as GLint;
-    }
-    self.vbo = vbo;
-  }
-  
-  pub fn create_ebo(&mut self, indices: Vec<GLuint>, draw_type: GLuint) {
-    unsafe {
-      gl::GenBuffers(1, &mut self.ebo);
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-      gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                     (mem::size_of::<GLuint>()*indices.len()) as isize,
-                     mem::transmute(&indices[0]),
-                     draw_type);
-      self.num_indices = indices.len() as GLint;
-    }
-  }
-  
-  pub fn set_vertex_attrib(&mut self, location: GLuint, size: GLint, total_size: usize, offset: usize) {
-    unsafe {
-      gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, 
-                              (total_size * mem::size_of::<GLfloat>()) as i32,
-                              ptr::null().offset((offset * mem::size_of::<GLfloat>()) as isize));
-      self.attrib.push(location);
-      gl::EnableVertexAttribArray(location);
-    }
-  }
-  
-  pub fn activate_texture(&self, i: u32, texture: GLuint) {
-    unsafe {
-      gl::ActiveTexture(gl::TEXTURE0 + i);
-      gl::BindTexture(gl::TEXTURE_2D, texture);
-    }
-  }
-  
-  pub fn activate_texture1(&self, i: u32, texture: GLuint) {
-    unsafe {
-      gl::ActiveTexture(gl::TEXTURE1);
-      gl::BindTexture(gl::TEXTURE_2D, texture);
-    }
-  }
-  
-  pub fn update_vbo(&mut self, vertices: Vec<GLfloat>) {
-    unsafe {
-      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-      gl::BufferSubData(gl::ARRAY_BUFFER, 0, 
-                        (mem::size_of::<GLuint>()*vertices.len()) as isize,
-                        mem::transmute(&vertices[0]));
-    }
-  }
-  
-  pub fn update_ebo(&mut self, indices: Vec<GLuint>) {
-    unsafe {
-      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
-      gl::BufferSubData(gl::ELEMENT_ARRAY_BUFFER, 0,
-                     (mem::size_of::<GLuint>()*indices.len()) as isize,
-                     mem::transmute(&indices[0]));
-    }
-  }
+struct Model3D {
+  vao: Vao3D,
+  uniforms: Uniform3D,
+  base_texture: Option<GLuint>,
+  metallic_roughness_texture: Option<GLuint>,
+  normal_texture: Option<GLuint>,
+  occlusion_texture: Option<GLuint>,
+  emissive_texture: Option<GLuint>,
 }
 
 pub struct GL2D {
@@ -379,7 +102,7 @@ pub struct GL3D {
   camera: Camera,
   
   shaders: Vec<Box<ShaderFunctions>>,
-  models: HashMap<String, Vec<Vao>>,
+  models: HashMap<String, Vec<Model3D>>,
   projection: Matrix4<f32>,
 }
 
@@ -411,6 +134,46 @@ pub struct RawGl {
   
   min_dimensions: [u32; 2],
   pub window: GlWindow,
+}
+
+impl Uniform3D {
+  pub fn new() -> Uniform3D {
+    Uniform3D {
+      alpha_cutoff: 0.5,
+      base_colour_factor: Vector4::new(0.0, 0.0, 0.0, 1.0),
+      metallic_roughness_factor: Vector2::new(0.0, 0.0),
+      normal_scale: 1.0,
+      occlusion_strength: 1.0,
+      emissive_factor: Vector3::new(1.0, 1.0, 1.0),
+      forced_alpha: -1,
+      has_normals: -1,
+      has_tangents: -1,
+      has_colour_texture: -1,
+      has_metallic_roughness_texture: -1,
+      has_normal_texture: -1,
+      has_occlusion_texture: -1,
+      has_emissive_texture: -1,
+    }
+  }
+}
+
+impl Model3D {
+  pub fn new() -> Model3D {
+    Model3D {
+      vao: Vao3D::new(),
+      uniforms: Uniform3D::new(),
+      base_texture: None,
+      metallic_roughness_texture: None,
+      normal_texture: None,
+      occlusion_texture: None,
+      emissive_texture: None,
+    }
+  }
+  
+  pub fn with_vao(mut self, vao: Vao3D) -> Self {
+    self.vao = vao;
+    self
+  }
 }
 
 extern "system" fn opengl_debug(source: GLenum, _type: GLenum, id: GLuint, severity: GLenum, 
@@ -458,8 +221,8 @@ impl RawGl {
     println!("Current MSAA: x{}\n", msaa_samples);
     
     unsafe {
-      //gl::Enable(gl::DEBUG_OUTPUT);
-     // gl::DebugMessageCallback(opengl_debug, 0 as *const c_void);
+      gl::Enable(gl::DEBUG_OUTPUT);
+      gl::DebugMessageCallback(opengl_debug, 0 as *const c_void);
     }
     
     RawGl {
@@ -651,25 +414,67 @@ impl RawGl {
       let view = self.gl3D.camera.get_view_matrix();/*self.scale;*///self.view Matrix4::from_angle_y(Deg(180.0))  self.scale;
       
       self.gl3D.shaders[MODEL].Use();
-      self.gl3D.shaders[MODEL].set_mat4(String::from("transformation"), transformation);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("view"), view);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("lightpositions"), lighting_position);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("lightcolours"), lighting_colour);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("attenuations"), attenuation);
-      self.gl3D.shaders[MODEL].set_float(String::from("shine_damper"), 10.0);
-      self.gl3D.shaders[MODEL].set_float(String::from("reflectivity"), 1.0);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("u_transformation"), transformation);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("u_view"), view);
+      self.gl3D.shaders[MODEL].set_mat4(String::from("u_projection"), self.gl3D.projection);
       
       if let Some(model) = self.gl3D.models.get(draw.get_texture()) {
         for i in 0..model.len() {
-          let mut texture: String = String::from(DEFAULT_TEXTURE);
-          if self.textures.contains_key(&(draw.get_texture().clone() + "diffuse" + &(i.to_string()))) {
-            texture = draw.get_texture().clone() + "diffuse" + &(i.to_string());
-          }
-          let texture = *self.textures.get(&texture).unwrap();
+          self.gl3D.shaders[MODEL].set_vec4(String::from("u_base_colour_factor"),
+                                             model[i].uniforms.base_colour_factor);
+          self.gl3D.shaders[MODEL].set_vec2(String::from("u_metallic_roughness_factor"),
+                                             model[i].uniforms.metallic_roughness_factor);
           
-          model[i].activate_texture(0, texture);
-          model[i].draw_indexed(gl::TRIANGLES);
+          self.gl3D.shaders[MODEL].set_float(String::from("u_alpha_cutoff"), 
+                                             model[i].uniforms.alpha_cutoff);
+          self.gl3D.shaders[MODEL].set_float(String::from("u_normal_scale"), 
+                                             model[i].uniforms.normal_scale);
+          self.gl3D.shaders[MODEL].set_float(String::from("u_occlusion_strength"), 
+                                             model[i].uniforms.occlusion_strength);
+          self.gl3D.shaders[MODEL].set_vec3(String::from("u_emissive_factor"), 
+                                             model[i].uniforms.emissive_factor);
+          
+          self.gl3D.shaders[MODEL].set_int(String::from("u_forced_alpha"), 
+                                           model[i].uniforms.forced_alpha);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_normals"), 
+                                           model[i].uniforms.has_normals);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_tangents"), 
+                                           model[i].uniforms.has_tangents);
+          
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_colour_texture"), 
+                                           model[i].uniforms.has_colour_texture);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_metallic_roughness_texture"), 
+                                           model[i].uniforms.has_metallic_roughness_texture);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_normal_texture"), 
+                                           model[i].uniforms.has_normal_texture);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_occlusion_texture"), 
+                                           model[i].uniforms.has_occlusion_texture);
+          self.gl3D.shaders[MODEL].set_int(String::from("u_has_emissive_texture"), 
+                                           model[i].uniforms.has_emissive_texture);
+          
+          if let Some(texture) = model[i].base_texture {
+            model[i].vao.activate_texture(0, texture);
+          }
+          if let Some(texture) = model[i].metallic_roughness_texture {
+            //model[i].vao.activate_texture(1, texture);
+          }
+          if let Some(texture) = model[i].normal_texture {
+            //model[i].vao.activate_texture(2, texture);
+          }
+          if let Some(texture) = model[i].occlusion_texture {
+           // model[i].vao.activate_texture(3, texture);
+          }
+          if let Some(texture) = model[i].emissive_texture {
+         //   model[i].vao.activate_texture(4, texture);
+          }
+          
+          model[i].vao.draw_indexed(gl::TRIANGLES);
+          
+          model[i].vao.activate_texture(0, 0);
+          model[i].vao.activate_texture(1, 0);
+          model[i].vao.activate_texture(2, 0);
+          model[i].vao.activate_texture(3, 0);
+          model[i].vao.activate_texture(4, 0);
         }
       }
     } else {
@@ -953,63 +758,155 @@ impl CoreRender for RawGl {
   
   fn load_model(&mut self, reference: String, directory: String, model_name: String) {
     let start_time = time::Instant::now();
-    /*let model_data = OpengexPaser::new(directory.clone()+&model_name.clone());
     
-    let mut model: Vec<Vao> = Vec::new();
+    let mesh_data = ModelDetails::new(directory.clone()+&model_name.clone());
     
-    let vertex = model_data.get_vertex();
-    let normal = model_data.get_normal();
-    let uvs = model_data.get_texcoords();
-    let index = model_data.get_index();
-    let textures = model_data.get_diffuse_textures();
+    let mut model: Vec<Model3D> = Vec::new();
     
-    for i in 0..textures.len() {
-      if textures[i].0 != "" {
-        println!("{}", textures[i].0);
-        self.add_texture((reference.clone() + "diffuse" + &(i.to_string())), (directory.clone()+&textures[i].0));
-      }
-    }
+    for i in 0..mesh_data.num_models() {
+      
+      let vertex = mesh_data.vertex(i);
+      let texcoord = mesh_data.texcoords(i);
+      let normal = mesh_data.normal(i);
+      let tangent = mesh_data.tangent(i);
+      let index = mesh_data.index(i);
+      let colour = mesh_data.colours(i);
+      //let alpha_mode = mesh_data.alphamode(i);
     
-    for i in 0..vertex.len() {
-      let mut vertices: Vec<GLfloat> = Vec::with_capacity(vertex[i].len());
-      for j in 0..vertex[i].len() {
+      let mut vertices: Vec<GLfloat> = Vec::with_capacity(vertex.len());
+      for j in 0..vertex.len() {
         let mut uv = [0.0, 0.0];
-        if uvs.len() > i && uvs[i].len() > j {
-          uv = uvs[i][j];
+        if texcoord.len() > j {
+          uv = texcoord[j];
+        }
+        let mut n_normal = [1.0, 1.0, 1.0];
+        if normal.len() > j {
+          n_normal = normal[j];
+        }
+        let mut t_tangent = [1.0, 1.0, 1.0, 0.0];
+        if tangent.len() > j {
+          t_tangent = tangent[j];
+        }
+        let mut c_colour = [1.0, 1.0, 1.0, 1.0];
+        if colour.len() >  j {
+          c_colour = colour[j];
         }
         
-        vertices.push(vertex[i][j][0]);
-        vertices.push(vertex[i][j][1]);
-        vertices.push(vertex[i][j][2]);
+        vertices.push(vertex[j][0]);
+        vertices.push(vertex[j][1]);
+        vertices.push(vertex[j][2]);
         
-        vertices.push(normal[i][j][0]);
-        vertices.push(normal[i][j][1]);
-        vertices.push(normal[i][j][2]);
+        vertices.push(n_normal[0]);
+        vertices.push(n_normal[1]);
+        vertices.push(n_normal[2]);
+        
+        vertices.push(t_tangent[0]);
+        vertices.push(t_tangent[1]);
+        vertices.push(t_tangent[2]);
+        vertices.push(t_tangent[3]);
         
         vertices.push(uv[0]);
         vertices.push(uv[1]);
+        
+        vertices.push(c_colour[0]);
+        vertices.push(c_colour[1]);
+        vertices.push(c_colour[2]);
+        vertices.push(c_colour[3]);
       }
       
-      let indices = index[i].iter().map( |index| {
+      let indices = index.iter().map( |index| {
           *index as GLuint
         }
       ).collect::<Vec<GLuint>>();
       
-      let mut vao: Vao = Vao::new();
+      let mut vao: Vao3D = Vao3D::new();
       
       vao.bind();
       vao.create_ebo(indices, gl::STATIC_DRAW);
       vao.create_vbo(vertices, gl::STATIC_DRAW);
       
-      vao.set_vertex_attrib(0, 3, 8, 0);
-      vao.set_vertex_attrib(1, 3, 8, 3);
-      vao.set_vertex_attrib(2, 2, 8, 6);
+      vao.set_vertex_attrib(0, 3, 16, 0);
+      vao.set_vertex_attrib(1, 3, 16, 3);
+      vao.set_vertex_attrib(2, 4, 16, 6);
+      vao.set_vertex_attrib(3, 2, 16, 10);
+      vao.set_vertex_attrib(4, 4, 16, 12);
       
-      model.push(vao);
+      let mut new_model = Model3D::new().with_vao(vao);
+      
+      new_model.base_texture = opengl_3d::create_texture_from_dynamicimage(mesh_data.base_colour_texture(i));
+      new_model.metallic_roughness_texture = opengl_3d::create_texture_from_dynamicimage(mesh_data.metallic_roughness_texture(i));
+      new_model.normal_texture = opengl_3d::create_texture_from_dynamicimage(mesh_data.normal_texture(i));
+      new_model.occlusion_texture = opengl_3d::create_texture_from_dynamicimage(mesh_data.occlusion_texture(i));
+      new_model.emissive_texture = opengl_3d::create_texture_from_dynamicimage(mesh_data.emissive_texture(i));
+      
+      let base_colour_factor = { 
+        let colour = mesh_data.base_colour(i);
+        Vector4::new(colour[0], colour[1], colour[2], colour[3])
+      };
+      let metallic_roughness_factor = Vector2::new(mesh_data.metallic_factor(i), mesh_data.roughness_factor(i));
+      let normal_scale = mesh_data.normal_texture_scale(i);
+      let occlusion_strength = mesh_data.occlusion_texture_strength(i);
+      let emissive_factor = {
+        let factor = mesh_data.emissive_factor(i);
+        Vector3::new(factor[0], factor[1], factor[2])
+      };
+      
+      let has_colour_texture = {
+        if new_model.base_texture.is_some() { 0 } else { -1 }
+      };
+      let has_metallic_roughness_texture = {
+        if new_model.metallic_roughness_texture.is_some() { 0 } else { -1 }
+      };
+      let has_normal_texture = {
+        if new_model.normal_texture.is_some() { 0 } else { -1 }
+      };
+      let has_occlusion_texture = {
+        if new_model.occlusion_texture.is_some() { 0 } else { -1 }
+      };
+      let has_emissive_texture = {
+        if new_model.emissive_texture.is_some() { 0 } else { -1 }
+      };
+      
+      let alpha_mode = mesh_data.alphamode(i);
+      let mut alpha_cutoff = mesh_data.alphacutoff(i);
+      let has_normals = if mesh_data.has_normals(i) { 1 } else { 0 };
+      let has_tangents = if mesh_data.has_tangents(i) { 1 } else { 0 };
+      
+      let mut forced_alpha = 0;
+      match alpha_mode {
+        AlphaMode::Opaque => {
+          forced_alpha = 1;
+        },
+        AlphaMode::Mask => {
+          forced_alpha = 2;
+        },
+        AlphaMode::Blend => {
+          forced_alpha = 0;
+        },
+      }
+      
+      let uniform_var = Uniform3D {
+        alpha_cutoff: alpha_cutoff,
+        base_colour_factor: base_colour_factor,
+        metallic_roughness_factor: metallic_roughness_factor,
+        normal_scale: normal_scale,
+        occlusion_strength: occlusion_strength,
+        emissive_factor: emissive_factor,
+        forced_alpha: forced_alpha,
+        has_normals: has_normals,
+        has_tangents: has_tangents,
+        has_colour_texture: has_colour_texture,
+        has_metallic_roughness_texture: has_metallic_roughness_texture,
+        has_normal_texture: has_normal_texture,
+        has_occlusion_texture: has_occlusion_texture,
+        has_emissive_texture: has_emissive_texture,
+      };
+      new_model.uniforms = uniform_var;
+      model.push(new_model);
     }
     
     self.gl3D.models.insert(reference, model);
-    */
+    
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory + &model_name);
   }
@@ -1129,7 +1026,11 @@ impl CoreRender for RawGl {
     self.gl2D.shaders[FINAL].set_mat4(String::from("projection"), self.gl2D.projection);
     
     self.gl3D.shaders[MODEL].Use();
-    self.gl3D.shaders[MODEL].set_int(String::from("tex"), 0);
+    self.gl3D.shaders[MODEL].set_int(String::from("u_base_colour"), 0);
+    self.gl3D.shaders[MODEL].set_int(String::from("u_metallic_roughness"), 1);
+    self.gl3D.shaders[MODEL].set_int(String::from("u_normal_texture"), 2);
+    self.gl3D.shaders[MODEL].set_int(String::from("u_occlusion_texture"), 3);
+    self.gl3D.shaders[MODEL].set_int(String::from("u_emissive_texture"), 4);
     self.gl3D.shaders[MODEL].set_mat4(String::from("projection"), self.gl3D.projection);
   }
   
@@ -1239,7 +1140,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     let texture = self.framebuffer.get_screen_texture(0);
     self.draw_bloom(draw, texture);
-    
+    /*
     // Horizontal blur
     self.framebuffer_blur_ping.bind();
     
@@ -1255,7 +1156,7 @@ impl CoreRender for RawGl {
     let draw = self.framebuffer_blur_ping.draw_screen_texture(blur_x, blur_y, blur_width, blur_height);
     let texture = self.framebuffer_blur_ping.get_screen_texture(0);
     self.draw_blur(draw, texture, Vector2::new(0.0, 1.0));
-    
+    */
     // Final Draw
     self.framebuffer.bind_default();
     
@@ -1263,7 +1164,7 @@ impl CoreRender for RawGl {
     
     let draw = self.framebuffer.draw_screen_texture(x, y, width, height);
     let base_texture = self.framebuffer.get_screen_texture(0);
-    let bloom_texture = self.framebuffer_blur_pong.get_screen_texture(0);
+    let bloom_texture = self.framebuffer_bloom.get_screen_texture(0);
     self.draw_final_frame(draw, base_texture, bloom_texture, true);
   }
   
@@ -1361,5 +1262,6 @@ impl CoreRender for RawGl {
   fn get_camera(&self) -> Camera { 
     self.gl3D.camera.to_owned() 
   }
+    fn num_drawcalls(&self) -> u32 {0}
 }
 

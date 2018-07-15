@@ -1,5 +1,6 @@
 use vulkano::memory;
 use vulkano::format;
+use vulkano::sampler;
 use vulkano::sync::NowFuture;
 use vulkano::image as vkimage;
 use vulkano::image::ImmutableImage;
@@ -10,11 +11,20 @@ use vulkano::buffer::{CpuBufferPool, cpu_pool,
 use vulkano::command_buffer::{AutoCommandBuffer, CommandBufferExecFuture};
 
 use image;
+use image::DynamicImage::ImageLuma8;
+use image::DynamicImage::ImageLumaA8;
+use image::DynamicImage::ImageRgb8;
 use image::DynamicImage::ImageRgba8;
 
 use graphics::Vertex3d;
 use drawcalls::DrawCall;
 use vulkan::rawvk::{vs_3d};
+use gltf_interpreter::Sampler;
+
+use gltf::material::AlphaMode;
+use gltf::texture::MagFilter;
+use gltf::texture::MinFilter;
+use gltf::texture::WrappingMode;
 
 use cgmath::{Deg, perspective, Vector4, Matrix4};
 
@@ -46,16 +56,50 @@ pub fn create_depth_buffer(device: Arc<Device>, dimensions: [u32; 2]) -> Option<
                               dimensions,
                               format::D16Unorm)
                               .unwrap())
-  }
+}
+
+pub fn create_sampler_from_gltfsampler(device: Arc<Device>, sampler: Sampler) -> Arc<sampler::Sampler> {
+  let mag_filter = match sampler.mag_filter {
+    MagFilter::Linear => sampler::Filter::Linear,
+    MagFilter::Nearest => sampler::Filter::Nearest,
+  };
+  
+  let (min_filter, mipmap_mode) = match sampler.min_filter {
+    MinFilter::Linear => (sampler::Filter::Linear, sampler::MipmapMode::Nearest),
+    MinFilter::Nearest => (sampler::Filter::Nearest, sampler::MipmapMode::Nearest),
+    MinFilter::NearestMipmapNearest => (sampler::Filter::Nearest, sampler::MipmapMode::Nearest),
+    MinFilter::LinearMipmapNearest => (sampler::Filter::Linear, sampler::MipmapMode::Nearest),
+    MinFilter::NearestMipmapLinear => (sampler::Filter::Nearest, sampler::MipmapMode::Linear),
+    MinFilter::LinearMipmapLinear => (sampler::Filter::Linear, sampler::MipmapMode::Linear),
+  };
+  
+  let wrap_s = match sampler.wrap_s {
+    WrappingMode::ClampToEdge => sampler::SamplerAddressMode::ClampToEdge,
+    WrappingMode::MirroredRepeat => sampler::SamplerAddressMode::MirroredRepeat,
+    WrappingMode::Repeat => sampler::SamplerAddressMode::Repeat,
+  };
+  
+  let wrap_t = match sampler.wrap_t {
+    WrappingMode::ClampToEdge => sampler::SamplerAddressMode::ClampToEdge,
+    WrappingMode::MirroredRepeat => sampler::SamplerAddressMode::MirroredRepeat,
+    WrappingMode::Repeat => sampler::SamplerAddressMode::Repeat,
+  };
+  
+  sampler::Sampler::new(device, mag_filter, min_filter, mipmap_mode, wrap_s, wrap_t,
+                                        sampler::SamplerAddressMode::ClampToEdge,
+                                        0.0, 1.0, 0.0, 0.0).unwrap()
+}
 
 pub fn create_texture_from_dynamicimage(queue: Arc<Queue>, data: Option<image::DynamicImage>) -> Option<(Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>)> {
 //  mesh_data.base_colour_texture(i)
   let mut final_texture = None;
-  if let Some(ImageRgba8(texture_img)) = data {
-    let dim = texture_img.dimensions();
-    let image_data = texture_img.into_raw().clone();
-    
-    final_texture = Some(vkimage::immutable::ImmutableImage::from_iter(
+  
+  if data.is_some() {
+    let texture_img = data.clone().unwrap().to_rgba();
+        let dim = texture_img.dimensions();
+        let image_data = texture_img.into_raw().clone();
+        
+        final_texture = Some(vkimage::immutable::ImmutableImage::from_iter(
             image_data.iter().cloned(),
             vkimage::Dimensions::Dim2d { width: dim.0, height: dim.1 },
             format::R8G8B8A8Unorm,
@@ -110,12 +154,12 @@ pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix
       Vector4::new(1.0, 0.25, 0.25, -1.0),
       Vector4::new(1.0, 0.25, 0.25, -1.0),
       Vector4::new(1.0, 0.0, 0.0, -1.0),
-      Vector4::new(0.0, 0.0, 0.0, -1.0)
+      Vector4::new(0.0, 0.0, 0.0, -1.0) 
     );
   
   let uniform_data = vs_3d::ty::Data {
     transformation: transformation.into(),
-    view : (view_matrix /* self.vk3d.scale*/).into(),
+    view : (view_matrix).into(),
     proj : projection.into(),
     lightpositions: lighting_position.into(),
     lightcolours: lighting_colour.into(),

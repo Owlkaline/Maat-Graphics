@@ -17,6 +17,8 @@ use vulkan::vulkan_draw;
 use vulkan::vulkan_helper;
 use vulkan::renderpass::CustomRenderpass;
 
+use gltf::material::AlphaMode;
+
 use image;
 use winit;
 use winit::dpi::LogicalSize;
@@ -88,7 +90,7 @@ use cgmath::Rotation3;
 use cgmath::InnerSpace;
 
 impl_vertex!(Vertex2d, position, uv);
-impl_vertex!(Vertex3d, position, normal, uv);
+impl_vertex!(Vertex3d, position, normal, tangent, uv, colour);
 
 pub const blur_dim: u32 = 512;
 
@@ -246,7 +248,8 @@ pub struct VKPOST {
 }
 
 pub struct RawVk {
-  ready: bool,
+  num_drawcalls: u32,
+  ready: bool, // finished loading models and textures
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
   diffuse_colours: HashMap<String, [f32; 3]>,
@@ -363,6 +366,7 @@ impl RawVk {
       )).unwrap();
     
     RawVk {
+      num_drawcalls: 0,
       ready: false,
       fonts: HashMap::new(),
       textures: HashMap::new(),
@@ -493,10 +497,14 @@ impl CoreRender for RawVk {
       occlusion_texture_tex_coord: -1,
       emissive_factor: [0.0, 0.0, 0.0],
       emissive_texture_tex_coord: -1,
+      alpha_cutoff: 0.5,
+      forced_alpha: 0,
+      has_normals: 0,
+      has_tangents: 0,
       _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
     }).unwrap();
        
-    let sampler = sampler::Sampler::new(self.window.get_device(), sampler::Filter::Linear,
+    let default_sampler = sampler::Sampler::new(self.window.get_device(), sampler::Filter::Linear,
                                         sampler::Filter::Linear, 
                                         sampler::MipmapMode::Nearest,
                                         sampler::SamplerAddressMode::ClampToEdge,
@@ -513,15 +521,15 @@ impl CoreRender for RawVk {
       Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
               .add_buffer(material_params)
               .unwrap()
-              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .add_sampled_image(temp_tex.clone(), default_sampler.clone())
               .unwrap()
-              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .add_sampled_image(temp_tex.clone(), default_sampler.clone())
               .unwrap()
-              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .add_sampled_image(temp_tex.clone(), default_sampler.clone())
               .unwrap()
-              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .add_sampled_image(temp_tex.clone(), default_sampler.clone())
               .unwrap()
-              .add_sampled_image(temp_tex.clone(), sampler.clone())
+              .add_sampled_image(temp_tex.clone(), default_sampler.clone())
               .unwrap()
               .build().unwrap());
     
@@ -535,13 +543,32 @@ impl CoreRender for RawVk {
       let vertex = mesh_data.vertex(i);
       let texcoord = mesh_data.texcoords(i);
       let normal = mesh_data.normal(i);
+      let tangent = mesh_data.tangent(i);
       let index = mesh_data.index(i);
-      let mut base_colour_texture = (temp_tex.clone(), -1);
-      let mut metallic_roughness_texture = (temp_tex.clone(), -1);
-      let mut normal_texture = (temp_tex.clone(), -1);
-      let mut occlusion_texture = (temp_tex.clone(), -1);
-      let mut emissive_texture = (temp_tex.clone(), -1);
+      let colour = mesh_data.colours(i);
+      let alpha_mode = mesh_data.alphamode(i);
+      let mut forced_alpha = 0;
+      let mut alpha_cutoff = mesh_data.alphacutoff(i);
+      let mut base_colour_texture = (temp_tex.clone(), -1, sampler::Sampler::simple_repeat_linear(self.window.get_device()));
+      let mut metallic_roughness_texture = (temp_tex.clone(), -1, sampler::Sampler::simple_repeat_linear(self.window.get_device()));
+      let mut normal_texture = (temp_tex.clone(), -1, sampler::Sampler::simple_repeat_linear(self.window.get_device()));
+      let mut occlusion_texture = (temp_tex.clone(), -1, sampler::Sampler::simple_repeat_linear(self.window.get_device()));
+      let mut emissive_texture = (temp_tex.clone(), -1, sampler::Sampler::simple_repeat_linear(self.window.get_device()));
       
+      let has_normals = if mesh_data.has_normals(i) { 1 } else { 0 };
+      let has_tangents = if mesh_data.has_tangents(i) { 1 } else { 0 };
+      
+      match alpha_mode {
+        AlphaMode::Opaque => {
+          forced_alpha = 1;
+        },
+        AlphaMode::Mask => {
+          forced_alpha = 2;
+        },
+        AlphaMode::Blend => {
+          forced_alpha = 0;
+        },
+      }
       
       let mut vertices: Vec<Vertex3d> = Vec::with_capacity(vertex.len());
       for j in 0..vertex.len() {
@@ -549,7 +576,19 @@ impl CoreRender for RawVk {
         if texcoord.len() > j {
           uv = texcoord[j];
         }
-        vertices.push(Vertex3d { position: vertex[j], normal: normal[j], uv: uv });
+        let mut n_normal = [1.0, 1.0, 1.0];
+        if normal.len() > j {
+          n_normal = normal[j];
+        }
+        let mut t_tangent = [1.0, 1.0, 1.0, 1.0];
+        if tangent.len() > j {
+          t_tangent = tangent[j]
+        }
+        let mut c_colour = [1.0, 1.0, 1.0, 1.0];
+        if colour.len() > j {
+          c_colour = colour[j];
+        }
+        vertices.push(Vertex3d { position: vertex[j], normal: n_normal, tangent: t_tangent, uv: uv, colour: c_colour });
       }
       
       let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), index.iter().cloned());
@@ -563,40 +602,50 @@ impl CoreRender for RawVk {
       if future_texture.is_some() {
         let (texture, future) = future_texture.unwrap();
         self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-
-        base_colour_texture = (texture, 0);
+        
+        let sampler = vulkan_3d::create_sampler_from_gltfsampler(self.window.get_device(), mesh_data.base_colour_sampler(i));
+        
+        base_colour_texture = (texture, 0, sampler);
       }
       
       let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.metallic_roughness_texture(i));
       if future_texture.is_some() {
         let (texture, future) = future_texture.unwrap();
         self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-
-        metallic_roughness_texture = (texture, 0);
+        
+        let sampler = vulkan_3d::create_sampler_from_gltfsampler(self.window.get_device(), mesh_data.metallic_roughness_sampler(i));
+        
+        metallic_roughness_texture = (texture, 0, sampler);
       }
       
       let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.normal_texture(i));
       if future_texture.is_some() {
         let (texture, future) = future_texture.unwrap();
         self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-
-        normal_texture = (texture, 0);
+        
+        let sampler = vulkan_3d::create_sampler_from_gltfsampler(self.window.get_device(), mesh_data.normal_sampler(i));
+        
+        normal_texture = (texture, 0, sampler);
       }
       
       let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.occlusion_texture(i));
       if future_texture.is_some() {
         let (texture, future) = future_texture.unwrap();
         self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-
-        occlusion_texture = (texture, 0);
+        
+        let sampler = vulkan_3d::create_sampler_from_gltfsampler(self.window.get_device(), mesh_data.occlusion_sampler(i));
+        
+        occlusion_texture = (texture, 0, sampler);
       }
       
       let future_texture = vulkan_3d::create_texture_from_dynamicimage(self.window.get_queue(), mesh_data.emissive_texture(i));
       if future_texture.is_some() {
         let (texture, future) = future_texture.unwrap();
         self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-
-        emissive_texture = (texture, 0);
+        
+        let sampler = vulkan_3d::create_sampler_from_gltfsampler(self.window.get_device(), mesh_data.emissive_sampler(i));
+        
+        emissive_texture = (texture, 0, sampler);
       }
       
      // let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
@@ -612,6 +661,10 @@ impl CoreRender for RawVk {
          occlusion_texture_tex_coord: occlusion_texture.1,
          emissive_factor: mesh_data.emissive_factor(i),
          emissive_texture_tex_coord: emissive_texture.1,
+         alpha_cutoff: alpha_cutoff,
+         forced_alpha: forced_alpha,
+         has_normals: has_normals,
+         has_tangents: has_tangents,
          _dummy0: [0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8],
        }).unwrap();
        /*
@@ -628,15 +681,15 @@ impl CoreRender for RawVk {
          Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
               .add_buffer(material_params)
               .unwrap()
-              .add_sampled_image(base_colour_texture.0, sampler.clone())
+              .add_sampled_image(base_colour_texture.0, base_colour_texture.2)
               .unwrap()
-              .add_sampled_image(metallic_roughness_texture.0, sampler.clone())
+              .add_sampled_image(metallic_roughness_texture.0, metallic_roughness_texture.2)
               .unwrap()
-              .add_sampled_image(normal_texture.0, sampler.clone())
+              .add_sampled_image(normal_texture.0, normal_texture.2)
               .unwrap()
-              .add_sampled_image(occlusion_texture.0, sampler.clone())
+              .add_sampled_image(occlusion_texture.0, occlusion_texture.2)
               .unwrap()
-              .add_sampled_image(emissive_texture.0, sampler.clone())
+              .add_sampled_image(emissive_texture.0, emissive_texture.2)
               .unwrap()
               .build().unwrap());
               
@@ -838,7 +891,9 @@ impl CoreRender for RawVk {
         .fragment_shader(fs_3d.main_entry_point(), ())
         .depth_clamp(true)
         .depth_stencil_simple_depth()
-       // .cull_mode_front()
+        .blend_alpha_blending()
+        .polygon_mode_fill()
+       // .cull_mode_back()
         .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
@@ -945,68 +1000,6 @@ impl CoreRender for RawVk {
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
     self.vk2d.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
-    
-    // Terrain stuff
-    let size = 800;
-    let vertex_count = 128;
-    
-    let count = vertex_count*vertex_count;
-    
-    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(count);
-    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(count);
-    let mut uv: Vec<[f32; 2]> = Vec::with_capacity(count);
-    let mut indices: Vec<u32> = Vec::with_capacity(6*(vertex_count-1)*(vertex_count-1));
-    
-    for i in 0..vertex_count {
-      for j in 0..vertex_count {
-        vertices.push(
-          [j as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5,
-          0.0,
-          i as f32/(vertex_count - 1) as f32 * size as f32 - size as f32*0.5]);
-        normals.push([0.0, 1.0, 0.0]);
-        uv.push([j as f32/(vertex_count - 1) as f32,
-                 i as f32/(vertex_count - 1) as f32]);
-      }
-    }
-    
-    for gz in 0..vertex_count-1 {
-      for gx in 0..vertex_count-1 {
-      let top_left: u32 = ((gz*vertex_count)+gx) as u32;
-        let top_right: u32 = (top_left + 1) as u32;
-        let bottom_left: u32 = (((gz+1)*vertex_count)+gx) as u32;
-        let bottom_right: u32 = (bottom_left + 1) as u32;
-        indices.push(top_left);
-        indices.push(bottom_left);
-        indices.push(top_right);
-        indices.push(top_right);
-        indices.push(bottom_left);
-        indices.push(bottom_right);
-      }
-    }
-    
-    let mut vertex: Vec<Vertex3d> = Vec::new();
-    
-    for i in 0..vertices.len() {
-      vertex.push(Vertex3d {
-          position: vertices[i],
-          normal: normals[i],
-          uv: uv[i],
-        }
-      );
-    }
-    
-    let vert3d_buffer = vulkan_3d::create_vertex(self.window.get_device(), vertex.iter().cloned());
-    let (idx_3d_buffer, future_3d_idx) = vulkan_3d::create_index(self.window.get_queue(), indices.iter().cloned()); 
-    /*
-    let model = Mesh {
-      vertex_buffer: Some(vec!(vert3d_buffer)),
-      index_buffer: Some(idx_3d_buffer),
-      material_desctriptor: None,
-    };*/
-    
-   // self.vk3d.models.insert(String::from("terrain"), vec!(model));
-    
-    self.previous_frame_end = Some(Box::new(future_3d_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
   
   /// Initalises some variables
@@ -1180,6 +1173,7 @@ impl CoreRender for RawVk {
   
   /// Draws everything that is in the drawcall passed to this function
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
+    self.num_drawcalls = 0;
     if self.recreate_swapchain == true {
       return;
     }
@@ -1207,7 +1201,7 @@ impl CoreRender for RawVk {
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear.into()), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
       for draw in draw_calls {
-        if draw.is_3d_model() {
+        if draw.is_3d_model() { // 3D
           let models = &self.vk3d.models;
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
@@ -1219,8 +1213,10 @@ impl CoreRender for RawVk {
                                                view_matrix, uniform_buffer
                                              );
           
-          tmp_cmd_buffer = vulkan_draw::draw_3d(tmp_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
+          let (cmd, num_calls) = vulkan_draw::draw_3d(tmp_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
                                subbuffer, dimensions);
+          tmp_cmd_buffer = cmd;
+          self.num_drawcalls += num_calls;
         } else {
           if draw.is_vao_update() {
             let reference = draw.get_text().clone();
@@ -1248,10 +1244,12 @@ impl CoreRender for RawVk {
             let projection = self.vk2d.projection;
             let pipeline = &self.vk2d.pipeline_text;
             let uniform_buffer = &self.vk2d.uniform_buffer_text;
-            tmp_cmd_buffer = vulkan_draw::draw_text(tmp_cmd_buffer, draw, textures, 
+            let (cmd, num_calls) = vulkan_draw::draw_text(tmp_cmd_buffer, draw, textures, 
                                                     projection, vao, sampler, 
                                                     uniform_buffer, pipeline, 
                                                     fonts, dimensions);
+            tmp_cmd_buffer = cmd;
+            self.num_drawcalls += num_calls;
           } else { // 2D texture
             let uniform_subbuffer = vulkan_2d::create_texture_subbuffer(draw.clone(), self.vk2d.projection, self.vk2d.uniform_buffer_texture.clone());
             let vao = &self.vk2d.vao;
@@ -1262,11 +1260,13 @@ impl CoreRender for RawVk {
             let projection = self.vk2d.projection;
             let pipeline = &self.vk2d.pipeline_texture;
             let queue = self.window.get_queue();
-            tmp_cmd_buffer = vulkan_draw::draw_texture(tmp_cmd_buffer, draw, textures,
+            let (cmd, num_calls) = vulkan_draw::draw_texture(tmp_cmd_buffer, draw, textures,
                                                        vao, custom_vao, 
                                                        custom_dynamic_vao, projection, 
                                                        sampler, uniform_subbuffer, 
                                                        pipeline, queue, dimensions);
+            tmp_cmd_buffer = cmd;
+            self.num_drawcalls += num_calls;
           }
         }
       }
@@ -1469,6 +1469,10 @@ impl CoreRender for RawVk {
   fn get_camera(&self) -> Camera {
     self.vk3d.camera.to_owned()
   }
+  
+    fn num_drawcalls(&self) -> u32 {
+      self.num_drawcalls
+    }
   
   /// does nothing in vulkan
   fn post_draw(&self) {}

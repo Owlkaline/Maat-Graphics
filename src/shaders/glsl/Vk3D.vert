@@ -2,16 +2,21 @@
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
-layout(location = 2) in vec2 uv;
+layout(location = 2) in vec4 tangent;
+layout(location = 3) in vec2 uv;
+layout(location = 4) in vec4 colour;
 
 layout(location = 0) out vec3 v_position;
 layout(location = 1) out vec3 v_normal;
-layout(location = 2) out vec2 v_uv;
-layout(location = 3) out vec3 toCameraVector;
-layout(location = 4) out vec3 toLightVector[4];
-layout(location = 8) out vec3 lightColour[4];
-layout(location = 12) out vec3 attenuation[4];
-layout(location = 16) out float lightType[4];
+layout(location = 2) out vec4 v_tangent;
+layout(location = 3) out vec2 v_uv;
+layout(location = 4) out vec4 v_colours;
+layout(location = 5) out vec3 toCameraVector;
+layout(location = 6) out vec3 toLightVector[4];
+layout(location = 10) out vec3 lightColour[4];
+layout(location = 14) out vec3 attenuation[4];
+layout(location = 18) out float lightType[4];
+layout(location = 22) out mat3 v_tbn;
 
 layout(set = 0, binding = 0) uniform Data {
     mat4 transformation;
@@ -30,7 +35,18 @@ void main() {
     
     v_position = vec3(worldPosition.xyz) / worldPosition.w;
     v_uv = vec2(uv.x, uv.y);
-    v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
+   // v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
+    //v_tangent = mat3(transpose(inverse(uniforms.transformation))) * tangent;
+    v_colours = colour;
+    
+    //normal.y *= -1.0;
+    v_normal = normalize(vec3(uniforms.transformation * vec4(normal.xyz, 0.0)));
+    v_tangent = normalize(vec4(uniforms.transformation * tangent));
+    
+    vec3 normalW = v_normal;
+    vec3 tangentW = normalize(vec3(uniforms.transformation * vec4(tangent.xyz, 0.0)));
+    vec3 bitangentW = cross(normalW, tangentW) * tangent.w;
+    v_tbn = mat3(tangentW, bitangentW, normalW);
     
     toCameraVector = (inverse(uniforms.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
     
