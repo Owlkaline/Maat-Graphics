@@ -24,6 +24,7 @@ use winit;
 use winit::dpi::LogicalSize;
 
 use vulkano::image as vkimage;
+use vulkano::image::ImageViewAccess;
 use vulkano::sampler;
 
 use vulkano::memory;
@@ -136,6 +137,34 @@ mod fs_3d {
   struct Dummy;
 }
 
+mod vs_gbuffer_3d{
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkGBuffer3D.vert"]
+  struct Dummy;
+}
+
+mod fs_gbuffer_3d {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkGBuffer3D.frag"]
+  struct Dummy;
+}
+
+mod vs_lights {
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkLight.vert"]
+  struct Dummy;
+}
+
+pub mod fs_lights {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkLight.frag"]
+  struct Dummy;
+}
+
 mod vs_post_blur {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
@@ -227,6 +256,16 @@ pub struct VK3D {
   projection: Matrix4<f32>,
   scale: Matrix4<f32>,
   
+  gbuffer_vertex_lightpass: Arc<BufferAccess + Send + Sync>,
+  gbuffer_renderpass: CustomRenderpass,
+  gbuffer_pipeline_0: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  gbuffer_pipeline_1: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  gbuffer_colour_attachment: Arc<vkimage::AttachmentImage>,
+  gbuffer_normal_attachment: Arc<vkimage::AttachmentImage>,
+  gbuffer_position_attachment: Arc<vkimage::AttachmentImage>,
+  gbuffer_uv_attachment: Arc<vkimage::AttachmentImage>,
+  gbuffer_mr_attachment: Arc<vkimage::AttachmentImage>,
+  
   uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
 }
 
@@ -258,8 +297,6 @@ pub struct RawVk {
   
   clear_colour: Vector4<f32>,
   
-  framebuffers: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
-  main_renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   fullcolour_attachment: Arc<vkimage::AttachmentImage>,
   ms_colour_attachment: Arc<vkimage::AttachmentImage>,
   ms_depth_attachment: Arc<vkimage::AttachmentImage>,
@@ -344,16 +381,32 @@ impl RawVk {
         .. ImageUsage::none()
     };
     
+    let gbuffer_usage = ImageUsage {
+      color_attachment: true,
+      transfer_destination: true,
+      sampled: true,
+      .. ImageUsage::none()
+    };
+    
     let dim = window.get_dimensions();
     let dim = [dim.width as u32, dim.height as u32];
-    let fullcolour_attachment = vkimage::AttachmentImage::sampled(window.get_device(), dim, format::Format::R16G16B16A16Unorm).unwrap();
+    
     let bloom_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), dim, format::Format::R16G16B16A16Unorm, src_usage).unwrap();
     
     let blur_ping_attachment = vkimage::AttachmentImage::sampled(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format()).unwrap();
     let blur_pong_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format(), src_usage).unwrap();
     
     let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
+    
+    let fullcolour_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), dim, format::Format::R16G16B16A16Unorm, gbuffer_usage).unwrap();
+    
+    let colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+    let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+    let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+    let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+    let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+    let to_camera_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
     
     let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: blur_dim, height: blur_dim}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
           q.supports_graphics()
@@ -364,6 +417,8 @@ impl RawVk {
           q.supports_graphics()
         }
       )).unwrap();
+    
+    let lightpass_vertexbuffer = vulkan_3d::create_subpass_vertex(window.get_device());
     
     RawVk {
       num_drawcalls: 0,
@@ -376,11 +431,10 @@ impl RawVk {
 
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
 
-      framebuffers: None,
-      main_renderpass: None,
-      fullcolour_attachment: fullcolour_attachment,
-      ms_colour_attachment: ms_colour_attachment,
-      ms_depth_attachment: ms_depth_attachment,
+     // main_renderpass: None,
+      fullcolour_attachment: fullcolour_attachment.clone(),
+      ms_colour_attachment: ms_colour_attachment.clone(),
+      ms_depth_attachment: ms_depth_attachment.clone(),
       samples: samples,
 
       // 3D
@@ -395,7 +449,17 @@ impl RawVk {
         
         projection: proj_3d,
         scale: scale,
-
+        
+        gbuffer_vertex_lightpass: lightpass_vertexbuffer,
+        gbuffer_renderpass: CustomRenderpass::new(vec!(colour_attachment.clone(), normal_attachment.clone(), position_attachment.clone(), uv_attachment.clone(), mr_attachment.clone(), ms_depth_attachment, ms_colour_attachment, fullcolour_attachment)),
+        gbuffer_pipeline_0: None,
+        gbuffer_pipeline_1: None,
+        gbuffer_colour_attachment: colour_attachment,
+        gbuffer_normal_attachment: normal_attachment,
+        gbuffer_position_attachment: position_attachment,
+        gbuffer_uv_attachment: uv_attachment,
+        gbuffer_mr_attachment: mr_attachment,
+        
         uniform_buffer: uniform_3d,
       },
       
@@ -421,12 +485,12 @@ impl RawVk {
       
       // Post Processing
       vkpost: VKPOST {
-        bloom_renderpass: CustomRenderpass::new(bloom_attachment),
+        bloom_renderpass: CustomRenderpass::new(vec!(bloom_attachment)),
         bloom_uniformbuffer: post_bloom_uniform,
         
         blur_uniformbuffer: post_blur_uniform,
-        blur_ping_renderpass: CustomRenderpass::new(blur_ping_attachment),
-        blur_pong_renderpass: CustomRenderpass::new(blur_pong_attachment),
+        blur_ping_renderpass: CustomRenderpass::new(vec!(blur_ping_attachment)),
+        blur_pong_renderpass: CustomRenderpass::new(vec!(blur_pong_attachment)),
         
         blur_upscale_attachment: blur_upscale_attachment,
         blur_downscale_attachment: blur_downscale_attachment,
@@ -518,7 +582,7 @@ impl CoreRender for RawVk {
                                             .expect("Failed to create immutable image");
     
     let default_descriptor_set =
-      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
+      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_pipeline_0.clone().unwrap(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(temp_tex.clone(), default_sampler.clone())
@@ -678,7 +742,7 @@ impl CoreRender for RawVk {
        
        
        let descriptor_set =
-         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.pipeline.clone().unwrap(), 1)
+         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_pipeline_0.clone().unwrap(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(base_colour_texture.0, base_colour_texture.2)
@@ -780,6 +844,10 @@ impl CoreRender for RawVk {
     
     let vs_3d = vs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_3d = fs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_gbuffer_3d = vs_gbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_gbuffer_3d = fs_gbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_lights = vs_lights::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_lights = fs_lights::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_texture = vs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_texture = fs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_text = vs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
@@ -791,8 +859,38 @@ impl CoreRender for RawVk {
     let vs_post_blur = vs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_post_blur = fs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
-    self.main_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
+    let gbuffer_renderpass = Some(Arc::new(ordered_passes_renderpass!(self.window.get_device(),
       attachments: {
+        colour_attachment: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: self.samples,
+        },
+        normal_attachment: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: self.samples,
+        },
+        position_attachment: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: self.samples,
+        },
+        uv_attachment: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: self.samples,
+        },
+        mr_attachment: { // metallic_roughness_occlusion_attachment
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: self.samples,
+        },
         multisample_colour: {
           load: Clear,
           store: DontCare,
@@ -812,11 +910,19 @@ impl CoreRender for RawVk {
           samples: 1,
         }
       },
-      pass: {
-        color: [multisample_colour],
-        depth_stencil: {ms_depth_attachment},
-        resolve: [resolve_fullcolour],
-      }
+      passes: [
+        {
+          color: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment],
+          depth_stencil: {ms_depth_attachment},
+          input: []
+        },
+        {
+          color: [multisample_colour],
+          depth_stencil: {},
+          input: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_depth_attachment],
+          resolve: [resolve_fullcolour]
+        }
+      ]
     ).unwrap()));
     
     let bloom_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
@@ -883,6 +989,31 @@ impl CoreRender for RawVk {
       }
     ).unwrap()));
    
+    self.vk3d.gbuffer_pipeline_0 = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<Vertex3d>()
+        .vertex_shader(vs_gbuffer_3d.main_entry_point(), ())
+        .triangle_list()
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_gbuffer_3d.main_entry_point(), ())
+        .depth_clamp(true)
+        .depth_stencil_simple_depth()
+        .blend_alpha_blending()
+        .polygon_mode_fill()
+        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
+        .build(self.window.get_device())
+        .unwrap()));
+        
+    self.vk3d.gbuffer_pipeline_1 = Some(Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<Vertex2d>()
+        .vertex_shader(vs_lights.main_entry_point(), ())
+        .triangle_list()
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_lights.main_entry_point(), ())
+        .blend_alpha_blending()
+        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 1).unwrap())
+        .build(self.window.get_device())
+        .unwrap()));
+   /*
     self.vk3d.pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex3d>()
         .vertex_shader(vs_3d.main_entry_point(), ())
@@ -897,7 +1028,7 @@ impl CoreRender for RawVk {
         .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
-
+*/
     self.vk2d.pipeline_texture = Some(Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_texture.main_entry_point(), ())
@@ -905,7 +1036,7 @@ impl CoreRender for RawVk {
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
         .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
         
@@ -915,7 +1046,7 @@ impl CoreRender for RawVk {
         .viewports_dynamic_scissors_irrelevant(1)
         .fragment_shader(fs_text.main_entry_point(), ())
         .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
+        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
         .build(self.window.get_device())
         .unwrap()));
     
@@ -959,36 +1090,53 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
     
-    let main_renderpass = self.main_renderpass.clone().unwrap();
+    let gbuffer_renderpass = gbuffer_renderpass.clone().unwrap();
     
-    self.framebuffers = Some(Arc::new({
-        framebuffer::Framebuffer::start(main_renderpass.clone())
-            .add(self.ms_colour_attachment.clone()).unwrap()
-            .add(self.ms_depth_attachment.clone()).unwrap()
-            .add(self.fullcolour_attachment.clone()).unwrap()
+    let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(0);
+    let normal_attachment = self.vk3d.gbuffer_renderpass.attachment(1);
+    let position_attachment = self.vk3d.gbuffer_renderpass.attachment(2);
+    let uv_attachment = self.vk3d.gbuffer_renderpass.attachment(3);
+    let mr_attachment = self.vk3d.gbuffer_renderpass.attachment(4);
+    let ms_colour_attachment = self.vk3d.gbuffer_renderpass.attachment(5);
+    let ms_depth_attachment = self.vk3d.gbuffer_renderpass.attachment(6);
+    let fullcolour_attachment = self.vk3d.gbuffer_renderpass.attachment(7);
+    let gframebuffer = Arc::new({
+        framebuffer::Framebuffer::start(gbuffer_renderpass.clone())
+            .add(colour_attachment).unwrap()
+            .add(normal_attachment).unwrap()
+            .add(position_attachment).unwrap()
+            .add(uv_attachment).unwrap()
+            .add(mr_attachment).unwrap()
+            .add(ms_depth_attachment).unwrap()
+            .add(ms_colour_attachment).unwrap()
+            .add(fullcolour_attachment).unwrap()
             .build().unwrap()
-    }));
+    });
     
-    let bloom_attachment = self.vkpost.bloom_renderpass.attachment();
+    self.vk3d.gbuffer_renderpass.set_framebuffer(gframebuffer);
+    
+    let bloom_attachment = self.vkpost.bloom_renderpass.attachment(0);
     self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(bloom_renderpass.clone())
                 .add(bloom_attachment).unwrap()
                 .build().unwrap()
       }));
     
-    let blur_ping_attachment = self.vkpost.blur_ping_renderpass.attachment();
+    let blur_ping_attachment = self.vkpost.blur_ping_renderpass.attachment(0);
     self.vkpost.blur_ping_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(blur_ping_renderpass.clone())
                 .add(blur_ping_attachment).unwrap()
                 .build().unwrap()
     }));
     
-    let blur_pong_attachment = self.vkpost.blur_pong_renderpass.attachment();
+    let blur_pong_attachment = self.vkpost.blur_pong_renderpass.attachment(0);
     self.vkpost.blur_pong_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(blur_pong_renderpass.clone())
                 .add(blur_pong_attachment).unwrap()
                 .build().unwrap()
     }));
+    
+    self.vk3d.gbuffer_renderpass.set_renderpass(gbuffer_renderpass);
     
     self.vkpost.bloom_renderpass.set_renderpass(bloom_renderpass);
     self.vkpost.bloom_renderpass.set_pipeline(bloom_pipeline);
@@ -1004,8 +1152,6 @@ impl CoreRender for RawVk {
   
   /// Initalises some variables
   fn init(&mut self) {
-   // self.framebuffers = None;
-    
     self.recreate_swapchain = false;
   }
   
@@ -1091,7 +1237,6 @@ impl CoreRender for RawVk {
       self.window.replace_swapchain(new_swapchain);
       self.window.replace_images(new_images);
       
-      //self.framebuffers = None;
       self.vkpost.final_framebuffer = None;
       self.recreate_swapchain = false;
       
@@ -1114,28 +1259,48 @@ impl CoreRender for RawVk {
           .. ImageUsage::none()
       };
       
-      self.fullcolour_attachment = vkimage::AttachmentImage::sampled(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm).unwrap();
-      self.vkpost.bloom_renderpass.set_attachment(vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, src_usage).unwrap());
+      let fullcolour_usage = ImageUsage {
+        color_attachment: true,
+        transfer_destination: true,
+        sampled: true,
+        .. ImageUsage::none()
+      };
+      
+      self.vkpost.bloom_renderpass.set_attachment(vec!(vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, src_usage).unwrap()));
+      
+      self.fullcolour_attachment = vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, fullcolour_usage).unwrap();
+      
+      self.vk3d.gbuffer_colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
+      self.vk3d.gbuffer_normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
+      self.vk3d.gbuffer_position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
+      self.vk3d.gbuffer_uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
+      self.vk3d.gbuffer_mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
       
       self.ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-      self.ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
+      self.ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
       
       self.vkpost.blur_upscale_attachment = vkimage::StorageImage::with_usage(self.window.get_device(), vkimage::Dimensions::Dim2d { width: dimensions[0], height: dimensions[1]}, format::R8G8B8A8Unorm, dst_usage, self.window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
           q.supports_graphics()
         }
       )).unwrap();
       
-      let main_renderpass = self.main_renderpass.clone().unwrap();
-      self.framebuffers = Some(Arc::new({
-        framebuffer::Framebuffer::start(main_renderpass.clone())
+      let gbuffer_renderpass = self.vk3d.gbuffer_renderpass.renderpass();
+      let gframebuffer = Arc::new({
+        framebuffer::Framebuffer::start(gbuffer_renderpass)
+                .add(self.vk3d.gbuffer_colour_attachment.clone()).unwrap()
+                .add(self.vk3d.gbuffer_normal_attachment.clone()).unwrap()
+                .add(self.vk3d.gbuffer_position_attachment.clone()).unwrap()
+                .add(self.vk3d.gbuffer_uv_attachment.clone()).unwrap()
+                .add(self.vk3d.gbuffer_mr_attachment.clone()).unwrap()
                 .add(self.ms_colour_attachment.clone()).unwrap()
                 .add(self.ms_depth_attachment.clone()).unwrap()
                 .add(self.fullcolour_attachment.clone()).unwrap()
                 .build().unwrap()
-      }));
+      });
+      self.vk3d.gbuffer_renderpass.set_framebuffer(gframebuffer);
       
       let bloom_renderpass = self.vkpost.bloom_renderpass.renderpass();
-      let bloom_attachment = self.vkpost.bloom_renderpass.attachment();
+      let bloom_attachment = self.vkpost.bloom_renderpass.attachment(0);
       self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(bloom_renderpass)
                 .add(bloom_attachment).unwrap()
@@ -1143,7 +1308,7 @@ impl CoreRender for RawVk {
       }));
       
       let blur_ping_renderpass = self.vkpost.blur_ping_renderpass.renderpass();
-      let blur_ping_attachment = self.vkpost.blur_ping_renderpass.attachment();
+      let blur_ping_attachment = self.vkpost.blur_ping_renderpass.attachment(0);
       self.vkpost.blur_ping_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(blur_ping_renderpass)
                 .add(blur_ping_attachment).unwrap()
@@ -1151,7 +1316,7 @@ impl CoreRender for RawVk {
       }));
       
       let blur_pong_renderpass = self.vkpost.blur_pong_renderpass.renderpass();
-      let blur_pong_attachment = self.vkpost.blur_pong_renderpass.attachment();
+      let blur_pong_attachment = self.vkpost.blur_pong_renderpass.attachment(0);
       self.vkpost.blur_pong_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(blur_pong_renderpass)
                 .add(blur_pong_attachment).unwrap()
@@ -1196,17 +1361,19 @@ impl CoreRender for RawVk {
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       //println!("{:?}", clear);
-      let build_start = tmp_cmd_buffer.clear_color_image(self.vkpost.blur_downscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap()
-                                      .clear_color_image(self.vkpost.blur_upscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap();
+/*      let build_start = tmp_cmd_buffer.clear_color_image(self.vkpost.blur_downscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap()
+                                      .clear_color_image(self.vkpost.blur_upscale_attachment.clone(), ClearValue::Float(clear.into())).unwrap();*/
       
-      tmp_cmd_buffer = build_start.begin_render_pass(self.framebuffers.as_ref().unwrap().clone(), false, vec![ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
+      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), false, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
+      tmp_cmd_buffer = build_start;
+      
       for draw in draw_calls {
         if draw.is_3d_model() { // 3D
           let models = &self.vk3d.models;
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
           let uniform_buffer = self.vk3d.uniform_buffer.clone();
-          let pipeline = &self.vk3d.pipeline;
+          let pipeline = &self.vk3d.gbuffer_pipeline_0;
           let subbuffer = vulkan_3d::create_3d_subbuffer(
                                                draw.clone(), 
                                                projection, 
@@ -1270,7 +1437,23 @@ impl CoreRender for RawVk {
           }
         }
       }
+      let subpass_end = tmp_cmd_buffer.next_subpass(false).unwrap();
+      tmp_cmd_buffer = subpass_end;
       
+      tmp_cmd_buffer = vulkan_draw::draw_lightpass(tmp_cmd_buffer, 
+                                                   self.vk3d.gbuffer_pipeline_1.clone(), 
+                                                   self.vk3d.gbuffer_vertex_lightpass.clone(), 
+                                                   self.vk3d.gbuffer_colour_attachment.clone(), 
+                                                   self.vk3d.gbuffer_normal_attachment.clone(), 
+                                                   self.vk3d.gbuffer_position_attachment.clone(), 
+                                                   self.vk3d.gbuffer_uv_attachment.clone(), 
+                                                   self.vk3d.gbuffer_mr_attachment.clone(),
+                                                   self.fullcolour_attachment.clone(), 
+                                                   self.vk3d.camera.get_view_matrix(),
+                                                   dimensions);
+      
+      let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
+      /*
       /*
       * Bloom framebuffer
       */
@@ -1301,7 +1484,7 @@ impl CoreRender for RawVk {
       /*
       * Blur ping framebuffer
       */
-      let build_start = build_end.blit_image(self.vkpost.bloom_renderpass.attachment(), [0,0,0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0, 
+      let build_start = build_end.blit_image(self.vkpost.bloom_renderpass.attachment(0), [0,0,0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0, 
                                              self.vkpost.blur_downscale_attachment.clone(), [0, 0, 0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
                                              1, sampler::Filter::Linear).expect("Failed to scale down bloom image to blur image");
       
@@ -1350,7 +1533,7 @@ impl CoreRender for RawVk {
       
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.blur_ping_renderpass.attachment(), self.vk2d.sampler.clone()).unwrap()
+                             .add_sampled_image(self.vkpost.blur_ping_renderpass.attachment(0), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
                           
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
@@ -1360,11 +1543,11 @@ impl CoreRender for RawVk {
       * Final Framebuffer
       */
       
-      let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(), [0,0,0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
+      let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(0), [0,0,0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
                                              self.vkpost.blur_upscale_attachment.clone(),  [0, 0, 0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0,
-                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");
+                                             1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");*/
       //tmp_cmd_buffer = build_start.end_render_pass().unwrap();
-      let cb = build_start.begin_render_pass(self.vkpost.final_framebuffer.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::None]).unwrap();
+      let cb = build_end.begin_render_pass(self.vkpost.final_framebuffer.as_ref().unwrap()[image_num].clone(), false, vec![ClearValue::None]).unwrap();
       
       let vertex_buffer = self.vk2d.vao.vertex_buffer.clone().unwrap();
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
@@ -1375,7 +1558,7 @@ impl CoreRender for RawVk {
       let uniform_data = vs_post_final::ty::Data {
         projection: self.vk2d.projection.into(),
         model: model.into(),
-        bloom: 2.0,
+        bloom: 0.0,
       };
       
       let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
@@ -1383,26 +1566,9 @@ impl CoreRender for RawVk {
       let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
+                             .add_sampled_image(self.fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                              .build().unwrap());
       
-      tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
-      let cb = tmp_cmd_buffer;
-      
-       // Draw Bloom view
-       let model = math::calculate_texture_model(Vector3::new(256.0, dimensions[1] as f32-256.0, 0.0), Vector2::new(512.0, 512.0), 90.0);
-      let uniform_data = vs_post_final::ty::Data {
-        projection: self.vk2d.projection.into(),
-        model: model.into(),
-        bloom: 0.0,
-      };
-      let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
-      
-      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
-                             .add_buffer(uniform_subbuffer.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
-                             .add_sampled_image(self.vkpost.bloom_renderpass.attachment().clone(), self.vk2d.sampler.clone()).unwrap()
-                             .build().unwrap());
       tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline.clone(), vertex_buffer.clone(), index_buffer.clone(), uniform_set);
       
       tmp_cmd_buffer.end_render_pass()
@@ -1417,6 +1583,7 @@ impl CoreRender for RawVk {
     
     match future {
       Ok(future) => {
+        future.wait(None).unwrap();
         self.previous_frame_end = Some(Box::new(future) as Box<_>);
       }
       Err(FlushError::OutOfDate) => {

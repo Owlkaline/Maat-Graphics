@@ -16,6 +16,7 @@ use image::DynamicImage::ImageLumaA8;
 use image::DynamicImage::ImageRgb8;
 use image::DynamicImage::ImageRgba8;
 
+use graphics::Vertex2d;
 use graphics::Vertex3d;
 use drawcalls::DrawCall;
 use vulkan::rawvk::{vs_3d};
@@ -34,6 +35,24 @@ use std::slice;
 
 pub fn create_3d_projection(width: f32, height: f32) -> Matrix4<f32> {
   perspective(Deg(45.0), { width as f32 / height as f32 }, 0.1, 100.0)
+}
+
+pub fn create_subpass_vertex(device: Arc<Device>) -> Arc<BufferAccess + Send + Sync> {
+  let square = {
+    [
+      Vertex2d { position: [  1.0 ,   1.0 ], uv: [1.0, 0.0] },
+      Vertex2d { position: [ -1.0,    1.0 ], uv: [0.0, 0.0] },
+      Vertex2d { position: [ -1.0,   -1.0 ], uv: [0.0, 1.0] },
+      Vertex2d { position: [ -1.0,   -1.0 ], uv: [0.0, 1.0] },
+      Vertex2d { position: [  1.0 ,  -1.0 ], uv: [1.0, 1.0] },
+      Vertex2d { position: [  1.0 ,   1.0 ], uv: [1.0, 0.0] },
+    ]
+  };
+  
+  CpuAccessibleBuffer::from_iter(device,
+                                 BufferUsage::vertex_buffer(), 
+                                 square.iter().cloned())
+                                 .expect("failed to create vertex buffer")
 }
 
 pub fn create_vertex(device: Arc<Device>, verticies: iter::Cloned<slice::Iter<Vertex3d>>) -> Arc<BufferAccess + Send + Sync> {

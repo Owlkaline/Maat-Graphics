@@ -5,6 +5,7 @@ use vulkano::pipeline;
 use vulkano::device::Queue;
 use vulkano::image as vkimage;
 use vulkano::buffer::cpu_pool;
+use vulkano::buffer::BufferAccess;
 use vulkano::image::ImmutableImage;
 use vulkano::descriptor::descriptor_set;
 use vulkano::pipeline::viewport::Viewport;
@@ -16,10 +17,56 @@ use std::collections::HashMap;
 
 use cgmath::Matrix4;
 
-use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture};
+use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture, fs_lights};
 use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
+
+pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
+               pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+               vertex_buffer: Arc<BufferAccess + Send + Sync>,
+               colour_attachment: Arc<vkimage::AttachmentImage>,
+               normal_attachment: Arc<vkimage::AttachmentImage>,
+               position_attachment: Arc<vkimage::AttachmentImage>,
+               uv_attachment: Arc<vkimage::AttachmentImage>,
+               mr_attachment: Arc<vkimage::AttachmentImage>,
+               fullcolour_attachment: Arc<vkimage::AttachmentImage>,
+               view_matrix: Matrix4<f32>,
+               dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
+  let mut tmp_cmd_buffer = tmp_cmd_buffer;
+  let mut num_drawcalls = 0;
+  
+  let push_constants = fs_lights::ty::PushConstants {
+    view: view_matrix.into(),
+  };
+  
+  let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone().unwrap(), 0)
+                  .add_image(colour_attachment).unwrap()
+                  .add_image(normal_attachment).unwrap()
+                  .add_image(position_attachment).unwrap()
+                  .add_image(uv_attachment).unwrap()
+                  .add_image(mr_attachment).unwrap()
+                  .build().unwrap()
+  );
+  
+  let cb = tmp_cmd_buffer;
+  
+  tmp_cmd_buffer = cb.draw(
+               pipeline.clone().unwrap(),
+                 DynamicState {
+                   line_width: None,
+                   viewports: Some(vec![Viewport {
+                     origin: [0.0, 0.0],
+                     dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                     depth_range: 0.0 .. 1.0,
+                   }]),
+                   scissors: None,
+                 },
+                 vec!(vertex_buffer.clone()),
+                 set_3d, push_constants).unwrap();
+  
+  tmp_cmd_buffer
+}
 
 pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                models: &HashMap<String, Vec<Mesh>>, projection: Matrix4<f32>,
@@ -74,7 +121,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  queue: Arc<Queue>, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   // Texture
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
-  
+  /*
   let (temp_tex, _) = vkimage::immutable::ImmutableImage::from_iter([0u8, 0u8, 0u8, 0u8].iter().cloned(),
                                         vkimage::Dimensions::Dim2d { width: 1, height: 1 },
                                         format::R8G8B8A8Unorm, queue)
@@ -160,7 +207,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                                     vertex_buffer,
                                     index_buffer,
                                     uniform_set, ()).unwrap()
-  }
+  }*/
   
   (tmp_cmd_buffer, 1)
 }
@@ -174,7 +221,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   let mut num_drawcalls = 0;
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
-  
+  /*
   let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), fonts.clone());
   let size = draw.get_x_size();
   
@@ -233,7 +280,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                   vertex_buffer.clone(),
                   index_buffer.clone(),
                   uniform_set, ()).unwrap()
-  }
+  }*/
   
   (tmp_cmd_buffer, num_drawcalls)
 }

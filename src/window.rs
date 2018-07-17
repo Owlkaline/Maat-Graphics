@@ -168,7 +168,7 @@ impl VkWindow {
       }
       
       let layer = "VK_LAYER_LUNARG_standard_validation";
-      let layers = None; //vec![&layer];
+      let layers = vec![&layer];
       
       //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
       Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
@@ -307,6 +307,8 @@ impl VkWindow {
                     ).expect("failed to create swapchain")
     };
     
+    //surface.window().grab_cursor(true);
+    
     VkWindow {
       surface: surface,
       events: events_loop,
@@ -400,11 +402,11 @@ impl VkWindow {
   
   /// Enables the cursor to be drawn whilst over the window
   pub fn show_cursor(&mut self) {
-    self.surface.window().set_cursor(winit::MouseCursor::Default);
+    // self.surface.window().hide_cursor(false);
   }
   
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
-    self.surface.window().set_cursor(winit::MouseCursor::Alias);
+    //self.surface.window().hide_cursor(true);
   }
 }

@@ -12,11 +12,11 @@ pub struct CustomRenderpass {
   renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
-  attachment: Arc<vkimage::AttachmentImage>,
+  attachment: Vec<Arc<vkimage::AttachmentImage>>,
 }
 
 impl CustomRenderpass {
-  pub fn new(attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
+  pub fn new(attachment: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: None,
       pipeline: None,
@@ -25,7 +25,7 @@ impl CustomRenderpass {
     }
   }
   
-  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachment: Arc<vkimage::AttachmentImage>) -> CustomRenderpass {
+  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachment: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: Some(renderpass),
       pipeline: Some(pipeline),
@@ -50,8 +50,8 @@ impl CustomRenderpass {
     self.framebuffer.as_ref().unwrap().clone()
   }
   
-  pub fn attachment(&self) -> Arc<vkimage::AttachmentImage> {
-    self.attachment.clone()
+  pub fn attachment(&self, index: usize) -> Arc<vkimage::AttachmentImage> {
+    self.attachment[index].clone()
   }
   
   pub fn set_renderpass(&mut self, renderpass: Arc<RenderPassAbstract + Send + Sync>) {
@@ -66,7 +66,7 @@ impl CustomRenderpass {
     self.framebuffer = Some(framebuffer);
   }
   
-  pub fn set_attachment(&mut self, attachment: Arc<vkimage::AttachmentImage>) {
+  pub fn set_attachment(&mut self, attachment: Vec<Arc<vkimage::AttachmentImage>>) {
     self.attachment = attachment;
   }
 }

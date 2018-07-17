@@ -34,6 +34,12 @@ uniform sampler2D u_normal_texture;
 uniform sampler2D u_occlusion_texture;
 uniform sampler2D u_emissive_texture;
 
+#ifdef VULKAN 
+  dildoes
+#else
+ 
+#endif
+
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
 const vec3 c_LightColor = vec3(0.4,0.4,0.4);
