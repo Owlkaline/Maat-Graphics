@@ -270,6 +270,7 @@ pub struct VKPOST {
 
 pub struct RawVk {
   num_drawcalls: u32,
+  shaders_loaded: bool,
   ready: bool, // finished loading models and textures
   fonts: HashMap<String, GenericFont>,
   textures: HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
@@ -403,6 +404,7 @@ impl RawVk {
     
     RawVk {
       num_drawcalls: 0,
+      shaders_loaded: false,
       ready: false,
       fonts: HashMap::new(),
       textures: HashMap::new(),
@@ -499,12 +501,34 @@ impl CoreRender for RawVk {
   }
   
   fn load_static_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a static geometry with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+                  "Attempted to create a static geometry with the reference: {}, that is already in use by a texture", reference);
+    debug_assert!(self.fonts.contains_key(&reference), 
+                  "Attempted to create a static geometry with the reference: {}, that is already in use by a font", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a static geometry with the reference: {}, that is already in use by another static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a static geometry with the reference: {}, that is already in use by a dynamic geometry", reference);
+    
     let (model, future) = vulkan_2d::create_static_custom_model(self.window.get_device(), self.window.get_queue(), vertices, indices);
     self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     self.vk2d.custom_vao.insert(reference, model);
   }
   
   fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+                  "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a texture", reference);
+    debug_assert!(self.fonts.contains_key(&reference), 
+                  "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a font", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a dynamic geometry with the reference: {}, that is already in use by another dynamic geometry", reference);
+    
     let model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), vertices, indices);
     self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
@@ -514,10 +538,34 @@ impl CoreRender for RawVk {
   }
   
   fn add_model(&mut self, reference: String, directory: String) {
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by another model", reference);
+    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a texture", reference);
+    debug_assert!(self.fonts.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a font", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a dynamic geometry", reference);
+    
     self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone()});
   }
   
   fn load_model(&mut self, reference: String, directory: String) {
+    debug_assert!(self.shaders_loaded, "load_model function called before shaders loaded.\n Please use add_model function instead.");
+    
+    debug_assert!(self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by another model", reference);
+    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a texture", reference);
+    debug_assert!(self.fonts.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a font", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a model with the reference: {}, that is already in use by a dynamic geometry", reference);
+    
     let start_time = time::Instant::now();
     
     let mesh_data = ModelDetails::new(directory.clone());
@@ -747,6 +795,14 @@ impl CoreRender for RawVk {
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by another texture", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
     self.texture_paths.insert(reference, location);
   }
   
@@ -754,6 +810,15 @@ impl CoreRender for RawVk {
     if location == String::from("") {
       return;
     }
+    
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(self.textures.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by another texture", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
     
     let texture_start_time = time::Instant::now();
     
@@ -784,10 +849,18 @@ impl CoreRender for RawVk {
   
   fn add_font(&mut self, reference: String, font: &[u8], font_texture: String) {
     self.load_font(reference.clone(), font);
-    self.texture_paths.insert(reference, font_texture);
+    self.add_texture(reference, font_texture);
   }
   
   fn load_font(&mut self, reference: String, font: &[u8]) {
+    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+                  "Attempted to create a font with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(self.fonts.contains_key(&reference), 
+                  "Attempted to create a font with the reference: {}, that is already in use by another font", reference);
+    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to create a font with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to create a font with the reference: {}, that is already in use by a dynamic geometry", reference);
    let mut new_font = GenericFont::new();
     new_font.load_font(font);
     
@@ -798,6 +871,7 @@ impl CoreRender for RawVk {
   /// # Warning
   /// You must call this function otherwise will result in crash
   fn load_shaders(&mut self) {
+    debug_assert!(self.shaders_loaded, "Error: Shaders already loaded");
     let dimensions = {
       let dim = self.window.get_dimensions();
       [dim.width as u32, dim.height as u32]
@@ -1154,16 +1228,22 @@ impl CoreRender for RawVk {
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
     self.vk2d.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
+    
+    self.shaders_loaded = true;
   }
   
   /// Initalises some variables
   fn init(&mut self) {
+    debug_assert!(self.shaders_loaded, "Error: Shaders not loaded");
+    
     self.recreate_swapchain = false;
   }
   
   /// Loads the unloaded textures returning after ~16ms has passed to allow for 
   /// updates whilst still loading
   fn dynamic_load(&mut self) {
+    debug_assert!(self.shaders_loaded, "Error: Shaders not loaded");
+    
     let time_limit = 12.0;
     
     let mut delta_time;
@@ -1217,6 +1297,8 @@ impl CoreRender for RawVk {
   
   /// Settings up drawing variables before the drawing commences
   fn pre_draw(&mut self) {
+    debug_assert!(self.shaders_loaded, "Error: Shaders not loaded");
+    
     self.clear_screen();
     
     if self.recreate_swapchain {
@@ -1347,6 +1429,8 @@ impl CoreRender for RawVk {
   
   /// Draws everything that is in the drawcall passed to this function
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
+    debug_assert!(self.shaders_loaded, "Error: Shaders not loaded");
+    
     self.num_drawcalls = 0;
     if self.recreate_swapchain == true {
       return;
