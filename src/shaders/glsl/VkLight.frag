@@ -10,6 +10,7 @@ layout(input_attachment_index = 4, set = 0, binding = 4) uniform subpassInputMS 
 
 layout(push_constant) uniform PushConstants {
   mat4 view;
+  vec3 camera_pos;
 } push_constants;
 
 #ifdef VULKAN
@@ -22,8 +23,9 @@ const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
 
 // flIP y
-const vec3 c_LightDirection = vec3(-0.4, 1.35, 0.2);
-const vec3 c_LightColor = vec3(0.4,0.4,0.4);
+//const vec3 c_LightDirection = vec3(-0.4, 1.35, 0.2);
+const vec3 c_LightDirection = vec3(0.5, 0.5, 0.5);
+const vec3 c_LightColor = vec3(1.0,1.0,1.0);
 
 // Lambertian diffuse, Photometria
 vec3 diffuse(vec3 diffuse_colour) {
@@ -50,15 +52,20 @@ float microfacetDistribution(float r, float NdotH) {
 }
 
 void main() {
-  vec3 worldPosition = subpassLoad(u_position, gl_SampleID).rgb;
+  vec4 worldPosition = subpassLoad(u_position, gl_SampleID);
   
-  vec4 base_colour = subpassLoad(u_colour, gl_SampleID).rgba;
+  vec4 base_colour = subpassLoad(u_colour, gl_SampleID);
   vec3 normal = subpassLoad(u_normal, gl_SampleID).rgb;
+  vec4 uv = subpassLoad(u_uv, gl_SampleID);
   
   float roughness = subpassLoad(u_mr, gl_SampleID).g;
   float metallic = subpassLoad(u_mr, gl_SampleID).b;
   
-  vec3 toCameraVector = (inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
+  float ao = subpassLoad(u_mr, gl_SampleID).r;
+  float ao_strength = subpassLoad(u_mr, gl_SampleID).a;
+  vec3 emissive = vec3(worldPosition.a, uv.zw);
+  
+  vec3 toCameraVector = push_constants.camera_pos-worldPosition.xyz;//(inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
   
   float alpha_roughness = roughness*roughness;
   
@@ -72,6 +79,10 @@ void main() {
   float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
   vec3 specular_eviroment_r0 = specular_colour.rgb;
   vec3 specular_eviroment_r90 = vec3(1.0, 1.0, 1.0) * reflectance90;
+  
+  vec3 colour = base_colour.rgb;
+  colour.rgb = vec3(1.0, 1.0, 1.0) * 0.1 * colour.rgb;
+ // colour = pow(colour.rgb, vec3(1.0/2.2)); 
   
   // Lights and stuff start here
   vec3 N = normal;
@@ -92,11 +103,12 @@ void main() {
   
   vec3 diffuse_contrib = (1.0 - F) * diffuse(diffuse_colour);
   vec3 specular_contrib = F * G * D / (4.0 * NdotL * NdotV);
-  vec3 colour = NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
+  colour += NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
   
-  colour.rgb += vec3(1.0, 1.0, 1.0) * 0.2 * colour.rgb;
-  colour = pow(colour.rgb, vec3(1.0/2.2)); 
+  //colour.rgb = mix(colour.rgb, colour.rgb * ao, ao_strength);
   
-  f_color.rgb = colour;
-  f_color.a = base_colour.a;
+  //colour.rgb += emissive;
+  
+  f_color.rgb = pow(colour.rgb, vec3(1.0/2.2));
+  f_color.a =  1.0;
 }

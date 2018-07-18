@@ -12,7 +12,7 @@ pub struct CustomRenderpass {
   renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
   pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
-  attachment: Vec<Arc<vkimage::AttachmentImage>>,
+  attachments: Vec<Arc<vkimage::AttachmentImage>>,
 }
 
 impl CustomRenderpass {
@@ -21,16 +21,16 @@ impl CustomRenderpass {
       renderpass: None,
       pipeline: None,
       framebuffer: None,
-      attachment: attachment,
+      attachments: attachment,
     }
   }
   
-  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachment: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
+  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachments: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: Some(renderpass),
       pipeline: Some(pipeline),
       framebuffer: None,
-      attachment: attachment,
+      attachments: attachments,
     }
   }
   
@@ -51,7 +51,8 @@ impl CustomRenderpass {
   }
   
   pub fn attachment(&self, index: usize) -> Arc<vkimage::AttachmentImage> {
-    self.attachment[index].clone()
+    debug_assert!(index < self.attachments.len(), "AttachmentImage Index out of bounds, Limit: {}, Actual: {}", self.attachments.len(), index);
+    self.attachments[index].clone()
   }
   
   pub fn set_renderpass(&mut self, renderpass: Arc<RenderPassAbstract + Send + Sync>) {
@@ -66,7 +67,10 @@ impl CustomRenderpass {
     self.framebuffer = Some(framebuffer);
   }
   
-  pub fn set_attachment(&mut self, attachment: Vec<Arc<vkimage::AttachmentImage>>) {
-    self.attachment = attachment;
+  pub fn update_attachments(&mut self, attachments: Vec<Arc<vkimage::AttachmentImage>>) {
+    debug_assert!(self.renderpass.is_some(), "Renderpass was not set before updating attachments");
+    debug_assert!(self.attachments.len() == attachments.len(), "Attachments Expected: {}, Actual Attachments: {}", self.attachments.len(), attachments.len());
+    
+    self.attachments = attachments.clone();
   }
 }

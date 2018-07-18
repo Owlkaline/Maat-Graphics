@@ -15,6 +15,7 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture, fs_lights};
@@ -30,14 +31,15 @@ pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
                position_attachment: Arc<vkimage::AttachmentImage>,
                uv_attachment: Arc<vkimage::AttachmentImage>,
                mr_attachment: Arc<vkimage::AttachmentImage>,
-               fullcolour_attachment: Arc<vkimage::AttachmentImage>,
                view_matrix: Matrix4<f32>,
+               camera: Vector3<f32>,
                dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   let mut num_drawcalls = 0;
   
   let push_constants = fs_lights::ty::PushConstants {
     view: view_matrix.into(),
+    camera_pos: camera.into(),
   };
   
   let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone().unwrap(), 0)

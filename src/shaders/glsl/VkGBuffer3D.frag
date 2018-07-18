@@ -72,13 +72,14 @@ vec3 get_normal() {
   vec3 n = tbn[2].xyz;
   if (u_material_params.normal_texture_tex_coord == 0) {
     n = texture(u_normal_texture, v_uv).rgb;
-    n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_material_params.normal_texture_scale, u_material_params.normal_texture_scale, 1.0)));
+    // normalize removed from line below
+    n = tbn * ((2.0 * n - 1.0) * vec3(u_material_params.normal_texture_scale, u_material_params.normal_texture_scale, 1.0));
   }
   
   // gl front facing?
   // n *= (2.0 * float(gl_FrontFacing) - 1.0);
   
-  return n;
+  return normalize(n);
 }
 
 void main() {
@@ -86,7 +87,6 @@ void main() {
   
   float metallic = u_material_params.metallic_factor;
   float roughness = u_material_params.roughness_factor;
-  float ao = 1.0;
   
   if (u_material_params.metallic_roughness_texture_tex_coord == 0) {
     vec4 Sample = texture(u_metallic_roughness, v_uv);
@@ -104,6 +104,8 @@ void main() {
   base_colour *= u_material_params.base_colour_factor;
   base_colour *= v_colours;
   
+  base_colour.rgb = pow(base_colour.rgb, vec3(1.0/2.2));
+  
   float alpha_cutoff = u_material_params.alpha_cutoff;
   float alpha = base_colour.a;
   if (u_material_params.forced_alpha == 1) { // Opaque
@@ -112,15 +114,20 @@ void main() {
   
   if (u_material_params.forced_alpha == 2) { // Mask
     if(alpha < alpha_cutoff) {
-      discard;
+      discard; //alpha = 0.0;
     } else {
       alpha = 1.0;
     }
   }
   
+ // base_colour.rgb += vec3(1.0, 1.0, 1.0) * 0.02 * base_colour.rgb;
+  float ao = 1.0;
+  float ao_strength = 0.0;
   if (u_material_params.occlusion_texture_tex_coord != -1) {
-    float ao = texture(u_occlusion_texture, v_uv).r;
-    base_colour.rgb = mix(base_colour.rgb, base_colour.rgb * ao, u_material_params.occlusion_texture_strength);
+    ao = texture(u_occlusion_texture, v_uv).r;
+    ao_strength = u_material_params.occlusion_texture_strength;
+    
+    //base_colour.rgb = mix(base_colour.rgb, base_colour.rgb * ao, u_material_params.occlusion_texture_strength);
   }
   
   vec3 emissive = vec3(0.0);
@@ -128,9 +135,11 @@ void main() {
     emissive = texture(u_emissive_texture, v_uv).rgb * u_material_params.emissive_factor;
   }
   
-  f_colour = base_colour;
+  //base_colour.rgb += emissive;
+  
+  f_colour = vec4(base_colour.rgb, alpha);
   f_normal = vec4(n, 1.0);
-  f_position = vec4(v_position, 1.0);
-  f_texcoord = vec4(v_uv.xy, 0.0, 1.0);
-  f_mr = vec4(0.0, roughness, metallic, 1.0);
+  f_position = vec4(v_position, emissive.r);
+  f_texcoord = vec4(v_uv.xy, emissive.g, emissive.b);
+  f_mr = vec4(ao, roughness, metallic, ao_strength);
 }
