@@ -7,8 +7,6 @@ use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 
-use vulkano::framebuffer::RenderPassAbstract;
-
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 

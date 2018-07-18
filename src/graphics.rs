@@ -9,9 +9,6 @@ use winit::dpi::LogicalSize;
 
 use std::vec::Vec;
 
-use cgmath::Vector2;
-use cgmath::Vector3;
-
 #[derive(Clone)]
 pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
 
@@ -28,9 +25,9 @@ pub trait CoreRender {
   // Add is the recommened use for majority of the loading as it doesnt stall
   //
   // Load 3D models
-  fn preload_model(&mut self, reference: String, location: String, texture: String);
-  fn add_model(&mut self, reference: String, location: String, texture: String);
-  fn load_model(&mut self, reference: String, location: String, texture: String);
+  fn preload_model(&mut self, reference: String, location: String);
+  fn add_model(&mut self, reference: String, location: String);
+  fn load_model(&mut self, reference: String, location: String);
   
   // Load png images
   fn preload_texture(&mut self, reference: String, location: String);

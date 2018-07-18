@@ -9,13 +9,11 @@ use settings::Settings;
 
 use vulkano_win_updated::VkSurfaceBuild;
 use vulkano_win_updated::required_extensions;
-use vulkano_win_updated as vulkano_win;
 
 use vulkano::device::Queue;
 use vulkano::device::Device;
 use vulkano::format;
 use vulkano::instance::Instance;
-use vulkano::instance::Limits;
 use vulkano::swapchain::Swapchain;
 use vulkano::swapchain::Surface;
 use vulkano::image::SwapchainImage;
@@ -25,17 +23,12 @@ use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
 use vulkano::swapchain::SwapchainCreationError;
 
-use vulkano::swapchain::CompositeAlpha;
-
 use vulkano::instance;
 use vulkano::instance::PhysicalDevice;
-use vulkano::instance::InstanceExtensions;
 use vulkano::instance::debug::{DebugCallback, MessageTypes};
 
 use std::mem;
 use std::sync::Arc;
-
-use gl::types::*;
 
 use glutin;
 use glutin::GlContext;

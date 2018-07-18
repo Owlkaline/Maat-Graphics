@@ -1,17 +1,9 @@
-use font::GenericCharacter;
-use font::GenericFont;
-
-use graphics;
-
 use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
-use cgmath::Matrix2;
 use cgmath::Matrix4;
 use cgmath::InnerSpace;
-
-use std::collections::HashMap;
 
 pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32> {
   let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();

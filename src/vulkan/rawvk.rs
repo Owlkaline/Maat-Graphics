@@ -1,16 +1,13 @@
 use font::GenericFont;
 use window::VkWindow;
-use drawcalls;
 use drawcalls::DrawCall;
 use math;
-use graphics::DEFAULT_TEXTURE;
 use graphics::Vertex2d;
 use graphics::Vertex3d;
 use graphics::CoreRender;
 use settings::Settings;
 use camera::Camera;
 use gltf_interpreter::ModelDetails;
-use helperfunctions::convert_to_vertex3d;
 use vulkan::vulkan_2d;
 use vulkan::vulkan_3d;
 use vulkan::vulkan_draw;
@@ -24,14 +21,10 @@ use winit;
 use winit::dpi::LogicalSize;
 
 use vulkano::image as vkimage;
-use vulkano::image::ImageViewAccess;
 use vulkano::sampler;
-
-use vulkano::memory;
 
 use vulkano::sync::now;
 use vulkano::sync::GpuFuture;
-use vulkano::sync::NowFuture;
 use vulkano::sync::FlushError;
 
 use vulkano::swapchain;
@@ -47,48 +40,34 @@ use vulkano::image::ImageUsage;
 use vulkano::framebuffer;
 use vulkano::framebuffer::RenderPassAbstract;
 
-use vulkano::command_buffer::CommandBufferExecFuture;
-use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 
 use vulkano::pipeline;
-use vulkano::pipeline::viewport::Viewport;
-use vulkano::pipeline::viewport::Scissor;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
 use vulkano::format;
 use vulkano::format::ClearValue;
 use vulkano::image::ImmutableImage;
-use vulkano::descriptor;
 use vulkano::descriptor::descriptor_set;
 use vulkano::descriptor::descriptor_set::DescriptorSet;
-use vulkano::descriptor::pipeline_layout;
 use vulkano::swapchain::SwapchainCreationError;
 
 use std::env;
 use std::mem;
 use std::cmp;
 use std::time;
-use std::iter;
-use std::slice;
-use std::f32::consts;
 use std::marker::Sync;
 use std::marker::Send;
-use std::time::Duration;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use cgmath;
-use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
-use cgmath::Matrix3;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
-use cgmath::Rotation3;
-use cgmath::InnerSpace;
 
 impl_vertex!(Vertex2d, position, uv);
 impl_vertex!(Vertex3d, position, normal, tangent, uv, colour);
@@ -219,7 +198,6 @@ mod fs_post_final {
 #[derive(Clone)]
 pub struct ModelInfo {
   directory: String,
-  model_name: String,
 }
 
 pub struct Model {
@@ -531,18 +509,18 @@ impl CoreRender for RawVk {
     self.vk2d.custom_dynamic_vao.insert(reference, model);
   }
   
-  fn preload_model(&mut self, reference: String, directory: String, texture: String) {
-    self.load_model(reference.clone(), directory, texture.clone());
+  fn preload_model(&mut self, reference: String, directory: String) {
+    self.load_model(reference.clone(), directory);
   }
   
-  fn add_model(&mut self, reference: String, directory: String, model_name: String) {
-    self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone(), model_name: model_name.clone()});
+  fn add_model(&mut self, reference: String, directory: String) {
+    self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone()});
   }
   
-  fn load_model(&mut self, reference: String, directory: String, model_name: String) {
+  fn load_model(&mut self, reference: String, directory: String) {
     let start_time = time::Instant::now();
     
-    let mesh_data = ModelDetails::new(directory.clone()+&model_name.clone());
+    let mesh_data = ModelDetails::new(directory.clone());
     
     let mut mesh: Vec<Mesh> = Vec::new();
     
@@ -761,7 +739,7 @@ impl CoreRender for RawVk {
     self.vk3d.models.insert(reference, mesh);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory+&model_name);
+    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory);
   }
   
   fn preload_texture(&mut self, reference: String, location: String) {
@@ -1216,7 +1194,7 @@ impl CoreRender for RawVk {
     let model_paths_clone = self.model_paths.clone();
     
     for (reference, model) in &model_paths_clone {
-      self.load_model(reference.clone(), model.directory.clone(), model.model_name.clone());
+      self.load_model(reference.clone(), model.directory.clone());
       
       self.model_paths.remove(reference);
       still_loading = true;

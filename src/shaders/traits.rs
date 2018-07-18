@@ -9,7 +9,6 @@ use winit::dpi::LogicalSize;
 
 use std::ffi::CString;
 use std::mem;
-use std::ptr;
 
 use cgmath::Vector2;
 use cgmath::Vector3;

@@ -3,14 +3,8 @@ use gl::types::*;
 
 use std::vec::Vec;
 use std::ffi::CString;
-use std::mem;
 use std::ptr;
 use std::str;
-
-use cgmath::Vector3;
-use cgmath::Vector4;
-use cgmath::Matrix3;
-use cgmath::Matrix4;
 
 pub mod traits;
 

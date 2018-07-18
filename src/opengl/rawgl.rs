@@ -13,7 +13,6 @@ use shaders::Shader3D;
 use shaders::traits::Fbo;
 use graphics;
 use graphics::CoreRender;
-use graphics::DEFAULT_TEXTURE;
 use settings::Settings;
 use font::GenericFont;
 use camera::Camera;
@@ -30,9 +29,7 @@ use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
-use cgmath::Matrix3;
 use cgmath::Matrix4;
-use cgmath::InnerSpace;
 
 use image;
 use winit;
@@ -42,13 +39,10 @@ use gl;
 use gl::types::*;
 
 use std::env;
-use std::ptr;
 use std::mem;
 use std::cmp;
 use std::time;
 use std::ffi::CStr;
-use std::f32::consts;
-use std::ffi::CString;
 use std::os::raw::c_void;
 use std::collections::HashMap;
 
@@ -109,7 +103,6 @@ pub struct GL3D {
 #[derive(Clone)]
 pub struct ModelInfo {
   location: String,
-  texture: String,
 }
 
 pub struct RawGl {
@@ -177,7 +170,7 @@ impl Model3D {
 }
 
 extern "system" fn opengl_debug(source: GLenum, _type: GLenum, id: GLuint, severity: GLenum, 
-                    length: GLsizei, messages: *const GLchar, user: *mut c_void) {
+                    _length: GLsizei, messages: *const GLchar, _user: *mut c_void) {
   unsafe {
     println!("Source: {}, type: {}, id: {}, severity: {}, Message: {:?}", source, _type, id, severity,  CStr::from_ptr(messages));
   }
@@ -746,20 +739,20 @@ impl CoreRender for RawGl {
     self.load_custom_2d_vao(reference, verts, index, true);
   }
   
-  fn preload_model(&mut self, reference: String, directory: String, texture: String) {
-    self.load_model(reference.clone(), directory, texture.clone());
+  fn preload_model(&mut self, reference: String, directory: String) {
+    self.load_model(reference.clone(), directory);
     //self.load_texture(reference, texture);
   }
   
-  fn add_model(&mut self, reference: String, directory: String, model_name: String) {
-    self.model_paths.insert(reference.clone(), ModelInfo {location: directory, texture: model_name.clone()});
+  fn add_model(&mut self, reference: String, directory: String) {
+    self.model_paths.insert(reference.clone(), ModelInfo {location: directory});
     //self.add_texture(reference, texture);
   }
   
-  fn load_model(&mut self, reference: String, directory: String, model_name: String) {
+  fn load_model(&mut self, reference: String, directory: String) {
     let start_time = time::Instant::now();
     
-    let mesh_data = ModelDetails::new(directory.clone()+&model_name.clone());
+    let mesh_data = ModelDetails::new(directory.clone());
     
     let mut model: Vec<Model3D> = Vec::new();
     
@@ -908,7 +901,7 @@ impl CoreRender for RawGl {
     self.gl3D.models.insert(reference, model);
     
     let total_time = start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory + &model_name);
+    println!("{} ms,  {:?}", (total_time*1000f64) as f32, directory);
   }
  
   fn preload_texture(&mut self, reference: String, location: String) {
@@ -1064,7 +1057,7 @@ impl CoreRender for RawGl {
     let model_paths_clone = self.model_paths.clone();
     
     for (reference, model) in &model_paths_clone {
-      self.load_model(reference.clone(), model.location.clone(), model.texture.clone());
+      self.load_model(reference.clone(), model.location.clone());
       
       self.model_paths.remove(reference);
       still_loading = true;

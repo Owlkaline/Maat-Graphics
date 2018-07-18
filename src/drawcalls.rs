@@ -3,13 +3,11 @@ use font::GenericFont;
 
 use graphics;
 
-use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix2;
 use cgmath::Matrix4;
-use cgmath::InnerSpace;
 
 use std::collections::HashMap;
 

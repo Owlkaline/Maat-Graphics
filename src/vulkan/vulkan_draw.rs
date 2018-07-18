@@ -1,7 +1,6 @@
 use vulkano::memory;
 use vulkano::format;
 use vulkano::sampler;
-use vulkano::pipeline;
 use vulkano::device::Queue;
 use vulkano::image as vkimage;
 use vulkano::buffer::cpu_pool;
@@ -19,7 +18,6 @@ use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture, fs_lights};
-use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
 
@@ -35,7 +33,6 @@ pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
                camera: Vector3<f32>,
                dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
-  let mut num_drawcalls = 0;
   
   let push_constants = fs_lights::ty::PushConstants {
     view: view_matrix.into(),

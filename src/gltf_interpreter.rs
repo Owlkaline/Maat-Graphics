@@ -20,9 +20,6 @@ use cgmath::Rotation;
 
 use image;
 use image::ImageFormat::{JPEG, PNG};
-use image::DynamicImage::*;
-use image::GenericImage;
-use image::FilterType;
 
 #[derive(Clone)]
 pub enum Topology {

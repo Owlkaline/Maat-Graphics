@@ -11,10 +11,6 @@ use vulkano::buffer::{CpuBufferPool, cpu_pool,
 use vulkano::command_buffer::{AutoCommandBuffer, CommandBufferExecFuture};
 
 use image;
-use image::DynamicImage::ImageLuma8;
-use image::DynamicImage::ImageLumaA8;
-use image::DynamicImage::ImageRgb8;
-use image::DynamicImage::ImageRgba8;
 
 use graphics::Vertex2d;
 use graphics::Vertex3d;
@@ -22,7 +18,6 @@ use drawcalls::DrawCall;
 use vulkan::rawvk::{vs_3d};
 use gltf_interpreter::Sampler;
 
-use gltf::material::AlphaMode;
 use gltf::texture::MagFilter;
 use gltf::texture::MinFilter;
 use gltf::texture::WrappingMode;
@@ -138,8 +133,6 @@ pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix
   
   let point_light = 2.0;
   let directional_light = 0.0;
-  let metallic = 1.0;
-  let roughness = 1.0;
   
   let lighting_position: Matrix4<f32> =
     Matrix4::from_cols(
@@ -149,14 +142,6 @@ pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix
       Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
       Vector4::new(0.0, 0.0, 0.0, -1.0)
     );
-  
-  let reflectivity = {
-  let mut temp = 1.0;
-    if draw.get_texture() == "terrain" {
-      temp = 0.0;
-    }
-    temp
-  };
   
   let lighting_colour: Matrix4<f32> =
     // (R, G, B, light type)
