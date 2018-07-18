@@ -183,7 +183,17 @@ impl ModelDetails {
       },
     };*/
     println!("{}", source);
-    let (gltf, buffers, images) = gltf::import(source).unwrap();
+    let load = gltf::import(source);
+    let (gltf, buffers, images) = match load {
+      Ok(t) => {
+        t
+      },
+      Err(e) => {
+        println!("{:?}", e);
+        panic!();
+      }
+    };
+//    let (gltf, buffers, images) = .unwrap();
     
     /*
     println!("{:?}", buffers);
