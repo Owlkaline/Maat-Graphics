@@ -70,6 +70,7 @@ pub trait CoreRender {
   fn get_dpi_scale(&self) -> f64;
   fn is_ready(&self) -> bool;
   fn dynamic_load(&mut self);
+  fn set_cursor_position(&mut self, x: f32, y: f32);
   fn show_cursor(&mut self);
   fn hide_cursor(&mut self);
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32);

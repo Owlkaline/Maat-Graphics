@@ -13,6 +13,12 @@ pub enum Direction {
   Right,
   Up,
   Down,
+  Positive_x,
+  Negative_x,
+  Positive_y,
+  Negative_y,
+  Positive_z,
+  Negative_z,
 }
 
 #[derive(Clone)]
@@ -133,6 +139,24 @@ impl Camera {
       },
       Direction::Down => {
         self.position -= self.up*self.move_speed*delta_time;
+      },
+      Direction::Positive_x => {
+        self.position.x += self.move_speed * delta_time;
+      },
+      Direction::Negative_x => {
+        self.position.x -= self.move_speed * delta_time;
+      }
+      Direction::Positive_y => {
+        self.position.y += self.move_speed * delta_time;
+      },
+      Direction::Negative_y => {
+        self.position.y -= self.move_speed * delta_time;
+      }
+      Direction::Positive_z => {
+        self.position.z += self.move_speed * delta_time;
+      },
+      Direction::Negative_z => {
+        self.position.z -= self.move_speed * delta_time;
       }
     }
   }

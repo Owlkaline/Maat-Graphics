@@ -1256,6 +1256,7 @@ impl CoreRender for RawGl {
   fn get_camera(&self) -> Camera { 
     self.gl3D.camera.to_owned() 
   }
-    fn num_drawcalls(&self) -> u32 {0}
+  fn num_drawcalls(&self) -> u32 {0}
+  fn set_cursor_position(&mut self, x: f32, y: f32) {}
 }
 

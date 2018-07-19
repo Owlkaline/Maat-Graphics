@@ -1747,6 +1747,10 @@ impl CoreRender for RawVk {
     self.window.hide_cursor();
   }
   
+  fn set_cursor_position(&mut self, x: f32, y: f32) {
+    self.window.set_cursor_position(x, y);
+  }
+  
   // Sets the clear colour for the window to display if nothing is draw in an area
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     self.clear_colour = Vector4::new(r,g,b,a);

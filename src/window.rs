@@ -3,6 +3,7 @@ use gl;
 use winit;
 use winit::EventsLoop;
 use winit::dpi::LogicalSize;
+use winit::dpi::LogicalPosition;
 use winit::dpi::PhysicalSize;
 
 use settings::Settings;
@@ -141,6 +142,10 @@ impl GlWindow {
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
     self.window.set_cursor(winit::MouseCursor::Alias);
+  }
+  
+  pub fn set_cursor_position(&mut self, x: f32, y: f32) {
+    self.window.set_cursor_position(LogicalPosition::new(x as f64, y as f64));
   }
 }
 
@@ -395,11 +400,19 @@ impl VkWindow {
   
   /// Enables the cursor to be drawn whilst over the window
   pub fn show_cursor(&mut self) {
-    // self.surface.window().hide_cursor(false);
+    self.surface.window().hide_cursor(false);
   }
   
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
-    //self.surface.window().hide_cursor(true);
+    self.surface.window().hide_cursor(true);
+  }
+  
+  pub fn set_cursor_position(&mut self, x: f32, y: f32) {
+    let result = self.surface.window().set_cursor_position(LogicalPosition::new(x as f64, y as f64));
+    match result {
+      Ok(t) => {},
+      Err(e) => {println!("{}", e);},
+    }
   }
 }
