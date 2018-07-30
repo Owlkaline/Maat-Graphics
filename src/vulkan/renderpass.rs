@@ -3,14 +3,13 @@ use vulkano::framebuffer;
 use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
-
 use std::sync::Arc;
 use std::marker::Sync;
 use std::marker::Send;
 
 pub struct CustomRenderpass {
   renderpass: Option<Arc<RenderPassAbstract + Send + Sync>>,
-  pipeline: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  pipeline: Vec<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   framebuffer: Option<Arc<framebuffer::FramebufferAbstract + Send + Sync>>,
   attachments: Vec<Arc<vkimage::AttachmentImage>>,
 }
@@ -19,16 +18,25 @@ impl CustomRenderpass {
   pub fn new(attachment: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: None,
-      pipeline: None,
+      pipeline: Vec::new(),
       framebuffer: None,
       attachments: attachment,
     }
   }
   
-  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>, attachments: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
+  pub fn new_empty() -> CustomRenderpass {
+    CustomRenderpass {
+      renderpass: None,
+      pipeline: Vec::new(),
+      framebuffer: None,
+      attachments: Vec::new(),
+    }
+  }
+  
+  pub fn replace(renderpass: Arc<RenderPassAbstract + Send + Sync>, pipeline: Vec<Arc<GraphicsPipelineAbstract + Send + Sync>>, attachments: Vec<Arc<vkimage::AttachmentImage>>) -> CustomRenderpass {
     CustomRenderpass {
       renderpass: Some(renderpass),
-      pipeline: Some(pipeline),
+      pipeline: pipeline,
       framebuffer: None,
       attachments: attachments,
     }
@@ -38,8 +46,8 @@ impl CustomRenderpass {
     self.renderpass.clone().unwrap()
   }
   
-  pub fn pipeline(&self) -> Arc<GraphicsPipelineAbstract + Send + Sync> {
-    self.pipeline.clone().unwrap()
+  pub fn pipeline_subpass(&self, index: usize) -> Arc<GraphicsPipelineAbstract + Send + Sync> {
+    self.pipeline[index].clone()
   }
   
   pub fn framebuffer(&self) -> Arc<framebuffer::FramebufferAbstract + Send + Sync> {
@@ -59,8 +67,8 @@ impl CustomRenderpass {
     self.renderpass = Some(renderpass);
   }
   
-  pub fn set_pipeline(&mut self, pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>) {
-    self.pipeline = Some(pipeline);
+  pub fn set_pipelines(&mut self, pipeline: Vec<Arc<GraphicsPipelineAbstract + Send + Sync>>) {
+    self.pipeline = pipeline;
   }
   
   pub fn set_framebuffer(&mut self, framebuffer: Arc<framebuffer::FramebufferAbstract + Send + Sync>) {

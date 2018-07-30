@@ -1,13 +1,11 @@
 #version 450
 
-layout(location = 0) in vec2 uvs;
+layout(location = 0) out vec4 f_colour;
 
-layout(location = 0) out vec4 outColour;
-
-layout(set = 0, binding = 1) uniform sampler2D tex;
+layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput u_colour;
 
 void main() {
-  vec4 bloom = texture(tex, uvs);
+  vec4 bloom = subpassLoad(u_colour);
   
   // Convert to grayscale and compute brightness
   float brightness = dot(bloom.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -16,5 +14,5 @@ void main() {
     bloom = vec4(0.0, 0.0, 0.0, 1.0);
   }
   
-  outColour = bloom;
+  f_colour = bloom;
 }

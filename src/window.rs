@@ -19,6 +19,7 @@ use vulkano::swapchain::Swapchain;
 use vulkano::swapchain::Surface;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::PresentMode;
+use vulkano::swapchain::CompositeAlpha;
 
 use vulkano::device::DeviceExtensions;
 use vulkano::swapchain::SurfaceTransform;
@@ -34,6 +35,8 @@ use std::sync::Arc;
 use glutin;
 use glutin::GlContext;
 
+use cgmath::Vector2;
+
 pub struct VkWindow {
   events: EventsLoop,
   surface: Arc<Surface<winit::Window>>,
@@ -41,6 +44,7 @@ pub struct VkWindow {
   device: Arc<Device>,
   swapchain: Arc<Swapchain<winit::Window>>,
   images: Vec<Arc<SwapchainImage<winit::Window>>>,
+  min_max_dim: Vector2<f32>,
 }
 
 pub struct GlWindow {
@@ -150,7 +154,7 @@ impl GlWindow {
 }
 
 impl VkWindow {
-  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool) -> VkWindow {
+  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
     //let app_infos = app_info_from_cargo_toml!();
     //println!("{:?}", app_infos);
     println!("Using Vulkan");
@@ -166,7 +170,7 @@ impl VkWindow {
       }
       
       let layer = "VK_LAYER_LUNARG_standard_validation";
-      let layers = vec![&layer];
+      let layers = None;//vec![&layer];
       
       //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
       Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
@@ -275,37 +279,77 @@ impl VkWindow {
       
       Device::new(physical, physical.supported_features(), &device_ext, [(queue_family, 0.5)].iter().cloned()).expect("failed to create device")
     };
-  
+    
+    let settings = Settings::load();
+    let min_width = settings.get_minimum_resolution()[0];
+    let min_height = settings.get_minimum_resolution()[1];
+    
     let queue = queues.next().unwrap();
     let (swapchain, images) = {
       let caps = surface
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
       
-      let settings = Settings::load();
-      let min_width = settings.get_minimum_resolution()[0];
-      let min_height = settings.get_minimum_resolution()[1];
-      
       let dimensions = caps.current_extent.unwrap_or([min_width, min_height]);
-                   
-      let format = format::B8G8R8A8Unorm;//caps.supported_formats[0].0;//B8G8R8A8Unorm;
-      let alpha = caps.supported_composite_alpha.iter().next().unwrap();//Opaque;
+      
+      let format = {
+        let mut final_supported_format =  caps.supported_formats[0].0.clone();
+        
+        for (format, colour_space) in caps.supported_formats {
+          if format == format::Format::B8G8R8A8Unorm  {
+            final_supported_format = format::Format::B8G8R8A8Unorm;
+            break;
+          }
+        }
+        
+        final_supported_format
+      };
+      
+      let alpha = {
+        let mut final_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+        
+        if caps.supported_composite_alpha.supports(CompositeAlpha::Opaque) {
+          final_alpha = CompositeAlpha::Opaque;
+        }
+        final_alpha
+      };
+      
       let min_image_count = caps.min_image_count;
       let supported_usage_flags = caps.supported_usage_flags;
       
-    //  println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
+      let mut present_mode = {
+        if vsync {
+          PresentMode::Fifo
+        } else if triple_buffer {
+          PresentMode::Mailbox
+        }  else {
+          PresentMode::Immediate
+        }
+      };
+      
+      if !caps.present_modes.supports(present_mode) {
+        if present_mode == PresentMode::Mailbox {
+          print!("Error {:?} mode (Triple buffering) not supported", present_mode);
+        } else {
+          print!("Error {:?} mode (Vsync Off) not supported", present_mode);
+        }
+        
+        println!(", switched to {:?} mode (Vsync On) instead", PresentMode::Fifo);
+        present_mode = PresentMode::Fifo;
+      }
+      
+      println!("Using {:?} display mode\n", present_mode);
+      
+      //println!("Max MSAA: {}", physical.limits().max_sampler_anisotropy());
       println!("\nSwapchain:");
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
       
-      //PresentMode::Relaxed PresentMode::Fifo
       Swapchain::new(device.clone(), surface.clone(), min_image_count, format,
                      dimensions, 1, supported_usage_flags, &queue,
-                     SurfaceTransform::Identity, alpha, PresentMode::Fifo, true, None
+                     SurfaceTransform::Identity, alpha, present_mode, true, None
                     ).expect("failed to create swapchain")
     };
-    
-    //surface.window().grab_cursor(true);
     
     VkWindow {
       surface: surface,
@@ -314,6 +358,7 @@ impl VkWindow {
       device: device,
       swapchain: swapchain,
       images: images,
+      min_max_dim: Vector2::new(min_width as f32, min_height as f32),
     }
   }
   
@@ -346,19 +391,16 @@ impl VkWindow {
     let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
-   
-    let settings = Settings::load();
-    let min_width = settings.get_minimum_resolution()[0];
-    let min_height = settings.get_minimum_resolution()[1];
-   
-    let dimensions = caps.current_extent.unwrap_or([min_width, min_height]);
+    
+    let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
+    
     println!("Window Resized!");
     self.swapchain.recreate_with_dimension(dimensions)
   }
   
   // Replaces entire swap chain memory with parameter swapchain
   pub fn replace_swapchain(&mut self, new_swapchain: Arc<Swapchain<winit::Window>>) {
-    mem::replace(&mut self.swapchain, new_swapchain);
+    self.swapchain = new_swapchain;
   }
   
   // Returns a reference to the current swapchain image
@@ -368,7 +410,7 @@ impl VkWindow {
   
   // Replaces the current swapchain image with parameter image with mem::replace
   pub fn replace_images(&mut self, new_images: Vec<Arc<SwapchainImage<winit::Window>>>) {
-    mem::replace(&mut self.images, new_images);
+    self.images = new_images;
   }
   
   // Returns a clone of the swapchain
@@ -383,7 +425,14 @@ impl VkWindow {
   
   /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> LogicalSize {
-    self.surface.window().get_inner_size().unwrap()
+    let caps = self.surface
+      .capabilities(self.device.physical_device())
+      .expect("failure to get surface capabilities");
+    
+    let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
+    
+    LogicalSize::new(dimensions[0] as f64, dimensions[1] as f64)
+    //self.surface.window().get_inner_size().unwrap()
   }
   
   /// Returns a reference to the events loop

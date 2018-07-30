@@ -1,6 +1,6 @@
 #version 450
 
-layout(location = 0) out vec4 f_color;
+layout(location = 0) out vec4 f_colour;
 
 layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInputMS u_colour;
 layout(input_attachment_index = 1, set = 0, binding = 1) uniform subpassInputMS u_normal;
@@ -109,6 +109,6 @@ void main() {
   
   //colour.rgb += emissive;
   
-  f_color.rgb = pow(colour.rgb, vec3(1.0/2.2));
-  f_color.a =  1.0;
+  f_colour.rgb = pow(colour.rgb, vec3(1.0/2.2));
+  f_colour.a =  1.0;
 }

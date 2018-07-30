@@ -182,7 +182,7 @@ impl ModelDetails {
         (gltf::gltf::Gltf, gltf_importer::Buffers)
       },
     };*/
-    println!("{}", source);
+    //println!("{}", source);
     let load = gltf::import(source);
     let (gltf, buffers, images) = match load {
       Ok(t) => {
@@ -222,7 +222,7 @@ impl ModelDetails {
       let mut textures_samplers = Vec::new();
       
       for texture in gltf.textures() {
-        println!("Texture: {:?}", texture.source().index());
+        //println!("Texture: {:?}", texture.source().index());
         let img: Option<image::DynamicImage> = texture_to_image(texture.clone(), &buffers, &Path::new(&source));
         
         let texture_sampler = texture.sampler();
@@ -248,8 +248,8 @@ impl ModelDetails {
       let rotation = Matrix4::from(quaternion);
       
       for mesh in node.mesh() {
-        println!("{}", index);
-        println!("Mesh #{}", mesh.index());
+        //println!("{}", index);
+        //println!("Mesh #{}", mesh.index());
         
         for primitive in mesh.primitives() {
           models.push(FinalModel {
@@ -267,14 +267,14 @@ impl ModelDetails {
             has_tangents: false,
           });
           
-          println!("- Primitive #{}", primitive.index());
-          println!("Material: {:?}", primitive.material().index());
-          println!("Material name: {:?}", primitive.material().name());
-          println!("Base Colour: {:?}", primitive.material().pbr_metallic_roughness().base_color_factor());
+          //println!("- Primitive #{}", primitive.index());
+          //println!("Material: {:?}", primitive.material().index());
+          //println!("Material name: {:?}", primitive.material().name());
+          //println!("Base Colour: {:?}", primitive.material().pbr_metallic_roughness().base_color_factor());
           let mut texture_index = 0;
           if let Some(info) = primitive.material().pbr_metallic_roughness().base_color_texture() {
             texture_index = info.tex_coord();
-            println!("Base Texture name: {:?}", info.texture().source().name());
+            //println!("Base Texture name: {:?}", info.texture().source().name());
           }
           
           models[index].topology = match primitive.mode() {
@@ -549,7 +549,7 @@ fn texture_to_image(texture: gltf::Texture, buffers: &Vec<gltf::buffer::Data>, b
       }
     },
     gltf::image::Source::Uri { uri, mime_type } => {
-      println!("{:?}", uri);
+      //println!("{:?}", uri);
       if uri.starts_with("data:") {
         let encoded = uri.split(',').nth(1).unwrap();
         let data = base64::decode(&encoded).unwrap();

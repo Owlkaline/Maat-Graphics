@@ -1,5 +1,10 @@
 use vulkano::memory;
+use vulkano::format;
+use vulkano::pipeline;
+use vulkano::framebuffer;
 use vulkano::sync::NowFuture;
+use vulkano::image as vkimage;
+use vulkano::image::ImageUsage;
 use vulkano::device::{Queue, Device};
 use vulkano::buffer::{cpu_pool, BufferUsage, 
                       BufferAccess, CpuBufferPool, 
@@ -9,7 +14,8 @@ use vulkano::command_buffer::{AutoCommandBuffer, CommandBufferExecFuture};
 use math;
 use graphics::Vertex2d;
 use drawcalls::DrawCall;
-use vulkan::rawvk::{Model,DynamicModel, vs_texture};
+use vulkan::rawvk::{Model,DynamicModel, vs_texture, fs_texture, vs_text, fs_text};
+use vulkan::renderpass::CustomRenderpass;
 
 use cgmath::{ortho, Vector4, Matrix4};
 
@@ -112,4 +118,100 @@ pub fn create_texture_subbuffer(draw: DrawCall, projection: Matrix4<f32>, unifor
   };
   
   uniform_buffer_texture.next(uniform_data).unwrap()
+}
+
+pub fn create_texture_attachments(device: Arc<Device>, dim: [u32; 2], samples: u32) -> (Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>) {
+  
+  let image_usage = ImageUsage {
+    color_attachment: true,
+    transfer_destination: true,
+    sampled: true,
+    .. ImageUsage::none()
+  };
+  
+  let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let fullcolour_attachment = vkimage::AttachmentImage::with_usage(device.clone(), dim, format::Format::R16G16B16A16Unorm, image_usage).unwrap();
+  
+  (ms_colour_attachment, fullcolour_attachment)
+}
+
+pub fn create_texturebuffer(device: Arc<Device>, dim: [u32; 2], samples: u32) -> CustomRenderpass {
+  let texturebuffer_renderpass = Arc::new(single_pass_renderpass!(device.clone(),
+      attachments: {
+        multisample_colour: {
+          load: Clear,
+          store: DontCare,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: samples,
+        },
+        resolve_fullcolour: {
+          load: DontCare,
+          store: Store,
+          format: format::Format::R16G16B16A16Unorm,
+          samples: 1,
+        }
+      },
+      pass: {
+        color: [multisample_colour],
+        depth_stencil: {},
+        resolve: [resolve_fullcolour],
+      }
+    ).unwrap());
+  
+  let vs_texture = vs_texture::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_texture = fs_texture::Shader::load(device.clone()).expect("failed to create shader module");
+  let vs_text = vs_text::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_text = fs_text::Shader::load(device.clone()).expect("failed to create shader module");
+  
+  let texture_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<Vertex2d>()
+        .vertex_shader(vs_texture.main_entry_point(), ())
+       // .triangle_strip()
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_texture.main_entry_point(), ())
+        .blend_alpha_blending()
+        .render_pass(framebuffer::Subpass::from(texturebuffer_renderpass.clone(), 0).unwrap())
+        .build(device.clone())
+        .unwrap());
+  
+  let text_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+        .vertex_input_single_buffer::<Vertex2d>()
+        .vertex_shader(vs_text.main_entry_point(), ())
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs_text.main_entry_point(), ())
+        .blend_alpha_blending()
+        .render_pass(framebuffer::Subpass::from(texturebuffer_renderpass.clone(), 0).unwrap())
+        .build(device.clone())
+        .unwrap());
+  
+  let (ms_colour_attachment, fullcolour_attachment) = create_texture_attachments(device.clone(), dim, samples);
+  
+  let textureframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(texturebuffer_renderpass.clone())
+          .add(ms_colour_attachment.clone()).unwrap()
+          .add(fullcolour_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  let mut texture_customrenderpass = CustomRenderpass::new(vec!(ms_colour_attachment, fullcolour_attachment));
+  
+  texture_customrenderpass.set_renderpass(texturebuffer_renderpass);
+  texture_customrenderpass.set_pipelines(vec!(texture_pipeline, text_pipeline));
+  texture_customrenderpass.set_framebuffer(textureframebuffer);
+  
+  texture_customrenderpass
+}
+
+pub fn recreate_texturebuffer(renderpass: &mut CustomRenderpass, device: Arc<Device>, dim: [u32; 2], samples: u32) {
+  let (ms_colour_attachment, fullcolour_attachment) = create_texture_attachments(device.clone(), dim, samples);
+  
+  let textureframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(renderpass.renderpass().clone())
+          .add(ms_colour_attachment.clone()).unwrap()
+          .add(fullcolour_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  renderpass.update_attachments(vec!(ms_colour_attachment, fullcolour_attachment));
+  renderpass.set_framebuffer(textureframebuffer);
 }

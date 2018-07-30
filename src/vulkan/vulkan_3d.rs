@@ -1,8 +1,11 @@
 use vulkano::memory;
 use vulkano::format;
 use vulkano::sampler;
+use vulkano::pipeline;
+use vulkano::framebuffer;
 use vulkano::sync::NowFuture;
 use vulkano::image as vkimage;
+use vulkano::image::ImageUsage;
 use vulkano::image::ImmutableImage;
 use vulkano::device::{Device, Queue};
 use vulkano::buffer::{CpuBufferPool, cpu_pool,
@@ -15,9 +18,11 @@ use image;
 use graphics::Vertex2d;
 use graphics::Vertex3d;
 use drawcalls::DrawCall;
-use vulkan::rawvk::{vs_3d};
-use gltf_interpreter::Sampler;
 
+use vulkan::rawvk::{vs_3d, vs_gbuffer_3d, fs_gbuffer_3d, vs_plain, fs_lights, fs_post_bloom};
+use vulkan::renderpass::CustomRenderpass;
+
+use gltf_interpreter::Sampler;
 use gltf::texture::MagFilter;
 use gltf::texture::MinFilter;
 use gltf::texture::WrappingMode;
@@ -171,4 +176,213 @@ pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix
   };
   
   uniform_buffer.next(uniform_data).unwrap()
+}
+
+pub fn create_gbuffer_attachments(device: Arc<Device>, dim: [u32; 2], samples: u32) -> (Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>) {
+  let gbuffer_usage_input = ImageUsage {
+    color_attachment: true,
+    input_attachment: true,
+    transfer_destination: true,
+    sampled: true,
+    .. ImageUsage::none()
+  };
+  
+  let gbuffer_usage = ImageUsage {
+    color_attachment: true,
+    transfer_destination: true,
+    sampled: true,
+    .. ImageUsage::none()
+  };
+  
+  let colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::D16Unorm).unwrap();
+  let fullcolour_attachment = vkimage::AttachmentImage::with_usage(device.clone(), dim, format::Format::R16G16B16A16Unorm, gbuffer_usage_input).unwrap();
+  let bloom_attachment = vkimage::AttachmentImage::with_usage(device, dim, format::Format::R16G16B16A16Unorm, gbuffer_usage).unwrap();
+  
+  (colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_colour_attachment, ms_depth_attachment, fullcolour_attachment, bloom_attachment)
+}
+
+pub fn create_gbuffer(device: Arc<Device>, dim: [u32; 2], samples: u32) -> CustomRenderpass {
+  let gbuffer_renderpass = Arc::new(ordered_passes_renderpass!(device.clone(),
+    attachments: {
+      colour_attachment: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      normal_attachment: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      position_attachment: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      uv_attachment: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      mr_attachment: { // metallic_roughness_attachment
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      multisample_colour: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: samples,
+      },
+      ms_depth_attachment: {
+        load: Clear,
+        store: DontCare,
+        format: format::Format::D16Unorm,
+        samples: samples,
+      },
+      resolve_fullcolour: {
+        load: DontCare,
+        store: Store,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: 1,
+      },
+      bloom_attachment: {
+        load: DontCare,
+        store: Store,
+        format: format::Format::R16G16B16A16Unorm,
+        samples: 1,
+      }
+    },
+    passes: [
+      {
+        color: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment],
+        depth_stencil: {ms_depth_attachment},
+        input: []
+      },
+      {
+        color: [multisample_colour],
+        depth_stencil: {},
+        input: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_depth_attachment],
+        resolve: [resolve_fullcolour]
+      }, 
+      {
+        color: [bloom_attachment],
+        depth_stencil: {},
+        input: [resolve_fullcolour]
+      }
+    ]
+  ).unwrap());
+  
+  let vs_gbuffer_3d = vs_gbuffer_3d::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_gbuffer_3d = fs_gbuffer_3d::Shader::load(device.clone()).expect("failed to create shader module");
+  let vs_plain = vs_plain::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_lights = fs_lights::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_post_bloom = fs_post_bloom::Shader::load(device.clone()).expect("failed to create shader module");
+  
+  let gbuffer_pipeline_0 = Arc::new(pipeline::GraphicsPipeline::start()
+      .vertex_input_single_buffer::<Vertex3d>()
+      .vertex_shader(vs_gbuffer_3d.main_entry_point(), ())
+      .triangle_list()
+      .viewports_dynamic_scissors_irrelevant(1)
+      .fragment_shader(fs_gbuffer_3d.main_entry_point(), ())
+      .depth_clamp(false)
+      .depth_stencil_simple_depth()
+      .blend_alpha_blending()
+      .polygon_mode_fill()
+      .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone(), 0).unwrap())
+      .build(device.clone())
+      .unwrap());
+  
+  let gbuffer_pipeline_1 = Arc::new(pipeline::GraphicsPipeline::start()
+      .vertex_input_single_buffer::<Vertex2d>()
+      .vertex_shader(vs_plain.main_entry_point(), ())
+      .triangle_list()
+      .viewports_dynamic_scissors_irrelevant(1)
+      .fragment_shader(fs_lights.main_entry_point(), ())
+      .blend_alpha_blending()
+      .depth_stencil_disabled()
+      .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone(), 1).unwrap())
+      .build(device.clone())
+      .unwrap());
+      
+  let gbuffer_pipeline_2 = Arc::new(pipeline::GraphicsPipeline::start()
+      .vertex_input_single_buffer::<Vertex2d>()
+      .vertex_shader(vs_plain.main_entry_point(), ())
+      .triangle_list()
+      .viewports_dynamic_scissors_irrelevant(1)
+      .fragment_shader(fs_post_bloom.main_entry_point(), ())
+      .blend_alpha_blending()
+      .depth_stencil_disabled()
+      .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone(), 2).unwrap())
+      .build(device.clone())
+      .unwrap());
+  
+  let (colour_attachment, normal_attachment, 
+       position_attachment, uv_attachment,
+       mr_attachment, ms_colour_attachment, 
+       ms_depth_attachment, fullcolour_attachment, 
+       bloom_attachment) = create_gbuffer_attachments(device.clone(), dim, samples);
+  
+  let gframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(gbuffer_renderpass.clone())
+          .add(colour_attachment.clone()).unwrap()
+          .add(normal_attachment.clone()).unwrap()
+          .add(position_attachment.clone()).unwrap()
+          .add(uv_attachment.clone()).unwrap()
+          .add(mr_attachment.clone()).unwrap()
+          .add(ms_colour_attachment.clone()).unwrap()
+          .add(ms_depth_attachment.clone()).unwrap()
+          .add(fullcolour_attachment.clone()).unwrap()
+          .add(bloom_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  let mut gbuffer_customrenderpass = CustomRenderpass::new(vec!(colour_attachment, normal_attachment, 
+                                                        position_attachment, uv_attachment, 
+                                                        mr_attachment, ms_colour_attachment, 
+                                                        ms_depth_attachment, fullcolour_attachment, 
+                                                        bloom_attachment));
+  
+  gbuffer_customrenderpass.set_renderpass(gbuffer_renderpass);
+  gbuffer_customrenderpass.set_pipelines(vec!(gbuffer_pipeline_0, gbuffer_pipeline_1, gbuffer_pipeline_2));
+  gbuffer_customrenderpass.set_framebuffer(gframebuffer);
+  
+  gbuffer_customrenderpass
+}
+
+pub fn recreate_gbuffer(renderpass: &mut CustomRenderpass, device: Arc<Device>, dim: [u32; 2], samples: u32) {
+  let (colour_attachment, normal_attachment, 
+       position_attachment, uv_attachment,
+       mr_attachment, ms_colour_attachment, 
+       ms_depth_attachment, fullcolour_attachment, 
+       bloom_attachment) = create_gbuffer_attachments(device.clone(), dim, samples);
+  
+  let gframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(renderpass.renderpass().clone())
+          .add(colour_attachment.clone()).unwrap()
+          .add(normal_attachment.clone()).unwrap()
+          .add(position_attachment.clone()).unwrap()
+          .add(uv_attachment.clone()).unwrap()
+          .add(mr_attachment.clone()).unwrap()
+          .add(ms_colour_attachment.clone()).unwrap()
+          .add(ms_depth_attachment.clone()).unwrap()
+          .add(fullcolour_attachment.clone()).unwrap()
+          .add(bloom_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  renderpass.update_attachments(vec!(colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_colour_attachment, ms_depth_attachment, fullcolour_attachment, bloom_attachment));
+  renderpass.set_framebuffer(gframebuffer);
 }

@@ -80,6 +80,10 @@ const GBUFFER_MR: usize = 4;
 const GBUFFER_MS_COLOUR: usize = 5;
 const GBUFFER_MS_DEPTH: usize = 6;
 const GBUFFER_FULLCOLOUR: usize = 7;
+const GBUFFER_BLOOMCOLOUR: usize = 8;
+
+const TEXTURE_PIPELINE: usize = 0;
+const TEXT_PIPIELINE: usize = 1;
 
 pub const blur_dim: u32 = 512;
 
@@ -90,7 +94,7 @@ pub mod vs_texture {
   struct Dummy;
 }
 
-mod fs_texture {
+pub mod fs_texture {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkTexture.frag"]
@@ -104,7 +108,7 @@ pub mod vs_text {
   struct Dummy;
 }
 
-mod fs_text {
+pub mod fs_text {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkText.frag"]
@@ -125,24 +129,24 @@ mod fs_3d {
   struct Dummy;
 }
 
-mod vs_gbuffer_3d{
+pub mod vs_gbuffer_3d{
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkGBuffer3D.vert"]
   struct Dummy;
 }
 
-mod fs_gbuffer_3d {
+pub mod fs_gbuffer_3d {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkGBuffer3D.frag"]
   struct Dummy;
 }
 
-mod vs_lights {
+pub mod vs_plain {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkLight.vert"]
+  #[path = "src/shaders/glsl/VkPlain.vert"]
   struct Dummy;
 }
 
@@ -150,6 +154,13 @@ pub mod fs_lights {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkLight.frag"]
+  struct Dummy;
+}
+
+pub mod fs_post_bloom {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkPostBloom.frag"]
   struct Dummy;
 }
 
@@ -164,20 +175,6 @@ mod fs_post_blur {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkPostBlur.frag"]
-  struct Dummy;
-}
-
-mod vs_post_bloom {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkPostBloom.vert"]
-  struct Dummy;
-}
-
-mod fs_post_bloom {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkPostBloom.frag"]
   struct Dummy;
 }
 
@@ -222,10 +219,9 @@ pub struct VK2D {
   custom_dynamic_vao: HashMap<String, DynamicModel>,
   projection: Matrix4<f32>,
   
-  pipeline_texture: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  uniform_buffer_texture: cpu_pool::CpuBufferPool<vs_texture::ty::Data>,
+  texture_renderpass: CustomRenderpass,
   
-  pipeline_text: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  uniform_buffer_texture: cpu_pool::CpuBufferPool<vs_texture::ty::Data>,
   uniform_buffer_text: cpu_pool::CpuBufferPool<vs_text::ty::Data>,
   
   sampler: Arc<sampler::Sampler>,
@@ -243,18 +239,13 @@ pub struct VK3D {
   projection: Matrix4<f32>,
   scale: Matrix4<f32>,
   
-  gbuffer_vertex_lightpass: Arc<BufferAccess + Send + Sync>,
+  gbuffer_subpass_vertex: Arc<BufferAccess + Send + Sync>,
   gbuffer_renderpass: CustomRenderpass,
-  gbuffer_pipeline_0: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
-  gbuffer_pipeline_1: Option<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   
   uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
 }
 
 pub struct VKPOST {
-  bloom_renderpass: CustomRenderpass,
-  bloom_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_bloom::ty::Data>,
-  
   blur_ping_renderpass: CustomRenderpass,
   blur_pong_renderpass: CustomRenderpass,
   blur_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_blur::ty::Data>,
@@ -280,9 +271,6 @@ pub struct RawVk {
   
   clear_colour: Vector4<f32>,
   
-  fullcolour_attachment: Arc<vkimage::AttachmentImage>,
-  ms_colour_attachment: Arc<vkimage::AttachmentImage>,
-  ms_depth_attachment: Arc<vkimage::AttachmentImage>,
   samples: u32,
   
   //3D
@@ -299,6 +287,7 @@ pub struct RawVk {
   pub window: VkWindow,
   
   recreate_swapchain: bool,
+  window_actual_size: LogicalSize,
   
   previous_frame_end: Option<Box<GpuFuture>>,
 }
@@ -316,8 +305,10 @@ impl RawVk {
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     let fullscreen = settings.is_fullscreen();
+    let vsync = settings.vsync_enabled();
+    let triple_buffer = settings.triple_buffer_enabled();
     
-    let window = VkWindow::new(width, height, min_width, min_height, fullscreen);
+    let window = VkWindow::new(width, height, min_width, min_height, fullscreen, vsync, triple_buffer);
     
     let proj_2d = Matrix4::identity();
     let proj_3d = Matrix4::identity();
@@ -336,7 +327,7 @@ impl RawVk {
     let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let post_final_uniform = cpu_pool::CpuBufferPool::<vs_post_final::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
-    let post_bloom_uniform = cpu_pool::CpuBufferPool::<vs_post_bloom::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
+    
     let post_blur_uniform = cpu_pool::CpuBufferPool::<vs_post_blur::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let previous_frame_end = Some(Box::new(now(window.get_device())) as Box<GpuFuture>);
     
@@ -374,21 +365,8 @@ impl RawVk {
     let dim = window.get_dimensions();
     let dim = [dim.width as u32, dim.height as u32];
     
-    let bloom_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), dim, format::Format::R16G16B16A16Unorm, src_usage).unwrap();
-    
     let blur_ping_attachment = vkimage::AttachmentImage::sampled(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format()).unwrap();
     let blur_pong_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format(), src_usage).unwrap();
-    
-    let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::D16Unorm).unwrap();
-    
-    let fullcolour_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), dim, format::Format::R16G16B16A16Unorm, gbuffer_usage).unwrap();
-    
-    let colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-    let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(window.get_device(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
     
     let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: blur_dim, height: blur_dim}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
           q.supports_graphics()
@@ -411,15 +389,11 @@ impl RawVk {
       diffuse_colours: HashMap::new(),
       texture_paths: HashMap::new(),
       model_paths: HashMap::new(),
-
+      
       clear_colour: Vector4::new(0.0, 0.0, 0.0, 1.0),
-
-     // main_renderpass: None,
-      fullcolour_attachment: fullcolour_attachment.clone(),
-      ms_colour_attachment: ms_colour_attachment.clone(),
-      ms_depth_attachment: ms_depth_attachment.clone(),
+      
       samples: samples,
-
+      
       // 3D
       vk3d: VK3D {
         depth_buffer: None,
@@ -433,10 +407,8 @@ impl RawVk {
         projection: proj_3d,
         scale: scale,
         
-        gbuffer_vertex_lightpass: lightpass_vertexbuffer,
-        gbuffer_renderpass: CustomRenderpass::new(vec!(colour_attachment.clone(), normal_attachment.clone(), position_attachment.clone(), uv_attachment.clone(), mr_attachment.clone(), ms_colour_attachment, ms_depth_attachment, fullcolour_attachment)),
-        gbuffer_pipeline_0: None,
-        gbuffer_pipeline_1: None,
+        gbuffer_subpass_vertex: lightpass_vertexbuffer,
+        gbuffer_renderpass: CustomRenderpass::new_empty(),
         
         uniform_buffer: uniform_3d,
       },
@@ -452,10 +424,10 @@ impl RawVk {
         
         projection: proj_2d,
         
-        pipeline_texture: None,
+        texture_renderpass: CustomRenderpass::new_empty(),
+        
         uniform_buffer_texture: texture_uniform,
         
-        pipeline_text: None,
         uniform_buffer_text: text_uniform,
         
         sampler: sampler,
@@ -463,9 +435,6 @@ impl RawVk {
       
       // Post Processing
       vkpost: VKPOST {
-        bloom_renderpass: CustomRenderpass::new(vec!(bloom_attachment)),
-        bloom_uniformbuffer: post_bloom_uniform,
-        
         blur_uniformbuffer: post_blur_uniform,
         blur_ping_renderpass: CustomRenderpass::new(vec!(blur_ping_attachment)),
         blur_pong_renderpass: CustomRenderpass::new(vec!(blur_pong_attachment)),
@@ -484,6 +453,7 @@ impl RawVk {
       window: window,
       
       recreate_swapchain: false,
+      window_actual_size: LogicalSize::new(dim[0] as f64, dim[1] as f64),
       
       previous_frame_end: previous_frame_end,
     }
@@ -501,15 +471,15 @@ impl CoreRender for RawVk {
   }
   
   fn load_static_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
                   "Attempted to create a static geometry with the reference: {}, that is already in use by a model", reference);
-    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+    debug_assert!(!self.texture_paths.contains_key(&reference) && !self.textures.contains_key(&reference), 
                   "Attempted to create a static geometry with the reference: {}, that is already in use by a texture", reference);
-    debug_assert!(self.fonts.contains_key(&reference), 
+    debug_assert!(!self.fonts.contains_key(&reference), 
                   "Attempted to create a static geometry with the reference: {}, that is already in use by a font", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
                   "Attempted to create a static geometry with the reference: {}, that is already in use by another static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
                   "Attempted to create a static geometry with the reference: {}, that is already in use by a dynamic geometry", reference);
     
     let (model, future) = vulkan_2d::create_static_custom_model(self.window.get_device(), self.window.get_queue(), vertices, indices);
@@ -518,15 +488,15 @@ impl CoreRender for RawVk {
   }
   
   fn load_dynamic_geometry(&mut self, reference: String, vertices: Vec<Vertex2d>, indices: Vec<u32>) {
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
                   "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a model", reference);
-    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+    debug_assert!(!self.texture_paths.contains_key(&reference) && !self.textures.contains_key(&reference), 
                   "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a texture", reference);
-    debug_assert!(self.fonts.contains_key(&reference), 
+    debug_assert!(!self.fonts.contains_key(&reference), 
                   "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a font", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
                   "Attempted to create a dynamic geometry with the reference: {}, that is already in use by a static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
                   "Attempted to create a dynamic geometry with the reference: {}, that is already in use by another dynamic geometry", reference);
     
     let model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), vertices, indices);
@@ -538,15 +508,15 @@ impl CoreRender for RawVk {
   }
   
   fn add_model(&mut self, reference: String, directory: String) {
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by another model", reference);
-    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+    debug_assert!(!self.texture_paths.contains_key(&reference) && !self.textures.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a texture", reference);
-    debug_assert!(self.fonts.contains_key(&reference), 
+    debug_assert!(!self.fonts.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a font", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a dynamic geometry", reference);
     
     self.model_paths.insert(reference.clone(), ModelInfo {directory: directory.clone()});
@@ -555,15 +525,15 @@ impl CoreRender for RawVk {
   fn load_model(&mut self, reference: String, directory: String) {
     debug_assert!(self.shaders_loaded, "load_model function called before shaders loaded.\n Please use add_model function instead.");
     
-    debug_assert!(self.vk3d.models.contains_key(&reference), 
+    debug_assert!(!self.vk3d.models.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by another model", reference);
-    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
+    debug_assert!(!self.texture_paths.contains_key(&reference) && !self.textures.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a texture", reference);
-    debug_assert!(self.fonts.contains_key(&reference), 
+    debug_assert!(!self.fonts.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a font", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
                   "Attempted to create a model with the reference: {}, that is already in use by a dynamic geometry", reference);
     
     let start_time = time::Instant::now();
@@ -606,7 +576,7 @@ impl CoreRender for RawVk {
                                             .expect("Failed to create immutable image");
     
     let default_descriptor_set =
-      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_pipeline_0.clone().unwrap(), 1)
+      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_renderpass.pipeline_subpass(0).clone(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(temp_tex.clone(), default_sampler.clone())
@@ -766,7 +736,7 @@ impl CoreRender for RawVk {
        
        
        let descriptor_set =
-         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_pipeline_0.clone().unwrap(), 1)
+         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_renderpass.pipeline_subpass(0).clone(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(base_colour_texture.0, base_colour_texture.2)
@@ -795,14 +765,14 @@ impl CoreRender for RawVk {
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a model", reference);
-    debug_assert!(self.texture_paths.contains_key(&reference) || self.textures.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by another texture", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
+                  "Attempted to add a texture with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(!self.texture_paths.contains_key(&reference) && !self.textures.contains_key(&reference), 
+                  "Attempted to add a texture with the reference: {}, that is already in use by another texture", reference);
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to add a texture with the reference: {}, that is already in use by a static geometry", reference);
     debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
+                  "Attempted to add a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
     self.texture_paths.insert(reference, location);
   }
   
@@ -811,14 +781,14 @@ impl CoreRender for RawVk {
       return;
     }
     
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a model", reference);
-    debug_assert!(self.textures.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by another texture", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
-                  "Attempted to create a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
+                  "Attempted to load a texture with the reference: {}, that is already in use by a model", reference);
+    debug_assert!(!self.textures.contains_key(&reference), 
+                  "Attempted to load a texture with the reference: {}, that is already in use by another texture", reference);
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
+                  "Attempted to load a texture with the reference: {}, that is already in use by a static geometry", reference);
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+                  "Attempted to load a texture with the reference: {}, that is already in use by a dynamic geometry", reference);
     
     let texture_start_time = time::Instant::now();
     
@@ -853,13 +823,13 @@ impl CoreRender for RawVk {
   }
   
   fn load_font(&mut self, reference: String, font: &[u8]) {
-    debug_assert!(self.model_paths.contains_key(&reference) || self.vk3d.models.contains_key(&reference), 
+    debug_assert!(!self.model_paths.contains_key(&reference) && !self.vk3d.models.contains_key(&reference), 
                   "Attempted to create a font with the reference: {}, that is already in use by a model", reference);
-    debug_assert!(self.fonts.contains_key(&reference), 
+    debug_assert!(!self.fonts.contains_key(&reference), 
                   "Attempted to create a font with the reference: {}, that is already in use by another font", reference);
-    debug_assert!(self.vk2d.custom_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_vao.contains_key(&reference), 
                   "Attempted to create a font with the reference: {}, that is already in use by a static geometry", reference);
-    debug_assert!(self.vk2d.custom_dynamic_vao.contains_key(&reference), 
+    debug_assert!(!self.vk2d.custom_dynamic_vao.contains_key(&reference), 
                   "Attempted to create a font with the reference: {}, that is already in use by a dynamic geometry", reference);
    let mut new_font = GenericFont::new();
     new_font.load_font(font);
@@ -871,7 +841,7 @@ impl CoreRender for RawVk {
   /// # Warning
   /// You must call this function otherwise will result in crash
   fn load_shaders(&mut self) {
-    debug_assert!(self.shaders_loaded, "Error: Shaders already loaded");
+    debug_assert!(!self.shaders_loaded, "Error: Shaders already loaded");
     let dimensions = {
       let dim = self.window.get_dimensions();
       [dim.width as u32, dim.height as u32]
@@ -892,132 +862,21 @@ impl CoreRender for RawVk {
     
     self.previous_frame_end = Some(Box::new(future_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
+    let vs_plain = vs_plain::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    
     let vs_3d = vs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_3d = fs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let vs_gbuffer_3d = vs_gbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let fs_gbuffer_3d = fs_gbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let vs_lights = vs_lights::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let fs_lights = fs_lights::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_texture = vs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_texture = fs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_text = vs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_text = fs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_post_final = vs_post_final::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_post_final = fs_post_final::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let vs_post_bloom = vs_post_bloom::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let fs_post_bloom = fs_post_bloom::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_post_blur = vs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_post_blur = fs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
-    let gbuffer_renderpass = Some(Arc::new(ordered_passes_renderpass!(self.window.get_device(),
-      attachments: {
-        colour_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        normal_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        position_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        uv_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        mr_attachment: { // metallic_roughness_attachment
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        multisample_colour: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        ms_depth_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::D16Unorm,
-          samples: self.samples,
-        },
-        resolve_fullcolour: {
-          load: DontCare,
-          store: Store,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: 1,
-        }
-      },
-      passes: [
-        {
-          color: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment],
-          depth_stencil: {ms_depth_attachment},
-          input: []
-        },
-        {
-          color: [multisample_colour],
-          depth_stencil: {},
-          input: [colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_depth_attachment],
-          resolve: [resolve_fullcolour]
-        }
-      ]
-    ).unwrap()));
-    /*
-    self.main_renderpass = Some(Arc::new(single_pass_renderpass!(self.window.get_device(),
-      attachments: {
-        multisample_colour: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: self.samples,
-        },
-        ms_depth_attachment: {
-          load: Clear,
-          store: DontCare,
-          format: format::Format::D16Unorm,
-          samples: self.samples,
-        },
-        resolve_fullcolour: {
-          load: DontCare,
-          store: Store,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: 1,
-        }
-      },
-      pass: {
-        color: [multisample_colour],
-        depth_stencil: {ms_depth_attachment},
-        resolve: [resolve_fullcolour],
-      }
-    ).unwrap()));*/
-    
-    let bloom_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
-      attachments: {
-        out_colour: {
-          load: DontCare,
-          store: Store,
-          format: format::Format::R16G16B16A16Unorm,
-          samples: 1,
-        }
-      },
-      pass: {
-        color: [out_colour],
-        depth_stencil: {},
-        resolve: [],
-      }
-    ).unwrap());
+    self.vk3d.gbuffer_renderpass = vulkan_3d::create_gbuffer(self.window.get_device(), dimensions, self.samples);
+    self.vk2d.texture_renderpass = vulkan_2d::create_texturebuffer(self.window.get_device(), dimensions, self.samples);
     
     let blur_ping_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
       attachments: {
@@ -1066,79 +925,6 @@ impl CoreRender for RawVk {
         resolve: [],
       }
     ).unwrap()));
-   
-    self.vk3d.gbuffer_pipeline_0 = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex3d>()
-        .vertex_shader(vs_gbuffer_3d.main_entry_point(), ())
-        .triangle_list()
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_gbuffer_3d.main_entry_point(), ())
-        .depth_clamp(false)
-        .depth_stencil_simple_depth()
-        .blend_alpha_blending()
-       // .blend_pass_through()
-        .polygon_mode_fill()
-        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
-        .build(self.window.get_device())
-        .unwrap()));
-        
-    self.vk3d.gbuffer_pipeline_1 = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex2d>()
-        .vertex_shader(vs_lights.main_entry_point(), ())
-        .triangle_list()
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_lights.main_entry_point(), ())
-        .blend_alpha_blending()
-        .depth_stencil_disabled()
-        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 1).unwrap())
-        .build(self.window.get_device())
-        .unwrap()));
-   /*
-    self.vk3d.pipeline = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex3d>()
-        .vertex_shader(vs_3d.main_entry_point(), ())
-        .triangle_list()
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_3d.main_entry_point(), ())
-        .depth_clamp(true)
-        .depth_stencil_simple_depth()
-        .blend_alpha_blending()
-        .polygon_mode_fill()
-       // .cull_mode_back()
-        .render_pass(framebuffer::Subpass::from(self.main_renderpass.clone().unwrap(), 0).unwrap())
-        .build(self.window.get_device())
-        .unwrap()));
-*/
-    self.vk2d.pipeline_texture = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex2d>()
-        .vertex_shader(vs_texture.main_entry_point(), ())
-       // .triangle_strip()
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_texture.main_entry_point(), ())
-        .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
-        .build(self.window.get_device())
-        .unwrap()));
-        
-    self.vk2d.pipeline_text = Some(Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex2d>()
-        .vertex_shader(vs_text.main_entry_point(), ())
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_text.main_entry_point(), ())
-        .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(gbuffer_renderpass.clone().unwrap(), 0).unwrap())
-        .build(self.window.get_device())
-        .unwrap()));
-    
-    let bloom_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
-        .vertex_input_single_buffer::<Vertex2d>()
-        .vertex_shader(vs_post_bloom.main_entry_point(), ())
-        .viewports_dynamic_scissors_irrelevant(1)
-        .fragment_shader(fs_post_bloom.main_entry_point(), ())
-        .blend_alpha_blending()
-        .render_pass(framebuffer::Subpass::from(bloom_renderpass.clone(), 0).unwrap())
-        .build(self.window.get_device())
-        .unwrap());
     
     let blur_ping_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
@@ -1170,38 +956,6 @@ impl CoreRender for RawVk {
         .build(self.window.get_device())
         .unwrap()));
     
-    let gbuffer_renderpass = gbuffer_renderpass.clone().unwrap();
-    
-    let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_COLOUR);
-    let normal_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_NORMAL);
-    let position_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_POSITION);
-    let uv_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_UV);
-    let mr_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_MR);
-    let ms_colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_MS_COLOUR);
-    let ms_depth_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_MS_DEPTH);
-    let fullcolour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
-    let gframebuffer = Arc::new({
-        framebuffer::Framebuffer::start(gbuffer_renderpass.clone())
-            .add(colour_attachment).unwrap()
-            .add(normal_attachment).unwrap()
-            .add(position_attachment).unwrap()
-            .add(uv_attachment).unwrap()
-            .add(mr_attachment).unwrap()
-            .add(ms_colour_attachment).unwrap()
-            .add(ms_depth_attachment).unwrap()
-            .add(fullcolour_attachment).unwrap()
-            .build().unwrap()
-    });
-    
-    self.vk3d.gbuffer_renderpass.set_framebuffer(gframebuffer);
-    
-    let bloom_attachment = self.vkpost.bloom_renderpass.attachment(0);
-    self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
-        framebuffer::Framebuffer::start(bloom_renderpass.clone())
-                .add(bloom_attachment).unwrap()
-                .build().unwrap()
-      }));
-    
     let blur_ping_attachment = self.vkpost.blur_ping_renderpass.attachment(0);
     self.vkpost.blur_ping_renderpass.set_framebuffer(Arc::new({
         framebuffer::Framebuffer::start(blur_ping_renderpass.clone())
@@ -1216,14 +970,10 @@ impl CoreRender for RawVk {
                 .build().unwrap()
     }));
     
-    self.vk3d.gbuffer_renderpass.set_renderpass(gbuffer_renderpass);
-    
-    self.vkpost.bloom_renderpass.set_renderpass(bloom_renderpass);
-    self.vkpost.bloom_renderpass.set_pipeline(bloom_pipeline);
     self.vkpost.blur_ping_renderpass.set_renderpass(blur_ping_renderpass);
-    self.vkpost.blur_ping_renderpass.set_pipeline(blur_ping_pipeline);
+    self.vkpost.blur_ping_renderpass.set_pipelines(vec!(blur_ping_pipeline));
     self.vkpost.blur_pong_renderpass.set_renderpass(blur_pong_renderpass);
-    self.vkpost.blur_pong_renderpass.set_pipeline(blur_pong_pipeline);
+    self.vkpost.blur_pong_renderpass.set_pipelines(vec!(blur_pong_pipeline));
     
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
@@ -1304,7 +1054,8 @@ impl CoreRender for RawVk {
     if self.recreate_swapchain {
       let mut dimensions = {
         let dim = self.window.get_dimensions();
-        [dim.width as u32, dim.height as u32]
+       // [dim.width as u32, dim.height as u32]
+        [self.window_actual_size.width as u32, self.window_actual_size.height as u32]
       };
       
       if dimensions[0] <= 0 {
@@ -1317,6 +1068,7 @@ impl CoreRender for RawVk {
       let (new_swapchain, new_images) = match self.window.recreate_swapchain(dimensions) {
         Ok(r) => r,
         Err(SwapchainCreationError::UnsupportedDimensions) => {
+          println!("UnsupportedDimensions");
           return;
         },
         Err(err) => panic!("{:?}", err)
@@ -1329,17 +1081,11 @@ impl CoreRender for RawVk {
       self.recreate_swapchain = false;
       
       let device = self.window.get_device();
-      let new_depth_buffer = vulkan_3d::create_depth_buffer(device, dimensions);
+      let new_depth_buffer = vulkan_3d::create_depth_buffer(device.clone(), dimensions);
       mem::replace(&mut self.vk3d.depth_buffer, new_depth_buffer);
       
       self.vk2d.projection = vulkan_2d::create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
       self.vk3d.projection = vulkan_3d::create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
-      
-      let src_usage = ImageUsage {
-          transfer_source: true,
-          sampled: true,
-          .. ImageUsage::none()
-      };
       
       let dst_usage = ImageUsage {
           transfer_destination: true,
@@ -1348,54 +1094,17 @@ impl CoreRender for RawVk {
       };
       
       {
-        let fullcolour_usage = ImageUsage {
-          color_attachment: true,
-          transfer_destination: true,
-          sampled: true,
-          .. ImageUsage::none()
-        };
+        let renderpass = &mut self.vk3d.gbuffer_renderpass;
+        vulkan_3d::recreate_gbuffer(renderpass, device.clone(), dimensions, self.samples);
         
-        let fullcolour_attachment = vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, fullcolour_usage).unwrap();
-        
-        let colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        
-        let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(self.window.get_device(), dimensions, self.samples, format::Format::R16G16B16A16Unorm).unwrap();
-        let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(self.window.get_device(), dimensions, self.samples, format::Format::D16Unorm).unwrap();
-        
-        let gbuffer_renderpass = self.vk3d.gbuffer_renderpass.renderpass();
-        let gframebuffer = Arc::new({
-          framebuffer::Framebuffer::start(gbuffer_renderpass)
-                  .add(colour_attachment.clone()).unwrap()
-                  .add(normal_attachment.clone()).unwrap()
-                  .add(position_attachment.clone()).unwrap()
-                  .add(uv_attachment.clone()).unwrap()
-                  .add(mr_attachment.clone()).unwrap()
-                  .add(ms_colour_attachment.clone()).unwrap()
-                  .add(ms_depth_attachment.clone()).unwrap()
-                  .add(fullcolour_attachment.clone()).unwrap()
-                  .build().unwrap()
-        });
-        self.vk3d.gbuffer_renderpass.update_attachments(vec!(colour_attachment, normal_attachment, position_attachment, uv_attachment, mr_attachment, ms_colour_attachment, ms_depth_attachment, fullcolour_attachment));
-        self.vk3d.gbuffer_renderpass.set_framebuffer(gframebuffer);
+        let renderpass = &mut self.vk2d.texture_renderpass;
+        vulkan_2d::recreate_texturebuffer(renderpass, device, dimensions, self.samples);
       }
       
       self.vkpost.blur_upscale_attachment = vkimage::StorageImage::with_usage(self.window.get_device(), vkimage::Dimensions::Dim2d { width: dimensions[0], height: dimensions[1]}, format::R8G8B8A8Unorm, dst_usage, self.window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
           q.supports_graphics()
         }
       )).unwrap();
-      
-      self.vkpost.bloom_renderpass.update_attachments(vec!(vkimage::AttachmentImage::with_usage(self.window.get_device(), dimensions, format::Format::R16G16B16A16Unorm, src_usage).unwrap()));
-      let bloom_renderpass = self.vkpost.bloom_renderpass.renderpass();
-      let bloom_attachment = self.vkpost.bloom_renderpass.attachment(0);
-      self.vkpost.bloom_renderpass.set_framebuffer(Arc::new({
-        framebuffer::Framebuffer::start(bloom_renderpass)
-                .add(bloom_attachment).unwrap()
-                .build().unwrap()
-      }));
       
       // Attachment doesnt need updating as they dont resize?
      /* let blur_ping_renderpass = self.vkpost.blur_ping_renderpass.renderpass();
@@ -1454,7 +1163,7 @@ impl CoreRender for RawVk {
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       
-      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), false, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None]).unwrap();
+      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), false, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
       tmp_cmd_buffer = build_start;
       
       for draw in draw_calls {
@@ -1463,7 +1172,7 @@ impl CoreRender for RawVk {
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
           let uniform_buffer = self.vk3d.uniform_buffer.clone();
-          let pipeline = &self.vk3d.gbuffer_pipeline_0;
+          let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(0);
           let subbuffer = vulkan_3d::create_3d_subbuffer(
                                                draw.clone(), 
                                                projection, 
@@ -1499,7 +1208,7 @@ impl CoreRender for RawVk {
             let textures = &self.textures;
             let fonts = &self.fonts;
             let projection = self.vk2d.projection;
-            let pipeline = &self.vk2d.pipeline_text;
+            let pipeline = self.vk2d.texture_renderpass.pipeline_subpass(TEXT_PIPIELINE);
             let uniform_buffer = &self.vk2d.uniform_buffer_text;
             let (cmd, num_calls) = vulkan_draw::draw_text(tmp_cmd_buffer, draw, textures, 
                                                     projection, vao, sampler, 
@@ -1515,14 +1224,18 @@ impl CoreRender for RawVk {
             let sampler = self.vk2d.sampler.clone();
             let textures = &self.textures;
             let projection = self.vk2d.projection;
-            let pipeline = &self.vk2d.pipeline_texture;
+            let subpass = framebuffer::Subpass::from(self.vk2d.texture_renderpass.renderpass(), 0).unwrap();
+            let pipeline = self.vk2d.texture_renderpass.pipeline_subpass(TEXTURE_PIPELINE);
             let queue = self.window.get_queue();
-            let (cmd, num_calls) = vulkan_draw::draw_texture(tmp_cmd_buffer, draw, textures,
+            let queue_family = self.window.get_queue_ref().family();
+            let device = self.window.get_device();
+            let (secondary_cmd, num_calls) = vulkan_draw::draw_texture(draw, textures,
                                                        vao, custom_vao, 
                                                        custom_dynamic_vao, projection, 
                                                        sampler, uniform_subbuffer, 
-                                                       pipeline, queue, dimensions);
-            tmp_cmd_buffer = cmd;
+                                                       pipeline, subpass, device, 
+                                                       queue, queue_family, dimensions);
+            //tmp_cmd_buffer = cmd;
             self.num_drawcalls += num_calls;
           }
         }
@@ -1531,8 +1244,8 @@ impl CoreRender for RawVk {
       tmp_cmd_buffer = subpass_end;
       
       {
-        let pipeline = self.vk3d.gbuffer_pipeline_1.clone();
-        let vertex = self.vk3d.gbuffer_vertex_lightpass.clone();
+        let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(1).clone();
+        let vertex = self.vk3d.gbuffer_subpass_vertex.clone();
         let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_COLOUR);
         let normal_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_NORMAL);
         let position_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_POSITION);
@@ -1553,8 +1266,27 @@ impl CoreRender for RawVk {
                                                      dimensions);
       }
       
+      let subpass_end = tmp_cmd_buffer.next_subpass(false).unwrap();
+      tmp_cmd_buffer = subpass_end;
+      
+      {
+        let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(2).clone();
+        let vertex = self.vk3d.gbuffer_subpass_vertex.clone();
+        let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
+        tmp_cmd_buffer = vulkan_draw::draw_bloompass(tmp_cmd_buffer, 
+                                                     pipeline, 
+                                                     vertex, 
+                                                     colour_attachment, 
+                                                     dimensions);
+      }
+      
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
+      let build_start = build_end.begin_render_pass(self.vk2d.texture_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::None]).unwrap();
+      tmp_cmd_buffer = build_start;
+      // do stuff
+      
+      let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
       /*
       /*
@@ -1708,6 +1440,7 @@ impl CoreRender for RawVk {
   /// Tells engine it needs to update as window resize has occured
   fn screen_resized(&mut self, window_size: LogicalSize) {
     self.recreate_swapchain = true;
+    self.window_actual_size = window_size;
   }
   
   /// Returns the dimensions of the drawing window as u32
