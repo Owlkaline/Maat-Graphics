@@ -394,7 +394,7 @@ impl VkWindow {
     
     let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
     
-    println!("Window Resized!");
+    println!("Window Resized, New Dimensions: {:?}", dimensions);
     self.swapchain.recreate_with_dimension(dimensions)
   }
   

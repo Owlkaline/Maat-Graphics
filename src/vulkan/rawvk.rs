@@ -1440,7 +1440,7 @@ impl CoreRender for RawVk {
   /// Tells engine it needs to update as window resize has occured
   fn screen_resized(&mut self, window_size: LogicalSize) {
     self.recreate_swapchain = true;
-    self.window_actual_size = window_size;
+    self.window_actual_size = self.get_dimensions();
   }
   
   /// Returns the dimensions of the drawing window as u32
