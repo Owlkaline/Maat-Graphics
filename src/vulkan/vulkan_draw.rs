@@ -22,6 +22,7 @@ use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture, fs_lights};
+use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
 
@@ -153,10 +154,8 @@ pub fn draw_texture(draw: &DrawCall,
                  uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<memory::pool::StdMemoryPool>>,
                  pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
                  subpass: framebuffer::Subpass<Arc<RenderPassAbstract + Send + Sync>>,
-                 device: Arc<Device>, queue: Arc<Queue>, queue_family: QueueFamily, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
+                 device: Arc<Device>, queue: Arc<Queue>, queue_family: QueueFamily, dimensions: [u32; 2]) -> (Option<AutoCommandBufferBuilder>, u32) {
   // Texture
-  //let mut tmp_cmd_buffer = tmp_cmd_buffer;
-  
   let (temp_tex, _) = vkimage::immutable::ImmutableImage::from_iter([0u8, 0u8, 0u8, 0u8].iter().cloned(),
                                         vkimage::Dimensions::Dim2d { width: 1, height: 1 },
                                         format::R8G8B8A8Unorm, queue)
@@ -177,20 +176,18 @@ pub fn draw_texture(draw: &DrawCall,
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .build().unwrap());
   
-  let tmp_cmd_buffer;
-  /*
- let vertex_buffer = custom_vao.get(draw.get_text()).unwrap()
-                            .vertex_buffer.clone()
-                            .expect("Error: Unwrapping static custom vertex buffer failed!");
-  let index_buffer = custom_vao.get(draw.get_text()).unwrap()
-                             .index_buffer.clone()
-                             .expect("Error: Unwrapping static custom index buffer failed!");
-  */
-  /*
+  let mut tmp_cmd_buffer = None;
+  
   if draw.is_custom_vao() {
     if custom_vao.contains_key(draw.get_text()) {
-      
-      tmp_cmd_buffer = cb.draw_indexed(pipeline.clone().unwrap(),
+      let vertex_buffer = custom_vao.get(draw.get_text()).unwrap()
+                            .vertex_buffer.clone()
+                            .expect("Error: Unwrapping static custom vertex buffer failed!");
+      let index_buffer = custom_vao.get(draw.get_text()).unwrap()
+                             .index_buffer.clone()
+                             .expect("Error: Unwrapping static custom index buffer failed!");
+      tmp_cmd_buffer = Some(AutoCommandBufferBuilder::secondary_graphics_one_time_submit(device, queue_family, subpass).unwrap()
+                                .draw_indexed(pipeline.clone(),
                                     DynamicState {
                                       line_width: None,
                                       viewports: Some(vec![Viewport {
@@ -202,7 +199,7 @@ pub fn draw_texture(draw: &DrawCall,
                                     },
                                     vertex_buffer,
                                     index_buffer,
-                                    uniform_set, ()).unwrap();
+                                    uniform_set, ()).unwrap());
     } else if custom_dynamic_vao.contains_key(draw.get_text()) {
       let vertex_buffer = custom_dynamic_vao.get(draw.get_text()).unwrap()
                               .vertex_buffer.clone()
@@ -211,7 +208,8 @@ pub fn draw_texture(draw: &DrawCall,
                              .index_buffer.clone()
                              .expect("Error: Unwrapping static custom index buffer failed!");
       
-      tmp_cmd_buffer = cb.draw_indexed(pipeline.clone().unwrap(),
+      tmp_cmd_buffer = Some(AutoCommandBufferBuilder::secondary_graphics_one_time_submit(device, queue_family, subpass).unwrap()
+                                .draw_indexed(pipeline.clone(),
                                     DynamicState {
                                       line_width: None,
                                       viewports: Some(vec![Viewport {
@@ -223,15 +221,14 @@ pub fn draw_texture(draw: &DrawCall,
                                     },
                                     vertex_buffer,
                                     index_buffer,
-                                    uniform_set, ()).unwrap();
+                                    uniform_set, ()).unwrap());
     } else {
       println!("Error: custom vao {:?} does not exist!", draw.get_text());
-      tmp_cmd_buffer = cb;
     }
-  } else {*/
-   let vertex_buffer = vao.vertex_buffer.clone().expect("Error: Unwrapping vertex buffer failed!");
-  let index_buffer = vao.index_buffer.clone().expect("Error: Unwrapping index buffer failed!");
-  tmp_cmd_buffer = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(device, queue_family, subpass).unwrap()
+  } else {
+    let vertex_buffer = vao.vertex_buffer.clone().expect("Error: Unwrapping vertex buffer failed!");
+    let index_buffer = vao.index_buffer.clone().expect("Error: Unwrapping index buffer failed!");
+    tmp_cmd_buffer = Some(AutoCommandBufferBuilder::secondary_graphics_one_time_submit(device, queue_family, subpass).unwrap()
                                  .draw_indexed(pipeline.clone(),
                                     DynamicState {
                                       line_width: None,
@@ -244,22 +241,23 @@ pub fn draw_texture(draw: &DrawCall,
                                     },
                                     vertex_buffer,
                                     index_buffer,
-                                    uniform_set, ()).unwrap();
-  //}
+                                    uniform_set, ()).unwrap());
+  }
   
   (tmp_cmd_buffer, 1)
 }
 
-pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
+pub fn draw_text(draw: &DrawCall,
                  textures: &HashMap<String, Arc<ImmutableImage<format::R8G8B8A8Unorm>>>,
                  projection: Matrix4<f32>, vao: &Model, sampler: Arc<sampler::Sampler>,
                  uniform_buffer: &cpu_pool::CpuBufferPool<vs_text::ty::Data>,
                  pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
                  fonts: &HashMap<String, GenericFont>,
-                 dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
+                 subpass: framebuffer::Subpass<Arc<RenderPassAbstract + Send + Sync>>,
+                 device: Arc<Device>, queue_family: QueueFamily, dimensions: [u32; 2]) -> (Vec<AutoCommandBufferBuilder>, u32) {
   let mut num_drawcalls = 0;
-  let mut tmp_cmd_buffer = tmp_cmd_buffer;
-  /*
+  let mut tmp_cmd_buffer = Vec::new();
+  
   let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), fonts.clone());
   let size = draw.get_x_size();
   
@@ -298,27 +296,27 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
       uniform_buffer.next(uniform_data).unwrap()
     };
     
-    let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone().unwrap(), 0)
+    let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                                .add_sampled_image(textures.get(draw.get_texture()).unwrap().clone(), sampler.clone()).unwrap()
                                .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
                                .build().unwrap());
     
-    let cb = tmp_cmd_buffer;
     num_drawcalls += 1;
-    tmp_cmd_buffer = cb.draw_indexed(pipeline.clone().unwrap(),
-                  DynamicState {
-                    line_width: None,
-                    viewports: Some(vec![Viewport {
-                      origin: [0.0, 0.0],
-                      dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                      depth_range: 0.0 .. 1.0,
-                    }]),
-                    scissors: None,
-                  },
-                  vertex_buffer.clone(),
-                  index_buffer.clone(),
-                  uniform_set, ()).unwrap()
-  }*/
+    tmp_cmd_buffer.push(AutoCommandBufferBuilder::secondary_graphics_one_time_submit(device.clone(), queue_family, subpass.clone()).unwrap()
+                          .draw_indexed(pipeline.clone(),
+                            DynamicState {
+                              line_width: None,
+                              viewports: Some(vec![Viewport {
+                                origin: [0.0, 0.0],
+                                dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                                depth_range: 0.0 .. 1.0,
+                              }]),
+                              scissors: None,
+                            },
+                            vertex_buffer.clone(),
+                            index_buffer.clone(),
+                            uniform_set, ()).unwrap());
+  }
   
   (tmp_cmd_buffer, num_drawcalls)
 }

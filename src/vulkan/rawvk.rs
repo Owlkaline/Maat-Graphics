@@ -85,6 +85,8 @@ const GBUFFER_BLOOMCOLOUR: usize = 8;
 const TEXTURE_PIPELINE: usize = 0;
 const TEXT_PIPIELINE: usize = 1;
 
+const TEXTURE_FULLCOLOUR: usize = 1;
+
 pub const blur_dim: u32 = 512;
 
 pub mod vs_texture {
@@ -1082,7 +1084,7 @@ impl CoreRender for RawVk {
       
       let device = self.window.get_device();
       let new_depth_buffer = vulkan_3d::create_depth_buffer(device.clone(), dimensions);
-      mem::replace(&mut self.vk3d.depth_buffer, new_depth_buffer);
+      self.vk3d.depth_buffer = new_depth_buffer;
       
       self.vk2d.projection = vulkan_2d::create_2d_projection(dimensions[0] as f32, dimensions[1] as f32);
       self.vk3d.projection = vulkan_3d::create_3d_projection(dimensions[0] as f32, dimensions[1] as f32);
@@ -1132,7 +1134,7 @@ impl CoreRender for RawVk {
                       .build().unwrap();
              Arc::new(fb) as Arc<framebuffer::FramebufferAbstract + Send + Sync>
              }).collect::<Vec<_>>());
-      mem::replace(&mut self.vkpost.final_framebuffer, new_framebuffers);
+      self.vkpost.final_framebuffer = new_framebuffers;
     }
   }
   
@@ -1165,6 +1167,8 @@ impl CoreRender for RawVk {
       
       let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), false, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
       tmp_cmd_buffer = build_start;
+      
+      let mut secondary_cmd_buffer: Vec<AutoCommandBufferBuilder> = Vec::new();
       
       for draw in draw_calls {
         if draw.is_3d_model() { // 3D
@@ -1208,13 +1212,21 @@ impl CoreRender for RawVk {
             let textures = &self.textures;
             let fonts = &self.fonts;
             let projection = self.vk2d.projection;
+            let subpass = framebuffer::Subpass::from(self.vk2d.texture_renderpass.renderpass(), 0).unwrap();
             let pipeline = self.vk2d.texture_renderpass.pipeline_subpass(TEXT_PIPIELINE);
             let uniform_buffer = &self.vk2d.uniform_buffer_text;
-            let (cmd, num_calls) = vulkan_draw::draw_text(tmp_cmd_buffer, draw, textures, 
+            let queue_family = self.window.get_queue_ref().family();
+            let device = self.window.get_device();
+            
+            let (secondary_cmds, num_calls) = vulkan_draw::draw_text(draw, textures, 
                                                     projection, vao, sampler, 
                                                     uniform_buffer, pipeline, 
-                                                    fonts, dimensions);
-            tmp_cmd_buffer = cmd;
+                                                    fonts, subpass, device, 
+                                                    queue_family, dimensions);
+            for cmd in secondary_cmds {
+              secondary_cmd_buffer.push(cmd);
+            }
+            
             self.num_drawcalls += num_calls;
           } else { // 2D texture
             let uniform_subbuffer = vulkan_2d::create_texture_subbuffer(draw.clone(), self.vk2d.projection, self.vk2d.uniform_buffer_texture.clone());
@@ -1235,7 +1247,11 @@ impl CoreRender for RawVk {
                                                        sampler, uniform_subbuffer, 
                                                        pipeline, subpass, device, 
                                                        queue, queue_family, dimensions);
-            //tmp_cmd_buffer = cmd;
+            
+            if let Some(cmd) = secondary_cmd {
+              secondary_cmd_buffer.push(cmd);
+            }
+            
             self.num_drawcalls += num_calls;
           }
         }
@@ -1282,9 +1298,17 @@ impl CoreRender for RawVk {
       
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
-      let build_start = build_end.begin_render_pass(self.vk2d.texture_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::None]).unwrap();
+      let clear2D = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, 0.0];
+      
+      let build_start = build_end.begin_render_pass(self.vk2d.texture_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear2D), ClearValue::None]).unwrap();
       tmp_cmd_buffer = build_start;
       // do stuff
+      unsafe {
+        for secondary_command in secondary_cmd_buffer {
+          let cb = tmp_cmd_buffer.execute_commands(secondary_command.build().unwrap()).unwrap();
+          tmp_cmd_buffer = cb;
+        }
+      }
       
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
       
@@ -1400,12 +1424,14 @@ impl CoreRender for RawVk {
         
         let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
         
-        let fullcolour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
+        let fullcolour_3d_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
+        let fullcolour_2d_attachment = self.vk2d.texture_renderpass.attachment(TEXTURE_FULLCOLOUR);
         
         let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                                .add_buffer(uniform_subbuffer.clone()).unwrap()
-                               .add_sampled_image(fullcolour_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
-                               .add_sampled_image(fullcolour_attachment, self.vk2d.sampler.clone()).unwrap()
+                               .add_sampled_image(fullcolour_3d_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
+                               .add_sampled_image(fullcolour_2d_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
+                               .add_sampled_image(fullcolour_3d_attachment, self.vk2d.sampler.clone()).unwrap()
                                .build().unwrap());
         
         tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
