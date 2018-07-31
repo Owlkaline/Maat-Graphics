@@ -24,7 +24,7 @@ const float c_MinRoughness = 0.04;
 
 // flIP y
 //const vec3 c_LightDirection = vec3(-0.4, 1.35, 0.2);
-const vec3 c_LightDirection = vec3(0.5, 0.5, 0.5);
+const vec3 c_LightDirection = vec3(0.5, 0.5, 0.0);
 const vec3 c_LightColor = vec3(1.0,1.0,1.0);
 
 // Lambertian diffuse, Photometria
@@ -65,7 +65,7 @@ void main() {
   float ao_strength = subpassLoad(u_mr, gl_SampleID).a;
   vec3 emissive = vec3(worldPosition.a, uv.zw);
   
-  vec3 toCameraVector = push_constants.camera_pos-worldPosition.xyz;//(inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;
+  vec3 toCameraVector = (inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;//push_constants.camera_pos-worldPosition.xyz;//
   
   float alpha_roughness = roughness*roughness;
   
@@ -108,7 +108,6 @@ void main() {
   //colour.rgb = mix(colour.rgb, colour.rgb * ao, ao_strength);
   
   //colour.rgb += emissive;
-  
   f_colour.rgb = pow(colour.rgb, vec3(1.0/2.2));
   f_colour.a =  1.0;
 }

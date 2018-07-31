@@ -60,6 +60,7 @@ vec3 get_normal() {
     vec3 N;
     if (u_material_params.has_normals == 1) {
       N = normalize(v_normal);
+      N.y = -N.y;
     } else {
       N = cross(pos_dx, pos_dy);
     }
@@ -75,7 +76,7 @@ vec3 get_normal() {
     // normalize removed from line below
     n = tbn * ((2.0 * n - 1.0) * vec3(u_material_params.normal_texture_scale, u_material_params.normal_texture_scale, 1.0));
   }
-  
+
   // gl front facing?
   // n *= (2.0 * float(gl_FrontFacing) - 1.0);
   
