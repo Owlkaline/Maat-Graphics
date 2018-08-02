@@ -52,17 +52,17 @@ float microfacetDistribution(float r, float NdotH) {
 }
 
 void main() {
-  vec4 worldPosition = subpassLoad(u_position, 1);
+  vec4 worldPosition = subpassLoad(u_position, 0);
   
-  vec4 base_colour = subpassLoad(u_colour, 1);
-  vec3 normal = subpassLoad(u_normal, 1).rgb;
-  vec4 uv = subpassLoad(u_uv, 1);
+  vec4 base_colour = subpassLoad(u_colour, 0);
+  vec3 normal = subpassLoad(u_normal, 0).rgb;
+  vec4 uv = subpassLoad(u_uv, 0);
   
-  float roughness = subpassLoad(u_mr, 1).g;
-  float metallic = subpassLoad(u_mr, 1).b;
+  float roughness = subpassLoad(u_mr, 0).g;
+  float metallic = subpassLoad(u_mr, 0).b;
   
-  float ao = subpassLoad(u_mr, 1).r;
-  float ao_strength = subpassLoad(u_mr, 1).a;
+  float ao = subpassLoad(u_mr, 0).r;
+  float ao_strength = subpassLoad(u_mr, 0).a;
   vec3 emissive = vec3(worldPosition.a, uv.zw);
   
   vec3 toCameraVector = (inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;//push_constants.camera_pos-worldPosition.xyz;//
