@@ -1162,13 +1162,11 @@ impl CoreRender for RawVk {
     };
     
     let command_buffer: AutoCommandBuffer = {
-      let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
-      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
+      let texture_subpass = framebuffer::Subpass::from(self.vk2d.texture_renderpass.renderpass(), 0).unwrap();
+      let model_subpass = framebuffer::Subpass::from(self.vk3d.gbuffer_renderpass.renderpass(), 0).unwrap();
       
-      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), false, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
-      tmp_cmd_buffer = build_start;
-      
-      let mut secondary_cmd_buffer: Vec<AutoCommandBufferBuilder> = Vec::new();
+      let mut texture_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), texture_subpass).unwrap();
+      let mut model_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), model_subpass).unwrap();
       
       for draw in draw_calls {
         if draw.is_3d_model() { // 3D
@@ -1183,9 +1181,10 @@ impl CoreRender for RawVk {
                                                view_matrix, uniform_buffer
                                              );
           
-          let (cmd, num_calls) = vulkan_draw::draw_3d(tmp_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
+          let (model_cmd, num_calls) = vulkan_draw::draw_3d(model_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
                                subbuffer, dimensions);
-          tmp_cmd_buffer = cmd;
+          model_cmd_buffer = model_cmd;
+          
           self.num_drawcalls += num_calls;
         } else {
           if draw.is_vao_update() {
@@ -1218,14 +1217,13 @@ impl CoreRender for RawVk {
             let queue_family = self.window.get_queue_ref().family();
             let device = self.window.get_device();
             
-            let (secondary_cmds, num_calls) = vulkan_draw::draw_text(draw, textures, 
-                                                    projection, vao, sampler, 
-                                                    uniform_buffer, pipeline, 
-                                                    fonts, subpass, device, 
-                                                    queue_family, dimensions);
-            for cmd in secondary_cmds {
-              secondary_cmd_buffer.push(cmd);
-            }
+            let (texture_cmd, num_calls) = vulkan_draw::draw_text(texture_cmd_buffer, 
+                                                                  draw, textures, 
+                                                                  projection, vao, sampler, 
+                                                                  uniform_buffer, pipeline, 
+                                                                  fonts, subpass, device, 
+                                                                  queue_family, dimensions);
+            texture_cmd_buffer = texture_cmd;
             
             self.num_drawcalls += num_calls;
           } else { // 2D texture
@@ -1241,21 +1239,32 @@ impl CoreRender for RawVk {
             let queue = self.window.get_queue();
             let queue_family = self.window.get_queue_ref().family();
             let device = self.window.get_device();
-            let (secondary_cmd, num_calls) = vulkan_draw::draw_texture(draw, textures,
+            let (texture_cmd, num_calls) = vulkan_draw::draw_texture(texture_cmd_buffer, draw, textures,
                                                        vao, custom_vao, 
                                                        custom_dynamic_vao, projection, 
                                                        sampler, uniform_subbuffer, 
                                                        pipeline, subpass, device, 
                                                        queue, queue_family, dimensions);
-            
-            if let Some(cmd) = secondary_cmd {
-              secondary_cmd_buffer.push(cmd);
-            }
-            
+            texture_cmd_buffer = texture_cmd;
             self.num_drawcalls += num_calls;
           }
         }
       }
+      
+      let model_cmd_buffer = model_cmd_buffer.build().unwrap();
+      let texture_cmd_buffer = texture_cmd_buffer.build().unwrap();
+      
+      let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
+      let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
+      
+      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
+      tmp_cmd_buffer = build_start;
+      
+      unsafe {
+        let cb = tmp_cmd_buffer.execute_commands(model_cmd_buffer).unwrap();
+        tmp_cmd_buffer = cb;
+      }
+      
       let subpass_end = tmp_cmd_buffer.next_subpass(false).unwrap();
       tmp_cmd_buffer = subpass_end;
       
@@ -1304,10 +1313,8 @@ impl CoreRender for RawVk {
       tmp_cmd_buffer = build_start;
       // do stuff
       unsafe {
-        for secondary_command in secondary_cmd_buffer {
-          let cb = tmp_cmd_buffer.execute_commands(secondary_command.build().unwrap()).unwrap();
-          tmp_cmd_buffer = cb;
-        }
+        let cb = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
+        tmp_cmd_buffer = cb;
       }
       
       let build_end = tmp_cmd_buffer.end_render_pass().unwrap();

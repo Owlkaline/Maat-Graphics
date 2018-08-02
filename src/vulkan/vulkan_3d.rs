@@ -195,10 +195,10 @@ pub fn create_gbuffer_attachments(device: Arc<Device>, dim: [u32; 2], samples: u
   };
   
   let colour_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-  let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-  let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-  let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
-  let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
+  let normal_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R8G8B8A8Unorm).unwrap();
+  let position_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R8G8B8A8Unorm).unwrap();
+  let uv_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R8G8B8A8Unorm).unwrap();
+  let mr_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::R8G8B8A8Unorm).unwrap();
   let ms_colour_attachment = vkimage::AttachmentImage::transient_multisampled(device.clone(), dim, samples, format::Format::R16G16B16A16Unorm).unwrap();
   let ms_depth_attachment = vkimage::AttachmentImage::transient_multisampled_input_attachment(device.clone(), dim, samples, format::Format::D16Unorm).unwrap();
   let fullcolour_attachment = vkimage::AttachmentImage::with_usage(device.clone(), dim, format::Format::R16G16B16A16Unorm, gbuffer_usage_input).unwrap();
@@ -219,25 +219,25 @@ pub fn create_gbuffer(device: Arc<Device>, dim: [u32; 2], samples: u32) -> Custo
       normal_attachment: {
         load: Clear,
         store: DontCare,
-        format: format::Format::R16G16B16A16Unorm,
+        format: format::Format::R8G8B8A8Unorm,
         samples: samples,
       },
       position_attachment: {
         load: Clear,
         store: DontCare,
-        format: format::Format::R16G16B16A16Unorm,
+        format: format::Format::R8G8B8A8Unorm,
         samples: samples,
       },
       uv_attachment: {
         load: Clear,
         store: DontCare,
-        format: format::Format::R16G16B16A16Unorm,
+        format: format::Format::R8G8B8A8Unorm,
         samples: samples,
       },
       mr_attachment: { // metallic_roughness_attachment
         load: Clear,
         store: DontCare,
-        format: format::Format::R16G16B16A16Unorm,
+        format: format::Format::R8G8B8A8Unorm,
         samples: samples,
       },
       multisample_colour: {

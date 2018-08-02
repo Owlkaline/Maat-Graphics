@@ -52,17 +52,17 @@ float microfacetDistribution(float r, float NdotH) {
 }
 
 void main() {
-  vec4 worldPosition = subpassLoad(u_position, gl_SampleID);
+  vec4 worldPosition = subpassLoad(u_position, 1);
   
-  vec4 base_colour = subpassLoad(u_colour, gl_SampleID);
-  vec3 normal = subpassLoad(u_normal, gl_SampleID).rgb;
-  vec4 uv = subpassLoad(u_uv, gl_SampleID);
+  vec4 base_colour = subpassLoad(u_colour, 1);
+  vec3 normal = subpassLoad(u_normal, 1).rgb;
+  vec4 uv = subpassLoad(u_uv, 1);
   
-  float roughness = subpassLoad(u_mr, gl_SampleID).g;
-  float metallic = subpassLoad(u_mr, gl_SampleID).b;
+  float roughness = subpassLoad(u_mr, 1).g;
+  float metallic = subpassLoad(u_mr, 1).b;
   
-  float ao = subpassLoad(u_mr, gl_SampleID).r;
-  float ao_strength = subpassLoad(u_mr, gl_SampleID).a;
+  float ao = subpassLoad(u_mr, 1).r;
+  float ao_strength = subpassLoad(u_mr, 1).a;
   vec3 emissive = vec3(worldPosition.a, uv.zw);
   
   vec3 toCameraVector = (inverse(push_constants.view) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldPosition.xyz;//push_constants.camera_pos-worldPosition.xyz;//
@@ -81,7 +81,7 @@ void main() {
   vec3 specular_eviroment_r90 = vec3(1.0, 1.0, 1.0) * reflectance90;
   
   vec3 colour = base_colour.rgb;
-  colour.rgb = vec3(1.0, 1.0, 1.0) * 0.1 * colour.rgb;
+  colour.rgb = vec3(1.0, 1.0, 1.0) * 0.01 * colour.rgb;
  // colour = pow(colour.rgb, vec3(1.0/2.2)); 
   
   // Lights and stuff start here
