@@ -75,7 +75,7 @@ impl DrawCall {
       shape_name: None,
       
       text: None,
-      colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
+      colour: Vector4::new(1.0, 1.0, 1.0, 1.0),
       position: Vector3::new(0.0, 0.0, 0.0),
       rotation: Vector3::new(0.0, 0.0, 0.0),
       scale: Vector3::new(1.0, 1.0, 1.0),
@@ -444,11 +444,11 @@ impl DrawCall {
   pub fn outline_colour(&self) -> Option<Vector3<f32>> {
     let mut result = None;
     
-    let temp_colour = self.outline_colour();
+    let temp_colour = self.text_outline_colour;
     
     match self.draw_type {
       DrawType::DRAW_TEXT => {
-        result = temp_colour;
+        result = Some(temp_colour);
       },
       _ => {}
     }
@@ -460,7 +460,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::NEW_CUSTOM_SHAPE => {
+      DrawType::NEW_CUSTOM_SHAPE | DrawType::UPDATE_CUSTOM_SHAPE => {
         result = self.new_shape.clone();
       },
       _ => {}

@@ -183,7 +183,7 @@ void main() {
   vec3 colour = NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
   
   // colour += Ambient light colour + intensity + base colour
-  colour += vec3(1.0, 1.0, 1.0) * 0.2 * base_colour.xyz;
+  colour += vec3(1.0, 1.0, 1.0) * 0.01 * base_colour.rgb;
   
   if (u_material_params.occlusion_texture_tex_coord != -1) {
     float ao = texture(u_occlusion_texture, v_uv).r;

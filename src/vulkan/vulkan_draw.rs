@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use cgmath::Vector3;
 use cgmath::Matrix4;
 
-use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_3d, vs_text, vs_texture, fs_lights};
+use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_forwardbuffer_3d, vs_text, vs_texture, fs_lights};
 use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
@@ -107,7 +107,7 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                models: &HashMap<String, Vec<Mesh>>, projection: Matrix4<f32>,
                view_matrix: Matrix4<f32>,
                pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
-               uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>>,
+               uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_forwardbuffer_3d::ty::Data, Arc<memory::pool::StdMemoryPool>>,
                dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   let mut num_drawcalls = 0;
@@ -169,7 +169,6 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
     if texture_name != String::from("") {
       if textures.contains_key(&texture_name) {
         texture = textures.get(&texture_name).unwrap().clone();
-        println!("{}", texture_name);
       } else {
         println!("Texture not found: {}", texture_name);
       }

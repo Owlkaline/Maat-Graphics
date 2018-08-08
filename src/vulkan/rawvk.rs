@@ -72,15 +72,10 @@ use cgmath::SquareMatrix;
 impl_vertex!(Vertex2d, position, uv);
 impl_vertex!(Vertex3d, position, normal, tangent, uv, colour);
 
-const GBUFFER_COLOUR: usize = 0;
-const GBUFFER_NORMAL: usize = 1;
-const GBUFFER_POSITION: usize = 2;
-const GBUFFER_UV: usize = 3;
-const GBUFFER_MR: usize = 4;
-const GBUFFER_MS_COLOUR: usize = 5;
-const GBUFFER_MS_DEPTH: usize = 6;
-const GBUFFER_FULLCOLOUR: usize = 7;
-const GBUFFER_BLOOMCOLOUR: usize = 8;
+const FORWARDBUFFER_MS_COLOUR: usize = 0;
+const FORWARDBUFFER_MS_DEPTH: usize = 1;
+const FORWARDBUFFER_FULLCOLOUR: usize = 2;
+const FORWARDBUFFER_BLOOMCOLOUR: usize = 3;
 
 const TEXTURE_PIPELINE: usize = 0;
 const TEXT_PIPIELINE: usize = 1;
@@ -118,17 +113,17 @@ pub mod fs_text {
   struct Dummy;
 }
 
-pub mod vs_3d {
+pub mod vs_forwardbuffer_3d {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
-  #[path = "src/shaders/glsl/Vk3D.vert"]
+  #[path = "src/shaders/glsl/VkForward3D.vert"]
   struct Dummy;
 }
 
-mod fs_3d {
+pub mod fs_forwardbuffer_3d {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
-  #[path = "src/shaders/glsl/Vk3D.frag"]
+  #[path = "src/shaders/glsl/VkForward3D.frag"]
   struct Dummy;
 }
 
@@ -256,10 +251,10 @@ pub struct VK3D {
   projection: Matrix4<f32>,
   scale: Matrix4<f32>,
   
-  gbuffer_subpass_vertex: Arc<BufferAccess + Send + Sync>,
-  gbuffer_renderpass: CustomRenderpass,
+  forwardbuffer_subpass_vertex: Arc<BufferAccess + Send + Sync>,
+  forwardbuffer_renderpass: CustomRenderpass,
   
-  uniform_buffer: cpu_pool::CpuBufferPool<vs_3d::ty::Data>,
+  uniform_buffer: cpu_pool::CpuBufferPool<vs_forwardbuffer_3d::ty::Data>,
 }
 
 pub struct VKPOST {
@@ -344,7 +339,7 @@ impl RawVk {
  
     let text_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
-    let uniform_3d = cpu_pool::CpuBufferPool::<vs_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
+    let uniform_3d = cpu_pool::CpuBufferPool::<vs_forwardbuffer_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let post_final_uniform = cpu_pool::CpuBufferPool::<vs_post_final::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     
     let post_blur_uniform = cpu_pool::CpuBufferPool::<vs_post_blur::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
@@ -372,13 +367,6 @@ impl RawVk {
         transfer_destination: true,
         sampled: true,
         .. ImageUsage::none()
-    };
-    
-    let gbuffer_usage = ImageUsage {
-      color_attachment: true,
-      transfer_destination: true,
-      sampled: true,
-      .. ImageUsage::none()
     };
     
     let dim = window.get_dimensions();
@@ -426,8 +414,8 @@ impl RawVk {
         projection: proj_3d,
         scale: scale,
         
-        gbuffer_subpass_vertex: lightpass_vertexbuffer,
-        gbuffer_renderpass: CustomRenderpass::new_empty(),
+        forwardbuffer_subpass_vertex: lightpass_vertexbuffer,
+        forwardbuffer_renderpass: CustomRenderpass::new_empty(),
         
         uniform_buffer: uniform_3d,
       },
@@ -564,7 +552,7 @@ impl CoreRender for RawVk {
     let mut mesh: Vec<Mesh> = Vec::new();
     
     let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
-    let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
+    let material_params = params_buffer.next(fs_forwardbuffer_3d::ty::MaterialParams {
       base_colour_factor: [0.0, 0.0, 0.0, 0.0],
       base_colour_texture_tex_coord: -1,
       metallic_factor: 0.0,
@@ -597,7 +585,7 @@ impl CoreRender for RawVk {
                                             .expect("Failed to create immutable image");
     
     let default_descriptor_set =
-      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_renderpass.pipeline_subpass(0).clone(), 1)
+      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0).clone(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(temp_tex.clone(), default_sampler.clone())
@@ -728,7 +716,7 @@ impl CoreRender for RawVk {
       }
       
      // let params_buffer = cpu_pool::CpuBufferPool::new(self.window.get_device().clone(), BufferUsage::uniform_buffer());
-      let material_params = params_buffer.next(fs_3d::ty::MaterialParams {
+      let material_params = params_buffer.next(fs_forwardbuffer_3d::ty::MaterialParams {
          base_colour_factor: mesh_data.base_colour(i),
          base_colour_texture_tex_coord: base_colour_texture.1,
          metallic_factor: mesh_data.metallic_factor(i),
@@ -757,7 +745,7 @@ impl CoreRender for RawVk {
        
        
        let descriptor_set =
-         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.gbuffer_renderpass.pipeline_subpass(0).clone(), 1)
+         Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0).clone(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(base_colour_texture.0, base_colour_texture.2)
@@ -885,8 +873,8 @@ impl CoreRender for RawVk {
     
     let vs_plain = vs_plain::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
-    let vs_3d = vs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    let fs_3d = fs_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_forwardbuffer_3d = vs_forwardbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_forwardbuffer_3d = fs_forwardbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_texture = vs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_texture = fs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_text = vs_text::Shader::load(self.window.get_device()).expect("failed to create shader module");
@@ -896,7 +884,7 @@ impl CoreRender for RawVk {
     let vs_post_blur = vs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_post_blur = fs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
-    self.vk3d.gbuffer_renderpass = vulkan_3d::create_gbuffer(self.window.get_device(), dimensions, self.samples);
+    self.vk3d.forwardbuffer_renderpass = vulkan_3d::create_forwardbuffer(self.window.get_device(), dimensions, self.samples);
     self.vk2d.texture_renderpass = vulkan_2d::create_texturebuffer(self.window.get_device(), dimensions, self.samples);
     
     let blur_ping_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
@@ -1115,8 +1103,8 @@ impl CoreRender for RawVk {
       };
       
       {
-        let renderpass = &mut self.vk3d.gbuffer_renderpass;
-        vulkan_3d::recreate_gbuffer(renderpass, device.clone(), dimensions, self.samples);
+        let renderpass = &mut self.vk3d.forwardbuffer_renderpass;
+        vulkan_3d::recreate_forwardbuffer(renderpass, device.clone(), dimensions, self.samples);
         
         let renderpass = &mut self.vk2d.texture_renderpass;
         vulkan_2d::recreate_texturebuffer(renderpass, device, dimensions, self.samples);
@@ -1182,7 +1170,7 @@ impl CoreRender for RawVk {
     
     let command_buffer: AutoCommandBuffer = {
       let texture_subpass = framebuffer::Subpass::from(self.vk2d.texture_renderpass.renderpass(), 0).unwrap();
-      let model_subpass = framebuffer::Subpass::from(self.vk3d.gbuffer_renderpass.renderpass(), 0).unwrap();
+      let model_subpass = framebuffer::Subpass::from(self.vk3d.forwardbuffer_renderpass.renderpass(), 0).unwrap();
       
       let mut texture_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), texture_subpass).unwrap();
       let mut model_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), model_subpass).unwrap();
@@ -1193,7 +1181,7 @@ impl CoreRender for RawVk {
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
           let uniform_buffer = self.vk3d.uniform_buffer.clone();
-          let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(0);
+          let pipeline = self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0);
           let subbuffer = vulkan_3d::create_3d_subbuffer(
                                                draw.clone(), 
                                                projection, 
@@ -1207,11 +1195,9 @@ impl CoreRender for RawVk {
           self.num_drawcalls += num_calls;
         } else {
           if draw.is_shape_update() {
-            if let Some(reference) = draw.display_text() {
+            if let Some(reference) = draw.shape_name() {
               if self.vk2d.custom_dynamic_vao.contains_key(&reference) {
                 if let Some((verts, index)) = draw.new_shape_details() {
-                  //let mut verts = draw.get_new_vertices();
-                  //let mut index = draw.get_new_indices();
                   
                   let new_model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), verts, index);
                   
@@ -1276,7 +1262,7 @@ impl CoreRender for RawVk {
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       
-      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.gbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
+      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.forwardbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
       tmp_cmd_buffer = build_start;
       
       unsafe {
@@ -1288,35 +1274,9 @@ impl CoreRender for RawVk {
       tmp_cmd_buffer = subpass_end;
       
       {
-        let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(1).clone();
-        let vertex = self.vk3d.gbuffer_subpass_vertex.clone();
-        let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_COLOUR);
-        let normal_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_NORMAL);
-        let position_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_POSITION);
-        let uv_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_UV);
-        let mr_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_MR);
-        let view_matrix = self.vk3d.camera.get_view_matrix();
-        let camera_pos = self.vk3d.camera.get_position();
-        tmp_cmd_buffer = vulkan_draw::draw_lightpass(tmp_cmd_buffer, 
-                                                     pipeline, 
-                                                     vertex, 
-                                                     colour_attachment, 
-                                                     normal_attachment, 
-                                                     position_attachment, 
-                                                     uv_attachment, 
-                                                     mr_attachment,
-                                                     view_matrix,
-                                                     camera_pos,
-                                                     dimensions);
-      }
-      
-      let subpass_end = tmp_cmd_buffer.next_subpass(false).unwrap();
-      tmp_cmd_buffer = subpass_end;
-      
-      {
-        let pipeline = self.vk3d.gbuffer_renderpass.pipeline_subpass(2).clone();
-        let vertex = self.vk3d.gbuffer_subpass_vertex.clone();
-        let colour_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
+        let pipeline = self.vk3d.forwardbuffer_renderpass.pipeline_subpass(1).clone();
+        let vertex = self.vk3d.forwardbuffer_subpass_vertex.clone();
+        let colour_attachment = self.vk3d.forwardbuffer_renderpass.attachment(FORWARDBUFFER_FULLCOLOUR);
         tmp_cmd_buffer = vulkan_draw::draw_bloompass(tmp_cmd_buffer, 
                                                      pipeline, 
                                                      vertex, 
@@ -1450,7 +1410,7 @@ impl CoreRender for RawVk {
         
         let uniform_subbuffer = self.vkpost.final_uniformbuffer.next(uniform_data).unwrap();
         
-        let fullcolour_3d_attachment = self.vk3d.gbuffer_renderpass.attachment(GBUFFER_FULLCOLOUR);
+        let fullcolour_3d_attachment = self.vk3d.forwardbuffer_renderpass.attachment(FORWARDBUFFER_FULLCOLOUR);
         let fullcolour_2d_attachment = self.vk2d.texture_renderpass.attachment(TEXTURE_FULLCOLOUR);
         
         let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
