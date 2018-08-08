@@ -341,24 +341,27 @@ impl RawGl {
   
   fn update_vao(&mut self, draw: &DrawCall) {
     let mut verts: Vec<GLfloat> = Vec::new();
-    for v in draw.get_new_vertices() {
-      verts.push(v.position[0] as GLfloat);
-      verts.push(v.position[1] as GLfloat);
-      verts.push(v.uv[0] as GLfloat);
-      verts.push(v.uv[1] as GLfloat);
-    };
     
-    let index = draw.get_new_indices().iter().map(|i| {
-      *i as GLuint
-    }).collect::<Vec<GLuint>>();
-    
-    let reference = draw.get_text().clone();
-    
-    if let Some(custom_vao) = self.gl2D.custom_vao.get_mut(&reference) {
-      custom_vao.update_vbo(verts);
-      custom_vao.update_ebo(index);
-    } else {
-      println!("Error: custom vao doesnt exist: {:?}", reference);
+    if let Some((new_vertices, new_indices)) = draw.new_shape_details() {
+      for v in new_vertices {
+        verts.push(v.position[0] as GLfloat);
+        verts.push(v.position[1] as GLfloat);
+        verts.push(v.uv[0] as GLfloat);
+        verts.push(v.uv[1] as GLfloat);
+      };
+      
+      let index = new_indices.iter().map(|i| {
+        *i as GLuint
+      }).collect::<Vec<GLuint>>();
+      
+      if let Some(reference) = draw.display_text() {
+        if let Some(custom_vao) = self.gl2D.custom_vao.get_mut(&reference) {
+          custom_vao.update_vbo(verts);
+          custom_vao.update_ebo(index);
+        } else {
+          println!("Error: custom vao doesnt exist: {:?}", reference);
+        }
+      }
     }
   }
   
@@ -368,110 +371,112 @@ impl RawGl {
       gl::DepthFunc(gl::LESS);
     }
     
-    if self.gl3D.models.contains_key(draw.get_texture()) {
-      let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
-      let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
-      let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
+    if let Some(texture_name) = draw.texture_name() {
+      if self.gl3D.models.contains_key(&texture_name) {
+        let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.rotation().x));
+        let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.rotation().y));
+        let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.rotation().z));
+          
+        let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.position()) * cgmath::Matrix4::from_scale(draw.scale().x)) * (rotation_x*rotation_y*rotation_z);
         
-      let transformation: Matrix4<f32> = (cgmath::Matrix4::from_translation(draw.get_translation()) * cgmath::Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
-      
-      let lighting_position: Matrix4<f32> =
-        Matrix4::from_cols(
-          Vector4::new(0.0, -0.6, 25.0, -1.0),
-          Vector4::new(7.0, -0.6, 25.0, -1.0),
-          Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
-          Vector4::new(0.0, 0.0, 0.0, -1.0)
-        );
-      
-      let reflectivity = 1.0;
-      let shine_damper = 10.0;
-      
-      let lighting_colour: Matrix4<f32> =
-        // (R, G, B, n/a)
-        Matrix4::from_cols(
-          Vector4::new(0.0, 0.0, 1.0, -1.0), // colour + shinedamper
-          Vector4::new(1.0, 0.0, 0.0, -1.0),  // colour + reflectivity
-          Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
-          Vector4::new(0.0, 0.0, 0.0, -1.0)
-        );
-      
-      // (Intensity, 1)
-      let attenuation: Matrix4<f32> =
-        Matrix4::from_cols(
-          Vector4::new(0.1, 0.25, 0.25, -1.0),
-          Vector4::new(0.1, 0.25, 0.25, -1.0),
-          Vector4::new(0.5, 0.0, 0.0, -1.0),
-          Vector4::new(0.0, 0.0, 0.0, -1.0)
-        );
-      
-      let view = self.gl3D.camera.get_view_matrix();/*self.scale;*///self.view Matrix4::from_angle_y(Deg(180.0))  self.scale;
-      
-      self.gl3D.shaders[MODEL].Use();
-      self.gl3D.shaders[MODEL].set_mat4(String::from("u_transformation"), transformation);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("u_view"), view);
-      self.gl3D.shaders[MODEL].set_mat4(String::from("u_projection"), self.gl3D.projection);
-      
-      if let Some(model) = self.gl3D.models.get(draw.get_texture()) {
-        for i in 0..model.len() {
-          self.gl3D.shaders[MODEL].set_vec4(String::from("u_base_colour_factor"),
-                                             model[i].uniforms.base_colour_factor);
-          self.gl3D.shaders[MODEL].set_vec2(String::from("u_metallic_roughness_factor"),
-                                             model[i].uniforms.metallic_roughness_factor);
-          
-          self.gl3D.shaders[MODEL].set_float(String::from("u_alpha_cutoff"), 
-                                             model[i].uniforms.alpha_cutoff);
-          self.gl3D.shaders[MODEL].set_float(String::from("u_normal_scale"), 
-                                             model[i].uniforms.normal_scale);
-          self.gl3D.shaders[MODEL].set_float(String::from("u_occlusion_strength"), 
-                                             model[i].uniforms.occlusion_strength);
-          self.gl3D.shaders[MODEL].set_vec3(String::from("u_emissive_factor"), 
-                                             model[i].uniforms.emissive_factor);
-          
-          self.gl3D.shaders[MODEL].set_int(String::from("u_forced_alpha"), 
-                                           model[i].uniforms.forced_alpha);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_normals"), 
-                                           model[i].uniforms.has_normals);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_tangents"), 
-                                           model[i].uniforms.has_tangents);
-          
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_colour_texture"), 
-                                           model[i].uniforms.has_colour_texture);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_metallic_roughness_texture"), 
-                                           model[i].uniforms.has_metallic_roughness_texture);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_normal_texture"), 
-                                           model[i].uniforms.has_normal_texture);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_occlusion_texture"), 
-                                           model[i].uniforms.has_occlusion_texture);
-          self.gl3D.shaders[MODEL].set_int(String::from("u_has_emissive_texture"), 
-                                           model[i].uniforms.has_emissive_texture);
-          
-          if let Some(texture) = model[i].base_texture {
-            model[i].vao.activate_texture(0, texture);
+        let lighting_position: Matrix4<f32> =
+          Matrix4::from_cols(
+            Vector4::new(0.0, -0.6, 25.0, -1.0),
+            Vector4::new(7.0, -0.6, 25.0, -1.0),
+            Vector4::new(-2000000.0, 1000000.0, -2000000.0, -1.0),
+            Vector4::new(0.0, 0.0, 0.0, -1.0)
+          );
+        
+        let reflectivity = 1.0;
+        let shine_damper = 10.0;
+        
+        let lighting_colour: Matrix4<f32> =
+          // (R, G, B, n/a)
+          Matrix4::from_cols(
+            Vector4::new(0.0, 0.0, 1.0, -1.0), // colour + shinedamper
+            Vector4::new(1.0, 0.0, 0.0, -1.0),  // colour + reflectivity
+            Vector4::new(0.4, 0.4, 0.4, -1.0), //sun
+            Vector4::new(0.0, 0.0, 0.0, -1.0)
+          );
+        
+        // (Intensity, 1)
+        let attenuation: Matrix4<f32> =
+          Matrix4::from_cols(
+            Vector4::new(0.1, 0.25, 0.25, -1.0),
+            Vector4::new(0.1, 0.25, 0.25, -1.0),
+            Vector4::new(0.5, 0.0, 0.0, -1.0),
+            Vector4::new(0.0, 0.0, 0.0, -1.0)
+          );
+        
+        let view = self.gl3D.camera.get_view_matrix();/*self.scale;*///self.view Matrix4::from_angle_y(Deg(180.0))  self.scale;
+        
+        self.gl3D.shaders[MODEL].Use();
+        self.gl3D.shaders[MODEL].set_mat4(String::from("u_transformation"), transformation);
+        self.gl3D.shaders[MODEL].set_mat4(String::from("u_view"), view);
+        self.gl3D.shaders[MODEL].set_mat4(String::from("u_projection"), self.gl3D.projection);
+        
+        if let Some(model) = self.gl3D.models.get(&texture_name) {
+          for i in 0..model.len() {
+            self.gl3D.shaders[MODEL].set_vec4(String::from("u_base_colour_factor"),
+                                               model[i].uniforms.base_colour_factor);
+            self.gl3D.shaders[MODEL].set_vec2(String::from("u_metallic_roughness_factor"),
+                                               model[i].uniforms.metallic_roughness_factor);
+            
+            self.gl3D.shaders[MODEL].set_float(String::from("u_alpha_cutoff"), 
+                                               model[i].uniforms.alpha_cutoff);
+            self.gl3D.shaders[MODEL].set_float(String::from("u_normal_scale"), 
+                                               model[i].uniforms.normal_scale);
+            self.gl3D.shaders[MODEL].set_float(String::from("u_occlusion_strength"), 
+                                               model[i].uniforms.occlusion_strength);
+            self.gl3D.shaders[MODEL].set_vec3(String::from("u_emissive_factor"), 
+                                               model[i].uniforms.emissive_factor);
+            
+            self.gl3D.shaders[MODEL].set_int(String::from("u_forced_alpha"), 
+                                             model[i].uniforms.forced_alpha);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_normals"), 
+                                             model[i].uniforms.has_normals);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_tangents"), 
+                                             model[i].uniforms.has_tangents);
+            
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_colour_texture"), 
+                                             model[i].uniforms.has_colour_texture);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_metallic_roughness_texture"), 
+                                             model[i].uniforms.has_metallic_roughness_texture);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_normal_texture"), 
+                                             model[i].uniforms.has_normal_texture);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_occlusion_texture"), 
+                                             model[i].uniforms.has_occlusion_texture);
+            self.gl3D.shaders[MODEL].set_int(String::from("u_has_emissive_texture"), 
+                                             model[i].uniforms.has_emissive_texture);
+            
+            if let Some(texture) = model[i].base_texture {
+              model[i].vao.activate_texture(0, texture);
+            }
+            if let Some(texture) = model[i].metallic_roughness_texture {
+              //model[i].vao.activate_texture(1, texture);
+            }
+            if let Some(texture) = model[i].normal_texture {
+              //model[i].vao.activate_texture(2, texture);
+            }
+            if let Some(texture) = model[i].occlusion_texture {
+             // model[i].vao.activate_texture(3, texture);
+            }
+            if let Some(texture) = model[i].emissive_texture {
+           //   model[i].vao.activate_texture(4, texture);
+            }
+            
+            model[i].vao.draw_indexed(gl::TRIANGLES);
+            
+            model[i].vao.activate_texture(0, 0);
+            model[i].vao.activate_texture(1, 0);
+            model[i].vao.activate_texture(2, 0);
+            model[i].vao.activate_texture(3, 0);
+            model[i].vao.activate_texture(4, 0);
           }
-          if let Some(texture) = model[i].metallic_roughness_texture {
-            //model[i].vao.activate_texture(1, texture);
-          }
-          if let Some(texture) = model[i].normal_texture {
-            //model[i].vao.activate_texture(2, texture);
-          }
-          if let Some(texture) = model[i].occlusion_texture {
-           // model[i].vao.activate_texture(3, texture);
-          }
-          if let Some(texture) = model[i].emissive_texture {
-         //   model[i].vao.activate_texture(4, texture);
-          }
-          
-          model[i].vao.draw_indexed(gl::TRIANGLES);
-          
-          model[i].vao.activate_texture(0, 0);
-          model[i].vao.activate_texture(1, 0);
-          model[i].vao.activate_texture(2, 0);
-          model[i].vao.activate_texture(3, 0);
-          model[i].vao.activate_texture(4, 0);
         }
+      } else {
+        println!("Error: 3D model not found: {:?}", texture_name);
       }
-    } else {
-      println!("Error: 3D model not found: {:?}", draw.get_texture());
     }
     
     unsafe {
@@ -482,145 +487,161 @@ impl RawGl {
   fn draw_instanced(&mut self, draw_calls: Vec<DrawCall>, offset: usize) -> usize {
     let mut num_instances = 0;
     
-    if !self.gl2D.instanced_vao.contains_key(&draw_calls[offset].get_instance_reference()) {
-      println!("Error: Instanced vao not found: {:?}", draw_calls[offset].get_instance_reference());
-      return 0;
-    }
-    
-    let texture = draw_calls[offset].get_texture();
-    
-    for i in offset..draw_calls.len() {
-      if draw_calls[i].is_instanced() && draw_calls[i].get_texture() == texture {
-        num_instances += 1;
-      } else {
-        break;
+    if let Some(instance_name) = draw_calls[offset].instance_name() {
+      if !self.gl2D.instanced_vao.contains_key(&instance_name) {
+        println!("Error: Instanced vao not found: {:?}", instance_name);
+        return 0;
       }
-    }
-    
-    let mut new_data: Vec<GLfloat> = Vec::new();
+      
+      if let Some(texture_name) = draw_calls[offset].texture_name() {
+        for i in offset..draw_calls.len() {
+          if let Some(test_texture_name) = draw_calls[i].texture_name() {
+            if draw_calls[i].is_instanced_texture() && test_texture_name == texture_name {
+              num_instances += 1;
+            } else {
+              break;
+            }
+          }
+        }
         
-    let has_texture = {
-      let mut value = 1.0;
-      if draw_calls[offset].get_texture() == &String::from("") {
-        value = 0.0;
-      }
-      value
-    };
-    
-    for i in offset..offset+num_instances {
-      let draw = draw_calls[i].clone();
-      
-      let colour: [f32; 4] = draw.get_colour().into();
-      let mut bw: f32 = 0.0;
-      if draw.is_back_and_white() {
-        bw = 1.0;
-      }
-      
-      let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
-      let model: [[f32; 4]; 4] = model.into();
-      
-      for row in model.iter() {
-        for element in row {
-          new_data.push(*element)
+        let mut new_data: Vec<GLfloat> = Vec::new();
+            
+        let has_texture = {
+          let mut value = 1.0;
+          if texture_name == String::from("") {
+            value = 0.0;
+          }
+          value
+        };
+        
+        for i in offset..offset+num_instances {
+          let draw = draw_calls[i].clone();
+          
+          let colour: [f32; 4] = draw.colour().into();
+          let mut bw: f32 = 0.0;
+          if draw.black_and_white_enabled() {
+            bw = 1.0;
+          }
+          
+          let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
+          let model: [[f32; 4]; 4] = model.into();
+          
+          for row in model.iter() {
+            for element in row {
+              new_data.push(*element)
+            }
+          }
+          
+          for value in colour.iter() {
+            new_data.push(*value)
+          }
+          new_data.push(has_texture);
+          new_data.push(bw);
+        }
+       // println!("num: {}, len: {}", num_instances, new_data.len());
+        
+        let draw = draw_calls[offset].clone();
+        if has_texture == 1.0 {
+          //println!("{}", draw.get_texture());
+          if let Some(instance_name) = draw.instance_name() {
+            self.gl2D.instanced_vao[&instance_name].activate_texture(0, *self.textures.get(&texture_name).expect("Texture not found!"));
+          }
+        }
+        
+        if let Some(instance_name) = draw.instance_name() {
+          self.gl2D.shaders[INSTANCED].Use();
+          self.gl2D.instanced_vao[&instance_name].bind();
+          self.gl2D.instanced_vao[&instance_name].update_vbodata(num_instances, new_data);
+          self.gl2D.instanced_vao[&instance_name].draw_indexed_instanced(num_instances, gl::TRIANGLES);
+          self.gl2D.instanced_vao[&instance_name].unbind();
         }
       }
-      
-      for value in colour.iter() {
-        new_data.push(*value)
-      }
-      new_data.push(has_texture);
-      new_data.push(bw);
     }
-   // println!("num: {}, len: {}", num_instances, new_data.len());
-    
-    let draw = draw_calls[offset].clone();
-    if has_texture == 1.0 {
-      //println!("{}", draw.get_texture());
-      self.gl2D.instanced_vao[&draw.get_instance_reference()].activate_texture(0, *self.textures.get(draw.get_texture()).expect("Texture not found!"));
-    }
-    
-    self.gl2D.shaders[INSTANCED].Use();
-    self.gl2D.instanced_vao[&draw.get_instance_reference()].bind();
-    self.gl2D.instanced_vao[&draw.get_instance_reference()].update_vbodata(num_instances, new_data);
-    self.gl2D.instanced_vao[&draw.get_instance_reference()].draw_indexed_instanced(num_instances, gl::TRIANGLES);
-    self.gl2D.instanced_vao[&draw.get_instance_reference()].unbind();
     
     num_instances
   }
   
   fn draw_square(&self, draw: &DrawCall) {
-    let colour = draw.get_colour();
+    let colour = draw.colour();
     let has_texture = {
       let mut value = 1.0;
-      if draw.get_texture() == &String::from("") {
-        value = 0.0;
+      if let Some(texture_name) = draw.texture_name() {
+        if texture_name == String::from("") {
+          value = 0.0;
+        }
       }
       value
     };
     
     let mut is_blackwhite = 0.0;
-    if draw.is_back_and_white() {
+    if draw.black_and_white_enabled() {
       is_blackwhite = 1.0;
     }
     let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
     
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
     self.gl2D.shaders[TEXTURE].set_vec4(String::from("new_colour"), colour);
     self.gl2D.shaders[TEXTURE].set_vec2(String::from("textured_blackwhite"), textured_blackwhite);
     if has_texture == 1.0 {
-      if self.textures.contains_key(draw.get_texture()) {
-        self.gl2D.vao.activate_texture(0, *self.textures.get(draw.get_texture()).unwrap());
-      } else {
-        println!("Error: Texture not found: {:?}", draw.get_texture());
+      if let Some(texture_name) = draw.texture_name() {
+        if self.textures.contains_key(&texture_name) {
+          self.gl2D.vao.activate_texture(0, *self.textures.get(&texture_name).unwrap());
+        } else {
+          println!("Error: Texture not found: {:?}", texture_name);
+        }
       }
     }
     
-    if draw.is_custom_vao() {
-      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    if draw.is_custom_shape() {
+      if let Some(display_text) = draw.display_text() {
+        self.gl2D.custom_vao.get(&display_text).unwrap().draw_indexed(gl::TRIANGLES);
+      }
     } else {
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
     }
   }
   
   fn draw_text(&self, draw: &DrawCall) {
-    if !self.textures.contains_key(draw.get_texture()) {
-      println!("Error: Font texture not found: {:?}", draw.get_texture());
-      return;
-    }
-    
-    let mut translation = draw.get_translation();
-    
-    let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), self.fonts.clone());
-    let size = draw.get_x_size();
-    
-    for letter in wrapped_draw {
-      let char_letter = {
-        letter.get_text().as_bytes()[0] 
-      };
+    if let Some(texture_name) = draw.texture_name() {
+      if !self.textures.contains_key(&texture_name) {
+        println!("Error: Font texture not found: {:?}", texture_name);
+        return;
+      }
       
-      let c = self.fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
+      let mut translation = draw.position();
       
-      let model = drawcalls::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-      let letter_uv = drawcalls::calculate_text_uv(&c.clone());
-      let colour = letter.get_colour();
-      let outline = letter.get_outline_colour();
-      let edge_width = letter.get_edge_width(); 
+      let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), self.fonts.clone());
+      let size = draw.scale().x;
       
-      self.gl2D.shaders[TEXT].Use();
-      self.gl2D.shaders[TEXT].set_mat4(String::from("model"), model);
-      self.gl2D.shaders[TEXT].set_vec4(String::from("colour"), colour);
-      self.gl2D.shaders[TEXT].set_vec4(String::from("letter_uv"), letter_uv);
-      self.gl2D.shaders[TEXT].set_vec3(String::from("outlineColour"), outline);
-      self.gl2D.shaders[TEXT].set_vec4(String::from("edge_width"), edge_width);
-      
-      self.gl2D.vao.activate_texture(0, *self.textures.get(draw.get_texture()).unwrap());
-      
-      self.gl2D.vao.draw_indexed(gl::TRIANGLES);
-      
-      translation.x+=c.get_advance() as f32 * (size/640.0); 
+      for letter in wrapped_draw {
+        let char_letter = {
+          letter.display_text().unwrap().as_bytes()[0] 
+        };
+        
+        let c = self.fonts.get(&texture_name).unwrap().get_character(char_letter as i32);
+        
+        let model = drawcalls::calculate_text_model(letter.position(), size, &c.clone(), char_letter);
+        let letter_uv = drawcalls::calculate_text_uv(&c.clone());
+        let colour = letter.colour();
+        let outline = letter.text_outline_colour();
+        let edge_width = letter.text_edge_width(); 
+        
+        self.gl2D.shaders[TEXT].Use();
+        self.gl2D.shaders[TEXT].set_mat4(String::from("model"), model);
+        self.gl2D.shaders[TEXT].set_vec4(String::from("colour"), colour);
+        self.gl2D.shaders[TEXT].set_vec4(String::from("letter_uv"), letter_uv);
+        self.gl2D.shaders[TEXT].set_vec3(String::from("outlineColour"), outline);
+        self.gl2D.shaders[TEXT].set_vec4(String::from("edge_width"), edge_width);
+        
+        self.gl2D.vao.activate_texture(0, *self.textures.get(&texture_name).unwrap());
+        
+        self.gl2D.vao.draw_indexed(gl::TRIANGLES);
+        
+        translation.x+=c.get_advance() as f32 * (size/640.0); 
+      }
     }
   }
   
@@ -628,12 +649,12 @@ impl RawGl {
     let colour = Vector4::new(1.0, 0.0, 0.0, 1.0);
     let has_texture = 1.0;
     let mut is_blackwhite = 0.0;
-    if draw.is_back_and_white() {
+    if draw.black_and_white_enabled() {
       is_blackwhite = 1.0;
     }
     let textured_blackwhite = Vector2::new(has_texture, is_blackwhite);
     
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
     
     self.gl2D.shaders[TEXTURE].Use();
     self.gl2D.shaders[TEXTURE].set_mat4(String::from("model"), model);
@@ -642,30 +663,34 @@ impl RawGl {
     
     self.gl2D.vao.activate_texture(0, texture);
     
-    if draw.is_custom_vao() {
-      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    if draw.is_custom_shape() {
+      if let Some(dispaly_text) = draw.display_text() {
+        self.gl2D.custom_vao.get(&dispaly_text).unwrap().draw_indexed(gl::TRIANGLES);
+      }
     } else {
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
     }
   }
   
   fn draw_bloom(&self, draw: DrawCall, texture: GLuint) {
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
     
     self.gl2D.shaders[BLOOM].Use();
     self.gl2D.shaders[BLOOM].set_mat4(String::from("model"), model);
     
     self.gl2D.vao.activate_texture(0, texture);
     
-    if draw.is_custom_vao() {
-      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    if draw.is_custom_shape() {
+      if let Some(dispaly_text) = draw.display_text() {
+        self.gl2D.custom_vao.get(&dispaly_text).unwrap().draw_indexed(gl::TRIANGLES);
+      }
     } else {
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
     }
   }
   
   fn draw_blur(&self, draw: DrawCall, texture: GLuint, direction: Vector2<f32>) {
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
     
     self.gl2D.shaders[BLUR].Use();
     self.gl2D.shaders[BLUR].set_mat4(String::from("model"), model);
@@ -673,15 +698,11 @@ impl RawGl {
     
     self.gl2D.vao.activate_texture(0, texture);
     
-    if draw.is_custom_vao() {
-      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
-    } else {
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
-    }
   }
   
   fn draw_final_frame(&self, draw: DrawCall, base_texture: GLuint, bloom_texture: GLuint, bloom: bool) {
-    let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -(draw.get_x_rotation()));
+    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -(draw.rotation().x));
     
     self.gl2D.shaders[FINAL].Use();
     self.gl2D.shaders[FINAL].set_mat4(String::from("model"), model);
@@ -694,8 +715,10 @@ impl RawGl {
     self.gl2D.vao.activate_texture(0, base_texture);
     self.gl2D.vao.activate_texture(1, bloom_texture);
     
-    if draw.is_custom_vao() {
-      self.gl2D.custom_vao.get(draw.get_text()).unwrap().draw_indexed(gl::TRIANGLES);
+    if draw.is_custom_shape() {
+      if let Some(display_text) = draw.display_text() {
+        self.gl2D.custom_vao.get(&display_text).unwrap().draw_indexed(gl::TRIANGLES);
+      }
     } else {
       self.gl2D.vao.draw_indexed(gl::TRIANGLES);
     }
@@ -1102,13 +1125,13 @@ impl CoreRender for RawGl {
       
       let draw = draw_calls[i+offset].clone();
       
-      if draw.is_3d_model() {
+      if draw.is_model() {
         self.draw_3d(&draw);
       } else if draw.is_text() {
         self.draw_text(&draw);
-      } else if draw.is_vao_update() {
+      } else if draw.is_shape_update() {
         self.update_vao(&draw);
-      } else if draw.is_instanced() {
+      } else if draw.is_instanced_texture() {
         offset += self.draw_instanced(draw_calls.clone(), i+offset)-1;
       } else {
         self.draw_square(&draw);

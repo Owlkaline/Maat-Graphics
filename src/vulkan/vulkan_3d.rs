@@ -19,7 +19,7 @@ use graphics::Vertex2d;
 use graphics::Vertex3d;
 use drawcalls::DrawCall;
 
-use vulkan::rawvk::{vs_3d, vs_gbuffer_3d, fs_gbuffer_3d, vs_plain, fs_lights, fs_post_bloom};
+use vulkan::rawvk::{vs_3d, vs_gbuffer_3d, fs_gbuffer_3d, vs_plain, fs_lights, fs_post_bloom, vs_shadow, fs_shadow};
 use vulkan::renderpass::CustomRenderpass;
 
 use gltf_interpreter::Sampler;
@@ -130,11 +130,11 @@ pub fn create_texture_from_dynamicimage(queue: Arc<Queue>, data: Option<image::D
 
 pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix: Matrix4<f32>, uniform_buffer: CpuBufferPool<vs_3d::ty::Data>) -> cpu_pool::CpuBufferPoolSubbuffer<vs_3d::ty::Data, Arc<memory::pool::StdMemoryPool>> {
   
-  let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.get_x_rotation()));
-  let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.get_y_rotation()));
-  let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.get_z_rotation()));
+  let rotation_x: Matrix4<f32> = Matrix4::from_angle_x(Deg(draw.rotation().x));
+  let rotation_y: Matrix4<f32> = Matrix4::from_angle_y(Deg(draw.rotation().y));
+  let rotation_z: Matrix4<f32> = Matrix4::from_angle_z(Deg(draw.rotation().z));
   
-  let transformation: Matrix4<f32> = (Matrix4::from_translation(draw.get_translation())* Matrix4::from_scale(draw.get_size().x)) * (rotation_x*rotation_y*rotation_z);
+  let transformation: Matrix4<f32> = (Matrix4::from_translation(draw.position())* Matrix4::from_scale(draw.scale().x)) * (rotation_x*rotation_y*rotation_z);
   
   let point_light = 2.0;
   let directional_light = 0.0;
@@ -176,6 +176,80 @@ pub fn create_3d_subbuffer(draw: DrawCall, projection: Matrix4<f32>, view_matrix
   };
   
   uniform_buffer.next(uniform_data).unwrap()
+}
+
+pub fn create_shadow_attachments(device: Arc<Device>, dim: [u32; 2]) -> Arc<vkimage::AttachmentImage> {
+  let shadow_usage = ImageUsage {
+    transfer_destination: true,
+    sampled: true,
+    .. ImageUsage::none()
+  };
+  
+  let shadow_attachment = vkimage::AttachmentImage::with_usage(device, dim, format::Format::D16Unorm, shadow_usage).unwrap();
+  
+  shadow_attachment
+}
+
+pub fn create_shadow_renderpass(device: Arc<Device>, dim: [u32; 2]) -> CustomRenderpass {
+  let shadow_renderpass = Arc::new(single_pass_renderpass!(device.clone(),
+      attachments: {
+        depth_attachment: {
+          load: DontCare,
+          store: Store,
+          format: format::Format::D16Unorm,
+          samples: 1,
+        }
+      },
+      pass: {
+        color: [],
+        depth_stencil: {depth_attachment},
+        resolve: [],
+      }
+    ).unwrap());
+    
+  let vs_shadow = vs_shadow::Shader::load(device.clone()).expect("failed to create shader module");
+  let fs_shadow = fs_shadow::Shader::load(device.clone()).expect("failed to create shader module");
+  
+  let shadow_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+      .vertex_input_single_buffer::<Vertex3d>()
+      .vertex_shader(vs_shadow.main_entry_point(), ())
+      .triangle_list()
+      .viewports_dynamic_scissors_irrelevant(1)
+      .fragment_shader(fs_shadow.main_entry_point(), ())
+      .depth_clamp(true)
+      .depth_stencil_simple_depth()
+      .render_pass(framebuffer::Subpass::from(shadow_renderpass.clone(), 0).unwrap())
+      .build(device.clone())
+      .unwrap());
+  
+  let shadow_attachment = create_shadow_attachments(device.clone(), dim);
+  
+  let shadowframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(shadow_renderpass.clone())
+          .add(shadow_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  let mut shadow_customrenderpass = CustomRenderpass::new(vec!(shadow_attachment));
+  
+  shadow_customrenderpass.set_renderpass(shadow_renderpass);
+  shadow_customrenderpass.set_pipelines(vec!(shadow_pipeline));
+  shadow_customrenderpass.set_framebuffer(shadowframebuffer);
+  
+  shadow_customrenderpass
+}
+
+pub fn recreate_shadow_renderpass(renderpass: &mut CustomRenderpass, device: Arc<Device>, dim: [u32; 2]) {
+  let shadow_attachment = create_shadow_attachments(device.clone(), dim);
+  
+  let shadowframebuffer = Arc::new({
+      framebuffer::Framebuffer::start(renderpass.renderpass().clone())
+          .add(shadow_attachment.clone()).unwrap()
+          .build().unwrap()
+  });
+  
+  renderpass.update_attachments(vec!(shadow_attachment));
+  renderpass.set_framebuffer(shadowframebuffer);
 }
 
 pub fn create_gbuffer_attachments(device: Arc<Device>, dim: [u32; 2], samples: u32) -> (Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>) {
@@ -297,7 +371,7 @@ pub fn create_gbuffer(device: Arc<Device>, dim: [u32; 2], samples: u32) -> Custo
       .triangle_list()
       .viewports_dynamic_scissors_irrelevant(1)
       .fragment_shader(fs_gbuffer_3d.main_entry_point(), ())
-      .depth_clamp(false)
+      .depth_clamp(true)
       .depth_stencil_simple_depth()
       .blend_alpha_blending()
       .polygon_mode_fill()

@@ -17,7 +17,7 @@ use drawcalls::DrawCall;
 use vulkan::rawvk::{Model,DynamicModel, vs_texture, fs_texture, vs_text, fs_text};
 use vulkan::renderpass::CustomRenderpass;
 
-use cgmath::{ortho, Vector4, Matrix4};
+use cgmath::{ortho, Vector2, Vector4, Matrix4};
 
 use std::sync::Arc;
 
@@ -95,25 +95,27 @@ pub fn create_static_custom_model(device: Arc<Device>, queue: Arc<Queue>, mut ve
 }
 
 pub fn create_texture_subbuffer(draw: DrawCall, projection: Matrix4<f32>, uniform_buffer_texture: CpuBufferPool<vs_texture::ty::Data>) -> cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<memory::pool::StdMemoryPool>> {
-  let model = math::calculate_texture_model(draw.get_translation(), draw.get_size(), -draw.get_x_rotation() -180.0);
+  let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -draw.rotation().x -180.0);
   
   let has_texture = {
     let mut value = 1.0;
-    if draw.get_texture() == &String::from("") {
-      value = 0.0;
+    if let Some(texture_name) = draw.texture_name() {
+      if texture_name == String::from("") {
+        value = 0.0;
+      }
     }
     value
   };
   
   let mut bw: f32 = 0.0;
-  if draw.is_back_and_white() {
+  if draw.black_and_white_enabled() {
     bw = 1.0;
   }
   
   let uniform_data = vs_texture::ty::Data {
     projection: projection.into(),
     model: model.into(),
-    colour: draw.get_colour().into(),
+    colour: draw.colour().into(),
     has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
   };
   

@@ -202,8 +202,9 @@ impl Fbo {
   }
   
   pub fn draw_screen_texture(&self, x: f32, y: f32, width: f32, height: f32) -> DrawCall {
-    DrawCall::new_draw(x, y, 0.0)
-              .with_scale(-width, -height)
+    DrawCall::draw_textured(Vector2::new(x, y), Vector2::new(-width, -height), "".to_string())
+    //DrawCall::new_draw(x, y, 0.0)
+    //          .with_scale(-width, -height)
   }
   
   pub fn get_screen_texture(&self, attachment_index: usize) -> GLuint {

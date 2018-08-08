@@ -87,7 +87,8 @@ const TEXT_PIPIELINE: usize = 1;
 
 const TEXTURE_FULLCOLOUR: usize = 1;
 
-pub const blur_dim: u32 = 512;
+pub const SHADOW_MAP_DIM: u32 = 1024;
+pub const BLUR_DIM: u32 = 512;
 
 pub mod vs_texture {
   #[derive(VulkanoShader)]
@@ -163,6 +164,20 @@ pub mod fs_post_bloom {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkPostBloom.frag"]
+  struct Dummy;
+}
+
+pub mod vs_shadow {
+  #[derive(VulkanoShader)]
+  #[ty = "vertex"]
+  #[path = "src/shaders/glsl/VkShadow.vert"]
+  struct Dummy;
+}
+
+pub mod fs_shadow {
+  #[derive(VulkanoShader)]
+  #[ty = "fragment"]
+  #[path = "src/shaders/glsl/VkShadow.frag"]
   struct Dummy;
 }
 
@@ -248,6 +263,8 @@ pub struct VK3D {
 }
 
 pub struct VKPOST {
+  shadow_renderpass: CustomRenderpass,
+  
   blur_ping_renderpass: CustomRenderpass,
   blur_pong_renderpass: CustomRenderpass,
   blur_uniformbuffer: cpu_pool::CpuBufferPool<vs_post_blur::ty::Data>,
@@ -367,10 +384,10 @@ impl RawVk {
     let dim = window.get_dimensions();
     let dim = [dim.width as u32, dim.height as u32];
     
-    let blur_ping_attachment = vkimage::AttachmentImage::sampled(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format()).unwrap();
-    let blur_pong_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), [blur_dim, blur_dim], window.get_swapchain().format(), src_usage).unwrap();
+    let blur_ping_attachment = vkimage::AttachmentImage::sampled(window.get_device(), [BLUR_DIM, BLUR_DIM], window.get_swapchain().format()).unwrap();
+    let blur_pong_attachment = vkimage::AttachmentImage::with_usage(window.get_device(), [BLUR_DIM, BLUR_DIM], window.get_swapchain().format(), src_usage).unwrap();
     
-    let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: blur_dim, height: blur_dim}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
+    let blur_downscale_attachment = vkimage::StorageImage::with_usage(window.get_device(), vkimage::Dimensions::Dim2d { width: BLUR_DIM, height: BLUR_DIM}, format::R8G8B8A8Unorm, dst_usage, window.get_queue_ref().family().physical_device().queue_families().find(|&q| {
           q.supports_graphics()
         }
       )).unwrap();
@@ -437,6 +454,8 @@ impl RawVk {
       
       // Post Processing
       vkpost: VKPOST {
+        shadow_renderpass: CustomRenderpass::new_empty(),
+        
         blur_uniformbuffer: post_blur_uniform,
         blur_ping_renderpass: CustomRenderpass::new(vec!(blur_ping_attachment)),
         blur_pong_renderpass: CustomRenderpass::new(vec!(blur_pong_attachment)),
@@ -1169,7 +1188,7 @@ impl CoreRender for RawVk {
       let mut model_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), model_subpass).unwrap();
       
       for draw in draw_calls {
-        if draw.is_3d_model() { // 3D
+        if draw.is_model() { // 3D
           let models = &self.vk3d.models;
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
@@ -1187,24 +1206,24 @@ impl CoreRender for RawVk {
           
           self.num_drawcalls += num_calls;
         } else {
-          if draw.is_vao_update() {
-            let reference = draw.get_text().clone();
-            
-            if self.vk2d.custom_dynamic_vao.contains_key(&reference) {
-              let mut verts = draw.get_new_vertices();
-              let mut index = draw.get_new_indices();
-              
-              let new_model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), verts, index);
-              
-              if let Some(d_model) = self.vk2d.custom_dynamic_vao.get_mut(&reference) {
-                *d_model = new_model;
+          if draw.is_shape_update() {
+            if let Some(reference) = draw.display_text() {
+              if self.vk2d.custom_dynamic_vao.contains_key(&reference) {
+                if let Some((verts, index)) = draw.new_shape_details() {
+                  //let mut verts = draw.get_new_vertices();
+                  //let mut index = draw.get_new_indices();
+                  
+                  let new_model = vulkan_2d::create_dynamic_custom_model(self.window.get_device(), verts, index);
+                  
+                  if let Some(d_model) = self.vk2d.custom_dynamic_vao.get_mut(&reference) {
+                    *d_model = new_model;
+                  }
+                }
+              } else {
+                println!("Error: Dynamic vao update doesn't exist: {:?}", reference);
+                continue;
               }
-              
-            } else {
-              println!("Error: Dynamic vao update doesn't exist: {:?}", reference);
-              continue;
             }
-            
           } else if draw.is_text() {// Render Text
             let vao = &self.vk2d.vao;
             let sampler = self.vk2d.sampler.clone();
@@ -1352,7 +1371,7 @@ impl CoreRender for RawVk {
       * Blur ping framebuffer
       */
       let build_start = build_end.blit_image(self.vkpost.bloom_renderpass.attachment(0), [0,0,0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0, 
-                                             self.vkpost.blur_downscale_attachment.clone(), [0, 0, 0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
+                                             self.vkpost.blur_downscale_attachment.clone(), [0, 0, 0], [BLUR_DIM as i32, BLUR_DIM as i32, 1], 0, 0, 
                                              1, sampler::Filter::Linear).expect("Failed to scale down bloom image to blur image");
       
       let cb = build_start.begin_render_pass(self.vkpost.blur_ping_renderpass.framebuffer_ref(), false, vec![ClearValue::None]).unwrap();
@@ -1361,7 +1380,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.blur_ping_renderpass.pipeline();
       
-      let model = math::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(BLUR_DIM as f32 * 0.5, dimensions[1] as f32 - BLUR_DIM as f32 * 0.5, 0.0), Vector2::new(BLUR_DIM as f32, BLUR_DIM as f32), 90.0);
       
       let uniform_data = vs_post_blur::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1388,7 +1407,7 @@ impl CoreRender for RawVk {
       let index_buffer = self.vk2d.vao.index_buffer.clone().unwrap();
       let pipeline = self.vkpost.blur_pong_renderpass.pipeline();
       
-      let model = math::calculate_texture_model(Vector3::new(blur_dim as f32 * 0.5, dimensions[1] as f32 - blur_dim as f32 * 0.5, 0.0), Vector2::new(blur_dim as f32, blur_dim as f32), 90.0);
+      let model = math::calculate_texture_model(Vector3::new(BLUR_DIM as f32 * 0.5, dimensions[1] as f32 - BLUR_DIM as f32 * 0.5, 0.0), Vector2::new(BLUR_DIM as f32, BLUR_DIM as f32), 90.0);
       
       let uniform_data = vs_post_blur::ty::Data {
         projection: self.vk2d.projection.into(),
@@ -1410,7 +1429,7 @@ impl CoreRender for RawVk {
       * Final Framebuffer
       */
       
-      let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(0), [0,0,0], [blur_dim as i32, blur_dim as i32, 1], 0, 0, 
+      let build_start = build_end.blit_image(self.vkpost.blur_pong_renderpass.attachment(0), [0,0,0], [BLUR_DIM as i32, BLUR_DIM as i32, 1], 0, 0, 
                                              self.vkpost.blur_upscale_attachment.clone(),  [0, 0, 0], [dimensions[0] as i32, dimensions[1] as i32, 1], 0, 0,
                                              1, sampler::Filter::Linear).expect("Failed to scale up blur image to final bloom image");*/
       //tmp_cmd_buffer = build_start.end_render_pass().unwrap();

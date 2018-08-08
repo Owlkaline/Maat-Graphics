@@ -12,412 +12,527 @@ use cgmath::Matrix4;
 use std::collections::HashMap;
 
 #[derive(Clone, PartialEq)]
-enum DrawType {
-  SQUARE,
-  CUSTOM_VAO,
-  UPDATE_VAO,
-  TEXT,
-  MODEL,
-  INSTANCED,
+pub enum DrawType {
+  DRAW_TEXT,
+  DRAW_TEXTURED,
+  DRAW_COLOURED,
+  DRAW_MODEL,
+  DRAW_CUSTOM_SHAPE_TEXTURED,
+  DRAW_CUSTOM_SHAPE_COLOURED,
+  
+  DRAW_INSTANCED_COLOURED,
+  DRAW_INSTANCED_TEXTURED,
+  DRAW_INSTANCED_MODEL,
+  
+  NEW_TEXTURE,
+  NEW_TEXT,
+  NEW_MODEL,
+  NEW_CUSTOM_SHAPE,
+  
+  REMOVE_TEXTURE,
+  REMOVE_TEXT,
+  REMOVE_MODEL,
+  REMOVE_CUSTOM_SHAPE,
+  
+  UPDATE_CUSTOM_SHAPE,
+  
+  NEW_DRAWCALL_SET,
+  DRAW_DRAWCALL_SET,
+  REMOVE_DRAWCALL_SET,
+  
+  NONE,
 }
 
 #[derive(Clone)]
 pub struct DrawCall {
+  reference_name: String,
+  instanced_name: Option<String>,
+  shape_name: Option<String>,
+  
+  text: Option<String>,
+  colour: Vector4<f32>,
   position: Vector3<f32>,
   rotation: Vector3<f32>,
-  size: Vector2<f32>,
-  texture: String,
-  colour: Vector4<f32>,
-  outline_colour: Vector3<f32>,
-  text: String,
-  text_wrapping: i32,
-  centered: bool,
-  edge_width: Vector4<f32>,
-  bw: bool,
+  scale: Vector3<f32>,
+  
+  black_white: bool,
+  
+  text_outline_colour: Vector3<f32>,
+  text_wrapping: u32,
+  text_centered: bool,
+  text_edge_width: Vector4<f32>,
+  
   draw_type: DrawType,
-  new_vao: (Vec<graphics::Vertex2d>, Vec<u32>),
+  
+  new_shape: Option<(Vec<graphics::Vertex2d>, Vec<u32>)>,
 }
 
 impl DrawCall {
-  pub fn update_vao(verticies: Vec<graphics::Vertex2d>, indices: Vec<u32>, custom_vao: String) -> DrawCall {
+  fn empty() -> DrawCall {
     DrawCall {
+      reference_name: "".to_string(),
+      instanced_name: None,
+      shape_name: None,
+      
+      text: None,
+      colour: Vector4::new(0.0, 0.0, 0.0, 0.0),
       position: Vector3::new(0.0, 0.0, 0.0),
-      rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: String::from(""),
-      colour: Vector4::new(0.0, 0.0, 0.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: custom_vao,
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::UPDATE_VAO,
-      new_vao: (verticies, indices),
-    }
-  }
-  
-  pub fn instanced_textured_draw(x: f32, y: f32, texture: String, reference: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x, y, 0.0),
-      rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: texture,
-      colour: Vector4::new(1.0, 1.0, 1.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: reference, // Instance reference name
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      bw: false,
-      draw_type: DrawType::INSTANCED,
-      new_vao: (Vec::new(), Vec::new()),
-    }
-  }
-  
-  pub fn new_draw(x: f32, y: f32, z: f32) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x, y, z),
-      rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: String::from(""),
-      colour: Vector4::new(0.0, 0.0, 0.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::SQUARE,
-      new_vao: (Vec::new(), Vec::new()),
-    }
-  }
-  
-  pub fn new_custom_textured_draw(x: f32, y: f32, texture: String, custom_vao: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x, y, 0.0),
-      rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: texture,
-      colour: Vector4::new(0.0, 0.0, 0.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: custom_vao,
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::SQUARE,
-      new_vao: (Vec::new(), Vec::new()),
-    }
-  }
-  
-  pub fn new_custom_draw(x: f32, y: f32, r: f32, g: f32, b: f32, a: f32, custom_vao: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x, y, 0.0),
-      rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: String::from(""),
-      colour: Vector4::new(r, g, b, a),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: custom_vao,
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::CUSTOM_VAO,
-      new_vao: (Vec::new(), Vec::new()),
-    }
-  }
-  
-  pub fn text(x: f32, y: f32, text: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x, y, 0.0),
       rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(128.0, 128.0),
-      texture: String::from("Arial"),
-      colour: Vector4::new(0.0, 0.0, 0.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: text,
+      scale: Vector3::new(1.0, 1.0, 1.0),
+      
+      black_white: false,
+      
+      text_outline_colour: Vector3::new(0.0, 0.0, 0.0),
       text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::TEXT,
-      new_vao: (Vec::new(), Vec::new()),
+      text_centered: false,
+      text_edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
+      
+      draw_type: DrawType::NONE,
+      new_shape: None,
     }
   }
   
-  pub fn model(x: f32, y: f32, z: f32) -> DrawCall {
+  pub fn draw_model(position: Vector3<f32>, rotation: Vector3<f32>, scale: Vector3<f32>, model: String) -> DrawCall {
     DrawCall {
-      position: Vector3::new(x, y, z),
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: String::from(""),
-      colour: Vector4::new(0.0, 0.0, 0.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      bw: false,
-      draw_type: DrawType::MODEL,
-      new_vao: (Vec::new(), Vec::new()),
+      reference_name: model,
+      position: position,
+      rotation: rotation,
+      scale: scale,
+      draw_type: DrawType::DRAW_MODEL,
+      .. DrawCall::empty()
     }
   }
   
-  pub fn texture(x: f32, y: f32, texture: String) -> DrawCall {
+  pub fn draw_textured(position: Vector2<f32>, scale: Vector2<f32>, texture: String) -> DrawCall {
     DrawCall {
-      position: Vector3::new(x, y, 0.0),
+      reference_name: texture,
+      position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
-      size: Vector2::new(0.0, 0.0),
-      texture: texture,
-      colour: Vector4::new(1.0, 1.0, 1.0, -1.0),
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: String::from(""),
-      text_wrapping: 0,
-      centered: false,
-      edge_width: Vector4::new(0.0, 0.0, 0.0, 0.0),
-      bw: false,
-      draw_type: DrawType::SQUARE,
-      new_vao: (Vec::new(), Vec::new()),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_TEXTURED,
+      .. DrawCall::empty()
     }
   }
   
-  pub fn center_text(mut self) -> DrawCall {
-    self.centered = true;
-    self
+  pub fn draw_instanced_textured(position: Vector2<f32>, scale: Vector2<f32>, texture: String, instance: String) -> DrawCall {
+    DrawCall {
+      reference_name: texture,
+      instanced_name: Some(instance),
+      position: Vector3::new(position.x, position.y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_INSTANCED_TEXTURED,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn black_and_white(mut self, enabled: bool) -> DrawCall {
-    self.bw = enabled;
-    self
+  pub fn draw_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>) -> DrawCall {
+    DrawCall {
+      colour: colour,
+      position: Vector3::new(position.x, position.y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_COLOURED,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_colour(mut self, r: f32, g: f32, b: f32, a: f32) -> DrawCall {
-    self.colour = Vector4::new(r, g, b, a);
-    self
+  pub fn draw_instanced_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, instance: String) -> DrawCall {
+    DrawCall {
+      reference_name: "".to_string(),
+      instanced_name: Some(instance),
+      colour: colour,
+      position: Vector3::new(position.x, position.y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_INSTANCED_TEXTURED,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_texture(mut self, texture: String) -> DrawCall {
-    self.texture = texture;
-    self
+  pub fn draw_custom_shape_textured(position: Vector2<f32>, scale: Vector2<f32>, texture: String, shape: String) -> DrawCall {
+    DrawCall {
+      reference_name: texture,
+      shape_name: Some(shape),
+      position: Vector3::new(position.x, position.y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_CUSTOM_SHAPE_TEXTURED,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_font(mut self, font: String) -> DrawCall {
-    self.texture = font;
-    self
+  pub fn draw_custom_shape_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, shape: String) -> DrawCall {
+    DrawCall {
+      colour: colour,
+      shape_name: Some(shape),
+      position: Vector3::new(position.x, position.y, 0.0),
+      rotation: Vector3::new(90.0, 0.0, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      draw_type: DrawType::DRAW_CUSTOM_SHAPE_COLOURED,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_scale(mut self, x_scale: f32, y_scale: f32) -> DrawCall {
-    self.size.x = x_scale;
-    self.size.y = y_scale;
-    self
+  pub fn draw_text_basic(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      reference_name: font,
+      text: Some(display_text),
+      colour: colour,
+      position: Vector3::new(position.x, position.y, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      text_edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
+      draw_type: DrawType::DRAW_TEXT,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_alpha(mut self, alpha: f32) -> DrawCall {
-    self.colour.w = alpha;
-    self
+  pub fn draw_text_basic_wrapped(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_wrapping: wrap_length,
+      .. DrawCall::draw_text_basic(position, scale, colour, display_text, font)
+    }
   }
   
-  pub fn with_2d_rotation(mut self, rot: f32) -> DrawCall {
-    self.rotation.x = rot;
-    self
+  pub fn draw_text_basic_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_centered: true,
+      .. DrawCall::draw_text_basic(position, scale, colour, display_text, font)
+    }
   }
   
-  pub fn with_x_rotation(mut self, x: f32) -> DrawCall {
-    self.rotation.x = x;
-    self
+  pub fn draw_text_basic_wrapped_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_centered: true,
+      text_wrapping: wrap_length,
+      .. DrawCall::draw_text_basic(position, scale, colour, display_text, font)
+    }
   }
   
-  pub fn with_y_rotation(mut self, y: f32) -> DrawCall {
-    self.rotation.y = y;
-    self
+  pub fn draw_text_outlined(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      reference_name: font,
+      text: Some(display_text),
+      colour: colour,
+      text_outline_colour: outline_colour,
+      position: Vector3::new(position.x, position.y, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      text_edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
+      draw_type: DrawType::DRAW_TEXT,
+      .. DrawCall::empty()
+    }
   }
   
-  pub fn with_z_rotation(mut self, z: f32) -> DrawCall {
-    self.rotation.z = z;
-    self
+  pub fn draw_text_outlined_wrapped(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_wrapping: wrap_length,
+      .. DrawCall::draw_text_outlined(position, scale, colour, outline_colour, display_text, font)
+    }
   }
-
+  
+  pub fn draw_text_outlined_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_centered: true,
+      .. DrawCall::draw_text_outlined(position, scale, colour, outline_colour, display_text, font)
+    }
+  }
+  
+  pub fn draw_text_outlined_wrapped_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      text_centered: true,
+      text_wrapping: wrap_length,
+      .. DrawCall::draw_text_outlined(position, scale, colour, outline_colour, display_text, font)
+    }
+  }
+  
+  pub fn draw_text_custom(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, centered: bool, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      reference_name: font,
+      text: Some(display_text),
+      colour: colour,
+      text_outline_colour: outline_colour,
+      position: Vector3::new(position.x, position.y, 0.0),
+      scale: Vector3::new(scale.x, scale.y, 1.0),
+      text_edge_width: edge_width,
+      text_centered: centered,
+      text_wrapping: wrap_length,
+      draw_type: DrawType::DRAW_TEXT,
+      .. DrawCall::empty()
+    }
+  }
+  
+  pub fn update_custom_shape(vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>, shape: String) -> DrawCall {
+    DrawCall {
+      shape_name: Some(shape),
+      new_shape: Some((vertices, indices)),
+      draw_type: DrawType::UPDATE_CUSTOM_SHAPE,
+      .. DrawCall::empty()
+    }
+  }
+  
   pub fn with_text(mut self, text: String) -> DrawCall {
-    self.text = text;
-    self  
-  }
-
-  pub fn with_outline_colour(mut self, r: f32, g: f32, b: f32) -> DrawCall {
-    self.outline_colour = Vector3::new(r, g, b);
+    self.text = Some(text);
     self
   }
   
-  pub fn with_text_wrap(mut self, wrap_length: i32) -> DrawCall {
-    self.text_wrapping = wrap_length;
+  pub fn with_position(mut self, position: Vector3<f32>) -> DrawCall {
+    self.position = position;
     self
   }
   
-  pub fn with_text_edge_info(mut self, fatness: f32, edge_fade: f32, outline_fatness: f32, outline_fade: f32) -> DrawCall {
-    self.edge_width = Vector4::new(fatness, edge_fade, outline_fatness, outline_fade);
+  pub fn with_2D_rotation(mut self, rotation: f32) -> DrawCall {
+    self.rotation.x = rotation;
     self
   }
   
-  pub fn new_plain_text(text: String, x: f32, y: f32, size: f32, wrap_length: i32, colour: Vector4<f32>, centered: bool, font: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x,y, 0.0), 
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(size,size), 
-      texture: font, 
-      colour: colour,
-      outline_colour: Vector3::new(0.0, 0.0, 0.0),
-      text: text,
-      text_wrapping: wrap_length,
-      centered: centered,
-      edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
-      bw: false,
-      draw_type: DrawType::TEXT,
-      new_vao: (Vec::new(), Vec::new()),
+  pub fn with_rotation(mut self, rotation: Vector3<f32>) -> DrawCall {
+    self.rotation = rotation;
+    self
+  }
+  
+  pub fn with_scale(mut self, scale: Vector3<f32>) -> DrawCall {
+    self.scale = scale;
+    self
+  }
+  
+  pub fn with_colour(mut self, colour: Vector4<f32>) -> DrawCall {
+    self.colour = colour;
+    self
+  }
+  
+  pub fn with_outline_colour(mut self, outline_colour: Vector3<f32>) -> DrawCall {
+    self.text_outline_colour = outline_colour;
+    self
+  }
+  
+  pub unsafe fn set_draw_type(&mut self, forced_type: DrawType) {
+    self.draw_type = forced_type;
+  }
+  
+  pub fn with_centered_text(mut self) -> DrawCall {
+    self.text_centered = true;
+    self
+  }
+  
+  pub fn without_centered_text(mut self) -> DrawCall {
+    self.text_centered = false;
+    self
+  }
+  
+  pub fn as_coloured(mut self) -> DrawCall {
+    self.black_white = false;
+    self
+  }
+  
+  pub fn as_black_and_white(mut self) -> DrawCall {
+    self.black_white = true;
+    self
+  }
+  
+  pub fn in_black_and_white(mut self, bw_enabled: bool) -> DrawCall {
+    self.black_white = bw_enabled;
+    self
+  }
+  
+  pub fn draw_type(&self) -> DrawType {
+    self.draw_type.clone()
+  }
+  
+  pub fn model_name(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_MODEL | DrawType::DRAW_INSTANCED_MODEL |
+      DrawType::NEW_MODEL  | DrawType::REMOVE_MODEL => {
+        result = Some(self.reference_name.clone());
+      },
+      _ => {}
     }
+    
+    result
   }
   
-  pub fn new_outlined_text(text: String, x: f32, y: f32, size: f32, wrap_length: i32, colour: Vector4<f32>, outline_colour: Vector3<f32>, centered: bool, font: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x,y, 0.0), 
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(size,size), 
-      texture: font, 
-      colour: colour,
-      outline_colour: outline_colour,
-      text: text,
-      text_wrapping: wrap_length,
-      centered: centered,
-      edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
-      bw: false,
-      draw_type: DrawType::TEXT,
-      new_vao: (Vec::new(), Vec::new()),
+  pub fn texture_name(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_TEXTURED           | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED | 
+      DrawType::DRAW_INSTANCED_TEXTURED | DrawType::NEW_TEXTURE                | 
+      DrawType::REMOVE_TEXTURE          |
+      DrawType::DRAW_COLOURED           | DrawType::DRAW_CUSTOM_SHAPE_COLOURED | 
+      DrawType::DRAW_INSTANCED_COLOURED
+       => {
+        result = Some(self.reference_name.clone());
+      },
+      _ => {}
     }
+    
+    result
   }
   
-  pub fn new_custom_text(text: String, x: f32, y: f32, size: f32, wrap_length: i32, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, centered: bool, font: String) -> DrawCall {
-    DrawCall {
-      position: Vector3::new(x,y,0.0),
-      rotation: Vector3::new(0.0, 0.0, 0.0),
-      size: Vector2::new(size,size),
-      texture: font,
-      colour: colour,
-      outline_colour: outline_colour,
-      text: text,
-      text_wrapping: wrap_length,
-      centered: centered,
-      edge_width: edge_width, // (Fatness, Edge fade, outline Fatness, outline fade away)
-      // GLOW EFFECT (0.4, 0.1, 0.4, 0.6)
-      bw: false,
-      draw_type: DrawType::TEXT,
-      new_vao: (Vec::new(), Vec::new()),
+  pub fn texture_name_unref(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_TEXTURED           | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED | 
+      DrawType::DRAW_INSTANCED_TEXTURED | DrawType::NEW_TEXTURE                | 
+      DrawType::REMOVE_TEXTURE
+       => {
+        result = Some((*self.reference_name).to_string());
+      },
+      _ => {}
     }
+    
+    result
   }
   
-  pub fn is_back_and_white(&self) -> bool {
-    self.bw
+  pub fn shape_name(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_CUSTOM_SHAPE_COLOURED | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED |
+      DrawType::NEW_CUSTOM_SHAPE           | DrawType::UPDATE_CUSTOM_SHAPE        |
+      DrawType::REMOVE_CUSTOM_SHAPE => {
+        result = self.shape_name.clone();
+      },
+      _ => {}
+    }
+    
+    result
   }
   
-  pub fn get_text(&self) -> &String {
-    &self.text
+  pub fn instance_name(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_INSTANCED_COLOURED | DrawType::DRAW_INSTANCED_TEXTURED |
+      DrawType::DRAW_INSTANCED_MODEL => {
+        result = self.instanced_name.clone();
+      },
+      _ => {}
+    }
+    
+    result
   }
   
-  pub fn get_text_clone(&self) -> String {
-    self.text.clone()
+  pub fn font_name(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_TEXT | DrawType::NEW_TEXT | DrawType::REMOVE_TEXT => {
+        result = Some(self.reference_name.clone());
+      },
+      _ => {}
+    }
+    
+    result
   }
   
-  pub fn get_translation(&self) -> Vector3<f32> {
+  pub fn display_text(&self) -> Option<String> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::DRAW_TEXT | DrawType::NEW_TEXT | DrawType::REMOVE_TEXT => {
+        result = self.text.clone();
+      },
+      _ => {}
+    }
+    
+    result
+  }
+  
+  pub fn outline_colour(&self) -> Option<Vector3<f32>> {
+    let mut result = None;
+    
+    let temp_colour = self.outline_colour();
+    
+    match self.draw_type {
+      DrawType::DRAW_TEXT => {
+        result = temp_colour;
+      },
+      _ => {}
+    }
+    
+    result
+  }
+  
+  pub fn new_shape_details(&self) -> Option<(Vec<graphics::Vertex2d>, Vec<u32>)> {
+    let mut result = None;
+    
+    match self.draw_type {
+      DrawType::NEW_CUSTOM_SHAPE => {
+        result = self.new_shape.clone();
+      },
+      _ => {}
+    }
+    
+    result
+  }
+  
+  pub fn position(&self) -> Vector3<f32> {
     self.position
   }
   
-  pub fn get_texture(&self) -> &String {
-    &self.texture
-  }
-  
-  pub fn get_colour(&self) -> Vector4<f32> {
-    self.colour
-  }
-  
-  pub fn get_outline_colour(&self) -> Vector3<f32> {
-    self.outline_colour
-  }
-  
-  pub fn get_edge_width(&self) -> Vector4<f32> {
-    self.edge_width
-  }
-  
-  pub fn get_size(&self) -> Vector2<f32> {
-    self.size
-  }
-  
-  pub fn get_x_size(&self) -> f32 {
-    self.size.x
-  }
-  
-  pub fn get_wrap_length(&self) -> i32 {
-    self.text_wrapping
-  }
-  
-  pub fn set_x(&mut self, new_x: f32) {
-    self.position.x = new_x;
-  }
-  
-  pub fn set_y(&mut self, new_y: f32) {
-    self.position.y = new_y;
-  }
-  
-  pub fn is_centered(&self) -> bool {
-    self.centered
-  }
-  
-  pub fn get_texture_unref(&self) -> String {
-    (*self.texture).to_string()
-  }
-  
-  pub fn get_x_rotation(&self) -> f32 {
+  pub fn rotation_2D(&self) -> f32 {
     self.rotation.x
   }
   
-  pub fn get_y_rotation(&self) -> f32 {
-    self.rotation.y
+  pub fn rotation(&self) -> Vector3<f32> {
+    self.rotation
   }
   
-  pub fn get_z_rotation(&self) -> f32 {
-    self.rotation.z
+  pub fn scale(&self) -> Vector3<f32> {
+    self.scale
   }
   
-  pub fn get_new_vertices(&self) -> Vec<graphics::Vertex2d> {
-    self.new_vao.clone().0
+  pub fn colour(&self) -> Vector4<f32> {
+    self.colour
   }
   
-  pub fn get_new_indices(&self) -> Vec<u32> {
-    self.new_vao.clone().1
+  pub fn black_and_white_enabled(&self) -> bool {
+    self.black_white
   }
   
-  pub fn get_instance_reference(&self) -> String {
-    self.text.clone()
+  pub fn text_centered(&self) -> bool {
+    self.text_centered
+  }
+  
+  pub fn wrap_length(&self) -> u32 {
+    self.text_wrapping
+  }
+  
+  pub fn text_outline_colour(&self) -> Vector3<f32> {
+    self.text_outline_colour
+  }
+  
+  pub fn text_edge_width(&self) -> Vector4<f32> {
+    self.text_edge_width
   }
   
   pub fn is_text(&self) -> bool {
-    self.draw_type == DrawType::TEXT
+    self.draw_type == DrawType::DRAW_TEXT
   }
   
-  pub fn is_3d_model(&self) -> bool {
-    self.draw_type == DrawType::MODEL
+  pub fn is_texture(&self) -> bool {
+    (self.draw_type == DrawType::DRAW_TEXTURED || self.draw_type == DrawType::DRAW_COLOURED)
   }
   
-  pub fn is_custom_vao(&self) -> bool {
-    self.draw_type == DrawType::CUSTOM_VAO
+  pub fn is_instanced_texture(&self) -> bool {
+    self.draw_type == DrawType::DRAW_INSTANCED_TEXTURED
   }
   
-  pub fn is_vao_update(&self) -> bool {
-    self.draw_type == DrawType::UPDATE_VAO
+  pub fn is_model(&self) -> bool {
+    self.draw_type == DrawType::DRAW_MODEL
   }
   
-  pub fn is_instanced(&self) -> bool {
-    self.draw_type == DrawType::INSTANCED
+  pub fn is_custom_shape(&self) -> bool {
+    (self.draw_type == DrawType::DRAW_CUSTOM_SHAPE_COLOURED || self.draw_type == DrawType::DRAW_CUSTOM_SHAPE_TEXTURED)
   }
-} 
+  
+  pub fn is_shape_update(&self) -> bool {
+    self.draw_type == DrawType::UPDATE_CUSTOM_SHAPE
+  }
+}
 
 pub fn get_text_length(text: String, size: f32, font: String, fonts: HashMap<String, GenericFont>) -> f32 {
   let mut length = 0.0;
@@ -436,13 +551,17 @@ pub fn setup_correct_wrapping(draw: DrawCall, fonts: HashMap<String, GenericFont
   
   let init_translation = {
     let mut temp = 0.0;
-    if draw.is_centered() {
-      temp = get_text_length(draw.get_text().clone(), draw.get_size().x, draw.get_texture().clone(), fonts.clone())*0.5;
+    if draw.text_centered() {
+      if let Some(display_text) = draw.display_text().clone() {
+        if let Some(font_name) = draw.font_name().clone() {
+          temp = get_text_length(display_text, draw.scale().x, font_name, fonts.clone())*0.5;
+        }
+      }
     }
-    draw.get_translation().x-temp
+    draw.position().x-temp
   };
   
-  let mut translation = draw.get_translation();
+  let mut translation = draw.position();
   translation.x = init_translation;
   
   //let mut position = 0;
@@ -452,48 +571,56 @@ pub fn setup_correct_wrapping(draw: DrawCall, fonts: HashMap<String, GenericFont
   
   let mut y_offset = 0.0;
   
-  let size = draw.get_x_size();
+  let size = draw.scale().x;
   
-  if draw.get_wrap_length() <= 0 {
-    for letter in draw.get_text().as_bytes() {
-      let c = fonts.get(draw.get_texture()).expect("Unkown Text type").get_character(*letter as i32);
-      
-      //let size = draw.get_x_size();
-      
-      if *letter != ' ' as u8 {
-        new_draw_calls.push(DrawCall::new_custom_text((*letter as char).to_string(), translation.x, translation.y+y_offset, size, 0, draw.get_colour(), draw.get_outline_colour(), draw.get_edge_width(), false, draw.get_texture_unref()));
+  if draw.wrap_length() <= 0 {
+    if let Some(display_text) = draw.display_text() {
+      for letter in display_text.as_bytes() {
+        if let Some(font_name) = draw.font_name() {
+          let c = fonts.get(&font_name).expect("Unkown Text type").get_character(*letter as i32);
+          
+          //let size = draw.get_x_size();
+          
+          if *letter != ' ' as u8 {
+            new_draw_calls.push(DrawCall::draw_text_custom(Vector2::new(translation.x, translation.y+y_offset), Vector2::new(size, size), draw.colour(), draw.text_outline_colour(), draw.text_edge_width(), false, 0, (*letter as char).to_string(), font_name));
+          }
+          translation.x+=c.get_advance() as f32 * (size/640.0); 
+        }
       }
-      translation.x+=c.get_advance() as f32 * (size/640.0); 
     }
   } else {
     // for wrapping
-    for letter in draw.get_text().as_bytes() {
-      let c = fonts.get(draw.get_texture()).unwrap().get_character(*letter as i32);
-      
-      if *letter == ' ' as u8 {
-        let distance = translation.x - init_translation;
-        if distance > draw.get_wrap_length() as f32 {
-          // new line
-          translation.x = init_translation;
-          y_offset += (size/10.0) * -1.0;//-32.0
-        
-         /* let temp_diff = new_draw_calls[last_space_position-number_of_words]
-          for i in last_space_position-number_of_words..position-num_of_words {
+    if let Some(display_text) = draw.display_text() {
+      for letter in display_text.as_bytes() {
+        if let Some(font_name) = draw.font_name() {
+          let c = fonts.get(&font_name).unwrap().get_character(*letter as i32);
+          
+          if *letter == ' ' as u8 {
+            let distance = translation.x - init_translation;
+            if distance > draw.wrap_length() as f32 {
+              // new line
+              translation.x = init_translation;
+              y_offset += (size/10.0) * -1.0;//-32.0
             
-          }*/
-        } else {
-          translation.x+=c.get_advance() as f32 * (size/640.0); 
+             /* let temp_diff = new_draw_calls[last_space_position-number_of_words]
+              for i in last_space_position-number_of_words..position-num_of_words {
+                
+              }*/
+            } else {
+              translation.x+=c.get_advance() as f32 * (size/640.0); 
+            }
+            
+            //last_space_position = position;
+            // number_of_words += 1;
+          } else {
+            
+            new_draw_calls.push(DrawCall::draw_text_custom(Vector2::new(translation.x, translation.y+y_offset), Vector2::new(size, size), draw.colour(), draw.text_outline_colour(), draw.text_edge_width(), false, 0, (*letter as char).to_string(), font_name));
+            
+            translation.x+=c.get_advance() as f32 * (size/640.0); 
+          }
+          //position += 1;
         }
-        
-        //last_space_position = position;
-        // number_of_words += 1;
-      } else {
-        
-        new_draw_calls.push(DrawCall::new_custom_text((*letter as char).to_string(), translation.x, translation.y+y_offset, size, 0, draw.get_colour(), draw.get_outline_colour(), draw.get_edge_width(), false, draw.get_texture_unref()));
-        
-        translation.x+=c.get_advance() as f32 * (size/640.0); 
       }
-      //position += 1;
     }
   }
   

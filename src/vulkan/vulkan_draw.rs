@@ -112,35 +112,36 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   let mut num_drawcalls = 0;
   
-  if let Some(model) = models.get(draw.get_texture()) {
-    let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
-                  .add_buffer(uniform_subbuffer).unwrap()
-                  .build().unwrap()
-    );
-    
-    for i in 0..model.len() {
-      num_drawcalls += 1;
-      let material_set = model[i].material_desctriptor.clone();
+  if let Some(model_name) = draw.model_name() {
+    if let Some(model) = models.get(&model_name) {
+      let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                    .add_buffer(uniform_subbuffer).unwrap()
+                    .build().unwrap()
+      );
       
-      let cb = tmp_cmd_buffer;
-      
-      tmp_cmd_buffer = cb.draw_indexed(
-               pipeline.clone(),
-                 DynamicState {
-                   line_width: None,
-                   viewports: Some(vec![Viewport {
-                     origin: [0.0, 0.0],
-                     dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                     depth_range: 0.0 .. 1.0,
-                   }]),
-                   scissors: None,
-                 },
-                 model[i].vertex_buffer.clone().unwrap(),
-                 model[i].index_buffer.clone().unwrap(), 
-                 (set_3d.clone(), material_set.clone()), ()).unwrap();
+      for i in 0..model.len() {
+        num_drawcalls += 1;
+        let material_set = model[i].material_desctriptor.clone();
+        
+        let cb = tmp_cmd_buffer;
+        tmp_cmd_buffer = cb.draw_indexed(
+                 pipeline.clone(),
+                   DynamicState {
+                     line_width: None,
+                     viewports: Some(vec![Viewport {
+                       origin: [0.0, 0.0],
+                       dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                       depth_range: 0.0 .. 1.0,
+                     }]),
+                     scissors: None,
+                   },
+                   model[i].vertex_buffer.clone().unwrap(),
+                   model[i].index_buffer.clone().unwrap(), 
+                   (set_3d.clone(), material_set.clone()), ()).unwrap();
+      }
+    } else {
+      println!("Error: Model {} isn't loaded or does not exist.", model_name);
     }
-  } else {
-    println!("Error: Model {} doesn't exist", draw.get_texture());
   }
   
   (tmp_cmd_buffer, num_drawcalls)
@@ -164,12 +165,17 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   let mut texture = temp_tex;
   
-  if draw.get_texture() != &String::from("") {
-    if textures.contains_key(draw.get_texture()) {
-      texture = textures.get(draw.get_texture()).unwrap().clone();
-    } else {
-      println!("Texture not found: {}", draw.get_texture());
+  if let Some(texture_name) = draw.texture_name() {
+    if texture_name != String::from("") {
+      if textures.contains_key(&texture_name) {
+        texture = textures.get(&texture_name).unwrap().clone();
+        println!("{}", texture_name);
+      } else {
+        println!("Texture not found: {}", texture_name);
+      }
     }
+  } else {
+    println!("No texture");
   }
   
   let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
@@ -177,50 +183,52 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .build().unwrap());
   
-  if draw.is_custom_vao() {
-    if custom_vao.contains_key(draw.get_text()) {
-      let vertex_buffer = custom_vao.get(draw.get_text()).unwrap()
-                            .vertex_buffer.clone()
-                            .expect("Error: Unwrapping static custom vertex buffer failed!");
-      let index_buffer = custom_vao.get(draw.get_text()).unwrap()
-                             .index_buffer.clone()
-                             .expect("Error: Unwrapping static custom index buffer failed!");
-      tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                                        DynamicState {
-                                          line_width: None,
-                                          viewports: Some(vec![Viewport {
-                                            origin: [0.0, 0.0],
-                                            dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                            depth_range: 0.0 .. 1.0,
-                                          }]),
-                                          scissors: None,
-                                        },
-                                        vertex_buffer,
-                                        index_buffer,
-                                        uniform_set, ()).unwrap();
-    } else if custom_dynamic_vao.contains_key(draw.get_text()) {
-      let vertex_buffer = custom_dynamic_vao.get(draw.get_text()).unwrap()
+  if draw.is_custom_shape() {
+    if let Some(shape_name) = draw.shape_name() {
+      if custom_vao.contains_key(&shape_name) {
+        let vertex_buffer = custom_vao.get(&shape_name).unwrap()
                               .vertex_buffer.clone()
                               .expect("Error: Unwrapping static custom vertex buffer failed!");
-      let index_buffer = custom_dynamic_vao.get(draw.get_text()).unwrap()
-                             .index_buffer.clone()
-                             .expect("Error: Unwrapping static custom index buffer failed!");
-      
-      tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                                        DynamicState {
-                                          line_width: None,
-                                          viewports: Some(vec![Viewport {
-                                            origin: [0.0, 0.0],
-                                            dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                            depth_range: 0.0 .. 1.0,
-                                          }]),
-                                          scissors: None,
-                                        },
-                                        vertex_buffer,
-                                        index_buffer,
-                                        uniform_set, ()).unwrap();
-    } else {
-      println!("Error: custom vao {:?} does not exist!", draw.get_text());
+        let index_buffer = custom_vao.get(&shape_name).unwrap()
+                               .index_buffer.clone()
+                               .expect("Error: Unwrapping static custom index buffer failed!");
+        tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
+                                          DynamicState {
+                                            line_width: None,
+                                            viewports: Some(vec![Viewport {
+                                              origin: [0.0, 0.0],
+                                              dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                                              depth_range: 0.0 .. 1.0,
+                                            }]),
+                                            scissors: None,
+                                          },
+                                          vertex_buffer,
+                                          index_buffer,
+                                          uniform_set, ()).unwrap();
+      } else if custom_dynamic_vao.contains_key(&shape_name) {
+        let vertex_buffer = custom_dynamic_vao.get(&shape_name).unwrap()
+                                .vertex_buffer.clone()
+                                .expect("Error: Unwrapping static custom vertex buffer failed!");
+        let index_buffer = custom_dynamic_vao.get(&shape_name).unwrap()
+                               .index_buffer.clone()
+                               .expect("Error: Unwrapping static custom index buffer failed!");
+        
+        tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
+                                          DynamicState {
+                                            line_width: None,
+                                            viewports: Some(vec![Viewport {
+                                              origin: [0.0, 0.0],
+                                              dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                                              depth_range: 0.0 .. 1.0,
+                                            }]),
+                                            scissors: None,
+                                          },
+                                          vertex_buffer,
+                                          index_buffer,
+                                          uniform_set, ()).unwrap();
+      } else {
+        println!("Error: custom shape {:?} does not exist!", shape_name);
+      }
     }
   } else {
     let vertex_buffer = vao.vertex_buffer.clone().expect("Error: Unwrapping vertex buffer failed!");
@@ -255,11 +263,13 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   
   let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), fonts.clone());
-  let size = draw.get_x_size();
+  let size = draw.scale().x;
   
-  if !fonts.contains_key(draw.get_texture()) || !textures.contains_key(draw.get_texture()) {
-    println!("Error: text couldn't draw, Texture: {:?}", draw.get_texture());
-    return (tmp_cmd_buffer, 0)
+  if let Some(font_name) = draw.font_name() {
+    if !fonts.contains_key(&font_name) || !textures.contains_key(&font_name) {
+      println!("Error: text couldn't draw, Texture: {:?}", font_name);
+      return (tmp_cmd_buffer, 0)
+    }
   }
   
   let vertex_buffer = vao.vertex_buffer.clone()
@@ -269,48 +279,50 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
   
   for letter in wrapped_draw {
     let char_letter = {
-      letter.get_text().as_bytes()[0] 
+      letter.display_text().unwrap().as_bytes()[0] 
     };
     
-    let c = fonts.get(draw.get_texture()).unwrap().get_character(char_letter as i32);
-    
-    let model = drawcalls::calculate_text_model(letter.get_translation(), size, &c.clone(), char_letter);
-    let letter_uv = drawcalls::calculate_text_uv(&c.clone());
-    let colour = letter.get_colour();
-    let outline = letter.get_outline_colour();
-    let edge_width = letter.get_edge_width(); 
-    
-    let uniform_buffer_text_subbuffer = {
-      let uniform_data = vs_text::ty::Data {
-        outlineColour: outline.into(),
-        colour: colour.into(),
-        edge_width: edge_width.into(),
-        letter_uv: letter_uv.into(),
-        model: model.into(),
-        projection: projection.into(),
+    if let Some(font_name) = draw.font_name() {
+      let c = fonts.get(&font_name).unwrap().get_character(char_letter as i32);
+      
+      let model = drawcalls::calculate_text_model(letter.position(), size, &c.clone(), char_letter);
+      let letter_uv = drawcalls::calculate_text_uv(&c.clone());
+      let colour = letter.colour();
+      let outline = letter.text_outline_colour();
+      let edge_width = letter.text_edge_width(); 
+      
+      let uniform_buffer_text_subbuffer = {
+        let uniform_data = vs_text::ty::Data {
+          outlineColour: outline.into(),
+          colour: colour.into(),
+          edge_width: edge_width.into(),
+          letter_uv: letter_uv.into(),
+          model: model.into(),
+          projection: projection.into(),
+        };
+        uniform_buffer.next(uniform_data).unwrap()
       };
-      uniform_buffer.next(uniform_data).unwrap()
-    };
-    
-    let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
-                               .add_sampled_image(textures.get(draw.get_texture()).unwrap().clone(), sampler.clone()).unwrap()
-                               .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
-                               .build().unwrap());
-    
-    num_drawcalls += 1;
-    tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                            DynamicState {
-                              line_width: None,
-                              viewports: Some(vec![Viewport {
-                                origin: [0.0, 0.0],
-                                dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                depth_range: 0.0 .. 1.0,
-                              }]),
-                              scissors: None,
-                            },
-                            vertex_buffer.clone(),
-                            index_buffer.clone(),
-                            uniform_set, ()).unwrap();
+      
+      let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                                 .add_sampled_image(textures.get(&font_name).unwrap().clone(), sampler.clone()).unwrap()
+                                 .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
+                                 .build().unwrap());
+      
+      num_drawcalls += 1;
+      tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
+                              DynamicState {
+                                line_width: None,
+                                viewports: Some(vec![Viewport {
+                                  origin: [0.0, 0.0],
+                                  dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                                  depth_range: 0.0 .. 1.0,
+                                }]),
+                                scissors: None,
+                              },
+                              vertex_buffer.clone(),
+                              index_buffer.clone(),
+                              uniform_set, ()).unwrap();
+    }
   }
   
   (tmp_cmd_buffer, num_drawcalls)
