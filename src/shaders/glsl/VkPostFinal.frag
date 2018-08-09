@@ -10,7 +10,7 @@ layout(set = 0, binding = 2) uniform sampler2D tex2d;
 layout(set = 0, binding = 3) uniform sampler2D bloom;
 
 void main() {
-  vec3 final_colour = texture(tex3d, uvs).rgb;
+  vec4 final_colour = texture(tex3d, uvs);
   
   vec4 colour2d = texture(tex2d, uvs);
   vec3 bloom = texture(bloom, uvs).rgb;
@@ -20,14 +20,14 @@ void main() {
     const float exposure = 0.75;
     bloom = vec3(1.0) - exp(-bloom * exposure);
     bloom = pow(bloom, vec3(1.0 / gamma));
-    final_colour += bloom;
+    final_colour.rgb += bloom;
     
    // vec3 mapped = colour / (colour + vec3(1.0));
     
     //colour = pow(mapped, vec3(1.0 / gamma));
   }
   
-  final_colour += colour2d.rgb * colour2d.a;
+//  final_colour += colour2d.rgb; * colour2d.a;
   
-  outColour = vec4(final_colour.rgb, 1.0);
+  outColour = final_colour;//vec4(final_colour.rgb, 1.0);
 }

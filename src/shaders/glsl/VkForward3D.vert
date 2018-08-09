@@ -35,7 +35,7 @@ void main() {
     
     v_position = vec3(worldPosition.xyz) / worldPosition.w;
     v_uv = vec2(uv.x, uv.y);
-   // v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
+    // v_normal = mat3(transpose(inverse(uniforms.transformation))) * normal;
     //v_tangent = mat3(transpose(inverse(uniforms.transformation))) * tangent;
     v_colours = colour;
     

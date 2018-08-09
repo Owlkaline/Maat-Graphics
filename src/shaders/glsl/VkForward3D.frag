@@ -81,13 +81,13 @@ vec3 get_normal() {
   vec3 n = tbn[2].xyz;
   if (u_material_params.normal_texture_tex_coord == 0) {
     n = texture(u_normal_texture, v_uv).rgb;
-    n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_material_params.normal_texture_scale, u_material_params.normal_texture_scale, 1.0)));
+    n = tbn * ((2.0 * n - 1.0) * vec3(u_material_params.normal_texture_scale, u_material_params.normal_texture_scale, 1.0));
   }
   
   // gl front facing?
   // n *= (2.0 * float(gl_FrontFacing) - 1.0);
   
-  return n;
+  return normalize(n);
 }
 
 // Lambertian diffuse, Photometria
@@ -161,6 +161,8 @@ void main() {
   vec3 specular_eviroment_r0 = specular_colour.rgb;
   vec3 specular_eviroment_r90 = vec3(1.0, 1.0, 1.0) * reflectance90;
   
+  //vec3 colour = vec3(1.0, 1.0, 1.0) * 0.01 * base_colour.rgb;
+  
   // Lights and stuff start here
   vec3 N = get_normal();
   vec3 V = normalize(toCameraVector);
@@ -183,7 +185,7 @@ void main() {
   vec3 colour = NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
   
   // colour += Ambient light colour + intensity + base colour
-  colour += vec3(1.0, 1.0, 1.0) * 0.01 * base_colour.rgb;
+  colour += vec3(1.0, 1.0, 1.0) * 0.005 * base_colour.rgb;
   
   if (u_material_params.occlusion_texture_tex_coord != -1) {
     float ao = texture(u_occlusion_texture, v_uv).r;
