@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use cgmath::Vector3;
 use cgmath::Matrix4;
 
-use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_forwardbuffer_3d, vs_text, vs_texture, fs_lights};
+use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_shadow, vs_forwardbuffer_3d, vs_text, vs_texture, fs_lights};
 use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
@@ -29,6 +29,7 @@ use font::GenericFont;
 pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
                pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
                vertex_buffer: Arc<BufferAccess + Send + Sync>,
+               dynamic_state: &DynamicState,
                colour_attachment: Arc<vkimage::AttachmentImage>,
                normal_attachment: Arc<vkimage::AttachmentImage>,
                position_attachment: Arc<vkimage::AttachmentImage>,
@@ -57,15 +58,7 @@ pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
   
   tmp_cmd_buffer = cb.draw(
                pipeline.clone(),
-                 DynamicState {
-                   line_width: None,
-                   viewports: Some(vec![Viewport {
-                     origin: [0.0, 0.0],
-                     dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                     depth_range: 0.0 .. 1.0,
-                   }]),
-                   scissors: None,
-                 },
+                 dynamic_state,
                  vec!(vertex_buffer.clone()),
                  set_3d, push_constants).unwrap();
   
@@ -74,6 +67,7 @@ pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
 
 pub fn draw_bloompass(tmp_cmd_buffer: AutoCommandBufferBuilder,
                pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+               dynamic_state: &DynamicState,
                vertex_buffer: Arc<BufferAccess + Send + Sync>,
                colour_attachment: Arc<vkimage::AttachmentImage>,
                dimensions: [u32; 2]) -> AutoCommandBufferBuilder {
@@ -88,27 +82,57 @@ pub fn draw_bloompass(tmp_cmd_buffer: AutoCommandBufferBuilder,
   
   tmp_cmd_buffer = cb.draw(
                pipeline.clone(),
-                 DynamicState {
-                   line_width: None,
-                   viewports: Some(vec![Viewport {
-                     origin: [0.0, 0.0],
-                     dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                     depth_range: 0.0 .. 1.0,
-                   }]),
-                   scissors: None,
-                 },
+                 dynamic_state,
                  vec!(vertex_buffer.clone()),
                  set_3d, ()).unwrap();
   
   tmp_cmd_buffer
 }
 
+pub fn draw_3d_depth(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
+               models: &HashMap<String, Vec<Mesh>>,
+               pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+               dynamic_state: &DynamicState,
+               uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_shadow::ty::Data, Arc<memory::pool::StdMemoryPool>>,
+               dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
+  let mut tmp_cmd_buffer = tmp_cmd_buffer;
+  let mut num_drawcalls = 0;
+  
+  if let Some(model_name) = draw.model_name() {
+    if let Some(model) = models.get(&model_name) {
+      let set_depth = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
+                    .add_buffer(uniform_subbuffer).unwrap()
+                    .build().unwrap()
+      );
+      
+      for i in 0..model.len() {
+        //num_drawcalls += 1;
+        let material_set = model[i].material_desctriptor.clone();
+        
+        let cb = tmp_cmd_buffer;
+        tmp_cmd_buffer = cb.draw_indexed(
+                 pipeline.clone(),
+                  dynamic_state,
+                   model[i].vertex_buffer.clone().unwrap(),
+                   model[i].index_buffer.clone().unwrap(), 
+                   set_depth.clone(), ()).unwrap();
+      }
+    } else {
+      println!("Error: Model {} isn't loaded or does not exist.", model_name);
+    }
+  }
+  
+  (tmp_cmd_buffer, num_drawcalls)
+}
+
 pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                models: &HashMap<String, Vec<Mesh>>, projection: Matrix4<f32>,
                view_matrix: Matrix4<f32>,
                pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+               dynamic_state: &DynamicState,
+               depth_attachment: Arc<vkimage::AttachmentImage>,
                uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_forwardbuffer_3d::ty::Data, Arc<memory::pool::StdMemoryPool>>,
-               dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
+               device: Arc<Device>, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   let mut tmp_cmd_buffer = tmp_cmd_buffer;
   let mut num_drawcalls = 0;
   
@@ -116,6 +140,11 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
     if let Some(model) = models.get(&model_name) {
       let set_3d = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                     .add_buffer(uniform_subbuffer).unwrap()
+                    .build().unwrap()
+      );
+      let sampler = sampler::Sampler::simple_repeat_linear(device.clone());
+      let set_depth = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 2)
+                    .add_sampled_image(depth_attachment,sampler).unwrap()
                     .build().unwrap()
       );
       
@@ -126,18 +155,10 @@ pub fn draw_3d(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
         let cb = tmp_cmd_buffer;
         tmp_cmd_buffer = cb.draw_indexed(
                  pipeline.clone(),
-                   DynamicState {
-                     line_width: None,
-                     viewports: Some(vec![Viewport {
-                       origin: [0.0, 0.0],
-                       dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                       depth_range: 0.0 .. 1.0,
-                     }]),
-                     scissors: None,
-                   },
+                  dynamic_state,
                    model[i].vertex_buffer.clone().unwrap(),
                    model[i].index_buffer.clone().unwrap(), 
-                   (set_3d.clone(), material_set.clone()), ()).unwrap();
+                   (set_3d.clone(), material_set.clone(), set_depth.clone()), ()).unwrap();
       }
     } else {
       println!("Error: Model {} isn't loaded or does not exist.", model_name);
@@ -154,6 +175,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  projection: Matrix4<f32>, sampler: Arc<sampler::Sampler>,
                  uniform_subbuffer: cpu_pool::CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<memory::pool::StdMemoryPool>>,
                  pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+                 dynamic_state: &DynamicState,
                  subpass: framebuffer::Subpass<Arc<RenderPassAbstract + Send + Sync>>,
                  device: Arc<Device>, queue: Arc<Queue>, queue_family: QueueFamily, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
   // Texture
@@ -192,15 +214,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                                .index_buffer.clone()
                                .expect("Error: Unwrapping static custom index buffer failed!");
         tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                                          DynamicState {
-                                            line_width: None,
-                                            viewports: Some(vec![Viewport {
-                                              origin: [0.0, 0.0],
-                                              dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                              depth_range: 0.0 .. 1.0,
-                                            }]),
-                                            scissors: None,
-                                          },
+                                          dynamic_state,
                                           vertex_buffer,
                                           index_buffer,
                                           uniform_set, ()).unwrap();
@@ -213,15 +227,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                                .expect("Error: Unwrapping static custom index buffer failed!");
         
         tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                                          DynamicState {
-                                            line_width: None,
-                                            viewports: Some(vec![Viewport {
-                                              origin: [0.0, 0.0],
-                                              dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                              depth_range: 0.0 .. 1.0,
-                                            }]),
-                                            scissors: None,
-                                          },
+                                          dynamic_state,
                                           vertex_buffer,
                                           index_buffer,
                                           uniform_set, ()).unwrap();
@@ -233,15 +239,7 @@ pub fn draw_texture(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
     let vertex_buffer = vao.vertex_buffer.clone().expect("Error: Unwrapping vertex buffer failed!");
     let index_buffer = vao.index_buffer.clone().expect("Error: Unwrapping index buffer failed!");
     tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                                        DynamicState {
-                                          line_width: None,
-                                          viewports: Some(vec![Viewport {
-                                            origin: [0.0, 0.0],
-                                            dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                            depth_range: 0.0 .. 1.0,
-                                          }]),
-                                          scissors: None,
-                                        },
+                                        dynamic_state,
                                         vertex_buffer,
                                         index_buffer,
                                         uniform_set, ()).unwrap();
@@ -255,6 +253,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
                  projection: Matrix4<f32>, vao: &Model, sampler: Arc<sampler::Sampler>,
                  uniform_buffer: &cpu_pool::CpuBufferPool<vs_text::ty::Data>,
                  pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+                 dynamic_state: &DynamicState,
                  fonts: &HashMap<String, GenericFont>,
                  subpass: framebuffer::Subpass<Arc<RenderPassAbstract + Send + Sync>>,
                  device: Arc<Device>, queue_family: QueueFamily, dimensions: [u32; 2]) -> (AutoCommandBufferBuilder, u32) {
@@ -309,15 +308,7 @@ pub fn draw_text(tmp_cmd_buffer: AutoCommandBufferBuilder, draw: &DrawCall,
       
       num_drawcalls += 1;
       tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
-                              DynamicState {
-                                line_width: None,
-                                viewports: Some(vec![Viewport {
-                                  origin: [0.0, 0.0],
-                                  dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                                  depth_range: 0.0 .. 1.0,
-                                }]),
-                                scissors: None,
-                              },
+                              dynamic_state,
                               vertex_buffer.clone(),
                               index_buffer.clone(),
                               uniform_set, ()).unwrap();

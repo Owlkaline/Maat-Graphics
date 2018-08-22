@@ -27,7 +27,7 @@ void main() {
     //colour = pow(mapped, vec3(1.0 / gamma));
   }
   
-//  final_colour += colour2d.rgb; * colour2d.a;
+  final_colour.rgb += colour2d.rgb * colour2d.a;
   
   outColour = final_colour;//vec4(final_colour.rgb, 1.0);
 }

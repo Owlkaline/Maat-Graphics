@@ -11,5 +11,5 @@ void main() {
   mat4 light_space = uniforms.light_space;
   mat4 transformation = uniforms.transformation;
   
-  gl_Position = light_space * transformation * vec4(position, 1.0);
+  gl_Position = light_space * transformation * vec4(position.x, position.y, position.z, 1.0);
 }

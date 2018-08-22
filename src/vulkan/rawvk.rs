@@ -39,7 +39,8 @@ use vulkano::image::ImageUsage;
 
 use vulkano::framebuffer;
 use vulkano::framebuffer::RenderPassAbstract;
-
+use vulkano::pipeline::viewport::Viewport;
+use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 
@@ -72,6 +73,8 @@ use cgmath::SquareMatrix;
 impl_vertex!(Vertex2d, position, uv);
 impl_vertex!(Vertex3d, position, normal, tangent, uv, colour);
 
+const SHADOW_ATTACHMENT: usize = 0;
+
 const FORWARDBUFFER_MS_COLOUR: usize = 0;
 const FORWARDBUFFER_MS_DEPTH: usize = 1;
 const FORWARDBUFFER_FULLCOLOUR: usize = 2;
@@ -82,7 +85,6 @@ const TEXT_PIPIELINE: usize = 1;
 
 const TEXTURE_FULLCOLOUR: usize = 1;
 
-pub const SHADOW_MAP_DIM: u32 = 1024;
 pub const BLUR_DIM: u32 = 512;
 
 pub mod vs_texture {
@@ -251,6 +253,9 @@ pub struct VK3D {
   projection: Matrix4<f32>,
   scale: Matrix4<f32>,
   
+  shadowbuffer_renderpass: CustomRenderpass,
+  shadow_uniform_buffer: cpu_pool::CpuBufferPool<vs_shadow::ty::Data>,
+  
   forwardbuffer_subpass_vertex: Arc<BufferAccess + Send + Sync>,
   forwardbuffer_renderpass: CustomRenderpass,
   
@@ -300,6 +305,7 @@ pub struct RawVk {
   min_dimensions: [u32; 2],
   pub window: VkWindow,
   
+  default_dynamic_state: DynamicState,
   recreate_swapchain: bool,
   window_actual_size: LogicalSize,
   
@@ -336,10 +342,11 @@ impl RawVk {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
- 
+    
     let text_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let texture_uniform = cpu_pool::CpuBufferPool::new(window.get_device(), BufferUsage::uniform_buffer());
     let uniform_3d = cpu_pool::CpuBufferPool::<vs_forwardbuffer_3d::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
+    let shadow_uniform_buffer = cpu_pool::CpuBufferPool::<vs_shadow::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     let post_final_uniform = cpu_pool::CpuBufferPool::<vs_post_final::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
     
     let post_blur_uniform = cpu_pool::CpuBufferPool::<vs_post_blur::ty::Data>::new(window.get_device(), BufferUsage::uniform_buffer());
@@ -387,6 +394,16 @@ impl RawVk {
     
     let lightpass_vertexbuffer = vulkan_3d::create_subpass_vertex(window.get_device());
     
+    
+    let dynamic_state = DynamicState {
+                     line_width: None,
+                     viewports: Some(vec![Viewport {
+                       origin: [0.0, 0.0],
+                       dimensions: [dim[0] as f32, dim[1] as f32],
+                       depth_range: 0.0 .. 1.0,
+                     }]),
+                     scissors: None,
+                   };
     RawVk {
       num_drawcalls: 0,
       shaders_loaded: false,
@@ -414,6 +431,8 @@ impl RawVk {
         projection: proj_3d,
         scale: scale,
         
+        shadow_uniform_buffer: shadow_uniform_buffer,
+        shadowbuffer_renderpass: CustomRenderpass::new_empty(),
         forwardbuffer_subpass_vertex: lightpass_vertexbuffer,
         forwardbuffer_renderpass: CustomRenderpass::new_empty(),
         
@@ -461,6 +480,7 @@ impl RawVk {
       min_dimensions: [min_width, min_height],
       window: window,
       
+      default_dynamic_state: dynamic_state,
       recreate_swapchain: false,
       window_actual_size: LogicalSize::new(dim[0] as f64, dim[1] as f64),
       
@@ -584,8 +604,7 @@ impl CoreRender for RawVk {
                                             format::R8G8B8A8Unorm, self.window.get_queue())
                                             .expect("Failed to create immutable image");
     
-    let default_descriptor_set =
-      Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0).clone(), 1)
+    let default_descriptor_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0).clone(), 1)
               .add_buffer(material_params)
               .unwrap()
               .add_sampled_image(temp_tex.clone(), default_sampler.clone())
@@ -872,7 +891,6 @@ impl CoreRender for RawVk {
     self.previous_frame_end = Some(Box::new(future_idx.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
     let vs_plain = vs_plain::Shader::load(self.window.get_device()).expect("failed to create shader module");
-    
     let vs_forwardbuffer_3d = vs_forwardbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_forwardbuffer_3d = fs_forwardbuffer_3d::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_texture = vs_texture::Shader::load(self.window.get_device()).expect("failed to create shader module");
@@ -883,8 +901,11 @@ impl CoreRender for RawVk {
     let fs_post_final = fs_post_final::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let vs_post_blur = vs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
     let fs_post_blur = fs_post_blur::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let vs_shadow = vs_shadow::Shader::load(self.window.get_device()).expect("failed to create shader module");
+    let fs_shadow = fs_shadow::Shader::load(self.window.get_device()).expect("failed to create shader module");
     
     self.vk3d.forwardbuffer_renderpass = vulkan_3d::create_forwardbuffer(self.window.get_device(), dimensions, self.samples);
+    self.vk3d.shadowbuffer_renderpass = vulkan_3d::create_shadow_renderpass(self.window.get_device());
     self.vk2d.texture_renderpass = vulkan_2d::create_texturebuffer(self.window.get_device(), dimensions, self.samples);
     
     let blur_ping_renderpass = Arc::new(single_pass_renderpass!(self.window.get_device(),
@@ -987,6 +1008,12 @@ impl CoreRender for RawVk {
     self.vk2d.uniform_buffer_texture = cpu_pool::CpuBufferPool::<vs_texture::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
     
     self.vk2d.uniform_buffer_text = cpu_pool::CpuBufferPool::<vs_text::ty::Data>::new(self.window.get_device(), BufferUsage::uniform_buffer());
+    
+    self.default_dynamic_state.viewports = Some(vec![Viewport {
+                       origin: [0.0, 0.0],
+                       dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                       depth_range: 0.0 .. 1.0,
+                     }]);
     
     self.shaders_loaded = true;
   }
@@ -1106,6 +1133,9 @@ impl CoreRender for RawVk {
         let renderpass = &mut self.vk3d.forwardbuffer_renderpass;
         vulkan_3d::recreate_forwardbuffer(renderpass, device.clone(), dimensions, self.samples);
         
+        let renderpass = &mut self.vk3d.shadowbuffer_renderpass;
+        vulkan_3d::recreate_shadow_renderpass(renderpass, device.clone());
+        
         let renderpass = &mut self.vk2d.texture_renderpass;
         vulkan_2d::recreate_texturebuffer(renderpass, device, dimensions, self.samples);
       }
@@ -1114,6 +1144,12 @@ impl CoreRender for RawVk {
           q.supports_graphics()
         }
       )).unwrap();
+      
+      self.default_dynamic_state.viewports = Some(vec![Viewport {
+                       origin: [0.0, 0.0],
+                       dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+                       depth_range: 0.0 .. 1.0,
+                     }]);
       
       // Attachment doesnt need updating as they dont resize?
      /* let blur_ping_renderpass = self.vkpost.blur_ping_renderpass.renderpass();
@@ -1171,25 +1207,38 @@ impl CoreRender for RawVk {
     let command_buffer: AutoCommandBuffer = {
       let texture_subpass = framebuffer::Subpass::from(self.vk2d.texture_renderpass.renderpass(), 0).unwrap();
       let model_subpass = framebuffer::Subpass::from(self.vk3d.forwardbuffer_renderpass.renderpass(), 0).unwrap();
+      let shadow_subpass = framebuffer::Subpass::from(self.vk3d.shadowbuffer_renderpass.renderpass(), 0).unwrap();
       
       let mut texture_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), texture_subpass).unwrap();
       let mut model_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), model_subpass).unwrap();
+      let mut shadow_cmd_buffer: AutoCommandBufferBuilder = AutoCommandBufferBuilder::secondary_graphics_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family(), shadow_subpass).unwrap();
       
       for draw in draw_calls {
         if draw.is_model() { // 3D
           let models = &self.vk3d.models;
+          
+          let depth_pipeline = self.vk3d.shadowbuffer_renderpass.pipeline_subpass(0);
+          let uniform_buffer = self.vk3d.shadow_uniform_buffer.clone();
+          let depth_subbuffer = vulkan_3d::create_shadow_subbuffer(draw.clone(), uniform_buffer);
+          let dynamic_state = &self.default_dynamic_state;
+          let (shadow_cmd, num_calls) = vulkan_draw::draw_3d_depth(shadow_cmd_buffer, draw, models, depth_pipeline, dynamic_state, depth_subbuffer, dimensions);
+          
           let projection = self.vk3d.projection;
           let view_matrix = self.vk3d.camera.get_view_matrix();
-          let uniform_buffer = self.vk3d.uniform_buffer.clone();
           let pipeline = self.vk3d.forwardbuffer_renderpass.pipeline_subpass(0);
+          let uniform_buffer = self.vk3d.uniform_buffer.clone();
+          let device = self.window.get_device();
+          let depth_attachment = self.vk3d.shadowbuffer_renderpass.attachment(SHADOW_ATTACHMENT);
+          let dynamic_state = &self.default_dynamic_state;
           let subbuffer = vulkan_3d::create_3d_subbuffer(
                                                draw.clone(), 
                                                projection, 
                                                view_matrix, uniform_buffer
                                              );
+          let (model_cmd, num_calls) = vulkan_draw::draw_3d(model_cmd_buffer, draw, models, projection, 
+                                                            view_matrix, pipeline, dynamic_state, depth_attachment, subbuffer, device, dimensions);
           
-          let (model_cmd, num_calls) = vulkan_draw::draw_3d(model_cmd_buffer, draw, models, projection, view_matrix, pipeline, 
-                               subbuffer, dimensions);
+          shadow_cmd_buffer = shadow_cmd;
           model_cmd_buffer = model_cmd;
           
           self.num_drawcalls += num_calls;
@@ -1221,11 +1270,12 @@ impl CoreRender for RawVk {
             let uniform_buffer = &self.vk2d.uniform_buffer_text;
             let queue_family = self.window.get_queue_ref().family();
             let device = self.window.get_device();
+            let dynamic_state = &self.default_dynamic_state;
             
             let (texture_cmd, num_calls) = vulkan_draw::draw_text(texture_cmd_buffer, 
                                                                   draw, textures, 
                                                                   projection, vao, sampler, 
-                                                                  uniform_buffer, pipeline, 
+                                                                  uniform_buffer, pipeline, dynamic_state,
                                                                   fonts, subpass, device, 
                                                                   queue_family, dimensions);
             texture_cmd_buffer = texture_cmd;
@@ -1244,11 +1294,12 @@ impl CoreRender for RawVk {
             let queue = self.window.get_queue();
             let queue_family = self.window.get_queue_ref().family();
             let device = self.window.get_device();
+            let dynamic_state = &self.default_dynamic_state;
             let (texture_cmd, num_calls) = vulkan_draw::draw_texture(texture_cmd_buffer, draw, textures,
                                                        vao, custom_vao, 
                                                        custom_dynamic_vao, projection, 
                                                        sampler, uniform_subbuffer, 
-                                                       pipeline, subpass, device, 
+                                                       pipeline, dynamic_state, subpass, device, 
                                                        queue, queue_family, dimensions);
             texture_cmd_buffer = texture_cmd;
             self.num_drawcalls += num_calls;
@@ -1256,14 +1307,21 @@ impl CoreRender for RawVk {
         }
       }
       
+      let shadow_cmd_buffer = shadow_cmd_buffer.build().unwrap();
       let model_cmd_buffer = model_cmd_buffer.build().unwrap();
       let texture_cmd_buffer = texture_cmd_buffer.build().unwrap();
       
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
       let clear = [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w];
       
-      let build_start = tmp_cmd_buffer.begin_render_pass(self.vk3d.forwardbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
-      tmp_cmd_buffer = build_start;
+      unsafe {
+        let cb = tmp_cmd_buffer.begin_render_pass(self.vk3d.shadowbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::None]).unwrap();
+        tmp_cmd_buffer = cb.execute_commands(shadow_cmd_buffer).unwrap();
+      }
+      
+      let build_end = tmp_cmd_buffer.end_render_pass().unwrap();
+      
+      tmp_cmd_buffer = build_end.begin_render_pass(self.vk3d.forwardbuffer_renderpass.framebuffer_ref(), true, vec![ClearValue::Float(clear), ClearValue::Depth(1.0), ClearValue::None, ClearValue::None]).unwrap();
       
       unsafe {
         let cb = tmp_cmd_buffer.execute_commands(model_cmd_buffer).unwrap();
@@ -1277,8 +1335,10 @@ impl CoreRender for RawVk {
         let pipeline = self.vk3d.forwardbuffer_renderpass.pipeline_subpass(1).clone();
         let vertex = self.vk3d.forwardbuffer_subpass_vertex.clone();
         let colour_attachment = self.vk3d.forwardbuffer_renderpass.attachment(FORWARDBUFFER_FULLCOLOUR);
+        let dynamic_state = &self.default_dynamic_state;
         tmp_cmd_buffer = vulkan_draw::draw_bloompass(tmp_cmd_buffer, 
                                                      pipeline, 
+                                                     dynamic_state,
                                                      vertex, 
                                                      colour_attachment, 
                                                      dimensions);
@@ -1412,15 +1472,16 @@ impl CoreRender for RawVk {
         
         let fullcolour_3d_attachment = self.vk3d.forwardbuffer_renderpass.attachment(FORWARDBUFFER_FULLCOLOUR);
         let fullcolour_2d_attachment = self.vk2d.texture_renderpass.attachment(TEXTURE_FULLCOLOUR);
-        
+        let depth_attachment = self.vk3d.shadowbuffer_renderpass.attachment(SHADOW_ATTACHMENT);
         let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
                                .add_buffer(uniform_subbuffer.clone()).unwrap()
                                .add_sampled_image(fullcolour_3d_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                                .add_sampled_image(fullcolour_2d_attachment.clone(), self.vk2d.sampler.clone()).unwrap()
                                .add_sampled_image(fullcolour_3d_attachment, self.vk2d.sampler.clone()).unwrap()
                                .build().unwrap());
+        let dynamic_state = &self.default_dynamic_state;
         
-        tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, vertex_buffer, index_buffer, uniform_set);
+        tmp_cmd_buffer = vulkan_helper::draw_immutable(cb, dimensions, pipeline, dynamic_state, vertex_buffer, index_buffer, uniform_set);
       
       
       tmp_cmd_buffer.end_render_pass()

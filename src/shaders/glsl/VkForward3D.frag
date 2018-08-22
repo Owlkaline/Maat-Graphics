@@ -6,11 +6,12 @@ layout(location = 2) in vec4 v_tangent;
 layout(location = 3) in vec2 v_uv;
 layout(location = 4) in vec4 v_colours;
 layout(location = 5) in vec3 toCameraVector;
-layout(location = 6) in vec3 toLightVector[4];
-layout(location = 10) in vec3 lightColour[4];
-layout(location = 14) in vec3 attenuation[4];
-layout(location = 18) in float lightType[4];
-layout(location = 22) in mat3 v_tbn;
+layout(location = 6) in vec4 v_position_light_space;
+layout(location = 7) in vec3 toLightVector[4];
+layout(location = 11) in vec3 lightColour[4];
+layout(location = 15) in vec3 attenuation[4];
+layout(location = 19) in float lightType[4];
+layout(location = 23) in mat3 v_tbn;
 
 layout(location = 0) out vec4 f_colour;
 
@@ -46,13 +47,29 @@ layout(set = 1, binding = 3) uniform sampler2D u_normal_texture;
 layout(set = 1, binding = 4) uniform sampler2D u_occlusion_texture;
 layout(set = 1, binding = 5) uniform sampler2D u_emissive_texture;
 
+layout(set = 2, binding = 0) uniform sampler2D u_depth_texture;
+
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
 const vec3 c_LightColor = vec3(0.4,0.4,0.4);
 
 // flIP y
-const vec3 c_LightDirection = vec3(-0.4, 0.35, 0.2);
+const vec3 c_LightDirection = vec3(-2.0, 4.0,-1.0);//-0.4, 0.35, 0.2);
 //const vec3 c_LightDirection = vec3(0.0, 1.0, 0.0);
+
+float shadow_calculation() {
+  vec3 proj_coords = v_position_light_space.xyz / v_position_light_space.w;
+  proj_coords = proj_coords * 0.5 + 0.5;
+  
+  float closest_depth = texture(u_depth_texture, proj_coords.xy).r;
+  float current_depth = proj_coords.z;
+  
+  float bias = 0.005;
+  //float bias = max(0.05 * (1.0 - dot(v_normal, )), 0.005);
+  float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
+  
+  return shadow;
+}
 
 vec3 get_normal() {
   mat3 tbn;
@@ -185,7 +202,10 @@ void main() {
   vec3 colour = NdotL * c_LightColor * (diffuse_contrib + specular_contrib);
   
   // colour += Ambient light colour + intensity + base colour
-  colour += vec3(1.0, 1.0, 1.0) * 0.005 * base_colour.rgb;
+  vec3 ambient = vec3(1.0, 1.0, 1.0) * 0.005 * base_colour.rgb;
+  
+  float shadow = shadow_calculation();
+  colour = ambient + (1.0 - shadow) * colour;
   
   if (u_material_params.occlusion_texture_tex_coord != -1) {
     float ao = texture(u_occlusion_texture, v_uv).r;

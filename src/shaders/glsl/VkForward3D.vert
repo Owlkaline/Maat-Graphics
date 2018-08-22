@@ -12,11 +12,12 @@ layout(location = 2) out vec4 v_tangent;
 layout(location = 3) out vec2 v_uv;
 layout(location = 4) out vec4 v_colours;
 layout(location = 5) out vec3 toCameraVector;
-layout(location = 6) out vec3 toLightVector[4];
-layout(location = 10) out vec3 lightColour[4];
-layout(location = 14) out vec3 attenuation[4];
-layout(location = 18) out float lightType[4];
-layout(location = 22) out mat3 v_tbn;
+layout(location = 6) out vec4 v_position_light_space;
+layout(location = 7) out vec3 toLightVector[4];
+layout(location = 11) out vec3 lightColour[4];
+layout(location = 15) out vec3 attenuation[4];
+layout(location = 19) out float lightType[4];
+layout(location = 23) out mat3 v_tbn;
 
 layout(set = 0, binding = 0) uniform Data {
     mat4 transformation;
@@ -24,6 +25,7 @@ layout(set = 0, binding = 0) uniform Data {
     mat4 proj;
     mat4 lightpositions;
     mat4 lightcolours;
+    mat4 lightspace_matrix;
     mat4 attenuations;
 } uniforms;
 
@@ -56,6 +58,8 @@ void main() {
       lightType[i]     = uniforms.lightcolours[i].w;
       toLightVector[i] = uniforms.lightpositions[i].xyz - worldPosition.xyz;
     }
+    
+    v_position_light_space = uniforms.lightspace_matrix * vec4(worldPosition.xyz, 1.0);
     
     gl_Position = uniforms.proj * uniforms.view * worldPosition;
 }
