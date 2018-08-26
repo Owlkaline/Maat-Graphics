@@ -41,10 +41,11 @@ pub fn create_3d_projection(width: f32, height: f32) -> Matrix4<f32> {
 }
 
 fn create_lightspace_matrix() -> Matrix4<f32> {
-  let light_position = Vector3::new(2.0, -4.0,1.0);
+  let light_position = Vector3::new(2.0, 4.0, 1.0);
   let near_plane = 1.0;
   let far_plane = 7.5;
-  let light_projection = ortho(-10.0, 10.0, -10.0, 10.0, near_plane, far_plane);
+  //let light_projection = perspective(Deg(70.0), { 1920 as f32 / 1080 as f32 }, near_plane, far_plane);
+  let light_projection = ortho(10.0, -10.0, -10.0, 10.0, near_plane, far_plane);
   let light_view = Matrix4::look_at(Point3::from_vec(light_position), Point3::from_vec(Vector3::new(0.0, 0.0, 0.0)), Vector3::new(0.0, 1.0, 0.0));
   (light_projection * light_view)
 }
@@ -197,6 +198,7 @@ pub fn create_shadow_renderpass(device: Arc<Device>) -> CustomRenderpass {
       .fragment_shader(fs_shadow.main_entry_point(), ())
       //.cull_mode_front()
       .depth_stencil_simple_depth()
+      //.depth_clamp(true)
       .render_pass(framebuffer::Subpass::from(shadow_renderpass.clone(), 0).unwrap())
       .build(device.clone())
       .unwrap());

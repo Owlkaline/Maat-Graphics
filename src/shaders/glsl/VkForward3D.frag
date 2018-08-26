@@ -59,7 +59,7 @@ const vec3 c_LightDirection = vec3(-2.0, 4.0,-1.0);//-0.4, 0.35, 0.2);
 
 float shadow_calculation() {
   vec3 proj_coords = v_position_light_space.xyz / v_position_light_space.w;
-  proj_coords = proj_coords * 0.5 + 0.5;
+  proj_coords = proj_coords;
   
   float closest_depth = texture(u_depth_texture, proj_coords.xy).r;
   float current_depth = proj_coords.z;

@@ -29,5 +29,5 @@ void main() {
   
   final_colour.rgb += colour2d.rgb * colour2d.a;
   
-  outColour = final_colour;//vec4(final_colour.rgb, 1.0);
+  outColour = vec4(final_colour.rgb, 1.0);
 }
