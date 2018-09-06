@@ -258,6 +258,10 @@ impl CoreRender for VkMaat {
       Err(err) => panic!("{:?}", err)
     };
     
+    if self.resources.get_texture().is_some() {
+      println!("Loading worked!");
+    }
+    
     // draw_calls
     let command_buffer: AutoCommandBuffer = {
       let mut dimensions = {
