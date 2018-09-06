@@ -1,0 +1,11 @@
+\contentsline {section}{\numberline {1}Introduction}{3}
+\contentsline {section}{\numberline {2}Graphics API}{3}
+\contentsline {subsection}{\numberline {2.1}Window and Context Handling}{3}
+\contentsline {subsubsection}{\numberline {2.1.1}Window.rs}{3}
+\contentsline {subsubsection}{\numberline {2.1.2}Graphics.rs - CoreRender}{3}
+\contentsline {subsection}{\numberline {2.2}Vulkan}{4}
+\contentsline {subsubsection}{\numberline {2.2.1}VkMaat.rs}{4}
+\contentsline {subsubsection}{\numberline {2.2.2}resource.rs}{5}
+\contentsline {subsubsection}{\numberline {2.2.3}finalshader.rs}{6}
+\contentsline {subsection}{\numberline {2.3}OpenGl}{7}
+\contentsline {subsubsection}{\numberline {2.3.1}GlMaat.rs - (Currently rawgl.rs needs renaming)}{7}

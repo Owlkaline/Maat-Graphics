@@ -42,24 +42,24 @@ impl ResourceManager {
     }
   }
   
-  pub fn get_texture(&mut self) -> Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>> {
-    if self.objects.len() > 0 {
-      println!("More than 0");
-      match self.objects[0].object_type {
-        ObjectType::Texture(ref image) => {
-          println!("{:?}", image.clone());
-          image.clone()
-        },
-        _ => { 
-          None 
+  pub fn get_texture(&mut self, reference: String) -> Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>> {
+    let mut result = None;
+    
+    for object in &self.objects {
+      if object.reference == reference {
+        match object.object_type {
+          ObjectType::Texture(ref image) => {
+            result = image.clone()
+          },
+          _ => {}
         }
       }
-    } else {
-      None
     }
+    
+    result
   }
   
-  pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) {
+  pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) -> CommandBufferExecFuture<NowFuture, AutoCommandBuffer> {
     let mut object = LoadableObject {
       loaded: false,
       location: location.clone(),
@@ -82,12 +82,13 @@ impl ResourceManager {
         object_type: ObjectType::Texture(Some(texture)),
       };
       
-      tx.send(object).unwrap();
+      tx.send((object, future)).unwrap();
     });
     
-    let object = rx.recv().unwrap();
+    let (object, future) = rx.recv().unwrap();
     self.objects[pos] = object;
     
+    future
   }
   
   fn load_texture_into_memory(reference: String, location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
@@ -105,22 +106,6 @@ impl ResourceManager {
               format::R8G8B8A8Unorm,
               queue).unwrap()
     };
-    /*
-    objects.push(
-      LoadableObject {
-        loaded: true,
-        location: location.clone(),
-        reference: reference.clone(),
-        object_type: ObjectType::Texture(Some(texture)),
-      }
-    );*/
-    
-    //let mut otype = *object.object_type;
-//    otype = &mut ObjectType::Texture(Some(texture.clone()));
-    //*otype = ObjectType::Texture(None);
-    
-    //self.previous_frame_end = Some(Box::new(tex_future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    //self.textures.insert(reference.clone(), texture);
     
     let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);

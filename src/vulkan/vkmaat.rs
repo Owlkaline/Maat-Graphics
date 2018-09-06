@@ -152,7 +152,9 @@ impl CoreRender for VkMaat {
   
   fn load_texture(&mut self, reference: String, location: String) {
     let queue = self.window.get_queue();
-    self.resources.load_texture(reference, location, queue);
+    let future = self.resources.load_texture(reference, location, queue);
+    
+    self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
   }
   
   // Load fonts
@@ -257,10 +259,6 @@ impl CoreRender for VkMaat {
       },
       Err(err) => panic!("{:?}", err)
     };
-    
-    if self.resources.get_texture().is_some() {
-      println!("Loading worked!");
-    }
     
     // draw_calls
     let command_buffer: AutoCommandBuffer = {
