@@ -29,7 +29,6 @@ use vulkano::instance;
 use vulkano::instance::PhysicalDevice;
 use vulkano::instance::debug::{DebugCallback, MessageTypes};
 
-use std::mem;
 use std::sync::Arc;
 
 use glutin;

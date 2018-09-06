@@ -217,3 +217,7 @@ pub fn recreate_texturebuffer(renderpass: &mut CustomRenderpass, device: Arc<Dev
   renderpass.update_attachments(vec!(ms_colour_attachment, fullcolour_attachment));
   renderpass.set_framebuffer(textureframebuffer);
 }
+
+pub fn create_finalbuffer(device: Arc<Device>, dimensions: [u32; 2]) {
+  
+}

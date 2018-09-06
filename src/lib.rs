@@ -116,6 +116,8 @@ extern crate vulkano_shader_derive;
 extern crate winit;
 extern crate vulkano_win;
 
+use self::threadpool::ThreadPool;
+
 pub mod graphics;
 pub mod drawcalls;
 pub mod settings;
@@ -129,6 +131,7 @@ mod window;
 mod shaders;
 mod helperfunctions;
 mod vulkano_win_updated;
+mod threadpool;
 
 #[cfg(test)]
 mod tests {
