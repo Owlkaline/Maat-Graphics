@@ -2,6 +2,7 @@ use graphics::CoreRender;
 use graphics::Vertex2d;
 use graphics::Vertex3d;
 use drawcalls::DrawCall;
+use drawcalls::DrawType;
 
 use settings::Settings;
 
@@ -25,6 +26,9 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::swapchain;
 use vulkano::swapchain::AcquireError;
 use vulkano::swapchain::SwapchainCreationError;
+
+use vulkano::image as vkimage;
+use vulkano::format;
 
 use winit;
 use winit::dpi::LogicalSize;
@@ -82,11 +86,22 @@ impl VkMaat {
     let queue = window.get_queue();
     let swapchain_format = window.get_swapchain_format();
     
-    let texture_shader = TextureShader::create(device.clone(), dim, samples);
-    let (final_shader, future) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
+    let (texture_shader, future_texture) = TextureShader::create(device.clone(), queue.clone(), dim, samples);
+    let (final_shader, future_final) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
+    
+    let mut resources = ResourceManager::new();
+    let (empty_texture, empty_future) = vkimage::immutable::ImmutableImage::from_iter([0u8, 0u8, 0u8, 0u8].iter().cloned(),
+                                            vkimage::Dimensions::Dim2d { width: 1, height: 1 },
+                                            format::R8G8B8A8Unorm, window.get_queue())
+                                            .expect("Failed to create immutable image");
+    resources.insert_texture("empty".to_string(), empty_texture);
     
     let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
-    previous_frame_end = Some(Box::new(future.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    previous_frame_end = Some(Box::new(future_texture.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
+    previous_frame_end = Some(Box::new(future_final.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
+    previous_frame_end = Some(Box::new(empty_future.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
     let dynamic_state = DynamicState {
                           line_width: None,
@@ -104,7 +119,7 @@ impl VkMaat {
       texture_projection: TextureShader::create_projection(dim[0] as f32, dim[1] as f32),
       model_projection: create_3d_projection(dim[0] as f32, dim[1] as f32),
       
-      resources: ResourceManager::new(),
+      resources: resources,
       
       texture_shader: texture_shader,
       final_shader: final_shader,
@@ -141,20 +156,27 @@ impl CoreRender for VkMaat {
     
   }
   
-  // Load png images
+  /**
+  ** Blocks current thread until resource is loaded onto the GPU
+  **/
   fn preload_texture(&mut self, reference: String, location: String) {
-    
+    let queue = self.window.get_queue();
+    self.resources.sync_load_texture(reference, location, queue);
   }
   
+  /**
+  ** Adds Texture details into list allowing easier loading with a drawcall command
+  **/
   fn add_texture(&mut self, reference: String, location: String) {
     self.load_texture(reference, location);
   }
   
+  /**
+  ** Loads textures in seperate threads, Non blocking
+  **/
   fn load_texture(&mut self, reference: String, location: String) {
     let queue = self.window.get_queue();
-    let future = self.resources.load_texture(reference, location, queue);
-    
-    self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    self.resources.load_texture(reference, location, queue);
   }
   
   // Load fonts
@@ -194,12 +216,19 @@ impl CoreRender for VkMaat {
     
   }
   
-  // Standard draw calls that should be called in 98% of cases
+  /**
+  ** Clears the framebuffer should be called in 98% of cases
+  **/
   fn clear_screen(&mut self) {
     self.previous_frame_end.as_mut().unwrap().cleanup_finished();
   }
   
   fn pre_draw(&mut self) {
+    let futures = self.resources.recieve_textures();
+    for future in futures {
+      self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    }
+    
     if self.recreate_swapchain {
       let mut dimensions = {
         let dim = self.window.get_dimensions();
@@ -267,10 +296,81 @@ impl CoreRender for VkMaat {
         [dim.width as u32, dim.height as u32]
       };
       
+      let device = self.window.get_device();
+      let family = self.window.get_queue_ref().family();
+      let mut texture_command_buffer = self.texture_shader.create_secondary_renderpass(device, family);
+      
+      for draw in draw_calls {
+        match draw.get_type() {
+          DrawType::DrawText => {
+            
+          },
+          DrawType::DrawTextured => {
+            let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture);
+            }
+          },
+          DrawType::DrawColoured => {
+            let texture_resource = self.resources.get_texture("empty".to_string());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture);
+            }
+          },
+          DrawType::DrawModel => {
+            
+          },
+          DrawType::DrawCustomShapeTextured => {
+            
+          },
+          DrawType::DrawCustomShapeColoured => {
+            
+          },
+          DrawType::DrawInstancedColoured => {
+            
+          },
+          DrawType::DrawCustomShapeTextured => {
+            
+          },
+          DrawType::DrawInstancedModel => {
+            
+          },
+          DrawType::NewTexture => {
+            
+          },
+          DrawType::NewText => {
+            
+          },
+          DrawType::NewModel => {
+            
+          },
+          DrawType::NewCustomShape => {
+            
+          },
+          DrawType::UpdateCustomShape => {
+            
+          },
+          DrawType::NewDrawcallSet => {
+            
+          },
+          DrawType::DrawDrawcallSet => {
+            
+          },
+          DrawType::RemoveDrawcallSet => {
+            
+          },
+          _ => {}
+        }
+      }
+      
+      let texture_cmd_buffer = texture_command_buffer.build().unwrap();
+      
       let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
       
-      tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, false, self.clear_colour);
-      
+      tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, true, self.clear_colour);
+      unsafe {
+        tmp_cmd_buffer = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
+      }
       tmp_cmd_buffer = self.texture_shader.end_renderpass(tmp_cmd_buffer);
       tmp_cmd_buffer = self.final_shader.begin_renderpass(tmp_cmd_buffer, false, image_num);
       
@@ -337,7 +437,7 @@ impl CoreRender for VkMaat {
   }
   
   fn is_ready(&self) -> bool {
-    false
+    true
   }
   
   fn dynamic_load(&mut self) {

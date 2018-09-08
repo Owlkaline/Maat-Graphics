@@ -13,34 +13,34 @@ use std::collections::HashMap;
 
 #[derive(Clone, PartialEq)]
 pub enum DrawType {
-  DRAW_TEXT,
-  DRAW_TEXTURED,
-  DRAW_COLOURED,
-  DRAW_MODEL,
-  DRAW_CUSTOM_SHAPE_TEXTURED,
-  DRAW_CUSTOM_SHAPE_COLOURED,
+  DrawText,
+  DrawTextured,
+  DrawColoured,
+  DrawModel,
+  DrawCustomShapeTextured,
+  DrawCustomShapeColoured,
   
-  DRAW_INSTANCED_COLOURED,
-  DRAW_INSTANCED_TEXTURED,
-  DRAW_INSTANCED_MODEL,
+  DrawInstancedColoured,
+  DrawInstancedTextured,
+  DrawInstancedModel,
   
-  NEW_TEXTURE,
-  NEW_TEXT,
-  NEW_MODEL,
-  NEW_CUSTOM_SHAPE,
+  NewTexture,
+  NewText,
+  NewModel,
+  NewCustomShape,
   
-  REMOVE_TEXTURE,
-  REMOVE_TEXT,
-  REMOVE_MODEL,
-  REMOVE_CUSTOM_SHAPE,
+  RemoveTexture,
+  RemoveText,
+  RemoveModel,
+  RemoveCustomShape,
   
-  UPDATE_CUSTOM_SHAPE,
+  UpdateCustomShape,
   
-  NEW_DRAWCALL_SET,
-  DRAW_DRAWCALL_SET,
-  REMOVE_DRAWCALL_SET,
+  NewDrawcallSet,
+  DrawDrawcallSet,
+  RemoveDrawcallSet,
   
-  NONE,
+  None,
 }
 
 #[derive(Clone)]
@@ -87,7 +87,7 @@ impl DrawCall {
       text_centered: false,
       text_edge_width: Vector4::new(0.1, 0.1, 0.1, 0.1),
       
-      draw_type: DrawType::NONE,
+      draw_type: DrawType::None,
       new_shape: None,
     }
   }
@@ -98,7 +98,7 @@ impl DrawCall {
       position: position,
       rotation: rotation,
       scale: scale,
-      draw_type: DrawType::DRAW_MODEL,
+      draw_type: DrawType::DrawModel,
       .. DrawCall::empty()
     }
   }
@@ -109,7 +109,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_TEXTURED,
+      draw_type: DrawType::DrawTextured,
       .. DrawCall::empty()
     }
   }
@@ -121,7 +121,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_INSTANCED_TEXTURED,
+      draw_type: DrawType::DrawInstancedTextured,
       .. DrawCall::empty()
     }
   }
@@ -132,7 +132,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_COLOURED,
+      draw_type: DrawType::DrawColoured,
       .. DrawCall::empty()
     }
   }
@@ -145,7 +145,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_INSTANCED_TEXTURED,
+      draw_type: DrawType::DrawInstancedTextured,
       .. DrawCall::empty()
     }
   }
@@ -157,7 +157,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_CUSTOM_SHAPE_TEXTURED,
+      draw_type: DrawType::DrawCustomShapeTextured,
       .. DrawCall::empty()
     }
   }
@@ -169,7 +169,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       rotation: Vector3::new(90.0, 0.0, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
-      draw_type: DrawType::DRAW_CUSTOM_SHAPE_COLOURED,
+      draw_type: DrawType::DrawCustomShapeColoured,
       .. DrawCall::empty()
     }
   }
@@ -182,7 +182,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
       text_edge_width: Vector4::new(0.5, 0.1, 0.1, 0.1),
-      draw_type: DrawType::DRAW_TEXT,
+      draw_type: DrawType::DrawText,
       .. DrawCall::empty()
     }
   }
@@ -218,7 +218,7 @@ impl DrawCall {
       position: Vector3::new(position.x, position.y, 0.0),
       scale: Vector3::new(scale.x, scale.y, 1.0),
       text_edge_width: Vector4::new(0.5, 0.1, 0.7, 0.1),
-      draw_type: DrawType::DRAW_TEXT,
+      draw_type: DrawType::DrawText,
       .. DrawCall::empty()
     }
   }
@@ -256,7 +256,7 @@ impl DrawCall {
       text_edge_width: edge_width,
       text_centered: centered,
       text_wrapping: wrap_length,
-      draw_type: DrawType::DRAW_TEXT,
+      draw_type: DrawType::DrawText,
       .. DrawCall::empty()
     }
   }
@@ -265,7 +265,7 @@ impl DrawCall {
     DrawCall {
       shape_name: Some(shape),
       new_shape: Some((vertices, indices)),
-      draw_type: DrawType::UPDATE_CUSTOM_SHAPE,
+      draw_type: DrawType::UpdateCustomShape,
       .. DrawCall::empty()
     }
   }
@@ -342,8 +342,8 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_MODEL | DrawType::DRAW_INSTANCED_MODEL |
-      DrawType::NEW_MODEL  | DrawType::REMOVE_MODEL => {
+      DrawType::DrawModel | DrawType::DrawInstancedModel |
+      DrawType::NewModel  | DrawType::RemoveModel => {
         result = Some(self.reference_name.clone());
       },
       _ => {}
@@ -356,11 +356,11 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_TEXTURED           | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED | 
-      DrawType::DRAW_INSTANCED_TEXTURED | DrawType::NEW_TEXTURE                | 
-      DrawType::REMOVE_TEXTURE          |
-      DrawType::DRAW_COLOURED           | DrawType::DRAW_CUSTOM_SHAPE_COLOURED | 
-      DrawType::DRAW_INSTANCED_COLOURED
+      DrawType::DrawTextured           | DrawType::DrawCustomShapeTextured | 
+      DrawType::DrawInstancedTextured | DrawType::NewTexture                | 
+      DrawType::RemoveTexture          |
+      DrawType::DrawColoured           | DrawType::DrawCustomShapeColoured | 
+      DrawType::DrawInstancedColoured
        => {
         result = Some(self.reference_name.clone());
       },
@@ -374,9 +374,9 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_TEXTURED           | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED | 
-      DrawType::DRAW_INSTANCED_TEXTURED | DrawType::NEW_TEXTURE                | 
-      DrawType::REMOVE_TEXTURE
+      DrawType::DrawTextured           | DrawType::DrawCustomShapeTextured | 
+      DrawType::DrawInstancedTextured | DrawType::NewTexture                | 
+      DrawType::RemoveTexture
        => {
         result = Some((*self.reference_name).to_string());
       },
@@ -390,9 +390,9 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_CUSTOM_SHAPE_COLOURED | DrawType::DRAW_CUSTOM_SHAPE_TEXTURED |
-      DrawType::NEW_CUSTOM_SHAPE           | DrawType::UPDATE_CUSTOM_SHAPE        |
-      DrawType::REMOVE_CUSTOM_SHAPE => {
+      DrawType::DrawCustomShapeColoured | DrawType::DrawCustomShapeTextured |
+      DrawType::NewCustomShape           | DrawType::UpdateCustomShape        |
+      DrawType::RemoveCustomShape => {
         result = self.shape_name.clone();
       },
       _ => {}
@@ -405,8 +405,8 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_INSTANCED_COLOURED | DrawType::DRAW_INSTANCED_TEXTURED |
-      DrawType::DRAW_INSTANCED_MODEL => {
+      DrawType::DrawInstancedColoured | DrawType::DrawInstancedTextured |
+      DrawType::DrawInstancedModel => {
         result = self.instanced_name.clone();
       },
       _ => {}
@@ -419,7 +419,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_TEXT | DrawType::NEW_TEXT | DrawType::REMOVE_TEXT => {
+      DrawType::DrawText | DrawType::NewText | DrawType::RemoveText => {
         result = Some(self.reference_name.clone());
       },
       _ => {}
@@ -432,7 +432,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DRAW_TEXT | DrawType::NEW_TEXT | DrawType::REMOVE_TEXT => {
+      DrawType::DrawText | DrawType::NewText | DrawType::RemoveText => {
         result = self.text.clone();
       },
       _ => {}
@@ -447,7 +447,7 @@ impl DrawCall {
     let temp_colour = self.text_outline_colour;
     
     match self.draw_type {
-      DrawType::DRAW_TEXT => {
+      DrawType::DrawText => {
         result = Some(temp_colour);
       },
       _ => {}
@@ -460,13 +460,17 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::NEW_CUSTOM_SHAPE | DrawType::UPDATE_CUSTOM_SHAPE => {
+      DrawType::NewCustomShape | DrawType::UpdateCustomShape => {
         result = self.new_shape.clone();
       },
       _ => {}
     }
     
     result
+  }
+  
+  pub fn get_type(&self) -> DrawType {
+    self.draw_type.clone()
   }
   
   pub fn position(&self) -> Vector3<f32> {
@@ -510,27 +514,27 @@ impl DrawCall {
   }
   
   pub fn is_text(&self) -> bool {
-    self.draw_type == DrawType::DRAW_TEXT
+    self.draw_type == DrawType::DrawText
   }
   
   pub fn is_texture(&self) -> bool {
-    (self.draw_type == DrawType::DRAW_TEXTURED || self.draw_type == DrawType::DRAW_COLOURED)
+    (self.draw_type == DrawType::DrawTextured || self.draw_type == DrawType::DrawColoured)
   }
   
   pub fn is_instanced_texture(&self) -> bool {
-    self.draw_type == DrawType::DRAW_INSTANCED_TEXTURED
+    self.draw_type == DrawType::DrawInstancedTextured
   }
   
   pub fn is_model(&self) -> bool {
-    self.draw_type == DrawType::DRAW_MODEL
+    self.draw_type == DrawType::DrawModel
   }
   
   pub fn is_custom_shape(&self) -> bool {
-    (self.draw_type == DrawType::DRAW_CUSTOM_SHAPE_COLOURED || self.draw_type == DrawType::DRAW_CUSTOM_SHAPE_TEXTURED)
+    (self.draw_type == DrawType::DrawCustomShapeColoured || self.draw_type == DrawType::DrawCustomShapeTextured)
   }
   
   pub fn is_shape_update(&self) -> bool {
-    self.draw_type == DrawType::UPDATE_CUSTOM_SHAPE
+    self.draw_type == DrawType::UpdateCustomShape
   }
 }
 
