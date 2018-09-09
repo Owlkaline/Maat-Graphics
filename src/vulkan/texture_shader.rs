@@ -75,7 +75,6 @@ pub struct TextureShader {
   renderpass: Arc<RenderPassAbstract + Send + Sync>,
   framebuffer: Arc<framebuffer::FramebufferAbstract + Send + Sync + Send + Sync>,
   
-  custom_indexed_buffers: HashMap<String, (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>,
   vertex_buffer: Arc<BufferAccess + Send + Sync>,
   index_buffer: Arc<ImmutableBuffer<[u32]>>,
   
@@ -169,7 +168,6 @@ impl TextureShader {
         renderpass: renderpass,
         framebuffer: framebuffer,
         
-        custom_indexed_buffers: HashMap::new(),
         vertex_buffer: vertex_buffer,
         index_buffer: idx_buffer,
         
@@ -269,14 +267,7 @@ impl TextureShader {
     let (vertex, index) = {
       let mut vertex = Arc::clone(&self.vertex_buffer);
       let mut index = Arc::clone(&self.index_buffer);
-      if use_custom_buffer {
-        if let Some(shape) = draw.shape_name() {
-          if let Some((vtx, idx)) = self.custom_indexed_buffers.get(&shape) {
-            vertex = Arc::clone(vtx);
-            index = Arc::clone(idx);
-          }
-        }
-      }
+       
       
       (vertex, index)
     };

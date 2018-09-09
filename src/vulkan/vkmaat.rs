@@ -228,7 +228,7 @@ impl CoreRender for VkMaat {
   }
   
   fn pre_draw(&mut self) {
-    let futures = self.resources.recieve_textures();
+    let futures = self.resources.recieve_objects();
     for future in futures {
       self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     }
@@ -326,7 +326,10 @@ impl CoreRender for VkMaat {
             
           },
           DrawType::DrawCustomShapeTextured => {
-            
+            let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true);
+            }
           },
           DrawType::DrawCustomShapeColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
@@ -335,7 +338,10 @@ impl CoreRender for VkMaat {
             }
           },
           DrawType::DrawInstancedColoured => {
-            
+            let texture_resource = self.resources.get_texture("empty".to_string());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true);
+            }
           },
           DrawType::DrawInstancedModel => {
             

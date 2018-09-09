@@ -1,10 +1,10 @@
 pub use self::vkmaat::VkMaat;
 pub use self::final_shader::FinalShader;
 pub use self::texture_shader::TextureShader;
-pub use self::resource::ResourceManager;
+pub use self::resource_manager::ResourceManager;
 
 mod vkmaat;
-mod resource;
+mod resource_manager;
 mod final_shader;
 mod texture_shader;
 //mod vkcreate;

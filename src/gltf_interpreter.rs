@@ -21,6 +21,8 @@ use cgmath::Rotation;
 use image;
 use image::ImageFormat::{JPEG, PNG};
 
+use std::mem;
+
 #[derive(Clone)]
 pub enum Topology {
   PointList,
@@ -117,6 +119,19 @@ struct FinalModel {
 pub struct ModelDetails {
   models: Vec<FinalModel>,
  // materials: Vec<Material>,
+}
+
+impl Drop for ModelDetails{
+  fn drop(&mut self) {
+    let mut children = mem::replace(&mut self.models, Vec::new());
+    /*
+    loop {
+      children = match children {
+        Some(mut n) => mem::replace(&mut n.borrow_mut().models, Vec::new()),
+        None => break,
+      }
+    }*/
+  }
 }
 
 impl Texture {

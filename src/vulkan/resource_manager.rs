@@ -4,6 +4,9 @@ use vulkano::format;
 use vulkano::device::Queue;
 use vulkano::sync::NowFuture;
 
+use vulkano::buffer::BufferAccess;
+use vulkano::buffer::ImmutableBuffer;
+
 use vulkano::command_buffer::AutoCommandBuffer;
 use vulkano::command_buffer::CommandBufferExecFuture;
 
@@ -16,13 +19,14 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::Mutex;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum ObjectType {
   Texture(Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>>),
   Model(String),
+  Shape(Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct LoadableObject {
   pub loaded: bool,
   pub location: String,
@@ -56,7 +60,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_textures(&mut self) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
+  pub fn recieve_objects(&mut self) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
     let mut futures = Vec::new();
     
     if self.num_recv_objects <= 0 {
@@ -78,6 +82,26 @@ impl ResourceManager {
     }
     
     futures
+  }
+  
+  /**
+  ** Returns None when resource isnt loaded yet otherwise returns Vertex and Index buffers thats already in memory.
+  **/
+  pub fn get_shape(&mut self, reference: String) -> Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)> {
+    let mut result = None;
+    
+    for object in &self.objects {
+      if object.reference == reference {
+        match object.object_type {
+          ObjectType::Shape(ref buffer) => {
+            result = buffer.clone()
+          },
+          _ => {}
+        }
+      }
+    }
+    
+    result
   }
   
   /**
