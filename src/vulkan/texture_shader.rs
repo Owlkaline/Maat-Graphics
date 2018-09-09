@@ -343,6 +343,7 @@ impl TextureShader {
       //color_attachment: true,
       transfer_destination: true,
       sampled: true,
+      storage: true,
       .. ImageUsage::none()
     };
     
