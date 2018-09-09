@@ -79,9 +79,7 @@ impl ResourceManager {
     
     futures
   }
-              //    self.objects.push(object);
-              //  futures.push(future);
-              
+  
   /**
   ** Returns None when resource isnt loaded yet otherwise returns a ImmutableImage of format R8G8B8A8Unorm thats already in memory.
   **/
@@ -138,7 +136,7 @@ impl ResourceManager {
   ** Loads textures in seperate threads, non bloacking. The function 
   **/
   pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) {
-    let mut object = LoadableObject {
+    let object = LoadableObject {
       loaded: false,
       location: location.clone(),
       reference: reference.clone(),
@@ -164,7 +162,6 @@ impl ResourceManager {
       
       *data = Some((object, future));
       tx.send(index.clone()).unwrap();
-      //self.tx.lock().unwrap().clone().send((object, future)).unwrap();
     });
   }
   

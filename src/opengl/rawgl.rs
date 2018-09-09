@@ -192,7 +192,7 @@ impl RawGl {
     let mut msaa_samples = settings.get_msaa();
     let vsync = settings.vsync_enabled();
     
-    let window = GlWindow::new(width, height, min_width, min_height, fullscreen, vsync);
+    let window = GlWindow::new(width, height, fullscreen, vsync);
     
     let proj_2d = RawGl::load_2d_projection(width as f32, height as f32);
     let proj_3d = RawGl::load_3d_projection(width as f32, height as f32);

@@ -52,7 +52,7 @@ pub struct GlWindow {
 }
 
 impl GlWindow {
-  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool) -> GlWindow {
+  pub fn new(width: f64, height: f64, fullscreen: bool, vsync: bool) -> GlWindow {
     println!("Using openGL");
     
     glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
@@ -169,7 +169,7 @@ impl VkWindow {
       }
       
       let layer = "VK_LAYER_LUNARG_standard_validation";
-      let layers = None;//vec![&layer];
+      let layers = vec![layer];
       
       //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
       Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
@@ -294,7 +294,7 @@ impl VkWindow {
       let format = {
         let mut final_supported_format =  caps.supported_formats[0].0.clone();
         
-        for (format, colour_space) in caps.supported_formats {
+        for (format, _colour_space) in caps.supported_formats {
           if format == format::Format::B8G8R8A8Unorm  {
             final_supported_format = format::Format::B8G8R8A8Unorm;
             break;
@@ -344,7 +344,7 @@ impl VkWindow {
       println!("  Dimensions: {:?}", dimensions);
       println!("  Format: {:?}", format);
       
-      Swapchain::new(device.clone(), surface.clone(), min_image_count, format,
+      Swapchain::new(Arc::clone(&device), surface.clone(), min_image_count, format,
                      dimensions, 1, supported_usage_flags, &queue,
                      SurfaceTransform::Identity, alpha, present_mode, true, None
                     ).expect("failed to create swapchain")
@@ -372,12 +372,12 @@ impl VkWindow {
   
   // Returns a clone of device
   pub fn get_device(&self) -> Arc<Device> {
-    self.device.clone()
+    Arc::clone(&self.device)
   }
   
   // Returns a clone of the queue
   pub fn get_queue(&self) -> Arc<Queue> {
-    self.queue.clone()
+    Arc::clone(&self.queue)
   }
   
   // Returns the queue as a reference
@@ -414,7 +414,7 @@ impl VkWindow {
   
   // Returns a clone of the swapchain
   pub fn get_swapchain(&self) -> Arc<Swapchain<winit::Window>> {
-    self.swapchain.clone()
+    Arc::clone(&self.swapchain)
   }
   
   // Returns the current swapchain format enum from vulkano::format::Format
@@ -459,7 +459,7 @@ impl VkWindow {
   pub fn set_cursor_position(&mut self, x: f32, y: f32) {
     let result = self.surface.window().set_cursor_position(LogicalPosition::new(x as f64, y as f64));
     match result {
-      Ok(t) => {},
+      Ok(_) => {},
       Err(e) => {println!("{}", e);},
     }
   }

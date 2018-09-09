@@ -86,8 +86,8 @@ impl VkMaat {
     let queue = window.get_queue();
     let swapchain_format = window.get_swapchain_format();
     
-    let (texture_shader, future_texture) = TextureShader::create(device.clone(), queue.clone(), dim, samples);
-    let (final_shader, future_final) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
+    let (texture_shader, future_textures) = TextureShader::create(device.clone(), queue.clone(), dim, samples);
+    let (final_shader, final_futures) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
     
     let mut resources = ResourceManager::new();
     let (empty_texture, empty_future) = vkimage::immutable::ImmutableImage::from_iter([0u8, 0u8, 0u8, 0u8].iter().cloned(),
@@ -97,10 +97,14 @@ impl VkMaat {
     resources.insert_texture("empty".to_string(), empty_texture);
     
     let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
-    previous_frame_end = Some(Box::new(future_texture.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
-    previous_frame_end = Some(Box::new(future_final.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    let mut previous_frame_end = Some(Box::new(now(device.clone())) as Box<GpuFuture>);
+    
+    for future in future_textures {
+      previous_frame_end = Some(Box::new(future.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    }
+    for future in final_futures {
+      previous_frame_end = Some(Box::new(future.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    }
+    
     previous_frame_end = Some(Box::new(empty_future.join(Box::new(previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     
     let dynamic_state = DynamicState {
@@ -255,9 +259,10 @@ impl CoreRender for VkMaat {
       self.window.replace_images(new_images);
       
       let device = self.window.get_device();
+      let queue = self.window.get_queue();
       let samples = self.samples;
       
-      self.texture_shader.recreate_framebuffer(device, dimensions, samples);
+      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples);
       self.final_shader.empty_framebuffer();
       
       self.dynamic_state.viewports = Some(
@@ -308,13 +313,13 @@ impl CoreRender for VkMaat {
           DrawType::DrawTextured => {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false);
             }
           },
           DrawType::DrawColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false);
             }
           },
           DrawType::DrawModel => {
@@ -324,12 +329,12 @@ impl CoreRender for VkMaat {
             
           },
           DrawType::DrawCustomShapeColoured => {
-            
+            let texture_resource = self.resources.get_texture("empty".to_string());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true);
+            }
           },
           DrawType::DrawInstancedColoured => {
-            
-          },
-          DrawType::DrawCustomShapeTextured => {
             
           },
           DrawType::DrawInstancedModel => {

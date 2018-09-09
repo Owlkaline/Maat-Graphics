@@ -1,5 +1,4 @@
 use vulkano::buffer::BufferUsage;
-use vulkano::buffer::BufferAccess;
 use vulkano::buffer::ImmutableBuffer;
 use vulkano::buffer::cpu_pool::CpuBufferPool;
 
@@ -59,14 +58,14 @@ pub struct FinalShader {
   framebuffer: Option<Vec<Arc<framebuffer::FramebufferAbstract + Send + Sync + Send + Sync>>>,
   uniformbuffer: CpuBufferPool<vs_final::ty::Data>,
   
-  vertex_buffer: Vec<Arc<BufferAccess + Send + Sync>>,
+  vertex_buffer: Arc<ImmutableBuffer<[Vertex2d]>>,
   index_buffer: Arc<ImmutableBuffer<[u32]>>,
   
   sampler: Arc<sampler::Sampler>,
 }
 
 impl FinalShader {
-  pub fn create(device: Arc<Device>, queue: Arc<Queue>, swapchain_format: format::Format) -> (FinalShader, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+  pub fn create(device: Arc<Device>, queue: Arc<Queue>, swapchain_format: format::Format) -> (FinalShader, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
     let uniformbuffer = CpuBufferPool::<vs_final::ty::Data>::new(device.clone(), BufferUsage::uniform_buffer());
     
     let vs_final = vs_final::Shader::load(device.clone()).expect("failed to create shader module");
@@ -98,7 +97,7 @@ impl FinalShader {
         .build(device.clone())
         .unwrap());
     
-    let vertex_buffer = TextureShader::create_vertex(device.clone());
+    let (vertex_buffer, future_vtx) = TextureShader::create_vertex(Arc::clone(&device), Arc::clone(&queue));
     let (idx_buffer, future_idx) = TextureShader::create_index(queue);
     
     let sampler = sampler::Sampler::new(device.clone(), sampler::Filter::Linear,
@@ -116,11 +115,11 @@ impl FinalShader {
         framebuffer: None,
         uniformbuffer: uniformbuffer,
         
-        vertex_buffer: vec!(vertex_buffer),
+        vertex_buffer: vertex_buffer,
         index_buffer: idx_buffer,
         sampler: sampler,
       },
-      future_idx
+      vec!(future_idx, future_vtx)
     )
   }
   
@@ -160,11 +159,10 @@ impl FinalShader {
     
     let descriptor_set = Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
                               .add_buffer(uniform_subbuffer.clone()).unwrap()
-                              .add_sampled_image(texture_image.clone(), self.sampler.clone()).unwrap()
-                           //   .add_sampled_image(texture_image, self.sampler.clone()).unwrap()
+                              .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
                               .build().unwrap());
     
-    cb.draw_indexed(pipeline, dynamic_state, vertex, index, descriptor_set, ()).unwrap()
+    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
   }
   
   pub fn end_renderpass(&mut self, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
