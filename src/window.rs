@@ -296,7 +296,7 @@ impl VkWindow {
         
         for (format, _colour_space) in caps.supported_formats {
           if format == format::Format::B8G8R8A8Unorm  {
-            final_supported_format = format::Format::B8G8R8A8Unorm;
+          //  final_supported_format = format::Format::B8G8R8A8Unorm;
             break;
           }
         }
