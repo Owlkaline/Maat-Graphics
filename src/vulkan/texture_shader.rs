@@ -240,7 +240,7 @@ impl TextureShader {
     cb.begin_render_pass(Arc::clone(&self.framebuffer), secondary, vec![clear_value, ClearValue::None]).unwrap()
   }
   
-  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool) -> AutoCommandBufferBuilder {
+  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
     let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -draw.rotation().x -180.0);
     
     let has_texture  = {
@@ -267,7 +267,12 @@ impl TextureShader {
     let (vertex, index) = {
       let mut vertex = Arc::clone(&self.vertex_buffer);
       let mut index = Arc::clone(&self.index_buffer);
-       
+       if use_custom_buffer {
+         if let Some((vtx, idx)) = custom_buffer {
+           vertex = vtx;
+           index = idx;
+         }
+       }
       
       (vertex, index)
     };

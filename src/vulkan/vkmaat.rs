@@ -197,12 +197,14 @@ impl CoreRender for VkMaat {
   }
   
   // Load custom goemetry
-  fn load_static_geometry(&mut self, reference: String, verticies: Vec<Vertex2d>, indicies: Vec<u32>) {
-    
+  fn load_static_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
+    let queue = self.window.get_queue();
+    self.resources.load_shape(reference, vertex, index, queue);
   }
   
-  fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<Vertex2d>, indicies: Vec<u32>) {
-    
+  fn load_dynamic_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
+    let queue = self.window.get_queue();
+    self.resources.load_shape(reference, vertex, index, queue);
   }
   
   // Creates the data buffer needed for rendering instanced objects
@@ -313,13 +315,13 @@ impl CoreRender for VkMaat {
           DrawType::DrawTextured => {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false, None);
             }
           },
           DrawType::DrawColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false, None);
             }
           },
           DrawType::DrawModel => {
@@ -327,20 +329,22 @@ impl CoreRender for VkMaat {
           },
           DrawType::DrawCustomShapeTextured => {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
+            let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true, shape_resource);
             }
           },
           DrawType::DrawCustomShapeColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
+            let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, shape_resource);
             }
           },
           DrawType::DrawInstancedColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, None);
             }
           },
           DrawType::DrawInstancedModel => {

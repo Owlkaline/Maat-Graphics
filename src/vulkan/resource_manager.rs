@@ -4,6 +4,7 @@ use vulkano::format;
 use vulkano::device::Queue;
 use vulkano::sync::NowFuture;
 
+use vulkano::buffer::BufferUsage;
 use vulkano::buffer::BufferAccess;
 use vulkano::buffer::ImmutableBuffer;
 
@@ -13,6 +14,8 @@ use vulkano::command_buffer::CommandBufferExecFuture;
 use image;
 use vulkano::image as vkimage;
 use vulkano::image::ImmutableImage;
+
+use graphics::Vertex2d;
 
 use std::time;
 use std::sync::Arc;
@@ -40,7 +43,7 @@ pub struct ResourceManager {
   num_recv_objects: i32,
   tx: mpsc::Sender<usize>,
   rx: mpsc::Receiver<usize>,
-  data: Vec<Arc<Mutex<Option<(LoadableObject, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>)>>>>,
+  data: Vec<Arc<Mutex<Option<(LoadableObject, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>)>>>>,
 }
 
 impl ResourceManager {
@@ -73,9 +76,11 @@ impl ResourceManager {
       match self.rx.try_recv() {
         Ok(i) => {
           let mut data = self.data[i].lock().unwrap();
-          let (object, future) = data.take().unwrap();
+          let (object, recv_futures) = data.take().unwrap();
           self.objects.push(object);
-          futures.push(future);
+          for future in recv_futures {
+            futures.push(future);
+          }
         },
         Err(e) => { },
       }
@@ -102,6 +107,71 @@ impl ResourceManager {
     }
     
     result
+  }
+  
+  /**
+  ** Inserts a shape (vertex + index) that was created elsewhere in the program into the resource manager
+  **/
+  pub fn insert_shape(&mut self, reference: String, shape_info: (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)) {
+    self.objects.push(
+      LoadableObject {
+        loaded: true,
+        location: "".to_string(),
+        reference: reference.clone(),
+        object_type: ObjectType::Shape(Some(shape_info)),
+      }
+    );
+  }
+  
+  /**
+  ** Forces thread to wait until resource is loaded into memory.
+  **/
+  pub fn sync_load_shape(&mut self, reference: String, location: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
+    let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
+    
+    self.objects.push(
+      LoadableObject {
+        loaded: true,
+        location: "".to_string(),
+        reference: reference.clone(),
+        object_type: ObjectType::Shape(Some((vertex, index))),
+      }
+    );
+    
+    futures
+  }
+  
+  /**
+  ** Loads vertex and index in a seperate thread, non bloacking.
+  **/
+  pub fn load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) {
+    let object = LoadableObject {
+      loaded: false,
+      location: "".to_string(),
+      reference: reference.clone(),
+      object_type: ObjectType::Shape(None),
+    };
+    
+    self.num_recv_objects += 1;
+    let idx = self.data.len();
+    
+    self.data.push(Arc::new(Mutex::new(None)));
+    
+    let (data, tx) = (self.data[idx].clone(), self.tx.clone());
+    self.pool.execute(move || {
+      let mut data = data.lock().unwrap();
+      let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
+      
+      let object = LoadableObject {
+        loaded: true,
+        location: "".to_string(),
+        reference: reference,
+        object_type: ObjectType::Shape(Some((vertex, index))),
+      };
+      
+      *data = Some((object, futures));
+      tx.send(idx.clone()).unwrap();
+    });
   }
   
   /**
@@ -142,7 +212,7 @@ impl ResourceManager {
   ** Forces thread to wait until resource is loaded into memory.
   **/
   pub fn sync_load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) -> CommandBufferExecFuture<NowFuture, AutoCommandBuffer> {
-    let (texture, future) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
+    let (texture, futures) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
     
     self.objects.push(
       LoadableObject {
@@ -153,7 +223,7 @@ impl ResourceManager {
       }
     );
     
-    future
+    futures
   }
   
   /**
@@ -184,9 +254,28 @@ impl ResourceManager {
         object_type: ObjectType::Texture(Some(texture)),
       };
       
-      *data = Some((object, future));
+      *data = Some((object, vec!(future)));
       tx.send(index.clone()).unwrap();
     });
+  }
+  
+  fn load_shape_into_memory(reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
+    let shape_start_time = time::Instant::now();
+    
+    let (vertex, future_vtx) = ImmutableBuffer::from_iter(vertex.iter().cloned(),
+                                                          BufferUsage::vertex_buffer(),
+                                                          Arc::clone(&queue))
+                                                          .expect("failed to create immutable vertex buffer");
+                               
+    let (index, future_idx) = ImmutableBuffer::from_iter(index.iter().cloned(),
+                                                         BufferUsage::index_buffer(),
+                                                         queue)
+                                                         .expect("failed to create immutable index buffer");
+    
+    let shape_time = shape_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+    println!("{} ms, Shape: {:?}", (shape_time*1000f64) as f32, reference);
+    
+    (vertex, index, vec!(future_vtx, future_idx))
   }
   
   fn load_texture_into_memory(reference: String, location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
