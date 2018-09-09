@@ -340,7 +340,7 @@ impl TextureShader {
   fn create_texture_attachments(device: Arc<Device>, dim: [u32; 2], samples: u32) -> (Arc<vkimage::AttachmentImage>, Arc<vkimage::AttachmentImage>) {
     
     let image_usage = ImageUsage {
-      color_attachment: true,
+      //color_attachment: true,
       transfer_destination: true,
       sampled: true,
       .. ImageUsage::none()
