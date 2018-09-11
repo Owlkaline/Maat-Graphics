@@ -32,6 +32,7 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 
 use math;
 use graphics::Vertex2d;
+use drawcalls;
 use drawcalls::DrawCall;
 use font::GenericFont;
 
@@ -285,9 +286,11 @@ impl TextureShader {
     
     cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
   }
-  /*
-  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, text_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>) -> AutoCommandBufferBuilder {
-    let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), fonts.clone());
+  
+  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
+    let mut cb = cb;
+    let (font, texture) = font_info;
+    let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), font.clone());
     let size = draw.scale().x;
     
     let vertex_buffer = self.vertex_buffer.clone();
@@ -299,7 +302,7 @@ impl TextureShader {
       };
       
       if let Some(font_name) = draw.font_name() {
-        let c = fonts.get(&font_name).unwrap().get_character(char_letter as i32);
+        let c = font.get_character(char_letter as i32);
         
         let model = drawcalls::calculate_text_model(letter.position(), size, &c.clone(), char_letter);
         let letter_uv = drawcalls::calculate_text_uv(&c.clone());
@@ -314,25 +317,26 @@ impl TextureShader {
             edge_width: edge_width.into(),
             letter_uv: letter_uv.into(),
             model: model.into(),
-            projection: projection.into(),
+            projection: texture_projection.into(),
           };
-          uniform_buffer.next(uniform_data).unwrap()
+          self.text_uniformbuffer.next(uniform_data).unwrap()
         };
         
-        let uniform_set = Arc::new(descriptor_set::PersistentDescriptorSet::start(pipeline.clone(), 0)
-                                   .add_sampled_image(textures.get(&font_name).unwrap().clone(), sampler.clone()).unwrap()
+        let uniform_set = Arc::new(PersistentDescriptorSet::start(Arc::clone(&self.text_pipeline), 0)
+                                   .add_sampled_image(Arc::clone(&texture), Arc::clone(&self.sampler)).unwrap()
                                    .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
                                    .build().unwrap());
         
-        num_drawcalls += 1;
-        tmp_cmd_buffer = tmp_cmd_buffer.draw_indexed(pipeline.clone(),
+        cb = cb.draw_indexed(Arc::clone(&self.text_pipeline),
                                 dynamic_state,
-                                vertex_buffer.clone(),
-                                index_buffer.clone(),
+                                vec!(Arc::clone(&vertex_buffer)),
+                                Arc::clone(&index_buffer),
                                 uniform_set, ()).unwrap();
       }
     }
-  }*/
+    
+    cb
+  }
   
   pub fn end_renderpass(&mut self, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
     cb.end_render_pass().unwrap()

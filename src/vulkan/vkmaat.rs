@@ -15,12 +15,14 @@ use font::GenericFont;
 use window::VkWindow;
 
 use vulkano::sync::now;
+use vulkano::sync::NowFuture;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::FlushError;
 use vulkano::format::ClearValue;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBuffer;
+use vulkano::command_buffer::CommandBufferExecFuture;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 
 use vulkano::swapchain;
@@ -144,6 +146,12 @@ impl VkMaat {
     self.window.set_title(title);
     self
   }
+  
+  pub fn gather_futures(&mut self, futures: Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
+    for future in futures {
+      self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
+    }
+  }
 }
 
 impl CoreRender for VkMaat {
@@ -184,16 +192,18 @@ impl CoreRender for VkMaat {
   }
   
   // Load fonts
-  fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String) {
-    
+  fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
+    let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
+    self.gather_futures(vec!(futures));
   }
   
-  fn add_font(&mut self, reference: String, font: &[u8], font_texture: String) {
-    
+  fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
+    self.load_font(reference, font_texture, font);
   }
   
-  fn load_font(&mut self, reference: String, font: &[u8]) {
-    
+  fn load_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
+    let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
+    self.gather_futures(vec!(futures));
   }
   
   // Load custom goemetry
@@ -231,9 +241,7 @@ impl CoreRender for VkMaat {
   
   fn pre_draw(&mut self) {
     let futures = self.resources.recieve_objects();
-    for future in futures {
-      self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
-    }
+    self.gather_futures(futures);
     
     if self.recreate_swapchain {
       let mut dimensions = {
@@ -303,14 +311,19 @@ impl CoreRender for VkMaat {
         [dim.width as u32, dim.height as u32]
       };
       
-      let device = self.window.get_device();
-      let family = self.window.get_queue_ref().family();
-      let mut texture_command_buffer = self.texture_shader.create_secondary_renderpass(device, family);
+      let mut texture_command_buffer = {
+        let device = self.window.get_device();
+        let family = self.window.get_queue_ref().family();
+        
+        self.texture_shader.create_secondary_renderpass(device, family)
+      };
       
       for draw in draw_calls {
         match draw.get_type() {
           DrawType::DrawText => {
-            
+            if let Some(font_info) = self.resources.get_font(draw.font_name().unwrap_or("".to_string())) {
+              texture_command_buffer = self.texture_shader.draw_text(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), font_info);
+            }
           },
           DrawType::DrawTextured => {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
@@ -359,11 +372,16 @@ impl CoreRender for VkMaat {
           DrawType::NewModel => {
             
           },
-          DrawType::NewCustomShape => {
+          DrawType::NewShape => {
             
           },
-          DrawType::UpdateCustomShape => {
-            
+          DrawType::UpdateShape => {
+            if let Some(shape_name) = draw.shape_name() {
+              if let Some((verts, index)) = draw.new_shape_details() {
+                let futures = self.resources.update_shape(shape_name, verts, index, self.window.get_queue());
+                self.gather_futures(futures);
+              }
+            }
           },
           DrawType::NewDrawcallSet => {
             
@@ -373,6 +391,20 @@ impl CoreRender for VkMaat {
           },
           DrawType::RemoveDrawcallSet => {
             
+          },
+          DrawType::RemoveTexture => {
+            
+          },
+          DrawType::RemoveText => {
+            
+          },
+          DrawType::RemoveModel => {
+            
+          },
+          DrawType::RemoveShape => {
+            if let Some(shape_name) = draw.shape_name() {
+              self.resources.remove_object(shape_name);
+            }
           },
           _ => {}
         }

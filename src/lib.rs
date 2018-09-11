@@ -128,7 +128,6 @@ pub mod math;
 mod gltf_interpreter;
 mod font;
 mod window;
-mod shaders;
 mod helperfunctions;
 mod vulkano_win_updated;
 mod threadpool;

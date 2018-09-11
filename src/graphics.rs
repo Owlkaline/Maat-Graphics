@@ -35,9 +35,9 @@ pub trait CoreRender {
   fn load_texture(&mut self, reference: String, location: String);
   
   // Load fonts
-  fn preload_font(&mut self, reference: String, font: &[u8], font_texture: String);
-  fn add_font(&mut self, reference: String, font: &[u8], font_texture: String);  
-  fn load_font(&mut self, reference: String, font: &[u8]);
+  fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
+  fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
+  fn load_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   
   // Load custom goemetry
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);

@@ -27,14 +27,14 @@ pub enum DrawType {
   NewTexture,
   NewText,
   NewModel,
-  NewCustomShape,
+  NewShape,
   
   RemoveTexture,
   RemoveText,
   RemoveModel,
-  RemoveCustomShape,
+  RemoveShape,
   
-  UpdateCustomShape,
+  UpdateShape,
   
   NewDrawcallSet,
   DrawDrawcallSet,
@@ -265,7 +265,7 @@ impl DrawCall {
     DrawCall {
       shape_name: Some(shape),
       new_shape: Some((vertices, indices)),
-      draw_type: DrawType::UpdateCustomShape,
+      draw_type: DrawType::UpdateShape,
       .. DrawCall::empty()
     }
   }
@@ -391,8 +391,8 @@ impl DrawCall {
     
     match self.draw_type {
       DrawType::DrawCustomShapeColoured | DrawType::DrawCustomShapeTextured |
-      DrawType::NewCustomShape           | DrawType::UpdateCustomShape        |
-      DrawType::RemoveCustomShape => {
+      DrawType::NewShape           | DrawType::UpdateShape        |
+      DrawType::RemoveShape => {
         result = self.shape_name.clone();
       },
       _ => {}
@@ -460,7 +460,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::NewCustomShape | DrawType::UpdateCustomShape => {
+      DrawType::NewShape | DrawType::UpdateShape => {
         result = self.new_shape.clone();
       },
       _ => {}
@@ -534,15 +534,15 @@ impl DrawCall {
   }
   
   pub fn is_shape_update(&self) -> bool {
-    self.draw_type == DrawType::UpdateCustomShape
+    self.draw_type == DrawType::UpdateShape
   }
 }
 
-pub fn get_text_length(text: String, size: f32, font: String, fonts: HashMap<String, GenericFont>) -> f32 {
+pub fn get_text_length(text: String, size: f32, font: String, fonts: GenericFont) -> f32 {
   let mut length = 0.0;
   
   for letter in text.as_bytes() {
-    let c = fonts.get(&font).unwrap().get_character(*letter as i32);
+    let c = fonts.get_character(*letter as i32);
     
     length+=c.get_advance() as f32 * (size/640.0); 
   }
@@ -550,7 +550,7 @@ pub fn get_text_length(text: String, size: f32, font: String, fonts: HashMap<Str
   length
 }
 
-pub fn setup_correct_wrapping(draw: DrawCall, fonts: HashMap<String, GenericFont>) -> Vec<DrawCall> {
+pub fn setup_correct_wrapping(draw: DrawCall, fonts: GenericFont) -> Vec<DrawCall> {
   let mut new_draw_calls: Vec<DrawCall> = Vec::new();
   
   let init_translation = {
@@ -581,7 +581,7 @@ pub fn setup_correct_wrapping(draw: DrawCall, fonts: HashMap<String, GenericFont
     if let Some(display_text) = draw.display_text() {
       for letter in display_text.as_bytes() {
         if let Some(font_name) = draw.font_name() {
-          let c = fonts.get(&font_name).expect("Unkown Text type").get_character(*letter as i32);
+          let c = fonts.get_character(*letter as i32);
           
           //let size = draw.get_x_size();
           
@@ -597,7 +597,7 @@ pub fn setup_correct_wrapping(draw: DrawCall, fonts: HashMap<String, GenericFont
     if let Some(display_text) = draw.display_text() {
       for letter in display_text.as_bytes() {
         if let Some(font_name) = draw.font_name() {
-          let c = fonts.get(&font_name).unwrap().get_character(*letter as i32);
+          let c = fonts.get_character(*letter as i32);
           
           if *letter == ' ' as u8 {
             let distance = translation.x - init_translation;

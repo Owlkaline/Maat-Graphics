@@ -1,23 +1,18 @@
 use ThreadPool;
 
-use vulkano::format;
-use vulkano::device::Queue;
-use vulkano::sync::NowFuture;
+use graphics::Vertex2d;
+use opengl::Vao;
 
-use vulkano::buffer::BufferUsage;
-use vulkano::buffer::BufferAccess;
-use vulkano::buffer::ImmutableBuffer;
-
-use vulkano::command_buffer::AutoCommandBuffer;
-use vulkano::command_buffer::CommandBufferExecFuture;
-
-use image;
-use vulkano::image as vkimage;
-use vulkano::image::ImmutableImage;
+use gl;
+use gl::types::*;
 
 use font::GenericFont;
-use graphics::Vertex2d;
 
+use image;
+
+use cgmath::Matrix4;
+
+use std::mem;
 use std::time;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -25,10 +20,10 @@ use std::sync::Mutex;
 
 #[derive(Clone)]
 enum ObjectType {
-  Font(Option<(GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)>),
-  Texture(Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>>),
+  Font(Option<(GenericFont, GLuint)>),
+  Texture(Option<GLuint>),
   Model(String),
-  Shape(Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>),
+  Shape(Option<(Vao)>),
 }
 
 #[derive(Clone)]
@@ -45,7 +40,7 @@ pub struct ResourceManager {
   num_recv_objects: i32,
   tx: mpsc::Sender<usize>,
   rx: mpsc::Receiver<usize>,
-  data: Vec<Arc<Mutex<Option<(LoadableObject, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>)>>>>,
+  data: Vec<Arc<Mutex<Option<(LoadableObject)>>>>,
 }
 
 impl ResourceManager {
@@ -65,12 +60,10 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
-    let mut futures = Vec::new();
-    
+  pub fn recieve_objects(&mut self) {
     if self.num_recv_objects <= 0 {
       self.data.clear();
-      return futures;
+      return;
     }
     
     let num = self.num_recv_objects;
@@ -78,17 +71,12 @@ impl ResourceManager {
       match self.rx.try_recv() {
         Ok(i) => {
           let mut data = self.data[i].lock().unwrap();
-          let (object, recv_futures) = data.take().unwrap();
+          let object = data.take().unwrap();
           self.objects.push(object);
-          for future in recv_futures {
-            futures.push(future);
-          }
         },
         Err(e) => { },
       }
     }
-    
-    futures
   }
   
   pub fn remove_object(&mut self, reference: String) {
@@ -102,7 +90,7 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns Vertex and Index buffers thats already in memory.
   **/
-  pub fn get_shape(&mut self, reference: String) -> Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)> {
+  pub fn get_shape(&mut self, reference: String) -> Option<Vao> {
     let mut result = None;
     
     for object in &self.objects {
@@ -122,16 +110,18 @@ impl ResourceManager {
   /**
   ** Inserts a shape (vertex + index) that was created elsewhere in the program into the resource manager
   **/
-  pub fn insert_shape(&mut self, reference: String, shape_info: (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)) {
+  pub fn insert_shape(&mut self, reference: String,  vertex: Vec<Vertex2d>, index: Vec<u32>) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    
+    let vao = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index);
     
     self.objects.push(
       LoadableObject {
         loaded: true,
         location: "".to_string(),
         reference: reference.clone(),
-        object_type: ObjectType::Shape(Some(shape_info)),
+        object_type: ObjectType::Shape(Some(vao)),
       }
     );
   }
@@ -139,28 +129,26 @@ impl ResourceManager {
   /**
   ** Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_shape(&mut self, reference: String, location: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
+  pub fn sync_load_shape(&mut self, reference: String, location: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
-    let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
+    let vao = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index);
     
     self.objects.push(
       LoadableObject {
         loaded: true,
         location: "".to_string(),
         reference: reference.clone(),
-        object_type: ObjectType::Shape(Some((vertex, index))),
+        object_type: ObjectType::Shape(Some(vao)),
       }
     );
-    
-    futures
   }
   
   /**
   ** Loads vertex and index in a seperate thread, non bloacking.
   **/
-  pub fn load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) {
+  pub fn load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -179,44 +167,61 @@ impl ResourceManager {
     let (data, tx) = (self.data[idx].clone(), self.tx.clone());
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
-      let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
+      let vao = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index);
       
       let object = LoadableObject {
         loaded: true,
         location: "".to_string(),
         reference: reference,
-        object_type: ObjectType::Shape(Some((vertex, index))),
+        object_type: ObjectType::Shape(Some(vao)),
       };
       
-      *data = Some((object, futures));
+      *data = Some(object);
       tx.send(idx.clone()).unwrap();
     });
   }
   
-  pub fn update_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
-    let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
+  pub fn update_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
+    let mut verts = Vec::new();
+    
+    for v in vertex.clone() {
+      verts.push(v.position[0] as GLfloat);
+      verts.push(v.position[1] as GLfloat);
+      verts.push(v.uv[0] as GLfloat);
+      verts.push(v.uv[1] as GLfloat);
+    };
+    
+    let index = index.iter().map(|i| {
+      *i as GLuint
+    }).collect::<Vec<GLuint>>();
     
     let mut found = false;
     
     for i in 0..self.objects.len() {
       if self.objects[i].reference == reference {
-        self.objects[i].object_type = ObjectType::Shape(Some((Arc::clone(&vertex), Arc::clone(&index))));
-        found = true;
-        break;
+        match self.objects[i].object_type {
+          ObjectType::Shape(ref mut vao) => {
+            if let Some(ref mut vao) = vao {
+              vao.update_vbo(verts);
+              vao.update_ebo(index.clone());
+              found = true;
+              break;
+            }
+          },
+          _ => {},
+        }
       }
     }
     
     if !found {
-      self.insert_shape(reference, (vertex, index));
+      self.insert_shape(reference, vertex, index);
     }
-    
-    futures
   }
   
   /**
   ** Returns None when resource isnt loaded yet otherwise returns a ImmutableImage of format R8G8B8A8Unorm thats already in memory.
   **/
-  pub fn get_texture(&mut self, reference: String) -> Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>> {
+  pub fn get_texture(&mut self, reference: String) -> Option<GLuint> {
     let mut result = None;
     
     for object in &self.objects {
@@ -236,10 +241,7 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn insert_texture(&mut self, reference: String, new_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
+  pub fn insert_texture(&mut self, reference: String, new_image: GLuint) {
     self.objects.push(
       LoadableObject {
         loaded: true,
@@ -253,11 +255,8 @@ impl ResourceManager {
   /**
   ** Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) -> CommandBufferExecFuture<NowFuture, AutoCommandBuffer> {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    let (texture, futures) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
+  pub fn sync_load_texture(&mut self, reference: String, location: String) {
+    let texture = ResourceManager::load_texture_into_memory(reference.clone(), location.clone());
     
     self.objects.push(
       LoadableObject {
@@ -267,18 +266,13 @@ impl ResourceManager {
         object_type: ObjectType::Texture(Some(texture)),
       }
     );
-    
-    futures
   }
   
   /**
   ** Loads textures in seperate threads, non bloacking. The function 
   **/
-  pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    let object = LoadableObject {
+  pub fn load_texture(&mut self, reference: String, location: String) {
+    let mut object = LoadableObject {
       loaded: false,
       location: location.clone(),
       reference: reference.clone(),
@@ -293,7 +287,7 @@ impl ResourceManager {
     let (data, tx) = (self.data[index].clone(), self.tx.clone());
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
-      let (texture, future) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
+      let texture = ResourceManager::load_texture_into_memory(reference.clone(), location.clone());
       
       let object = LoadableObject {
         loaded: true,
@@ -302,7 +296,7 @@ impl ResourceManager {
         object_type: ObjectType::Texture(Some(texture)),
       };
       
-      *data = Some((object, vec!(future)));
+      *data = Some(object);
       tx.send(index.clone()).unwrap();
     });
   }
@@ -310,7 +304,7 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns font thats already in memory.
   **/
-  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)> {
+  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, GLuint)> {
     let mut result = None;
     
     for object in &self.objects {
@@ -330,7 +324,7 @@ impl ResourceManager {
   /**
   ** Inserts a font (GenericFont + Texture) that was created elsewhere in the program into the resource manager
   **/
-  pub fn insert_font(&mut self, reference: String, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) {
+  pub fn insert_font(&mut self, reference: String, font_info: (GenericFont, GLuint)) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -347,11 +341,11 @@ impl ResourceManager {
   /**
   ** Only way to laod new font, Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8], queue: Arc<Queue>) -> CommandBufferExecFuture<NowFuture, AutoCommandBuffer> {
+  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8]) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
-    let (texture, futures) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), Arc::clone(&queue));
+    let texture = ResourceManager::load_texture_into_memory(reference.clone(), location.clone());
     let font = ResourceManager::load_font_into_memory(reference.clone(), font);
     
     self.objects.push(
@@ -362,8 +356,6 @@ impl ResourceManager {
         object_type: ObjectType::Font(Some((font, texture))),
       }
     );
-    
-    futures
   }
   
   fn check_object(&self, reference: String) -> bool {
@@ -388,44 +380,65 @@ impl ResourceManager {
     new_font
   }
   
-  fn load_shape_into_memory(reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
+  fn load_shape_into_memory(reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) -> Vao {
     let shape_start_time = time::Instant::now();
     
-    let (vertex, future_vtx) = ImmutableBuffer::from_iter(vertex.iter().cloned(),
-                                                          BufferUsage::vertex_buffer(),
-                                                          Arc::clone(&queue))
-                                                          .expect("failed to create immutable vertex buffer");
-                               
-    let (index, future_idx) = ImmutableBuffer::from_iter(index.iter().cloned(),
-                                                         BufferUsage::index_buffer(),
-                                                         queue)
-                                                         .expect("failed to create immutable index buffer");
+    let mut verts = Vec::new();
+    
+    for v in vertex {
+      verts.push(v.position[0] as GLfloat);
+      verts.push(v.position[1] as GLfloat);
+      verts.push(v.uv[0] as GLfloat);
+      verts.push(v.uv[1] as GLfloat);
+    };
+    
+    let mut vao = Vao::new();
+    vao.bind();
+    
+    vao.create_ebo(index, gl::DYNAMIC_DRAW);
+    vao.create_vbo(verts, gl::DYNAMIC_DRAW);
+    
+    vao.set_vertex_attrib(0, 2, 4, 0);
+    vao.set_vertex_attrib(1, 2, 4, 2);
     
     let shape_time = shape_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms, Shape: {:?}", (shape_time*1000f64) as f32, reference);
     
-    (vertex, index, vec!(future_vtx, future_idx))
+    vao
   }
   
-  fn load_texture_into_memory(reference: String, location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+  fn load_texture_into_memory(reference: String, location: String) -> GLuint {
     let texture_start_time = time::Instant::now();
     
-    let (texture, tex_future) = {
+    let mut texture_id: GLuint = 0;
+    
+    unsafe {
+      gl::GenTextures(1, &mut texture_id);
+      
+      gl::BindTexture(gl::TEXTURE_2D, texture_id);
+      
+      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+      gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+      
       let texture = location.clone();
-      let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
+      let image = image::open(&location).expect(&("No file or Directory at: ".to_string() + &texture)).to_rgba(); 
       let (width, height) = image.dimensions();
       let image_data = image.into_raw().clone();
+     
+      gl::TexImage2D(gl::TEXTURE_2D, 0,
+                    gl::RGBA as GLint,
+                    width as GLsizei,
+                    height as GLsizei,
+                    0, gl::RGBA, gl::UNSIGNED_BYTE,
+                    mem::transmute(&image_data[0]));
+      gl::GenerateMipmap(gl::TEXTURE_2D);
       
-      vkimage::immutable::ImmutableImage::from_iter(
-              image_data.iter().cloned(),
-              vkimage::Dimensions::Dim2d { width: width, height: height },
-              format::R8G8B8A8Unorm,
-              queue).unwrap()
-    };
+      gl::BindTexture(gl::TEXTURE_2D, 0);
+    }
     
     let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
     
-    (texture, tex_future)
+    texture_id
   }
 }

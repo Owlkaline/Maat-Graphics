@@ -6,6 +6,7 @@ use std::mem;
 
 pub const INSTANCE_DATA_LENGTH: usize = 22;
 
+#[derive(Clone)]
 pub struct Vao {
   vao: GLuint,
   vbo: GLuint,
