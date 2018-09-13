@@ -78,7 +78,7 @@ impl GlMaat {
     }
     
     println!("Max MSAA: x{}", max_samples);
-    let msaa_samples: i32 = cmp::min(samples, max_samples as u32) as i32;
+    samples = cmp::min(samples, max_samples as u32) as i32;
     println!("Current MSAA: x{}\n", samples);
     
     unsafe {
