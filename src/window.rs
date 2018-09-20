@@ -1,5 +1,3 @@
-use gl;
-
 use winit;
 use winit::EventsLoop;
 use winit::dpi::LogicalSize;
@@ -31,9 +29,6 @@ use vulkano::instance::debug::{DebugCallback, MessageTypes};
 
 use std::sync::Arc;
 
-use glutin;
-use glutin::GlContext;
-
 use cgmath::Vector2;
 
 pub struct VkWindow {
@@ -44,112 +39,6 @@ pub struct VkWindow {
   swapchain: Arc<Swapchain<winit::Window>>,
   images: Vec<Arc<SwapchainImage<winit::Window>>>,
   min_max_dim: Vector2<f32>,
-}
-
-pub struct GlWindow {
-  events: glutin::EventsLoop,
-  window: glutin::GlWindow,
-}
-
-impl GlWindow {
-  pub fn new(width: f64, height: f64, fullscreen: bool, vsync: bool) -> GlWindow {
-    println!("Using openGL");
-    
-    glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 3));
-    
-    let events_loop = glutin::EventsLoop::new();
-    
-    let window = {
-      let temp_window: glutin::WindowBuilder;
-       
-      if fullscreen {
-       let monitor = {
-         for (num, monitor) in events_loop.get_available_monitors().enumerate() {
-           println!("Monitor #{}: {:?}", num, monitor.get_name());
-         }
-
-          let monitor = events_loop.get_available_monitors().nth(0).expect("Please enter a valid ID");
-
-          println!("Using {:?}", monitor.get_name());
-
-          monitor
-        };
-        // Fullscreen
-        temp_window = glutin::WindowBuilder::new().with_fullscreen(Some(monitor))
-                                           .with_title("OpenGl Fullscreen")
-      } else {
-        // Windowed
-        temp_window = glutin::WindowBuilder::new()
-                                            .with_title("OpenGl Windowed").with_decorations(true)
-                                            .with_dimensions(LogicalSize::new(width, height))
-                                            .with_resizable(false)
-                                           // .with_min_dimensions(min_width, min_height);
-      }
-      temp_window
-    };
-    
-    let context = glutin::ContextBuilder::new().with_vsync(vsync);
-    
-    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
-    
-    unsafe {
-      gl_window.make_current().unwrap();
-    }
-    
-    gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-    
-    GlWindow {
-      events: events_loop,
-      window: gl_window,
-    }
-  }
-  
-  /// Sets the title of the window
-  pub fn set_title(&mut self, title: String) {
-    self.window.set_title(&title);
-  }
-  
-  /// Returns the dimensions of the window as u32
-  pub fn get_dimensions(&self) -> LogicalSize {
-    self.window.get_inner_size().unwrap()
-  }
-  
-  /// Returns a reference to the events loop
-  pub fn get_events(&mut self) -> &mut winit::EventsLoop {
-    &mut self.events
-  }
-  
-  /// Swaps the drawing buffer
-  pub fn swap_buffers(&mut self) {
-    self.window.swap_buffers().unwrap();
-  }
-  
-  /// Resizes the current window
-  pub fn resize_screen(&mut self, dimensions: LogicalSize) {
-    let hidpi = self.get_dpi_scale();
-    self.window.resize(PhysicalSize::from_logical(dimensions, hidpi));
-  }
-  
-  /// Returns the current dpi scale factor
-  ///
-  /// Needed to solve issues with Hidpi monitors
-  pub fn get_dpi_scale(&self) -> f64 {
-    self.window.get_hidpi_factor()
-  }
-  
-  /// Enables the cursor to be drawn whilst over the window
-  pub fn show_cursor(&mut self) {
-    self.window.set_cursor(winit::MouseCursor::Default);
-  }
-  
-  /// Disables the cursor from being drawn whilst over the window
-  pub fn hide_cursor(&mut self) {
-    self.window.set_cursor(winit::MouseCursor::Alias);
-  }
-  
-  pub fn set_cursor_position(&mut self, x: f32, y: f32) {
-    self.window.set_cursor_position(LogicalPosition::new(x as f64, y as f64));
-  }
 }
 
 impl VkWindow {

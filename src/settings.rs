@@ -13,7 +13,6 @@ const NL: &str = "\n";
 const SPACE: &str = " ";
 const TRUE: &str = "True";
 const FALSE: &str = "False";
-const VULKAN: &str = "Vulkan";
 const FULLSCREEN: &str = "Fullscreen";
 const MSAA: &str = "MSAA";
 const VSYNC: &str = "Vsync";
@@ -24,7 +23,6 @@ const TRIPLE_BUFFERING: &str = "TripleBuffer";
 pub struct Settings {
   vsync: bool,
   triple_buffer: bool,
-  vulkan: bool,
   samples: u32,
   fullscreen: bool,
   resolution: [u32; 2],
@@ -37,7 +35,6 @@ impl Settings {
     let mut vsync = true;
     let mut triple_buffer = false;
     let mut samples = 4;
-    let mut use_vulkan = true;
     let mut is_fullscreen = false;
     let mut resolution = [1280, 720];
     let mut force_dpi = false;
@@ -51,17 +48,6 @@ impl Settings {
           let line = line.expect("Unable to read line");
           let v: Vec<&str> = line.split(" ").collect();
           match v[0] {
-            VULKAN => {
-              match v[1] {
-                TRUE => {
-                  use_vulkan = true;
-                },
-                FALSE => {
-                  use_vulkan = false;
-                },
-                _ => {}
-              }
-            },
             FULLSCREEN => {
               match v[1] {
                 TRUE => {
@@ -123,8 +109,7 @@ impl Settings {
       }
     } else {
       println!("Settings file not found");
-       let data = VULKAN.to_owned() + SPACE + TRUE  + NL + 
-                  FULLSCREEN        + SPACE + FALSE + NL + 
+       let data = FULLSCREEN.to_owned() + SPACE + FALSE + NL + 
                   VSYNC             + SPACE + TRUE  + NL + 
                   TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
                   MSAA              + SPACE + "4"   + NL + 
@@ -142,7 +127,6 @@ impl Settings {
     Settings {
       vsync: vsync,
       triple_buffer: triple_buffer,
-      vulkan: use_vulkan,
       samples: samples,
       fullscreen: is_fullscreen,
       resolution: resolution,
@@ -155,10 +139,6 @@ impl Settings {
     #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
     env::set_var("WINIT_SCALE_FACTOR", dpi_value.to_string());
     println!("Forcing dpi scale of {}", dpi_value);
-  }
-  
-  pub fn vulkan_enabled(&self) -> bool {
-    self.vulkan
   }
   
   pub fn vsync_enabled(&self) -> bool {

@@ -7,40 +7,6 @@ mod vkmaat;
 mod resource_manager;
 mod final_shader;
 mod texture_shader;
-//mod vkcreate;
-//mod vulkan_2d;
-//mod vulkan_3d;
-//mod vulkan_draw;
-//mod vulkan_helper;
-//mod renderpass;
-
-pub mod vs_texture {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkTexture.vert"]
-  struct Dummy;
-}
-
-pub mod fs_texture {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkTexture.frag"]
-  struct Dummy;
-}
-
-pub mod vs_text {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkText.vert"]
-  struct Dummy;
-}
-
-pub mod fs_text {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkText.frag"]
-  struct Dummy;
-}
 
 pub mod vs_forwardbuffer_3d {
   #[derive(VulkanoShader)]

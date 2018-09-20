@@ -72,23 +72,6 @@ impl Camera {
       zoom: 90.0,
     }
   }
-
-  pub fn default_gl() -> Camera {
-    Camera {
-      position: Vector3::new(0.0, 0.0, 0.0),
-      front: Vector3::new(0.0, 0.0, 1.0),
-      up: Vector3::new(0.0, 1.0, 0.0),
-      right: Vector3::new(1.0, 0.0, 0.0),
-  
-      world_up: Vector3::new(0.0, -1.0, 0.0),
-  
-      yaw: 0.0,
-      pitch: 0.0,
-      move_speed: 5.0,
-      mouse_sensitivity: 1.0,
-      zoom: 90.0,
-    }
-  }
   
   fn update_camera_vector(&mut self) {
     let mut front = Vector3::new(0.0, 0.0, 0.0);

@@ -102,8 +102,6 @@ extern crate gltf;
 //extern crate gltf_importer;
 extern crate base64;
 
-extern crate glutin;
-extern crate gl;
 extern crate cgmath;
 extern crate image;
 
@@ -122,7 +120,6 @@ pub mod graphics;
 pub mod drawcalls;
 pub mod settings;
 pub mod camera;
-pub mod opengl;
 pub mod vulkan;
 pub mod math;
 mod gltf_interpreter;
