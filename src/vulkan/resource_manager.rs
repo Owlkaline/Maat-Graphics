@@ -234,6 +234,24 @@ impl ResourceManager {
   }
   
   /**
+  ** Inserts details for a texture, does not load the image into memory.
+  ** Must call Load_texture as a DrawCall in order to use
+  **/
+  pub fn insert_unloaded_texture(&mut self, reference: String, location: String) {
+    
+    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    
+    self.objects.push(
+      LoadableObject {
+        loaded: false,
+        location: location,
+        reference: reference.clone(),
+        object_type: ObjectType::Texture(None),
+      }
+    );
+  }
+  
+  /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
   pub fn insert_texture(&mut self, reference: String, new_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>) {
@@ -325,6 +343,25 @@ impl ResourceManager {
     }
     
     result
+  }
+  
+  /**
+  ** Inserts the font details, and the location of the font texture, the texture is not loaded into memory until a load_font Drawcall is made.
+  **
+  ** Note: The font details will be in memory, even if it is unloaded, remove_font is recommended if space is required.
+  **/
+  pub fn insert_unloaded_font(&mut self, reference: String, location: String, font: &[u8]) {
+    
+    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    
+    self.objects.push(
+      LoadableObject {
+        loaded: true,
+        location: location,
+        reference: reference.clone(),
+        object_type: ObjectType::Font(None),
+      }
+    );
   }
   
   /**

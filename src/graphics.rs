@@ -43,9 +43,6 @@ pub trait CoreRender {
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
   fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
   
-  // Creates the data buffer needed for rendering instanced objects
-  fn load_instanced(&mut self, reference: String, max_instances: i32);
-  
   // Internal use until Custom Shaders are implemented
   fn load_shaders(&mut self);
   
@@ -57,7 +54,6 @@ pub trait CoreRender {
   fn pre_draw(&mut self);
   fn draw(&mut self, draw_calls: &Vec<DrawCall>);
   fn post_draw(&self);
-  fn swap_buffers(&mut self);
   fn screen_resized(&mut self, window_size: LogicalSize);
   
   // Cleans up program
@@ -69,7 +65,6 @@ pub trait CoreRender {
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
   fn get_dpi_scale(&self) -> f64;
   fn is_ready(&self) -> bool;
-  fn dynamic_load(&mut self);
   fn set_cursor_position(&mut self, x: f32, y: f32);
   fn show_cursor(&mut self);
   fn hide_cursor(&mut self);

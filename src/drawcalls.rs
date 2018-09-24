@@ -27,14 +27,17 @@ pub enum DrawType {
   NewTexture,
   NewText,
   NewModel,
+  
+  LoadTexture,
+  LoadFont,
+  LoadModel,
+  UnloadTexture,
+  UnloadFont,
+  UnloadModel,
+  
   NewShape,
-  
-  RemoveTexture,
-  RemoveText,
-  RemoveModel,
-  RemoveShape,
-  
   UpdateShape,
+  RemoveShape,
   
   NewDrawcallSet,
   DrawDrawcallSet,
@@ -261,6 +264,38 @@ impl DrawCall {
     }
   }
   
+  pub fn load_texture(reference: String) -> DrawCall {
+    DrawCall {
+      reference_name: reference,
+      draw_type: DrawType::LoadTexture,
+      .. DrawCall::empty()
+    }
+  }
+  
+  pub fn unload_texture(reference: String) -> DrawCall {
+    DrawCall {
+      reference_name: reference,
+      draw_type: DrawType::LoadTexture,
+      .. DrawCall::empty()
+    }
+  }
+  
+  pub fn load_font(reference: String) -> DrawCall {
+    DrawCall {
+      reference_name: reference,
+      draw_type: DrawType::LoadFont,
+      .. DrawCall::empty()
+    }
+  }
+  
+  pub fn unload_font(reference: String) -> DrawCall {
+    DrawCall {
+      reference_name: reference,
+      draw_type: DrawType::LoadFont,
+      .. DrawCall::empty()
+    }
+  }
+  
   pub fn update_custom_shape(vertices: Vec<graphics::Vertex2d>, indices: Vec<u32>, shape: String) -> DrawCall {
     DrawCall {
       shape_name: Some(shape),
@@ -338,12 +373,16 @@ impl DrawCall {
     self.draw_type.clone()
   }
   
+  pub fn reference_name(&self) -> String {
+    self.reference_name.clone()
+  }
+  
   pub fn model_name(&self) -> Option<String> {
     let mut result = None;
     
     match self.draw_type {
       DrawType::DrawModel | DrawType::DrawInstancedModel |
-      DrawType::NewModel  | DrawType::RemoveModel => {
+      DrawType::NewModel  | DrawType::UnloadModel => {
         result = Some(self.reference_name.clone());
       },
       _ => {}
@@ -358,7 +397,7 @@ impl DrawCall {
     match self.draw_type {
       DrawType::DrawTextured           | DrawType::DrawCustomShapeTextured | 
       DrawType::DrawInstancedTextured | DrawType::NewTexture                | 
-      DrawType::RemoveTexture          |
+      DrawType::UnloadTexture          |
       DrawType::DrawColoured           | DrawType::DrawCustomShapeColoured | 
       DrawType::DrawInstancedColoured
        => {
@@ -376,7 +415,7 @@ impl DrawCall {
     match self.draw_type {
       DrawType::DrawTextured           | DrawType::DrawCustomShapeTextured | 
       DrawType::DrawInstancedTextured | DrawType::NewTexture                | 
-      DrawType::RemoveTexture
+      DrawType::UnloadTexture
        => {
         result = Some((*self.reference_name).to_string());
       },
@@ -419,7 +458,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DrawText | DrawType::NewText | DrawType::RemoveText => {
+      DrawType::DrawText | DrawType::NewText | DrawType::UnloadFont => {
         result = Some(self.reference_name.clone());
       },
       _ => {}
@@ -432,7 +471,7 @@ impl DrawCall {
     let mut result = None;
     
     match self.draw_type {
-      DrawType::DrawText | DrawType::NewText | DrawType::RemoveText => {
+      DrawType::DrawText | DrawType::NewText | DrawType::UnloadFont => {
         result = self.text.clone();
       },
       _ => {}

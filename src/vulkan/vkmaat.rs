@@ -164,6 +164,7 @@ impl CoreRender for VkMaat {
     
   }
   
+  //  ** TO BE REMOVED
   fn load_model(&mut self, reference: String, location: String) {
     
   }
@@ -180,10 +181,11 @@ impl CoreRender for VkMaat {
   ** Adds Texture details into list allowing easier loading with a drawcall command
   **/
   fn add_texture(&mut self, reference: String, location: String) {
-    self.load_texture(reference, location);
+    self.resources.insert_unloaded_texture(reference, location);
   }
   
   /**
+  ** TO BE REMOVED
   ** Loads textures in seperate threads, Non blocking
   **/
   fn load_texture(&mut self, reference: String, location: String) {
@@ -198,9 +200,11 @@ impl CoreRender for VkMaat {
   }
   
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
-    self.load_font(reference, font_texture, font);
+    //self.load_font(reference, font_texture, font);
+    self.resources.insert_unloaded_font(reference, font_texture, font);
   }
   
+  //  ** TO BE REMOVED
   fn load_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
     let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
     self.gather_futures(vec!(futures));
@@ -215,11 +219,6 @@ impl CoreRender for VkMaat {
   fn load_dynamic_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
     let queue = self.window.get_queue();
     self.resources.load_shape(reference, vertex, index, queue);
-  }
-  
-  // Creates the data buffer needed for rendering instanced objects
-  fn load_instanced(&mut self, reference: String, max_instances: i32) {
-    
   }
   
   // Internal use until Custom Shaders are implemented
@@ -290,6 +289,9 @@ impl CoreRender for VkMaat {
     self.final_shader.recreate_framebuffer(images);
   }
   
+  /**
+  ** Secondary command buffer removed as on amd
+  **/
   fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
     if self.recreate_swapchain == true {
       return;
@@ -311,30 +313,34 @@ impl CoreRender for VkMaat {
         [dim.width as u32, dim.height as u32]
       };
       
-      let mut texture_command_buffer = {
+      /*let mut texture_command_buffer = {
         let device = self.window.get_device();
         let family = self.window.get_queue_ref().family();
         
         self.texture_shader.create_secondary_renderpass(device, family)
-      };
+      };*/
+      
+     let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
+      
+      tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, false, self.clear_colour);
       
       for draw in draw_calls {
         match draw.get_type() {
           DrawType::DrawText => {
             if let Some(font_info) = self.resources.get_font(draw.font_name().unwrap_or("".to_string())) {
-              texture_command_buffer = self.texture_shader.draw_text(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), font_info);
+              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), font_info);
             }
           },
           DrawType::DrawTextured => {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false, None);
             }
           },
           DrawType::DrawColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false, None);
             }
           },
           DrawType::DrawModel => {
@@ -344,32 +350,23 @@ impl CoreRender for VkMaat {
             let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
             let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true, shape_resource);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true, shape_resource);
             }
           },
           DrawType::DrawCustomShapeColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, shape_resource);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, shape_resource);
             }
           },
           DrawType::DrawInstancedColoured => {
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, None);
             }
           },
           DrawType::DrawInstancedModel => {
-            
-          },
-          DrawType::NewTexture => {
-            
-          },
-          DrawType::NewText => {
-            
-          },
-          DrawType::NewModel => {
             
           },
           DrawType::NewShape => {
@@ -383,6 +380,11 @@ impl CoreRender for VkMaat {
               }
             }
           },
+          DrawType::RemoveShape => {
+            if let Some(shape_name) = draw.shape_name() {
+              self.resources.remove_object(shape_name);
+            }
+          },
           DrawType::NewDrawcallSet => {
             
           },
@@ -392,32 +394,46 @@ impl CoreRender for VkMaat {
           DrawType::RemoveDrawcallSet => {
             
           },
-          DrawType::RemoveTexture => {
+          DrawType::NewTexture => {
             
           },
-          DrawType::RemoveText => {
+          DrawType::NewText => {
             
           },
-          DrawType::RemoveModel => {
+          DrawType::NewModel => {
             
           },
-          DrawType::RemoveShape => {
-            if let Some(shape_name) = draw.shape_name() {
-              self.resources.remove_object(shape_name);
-            }
+          DrawType::LoadTexture => {
+         //   let reference = draw.reference_name();
+           // self.resources.load_texture(reference);
+          },
+          DrawType::LoadFont => {
+          //  let reference = draw.reference_name();
+        //    self.resources.load_font(reference);
+          },
+          DrawType::LoadModel => {
+            
+          },
+          DrawType::UnloadTexture => {
+      //      let reference = draw.reference_name();
+    //        self.resources.unload_texture(reference);
+          },
+          DrawType::UnloadFont => {
+//            let reference = draw.reference_name();
+  //          self.resources.unload_font(reference);
+          },
+          DrawType::UnloadModel => {
+            
           },
           _ => {}
         }
       }
       
-      let texture_cmd_buffer = texture_command_buffer.build().unwrap();
+     // let texture_cmd_buffer = texture_command_buffer.build().unwrap();
       
-      let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
-      
-      tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, true, self.clear_colour);
-      unsafe {
-        tmp_cmd_buffer = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
-      }
+      //unsafe {
+      //  tmp_cmd_buffer = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
+      //}
       tmp_cmd_buffer = self.texture_shader.end_renderpass(tmp_cmd_buffer);
       tmp_cmd_buffer = self.final_shader.begin_renderpass(tmp_cmd_buffer, false, image_num);
       
@@ -453,10 +469,6 @@ impl CoreRender for VkMaat {
     
   }
   
-  fn swap_buffers(&mut self) {
-    
-  }
-  
   fn screen_resized(&mut self, window_size: LogicalSize) {
     self.recreate_swapchain = true;
   }
@@ -485,10 +497,6 @@ impl CoreRender for VkMaat {
   
   fn is_ready(&self) -> bool {
     true
-  }
-  
-  fn dynamic_load(&mut self) {
-    
   }
   
   fn set_cursor_position(&mut self, x: f32, y: f32) {
