@@ -62,6 +62,14 @@ impl ResourceManager {
     }
   }
   
+  pub fn pending_objects_loaded(&self) -> bool {
+    let mut result = false;
+    if self.data.len() == 0 {
+      result = true;
+    }
+    result
+  }
+  
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
@@ -80,6 +88,7 @@ impl ResourceManager {
           let mut data = self.data[i].lock().unwrap();
           let (object, recv_futures) = data.take().unwrap();
           self.objects.push(object);
+          self.num_recv_objects -= 1;
           for future in recv_futures {
             futures.push(future);
           }
@@ -89,6 +98,18 @@ impl ResourceManager {
     }
     
     futures
+  }
+  
+  fn get_unloaded_object(&mut self, reference: String) -> Option<LoadableObject> {
+    let mut object = None;
+    for i in 0..self.objects.len()-1 {
+      if self.objects[i].reference == reference {
+        if !self.objects[i].loaded {
+          object = Some(self.objects.remove(i));
+        }
+      }
+    }
+    object
   }
   
   pub fn remove_object(&mut self, reference: String) {
@@ -289,12 +310,28 @@ impl ResourceManager {
     futures
   }
   
+    /**
+  ** Loads textures from inserted details in seperate threads, non bloacking.
+  **/
+  pub fn load_texture_from_reference(&mut self, reference: String, queue: Arc<Queue>) {
+    
+    debug_assert!(!self.check_object(reference.clone()), "Error: Object reference doesn't exist!");
+    
+    let unloaded_object = self.get_unloaded_object(reference.clone());
+    if let Some(object) = unloaded_object {
+      let location = object.location;
+      let reference = object.reference;
+      
+      self.load_texture(reference, location, queue);
+    }
+  }
+  
   /**
-  ** Loads textures in seperate threads, non bloacking. The function 
+  ** Loads textures in seperate threads, non bloacking.
   **/
   pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) {
     
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
     let object = LoadableObject {
       loaded: false,

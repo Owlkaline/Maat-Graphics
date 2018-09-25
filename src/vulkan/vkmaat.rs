@@ -164,11 +164,6 @@ impl CoreRender for VkMaat {
     
   }
   
-  //  ** TO BE REMOVED
-  fn load_model(&mut self, reference: String, location: String) {
-    
-  }
-  
   /**
   ** Blocks current thread until resource is loaded onto the GPU
   **/
@@ -184,15 +179,6 @@ impl CoreRender for VkMaat {
     self.resources.insert_unloaded_texture(reference, location);
   }
   
-  /**
-  ** TO BE REMOVED
-  ** Loads textures in seperate threads, Non blocking
-  **/
-  fn load_texture(&mut self, reference: String, location: String) {
-    let queue = self.window.get_queue();
-    self.resources.load_texture(reference, location, queue);
-  }
-  
   // Load fonts
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
     let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
@@ -202,12 +188,6 @@ impl CoreRender for VkMaat {
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
     //self.load_font(reference, font_texture, font);
     self.resources.insert_unloaded_font(reference, font_texture, font);
-  }
-  
-  //  ** TO BE REMOVED
-  fn load_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
-    let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
-    self.gather_futures(vec!(futures));
   }
   
   // Load custom goemetry
@@ -406,23 +386,23 @@ impl CoreRender for VkMaat {
             
           },
           DrawType::LoadTexture(ref info) => {
-         //   let reference = draw.reference_name();
-           // self.resources.load_texture(reference);
+            let reference = info.clone();
+            self.resources.load_texture_from_reference(reference, self.window.get_queue());
           },
           DrawType::LoadFont(ref info) => {
-          //  let reference = draw.reference_name();
-        //    self.resources.load_font(reference);
+//            let reference = info.clone();
+//            self.resources.load_font(reference);
           },
           DrawType::LoadModel => {
             
           },
           DrawType::UnloadTexture(ref info) => {
-      //      let reference = draw.reference_name();
-    //        self.resources.unload_texture(reference);
+//            let reference = info.clone();
+//            self.resources.unload_texture(reference);
           },
           DrawType::UnloadFont(ref info) => {
-//            let reference = draw.reference_name();
-  //          self.resources.unload_font(reference);
+//            let reference = info.clone();
+//            self.resources.unload_font(reference);
           },
           DrawType::UnloadModel => {
             
@@ -498,7 +478,7 @@ impl CoreRender for VkMaat {
   }
   
   fn is_ready(&self) -> bool {
-    true
+    self.resources.pending_objects_loaded()
   }
   
   fn set_cursor_position(&mut self, x: f32, y: f32) {

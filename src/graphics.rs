@@ -27,17 +27,14 @@ pub trait CoreRender {
   // Load 3D models
   fn preload_model(&mut self, reference: String, location: String);
   fn add_model(&mut self, reference: String, location: String);
-  fn load_model(&mut self, reference: String, location: String);
   
   // Load png images
   fn preload_texture(&mut self, reference: String, location: String);
   fn add_texture(&mut self, reference: String, location: String);
-  fn load_texture(&mut self, reference: String, location: String);
   
   // Load fonts
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
-  fn load_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   
   // Load custom goemetry
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
