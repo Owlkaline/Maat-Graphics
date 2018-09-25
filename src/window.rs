@@ -43,10 +43,6 @@ pub struct VkWindow {
 
 impl VkWindow {
   pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
-    //let app_infos = app_info_from_cargo_toml!();
-    //println!("{:?}", app_infos);
-    println!("Using Vulkan");
-    
     let instance = {
       // Window specific extensions grabbed from vulkano_win
       let extensions = required_extensions();
@@ -132,7 +128,8 @@ impl VkWindow {
       let mut found_suitable_device = false;
       
       let mut physical = PhysicalDevice::enumerate(&instance).next().expect("no device available");
-      
+      println!("Vulkano API: {}", physical.api_version());
+      println!("Driver Version: {}", physical.driver_version());
       //PhysicalDevice::uuid()
       
       for device in PhysicalDevice::enumerate(&instance) {
@@ -146,7 +143,7 @@ impl VkWindow {
         }
         
         if found_suitable_device {
-          println!("  {}: {} (type: {:?})", device.index(), device.name(), device.ty());
+          println!("GPU {}: {} (type: {:?})", device.index(), device.name(), device.ty());
           break;
         }
       }

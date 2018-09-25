@@ -9,10 +9,10 @@ use winit::dpi::LogicalSize;
 
 use std::vec::Vec;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Vertex3d { pub position: [f32; 3], pub normal: [f32; 3], pub tangent: [f32; 4], pub uv: [f32; 2], pub colour: [f32; 4] }
 
 pub const DEFAULT_TEXTURE: &str = "Arial";

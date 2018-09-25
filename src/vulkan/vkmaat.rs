@@ -325,65 +325,67 @@ impl CoreRender for VkMaat {
       tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, false, self.clear_colour);
       
       for draw in draw_calls {
+        let black_and_white = draw.is_black_and_white();
         match draw.get_type() {
-          DrawType::DrawText => {
-            if let Some(font_info) = self.resources.get_font(draw.font_name().unwrap_or("".to_string())) {
-              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), font_info);
+          DrawType::DrawFont(ref info) => {
+            let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = info.clone(); 
+            
+            let texture_resource = self.resources.get_font(font.clone());
+            if let Some(font_info) = texture_resource {
+              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
             }
           },
-          DrawType::DrawTextured => {
-            let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
+          DrawType::DrawTextured(ref info) => {
+            let (reference, position, scale, rotation) = info.clone(); 
+            
+            let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, false, None);
             }
           },
-          DrawType::DrawColoured => {
+          DrawType::DrawColoured(ref info) => {
+            let (position, scale, colour, rotation) = info.clone(); 
+            
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
             }
           },
           DrawType::DrawModel => {
             
           },
-          DrawType::DrawCustomShapeTextured => {
-            let texture_resource = self.resources.get_texture(draw.texture_name().unwrap());
-            let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
-            if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), true, texture, true, shape_resource);
-            }
-          },
-          DrawType::DrawCustomShapeColoured => {
-            let texture_resource = self.resources.get_texture("empty".to_string());
-            let shape_resource = self.resources.get_shape(draw.shape_name().unwrap_or("".to_string()));
-            if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, shape_resource);
-            }
-          },
-          DrawType::DrawInstancedColoured => {
-            let texture_resource = self.resources.get_texture("empty".to_string());
-            if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, draw.clone(), false, texture, true, None);
-            }
-          },
-          DrawType::DrawInstancedModel => {
+          DrawType::DrawCustomShapeTextured(ref info) => {
+            let (reference, texture, position, scale, rotation) = info.clone(); 
             
+            let shape_resource = self.resources.get_shape(reference.clone());
+            let texture_resource = self.resources.get_texture(texture.clone());
+              if let Some(texture) = texture_resource {
+                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+            }
           },
+          DrawType::DrawCustomShapeColoured(ref info) => {
+            let (reference, position, scale, colour, rotation) = info.clone(); 
+            
+            let shape_resource = self.resources.get_shape(reference.clone());
+            let texture_resource = self.resources.get_texture("empty".to_string());
+              if let Some(texture) = texture_resource {
+                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+            }
+          },
+          DrawType::DrawInstancedColoured => {},
+          DrawType::DrawInstancedModel => {},
           DrawType::NewShape => {
             
           },
-          DrawType::UpdateShape => {
-            if let Some(shape_name) = draw.shape_name() {
-              if let Some((verts, index)) = draw.new_shape_details() {
-                let futures = self.resources.update_shape(shape_name, verts, index, self.window.get_queue());
-                self.gather_futures(futures);
-              }
-            }
+          DrawType::UpdateShape(ref info) => {
+            let (reference, vertex, index) = info.clone();
+            let futures = self.resources.update_shape(reference, vertex, index, self.window.get_queue());
+            self.gather_futures(futures);
           },
           DrawType::RemoveShape => {
-            if let Some(shape_name) = draw.shape_name() {
-              self.resources.remove_object(shape_name);
-            }
+          //  if let Some(shape_name) = draw.shape_name() {
+         //     self.resources.remove_object(shape_name);
+         //   }
           },
           DrawType::NewDrawcallSet => {
             
@@ -394,31 +396,31 @@ impl CoreRender for VkMaat {
           DrawType::RemoveDrawcallSet => {
             
           },
-          DrawType::NewTexture => {
+          DrawType::NewTexture(ref info) => {
             
           },
-          DrawType::NewText => {
+          DrawType::NewFont => {
             
           },
           DrawType::NewModel => {
             
           },
-          DrawType::LoadTexture => {
+          DrawType::LoadTexture(ref info) => {
          //   let reference = draw.reference_name();
            // self.resources.load_texture(reference);
           },
-          DrawType::LoadFont => {
+          DrawType::LoadFont(ref info) => {
           //  let reference = draw.reference_name();
         //    self.resources.load_font(reference);
           },
           DrawType::LoadModel => {
             
           },
-          DrawType::UnloadTexture => {
+          DrawType::UnloadTexture(ref info) => {
       //      let reference = draw.reference_name();
     //        self.resources.unload_texture(reference);
           },
-          DrawType::UnloadFont => {
+          DrawType::UnloadFont(ref info) => {
 //            let reference = draw.reference_name();
   //          self.resources.unload_font(reference);
           },

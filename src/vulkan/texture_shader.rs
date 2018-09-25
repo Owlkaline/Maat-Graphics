@@ -37,6 +37,7 @@ use drawcalls::DrawCall;
 use font::GenericFont;
 
 use cgmath::Vector2;
+use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
 use cgmath::ortho;
@@ -241,8 +242,8 @@ impl TextureShader {
     cb.begin_render_pass(Arc::clone(&self.framebuffer), secondary, vec![clear_value, ClearValue::None]).unwrap()
   }
   
-  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
-    let model = math::calculate_texture_model(draw.position(), Vector2::new(draw.scale().x, draw.scale().y), -draw.rotation().x -180.0);
+  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32,  colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
+    let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
     
     let has_texture  = {
       if use_texture {
@@ -253,14 +254,21 @@ impl TextureShader {
     };
   
     let mut bw: f32 = 0.0;
-    if draw.black_and_white_enabled() {
+    if black_and_white {
       bw = 1.0;
+    }
+    
+    let draw_colour;
+    if let Some(colour) = colour {
+      draw_colour = colour;
+    } else {
+      draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
     let uniform_data = vs_texture::ty::Data {
       projection: texture_projection.into(),
       model: model.into(),
-      colour: draw.colour().into(),
+      colour: draw_colour.into(),
       has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
     };
     
@@ -287,28 +295,27 @@ impl TextureShader {
     cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
   }
   
-  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, draw: DrawCall, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
+  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
     let mut cb = cb;
-    let (font, texture) = font_info;
-    let wrapped_draw = drawcalls::setup_correct_wrapping(draw.clone(), font.clone());
-    let size = draw.scale().x;
+    let (fonts, texture) = font_info;
+    let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, fonts.clone());
+    let size = scale.x;
     
     let vertex_buffer = self.vertex_buffer.clone();
     let index_buffer = self.index_buffer.clone();
     
     for letter in wrapped_draw {
       let char_letter = {
-        letter.display_text().unwrap().as_bytes()[0] 
+        display_text.as_bytes()[0] 
       };
       
-      if let Some(font_name) = draw.font_name() {
-        let c = font.get_character(char_letter as i32);
+        let c = fonts.get_character(char_letter as i32);
         
-        let model = drawcalls::calculate_text_model(letter.position(), size, &c.clone(), char_letter);
+        let model = drawcalls::calculate_text_model(Vector3::new(position.x, position.y, 0.0), size, &c.clone(), char_letter);
         let letter_uv = drawcalls::calculate_text_uv(&c.clone());
-        let colour = letter.colour();
-        let outline = letter.text_outline_colour();
-        let edge_width = letter.text_edge_width(); 
+        let colour = colour;
+        let outline = outline_colour;
+        let edge_width = edge_width; 
         
         let uniform_buffer_text_subbuffer = {
           let uniform_data = vs_text::ty::Data {
@@ -332,7 +339,6 @@ impl TextureShader {
                                 vec!(Arc::clone(&vertex_buffer)),
                                 Arc::clone(&index_buffer),
                                 uniform_set, ()).unwrap();
-      }
     }
     
     cb
