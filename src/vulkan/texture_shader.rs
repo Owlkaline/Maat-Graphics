@@ -305,6 +305,7 @@ impl TextureShader {
     let index_buffer = self.index_buffer.clone();
     
     for letter in wrapped_draw {
+      let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = letter.draw_font_details().unwrap();
       let char_letter = {
         display_text.as_bytes()[0] 
       };

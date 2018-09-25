@@ -54,6 +54,7 @@ pub enum DrawType {
 }
 
 const DEFAULT_OUTLINE: Vector3<f32> = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+const DEFAULT_BASIC_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.5, y: 0.1, z: 0.1, w: 0.1 };
 const DEFAULT_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.5, y: 0.1, z: 0.7, w: 0.1 };
 const DEFAULT_NO_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.1, y: 0.1, z: 0.1, w: 0.1 };
 
@@ -94,28 +95,28 @@ impl DrawCall {
   
   pub fn draw_text_basic(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, display_text: String, font: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_NO_EDGE_WIDTH, false, 0, false)),
+      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, false, 0, false)),
       coloured: true,
     }
   }
   
   pub fn draw_text_basic_wrapped(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_NO_EDGE_WIDTH, true, wrap_length, false)),
+      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, true, wrap_length, false)),
       coloured: true,
     }
   }
   
   pub fn draw_text_basic_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, display_text: String, font: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_NO_EDGE_WIDTH, false, 0, true)),
+      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, false, 0, true)),
       coloured: true,
     }
   }
   
   pub fn draw_text_basic_wrapped_centered(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_NO_EDGE_WIDTH, true, wrap_length, true)),
+      draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, true, wrap_length, true)),
       coloured: true,
     }
   }
