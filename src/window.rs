@@ -32,6 +32,7 @@ use std::sync::Arc;
 use cgmath::Vector2;
 
 pub struct VkWindow {
+  is_amd_gpu: bool,
   events: EventsLoop,
   surface: Arc<Surface<winit::Window>>,
   queue: Arc<Queue>,
@@ -43,6 +44,8 @@ pub struct VkWindow {
 
 impl VkWindow {
   pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
+    let mut is_amd_gpu = false;
+    
     let instance = {
       // Window specific extensions grabbed from vulkano_win
       let extensions = required_extensions();
@@ -144,6 +147,12 @@ impl VkWindow {
         
         if found_suitable_device {
           println!("GPU {}: {} (type: {:?})", device.index(), device.name(), device.ty());
+          if device.name().contains("AMD") {
+            println!("AMD card has been seleceted, secondary command buffers won't be used");
+            is_amd_gpu = true;
+          } else {
+            println!("Non AMD card seleceted, Using secondary command buffers");
+          }
           break;
         }
       }
@@ -237,6 +246,7 @@ impl VkWindow {
     };
     
     VkWindow {
+      is_amd_gpu: is_amd_gpu,
       surface: surface,
       events: events_loop,
       queue: queue,
@@ -250,6 +260,10 @@ impl VkWindow {
   /// Sets the title of the window
   pub fn set_title(&mut self, title: String) {
     self.surface.window().set_title(&title);
+  }
+  
+  pub fn gpu_is_amd(&self) -> bool {
+    self.is_amd_gpu
   }
   
   pub fn get_max_msaa(&self) -> u32 {

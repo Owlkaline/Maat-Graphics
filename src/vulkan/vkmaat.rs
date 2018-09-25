@@ -152,140 +152,151 @@ impl VkMaat {
       self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     }
   }
-}
-
-impl CoreRender for VkMaat {
-  // Load 3D models
-  fn preload_model(&mut self, reference: String, location: String) {
-    
-  }
   
-  fn add_model(&mut self, reference: String, location: String) {
-    
-  }
-  
-  /**
-  ** Blocks current thread until resource is loaded onto the GPU
-  **/
-  fn preload_texture(&mut self, reference: String, location: String) {
-    let queue = self.window.get_queue();
-    self.resources.sync_load_texture(reference, location, queue);
-  }
-  
-  /**
-  ** Adds Texture details into list allowing easier loading with a drawcall command
-  **/
-  fn add_texture(&mut self, reference: String, location: String) {
-    self.resources.insert_unloaded_texture(reference, location);
-  }
-  
-  // Load fonts
-  fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
-    let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
-    self.gather_futures(vec!(futures));
-  }
-  
-  fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
-    //self.load_font(reference, font_texture, font);
-    self.resources.insert_unloaded_font(reference, font_texture, font);
-  }
-  
-  // Load custom goemetry
-  fn load_static_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
-    let queue = self.window.get_queue();
-    self.resources.load_shape(reference, vertex, index, queue);
-  }
-  
-  fn load_dynamic_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
-    let queue = self.window.get_queue();
-    self.resources.load_shape(reference, vertex, index, queue);
-  }
-  
-  // Internal use until Custom Shaders are implemented
-  fn load_shaders(&mut self) {
-    
-  }
-  
-  // Initalises everything
-  fn init(&mut self) {
-    
-  }
-  
-  /**
-  ** Clears the framebuffer should be called in 98% of cases
-  **/
-  fn clear_screen(&mut self) {
-    self.previous_frame_end.as_mut().unwrap().cleanup_finished();
-  }
-  
-  fn pre_draw(&mut self) {
-    let futures = self.resources.recieve_objects();
-    self.gather_futures(futures);
-    
-    if self.recreate_swapchain {
-      let mut dimensions = {
-        let dim = self.window.get_dimensions();
-        [dim.width as u32, dim.height as u32]
-      };
-      
-      if dimensions[0] <= 0 {
-        dimensions[0] = 1;
-      }
-      if dimensions[1] <= 0 {
-        dimensions[1] = 1;
-      }
-      
-      let (new_swapchain, new_images) = match self.window.recreate_swapchain(dimensions) {
-        Ok(r) => r,
-        Err(SwapchainCreationError::UnsupportedDimensions) => {
-          println!("UnsupportedDimensions");
-          return;
-        },
-        Err(err) => panic!("{:?}", err)
-      };
-      
-      self.window.replace_swapchain(new_swapchain);
-      self.window.replace_images(new_images);
-      
-      let device = self.window.get_device();
-      let queue = self.window.get_queue();
-      let samples = self.samples;
-      
-      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples);
-      self.final_shader.empty_framebuffer();
-      
-      self.dynamic_state.viewports = Some(
-        vec![Viewport {
-          origin: [0.0, 0.0],
-          dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-          depth_range: 0.0 .. 1.0,
-        }]
-      );
-      
-      self.recreate_swapchain = false;
-    }
-    
-    let images = self.window.get_images();
-    self.final_shader.recreate_framebuffer(images);
-  }
-  
-  /**
-  ** Secondary command buffer removed as on amd
-  **/
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
-    if self.recreate_swapchain == true {
-      return;
-    }
-    
-    let (image_num, acquire_future) = match swapchain::acquire_next_image(self.window.get_swapchain(), None) {
-      Ok(r) => r,
-      Err(AcquireError::OutOfDate) => {
-        self.recreate_swapchain = true;
-        return;
-      },
-      Err(err) => panic!("{:?}", err)
+  pub fn draw_with_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
+    // draw_calls
+    let mut dimensions = {
+      let dim = self.window.get_dimensions();
+      [dim.width as u32, dim.height as u32]
     };
     
+    let mut texture_command_buffer = {
+      let device = self.window.get_device();
+      let family = self.window.get_queue_ref().family();
+      
+      self.texture_shader.create_secondary_renderpass(device, family)
+    };
+    
+    for draw in draw_calls {
+      let black_and_white = draw.is_black_and_white();
+      match draw.get_type() {
+        DrawType::DrawFont(ref info) => {
+          let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = info.clone(); 
+          
+          let texture_resource = self.resources.get_font(font.clone());
+          if let Some(font_info) = texture_resource {
+            texture_command_buffer = self.texture_shader.draw_text(texture_command_buffer, &self.dynamic_state, self.texture_projection, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
+          }
+        },
+        DrawType::DrawTextured(ref info) => {
+          let (reference, position, scale, rotation) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture(reference.clone());
+          if let Some(texture) = texture_resource {
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, false, None);
+          }
+        },
+        DrawType::DrawColoured(ref info) => {
+          let (position, scale, colour, rotation) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture("empty".to_string());
+          if let Some(texture) = texture_resource {
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+          }
+        },
+        DrawType::DrawModel => {
+          
+        },
+        DrawType::DrawCustomShapeTextured(ref info) => {
+          let (reference, texture, position, scale, rotation) = info.clone(); 
+          
+          let shape_resource = self.resources.get_shape(reference.clone());
+          let texture_resource = self.resources.get_texture(texture.clone());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+          }
+        },
+        DrawType::DrawCustomShapeColoured(ref info) => {
+          let (reference, position, scale, colour, rotation) = info.clone(); 
+          
+          let shape_resource = self.resources.get_shape(reference.clone());
+          let texture_resource = self.resources.get_texture("empty".to_string());
+            if let Some(texture) = texture_resource {
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+          }
+        },
+        DrawType::DrawInstancedColoured => {},
+        DrawType::DrawInstancedModel => {},
+        DrawType::NewShape => {
+          
+        },
+        DrawType::UpdateShape(ref info) => {
+          let (reference, vertex, index) = info.clone();
+          let futures = self.resources.update_shape(reference, vertex, index, self.window.get_queue());
+          self.gather_futures(futures);
+        },
+        DrawType::RemoveShape => {
+        //  if let Some(shape_name) = draw.shape_name() {
+       //     self.resources.remove_object(shape_name);
+       //   }
+        },
+        DrawType::NewDrawcallSet => {
+          
+        },
+        DrawType::DrawDrawcallSet => {
+          
+        },
+        DrawType::RemoveDrawcallSet => {
+          
+        },
+        DrawType::NewTexture(ref info) => {
+          
+        },
+        DrawType::NewFont => {
+          
+        },
+        DrawType::NewModel => {
+          
+        },
+        DrawType::LoadTexture(ref info) => {
+          let reference = info.clone();
+          self.resources.load_texture_from_reference(reference, self.window.get_queue());
+        },
+        DrawType::LoadFont(ref info) => {
+//          let reference = info.clone();
+//          self.resources.load_font(reference);
+        },
+        DrawType::LoadModel => {
+          
+        },
+        DrawType::UnloadTexture(ref info) => {
+//          let reference = info.clone();
+//          self.resources.unload_texture(reference);
+        },
+        DrawType::UnloadFont(ref info) => {
+//          let reference = info.clone();
+//          self.resources.unload_font(reference);
+        },
+        DrawType::UnloadModel => {
+          
+        },
+        _ => {}
+      }
+    }
+    
+    let texture_cmd_buffer = texture_command_buffer.build().unwrap();
+      
+    let command_buffer: AutoCommandBuffer = {
+      let mut tmp_cmd_buffer = AutoCommandBufferBuilder::primary_one_time_submit(self.window.get_device(), self.window.get_queue_ref().family()).unwrap();
+      
+      tmp_cmd_buffer = self.texture_shader.begin_renderpass(tmp_cmd_buffer, true, self.clear_colour);
+      unsafe {
+        tmp_cmd_buffer = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
+      }
+      tmp_cmd_buffer = self.texture_shader.end_renderpass(tmp_cmd_buffer);
+      tmp_cmd_buffer = self.final_shader.begin_renderpass(tmp_cmd_buffer, false, image_num);
+      
+      let texture_image = self.texture_shader.get_texture_attachment();
+      tmp_cmd_buffer = self.final_shader.draw(tmp_cmd_buffer, &self.dynamic_state, [dimensions[0] as f32, dimensions[1] as f32], self.texture_projection, texture_image);
+      
+      self.final_shader.end_renderpass(tmp_cmd_buffer)
+          .build().unwrap() as AutoCommandBuffer
+    };
+    
+    command_buffer
+  }
+  
+  pub fn draw_without_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
     // draw_calls
     let command_buffer: AutoCommandBuffer = {
       let mut dimensions = {
@@ -425,6 +436,150 @@ impl CoreRender for VkMaat {
       self.final_shader.end_renderpass(tmp_cmd_buffer)
           .build().unwrap() as AutoCommandBuffer
     };
+    
+    command_buffer
+  }
+}
+
+impl CoreRender for VkMaat {
+  // Load 3D models
+  fn preload_model(&mut self, reference: String, location: String) {
+    
+  }
+  
+  fn add_model(&mut self, reference: String, location: String) {
+    
+  }
+  
+  /**
+  ** Blocks current thread until resource is loaded onto the GPU
+  **/
+  fn preload_texture(&mut self, reference: String, location: String) {
+    let queue = self.window.get_queue();
+    self.resources.sync_load_texture(reference, location, queue);
+  }
+  
+  /**
+  ** Adds Texture details into list allowing easier loading with a drawcall command
+  **/
+  fn add_texture(&mut self, reference: String, location: String) {
+    self.resources.insert_unloaded_texture(reference, location);
+  }
+  
+  // Load fonts
+  fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
+    let futures = self.resources.sync_load_font(reference, font_texture, font, self.window.get_queue());
+    self.gather_futures(vec!(futures));
+  }
+  
+  fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
+    //self.load_font(reference, font_texture, font);
+    self.resources.insert_unloaded_font(reference, font_texture, font);
+  }
+  
+  // Load custom goemetry
+  fn load_static_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
+    let queue = self.window.get_queue();
+    self.resources.load_shape(reference, vertex, index, queue);
+  }
+  
+  fn load_dynamic_geometry(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>) {
+    let queue = self.window.get_queue();
+    self.resources.load_shape(reference, vertex, index, queue);
+  }
+  
+  // Internal use until Custom Shaders are implemented
+  fn load_shaders(&mut self) {
+    
+  }
+  
+  // Initalises everything
+  fn init(&mut self) {
+    
+  }
+  
+  /**
+  ** Clears the framebuffer should be called in 98% of cases
+  **/
+  fn clear_screen(&mut self) {
+    self.previous_frame_end.as_mut().unwrap().cleanup_finished();
+  }
+  
+  fn pre_draw(&mut self) {
+    let futures = self.resources.recieve_objects();
+    self.gather_futures(futures);
+    
+    if self.recreate_swapchain {
+      let mut dimensions = {
+        let dim = self.window.get_dimensions();
+        [dim.width as u32, dim.height as u32]
+      };
+      
+      if dimensions[0] <= 0 {
+        dimensions[0] = 1;
+      }
+      if dimensions[1] <= 0 {
+        dimensions[1] = 1;
+      }
+      
+      let (new_swapchain, new_images) = match self.window.recreate_swapchain(dimensions) {
+        Ok(r) => r,
+        Err(SwapchainCreationError::UnsupportedDimensions) => {
+          println!("UnsupportedDimensions");
+          return;
+        },
+        Err(err) => panic!("{:?}", err)
+      };
+      
+      self.window.replace_swapchain(new_swapchain);
+      self.window.replace_images(new_images);
+      
+      let device = self.window.get_device();
+      let queue = self.window.get_queue();
+      let samples = self.samples;
+      
+      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples);
+      self.final_shader.empty_framebuffer();
+      
+      self.dynamic_state.viewports = Some(
+        vec![Viewport {
+          origin: [0.0, 0.0],
+          dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+          depth_range: 0.0 .. 1.0,
+        }]
+      );
+      
+      self.recreate_swapchain = false;
+    }
+    
+    let images = self.window.get_images();
+    self.final_shader.recreate_framebuffer(images);
+  }
+  
+  /**
+  ** Secondary command buffer removed as on amd
+  **/
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
+    
+    if self.recreate_swapchain == true {
+      return;
+    }
+    
+    let (image_num, acquire_future) = match swapchain::acquire_next_image(self.window.get_swapchain(), None) {
+      Ok(r) => r,
+      Err(AcquireError::OutOfDate) => {
+        self.recreate_swapchain = true;
+        return;
+      },
+      Err(err) => panic!("{:?}", err)
+    };
+    
+    let mut command_buffer;
+    if self.window.gpu_is_amd() {
+      command_buffer = self.draw_without_secondary_buffers(draw_calls, image_num);
+    } else {
+      command_buffer = self.draw_with_secondary_buffers(draw_calls, image_num);
+    }
     
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
                      .then_execute(self.window.get_queue(), command_buffer).expect("future")
