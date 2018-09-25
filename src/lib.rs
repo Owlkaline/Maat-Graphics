@@ -116,12 +116,14 @@ extern crate vulkano_win;
 
 use self::threadpool::ThreadPool;
 
+pub use drawcalls::DrawCall;
+
 pub mod graphics;
-pub mod drawcalls;
 pub mod settings;
 pub mod camera;
 pub mod vulkan;
 pub mod math;
+mod drawcalls;
 mod gltf_interpreter;
 mod font;
 mod window;

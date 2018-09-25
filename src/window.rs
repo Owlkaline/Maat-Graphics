@@ -27,6 +27,7 @@ use vulkano::instance;
 use vulkano::instance::PhysicalDevice;
 use vulkano::instance::debug::{DebugCallback, MessageTypes};
 
+use std::env;
 use std::sync::Arc;
 
 use cgmath::Vector2;
@@ -45,7 +46,7 @@ pub struct VkWindow {
 impl VkWindow {
   pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
     let mut is_amd_gpu = false;
-    
+    env::set_var("WINIT_HIDPI_FACTOR", "1");
     let instance = {
       // Window specific extensions grabbed from vulkano_win
       let extensions = required_extensions();
@@ -287,12 +288,12 @@ impl VkWindow {
   }
   
   // Recrates the swapchain to keep it relevant to the surface dimensions
-  pub fn recreate_swapchain(&self, _dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
-    let caps = self.surface
+  pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
+   /* let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
     
-    let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
+    let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);*/
     
     println!("Window Resized, New Dimensions: {:?}", dimensions);
     self.swapchain.recreate_with_dimension(dimensions)
@@ -325,14 +326,14 @@ impl VkWindow {
   
   /// Returns the dimensions of the window as u32
   pub fn get_dimensions(&self) -> LogicalSize {
-    let caps = self.surface
-      .capabilities(self.device.physical_device())
-      .expect("failure to get surface capabilities");
+   // let caps = self.surface
+   //   .capabilities(self.device.physical_device())
+   //   .expect("failure to get surface capabilities");
     
-    let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
+   // let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);
     
-    LogicalSize::new(dimensions[0] as f64, dimensions[1] as f64)
-    //self.surface.window().get_inner_size().unwrap()
+   // LogicalSize::new(dimensions[0] as f64, dimensions[1] as f64)
+    self.surface.window().get_inner_size().unwrap()
   }
   
   /// Returns a reference to the events loop

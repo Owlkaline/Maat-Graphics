@@ -45,6 +45,7 @@ impl_vertex!(Vertex3d, position, normal, tangent, uv, colour);
 // NEEDS TO BE MOVED WHEN 3D is a thing
 use cgmath::perspective;
 use cgmath::Deg;
+
 pub fn create_3d_projection(width: f32, height: f32) -> Matrix4<f32> {
   perspective(Deg(45.0), { width as f32 / height as f32 }, 0.1, 100.0)
 }
@@ -83,6 +84,11 @@ impl VkMaat {
     let samples = settings.get_msaa();
     
     let window = VkWindow::new(dim[0] as f64, dim[1] as f64, min_dim[0], min_dim[1], fullscreen, vsync, triple_buffer);
+    
+    let actual_dim = {
+      let logic_dim = window.get_dimensions();
+      [logic_dim.width as u32, logic_dim.height as u32]
+    };
     
     let device = window.get_device();
     let queue = window.get_queue();
@@ -514,7 +520,7 @@ impl CoreRender for VkMaat {
     if self.recreate_swapchain {
       let mut dimensions = {
         let dim = self.window.get_dimensions();
-        [dim.width as u32, dim.height as u32]
+        [(dim.width * self.window.get_dpi_scale()) as u32 , (dim.height * self.window.get_dpi_scale()) as u32]
       };
       
       if dimensions[0] <= 0 {
@@ -539,7 +545,7 @@ impl CoreRender for VkMaat {
       let device = self.window.get_device();
       let queue = self.window.get_queue();
       let samples = self.samples;
-      let texture_projection = self.texture_projection.clone();
+      self.texture_projection = TextureShader::create_projection(dimensions[0] as f32 / self.window.get_dpi_scale() as f32, dimensions[1] as f32 / self.window.get_dpi_scale() as f32);
       
       self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples, self.texture_projection);
       self.final_shader.empty_framebuffer();
