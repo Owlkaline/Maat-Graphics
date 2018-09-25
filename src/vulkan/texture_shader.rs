@@ -2,11 +2,13 @@ use vulkano::buffer::BufferUsage;
 use vulkano::buffer::BufferAccess;
 use vulkano::buffer::ImmutableBuffer;
 use vulkano::buffer::cpu_pool::CpuBufferPool;
+use vulkano::buffer::cpu_pool::CpuBufferPoolSubbuffer;
 
 use vulkano::instance::QueueFamily;
 
 use vulkano::sampler;
 use vulkano::sync::NowFuture;
+use vulkano::memory::pool::StdMemoryPool;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
 use vulkano::command_buffer::DynamicState;
@@ -82,9 +84,11 @@ pub struct TextureShader {
   
   texture_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
   texture_uniformbuffer: CpuBufferPool<vs_texture::ty::Data>,
+  texture_subbuffer: CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<StdMemoryPool>>,
   
   text_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
   text_uniformbuffer: CpuBufferPool<vs_text::ty::Data>,
+  text_subbuffer: CpuBufferPoolSubbuffer<vs_text::ty::Data, Arc<StdMemoryPool>>,
   
   attachment_image: Arc<vkimage::AttachmentImage>,
   sampler: Arc<sampler::Sampler>,
@@ -93,7 +97,7 @@ pub struct TextureShader {
 }
 
 impl TextureShader {
-  pub fn create(device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32)-> (TextureShader, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
+  pub fn create(device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>)-> (TextureShader, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
     let text_uniform = CpuBufferPool::uniform_buffer(Arc::clone(&device));
     let texture_uniform = CpuBufferPool::uniform_buffer(Arc::clone(&device));
     
@@ -165,6 +169,15 @@ impl TextureShader {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
     
+    let uniform_data = vs_texture::ty::Data {
+      projection: texture_projection.into(),
+    };
+    let texture_subbuffer = texture_uniform.next(uniform_data).unwrap();
+    let uniform_data = vs_text::ty::Data {
+      projection: texture_projection.into(),
+    };
+    let text_subbuffer = text_uniform.next(uniform_data).unwrap();
+    
     (
       TextureShader {
         renderpass: renderpass,
@@ -175,9 +188,11 @@ impl TextureShader {
         
         texture_pipeline: texture_pipeline,
         texture_uniformbuffer: texture_uniform,
+        texture_subbuffer: texture_subbuffer,
         
         text_pipeline: text_pipeline,
         text_uniformbuffer: text_uniform,
+        text_subbuffer: text_subbuffer,
         
         attachment_image: fullcolour_attachment,
         
@@ -218,7 +233,21 @@ impl TextureShader {
                                .expect("failed to create immutable index buffer")
   }
   
-  pub fn recreate_framebuffer(&mut self, device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32) {
+  fn update_uniform_buffers(&mut self, texture_projection: Matrix4<f32>) {
+    let uniform_data = vs_texture::ty::Data {
+      projection: texture_projection.into(),
+    };
+    
+    self.texture_subbuffer = self.texture_uniformbuffer.next(uniform_data).unwrap();
+    
+    let uniform_data = vs_text::ty::Data {
+      projection: texture_projection.into(),
+    };
+    
+    self.text_subbuffer = self.text_uniformbuffer.next(uniform_data).unwrap();
+  }
+  
+  pub fn recreate_framebuffer(&mut self, device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>) {
     let (ms_colour_attachment, fullcolour_attachment) = TextureShader::create_texture_attachments(Arc::clone(&device), dim, samples);
   
     let framebuffer = Arc::new({
@@ -231,6 +260,8 @@ impl TextureShader {
     self.attachment_image = fullcolour_attachment;
     
     self.framebuffer = framebuffer;
+    
+    self.update_uniform_buffers(texture_projection);
   }
   
   pub fn create_secondary_renderpass(&mut self, device: Arc<Device>, family: QueueFamily<'_>) -> AutoCommandBufferBuilder {
@@ -242,7 +273,7 @@ impl TextureShader {
     cb.begin_render_pass(Arc::clone(&self.framebuffer), secondary, vec![clear_value, ClearValue::None]).unwrap()
   }
   
-  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32,  colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
+  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32,  colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
     let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
     
     let has_texture  = {
@@ -265,8 +296,7 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let uniform_data = vs_texture::ty::Data {
-      projection: texture_projection.into(),
+    let push_constants = vs_texture::ty::PushConstants {
       model: model.into(),
       colour: draw_colour.into(),
       has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
@@ -286,16 +316,14 @@ impl TextureShader {
       (vertex, index)
     };
     
-    let uniform_subbuffer = self.texture_uniformbuffer.next(uniform_data).unwrap();
-    
     let descriptor_set = Arc::new(PersistentDescriptorSet::start(Arc::clone(&pipeline), 0)
                                 .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
-                                .add_buffer(uniform_subbuffer.clone()).unwrap().build().unwrap());
+                                .add_buffer(self.texture_subbuffer.clone()).unwrap().build().unwrap());
     
-    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
+    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
   }
   
-  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, texture_projection: Matrix4<f32>, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
+  pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
     let mut cb = cb;
     let (fonts, texture) = font_info;
     let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, fonts.clone());
@@ -315,31 +343,28 @@ impl TextureShader {
         let model = drawcalls::calculate_text_model(Vector3::new(position.x, position.y, 0.0), size, &c.clone(), char_letter);
         let letter_uv = drawcalls::calculate_text_uv(&c.clone());
         let colour = colour;
-        let outline = outline_colour;
+        let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, 0.0);
         let edge_width = edge_width; 
         
-        let uniform_buffer_text_subbuffer = {
-          let uniform_data = vs_text::ty::Data {
-            outlineColour: outline.into(),
-            colour: colour.into(),
-            edge_width: edge_width.into(),
-            letter_uv: letter_uv.into(),
-            model: model.into(),
-            projection: texture_projection.into(),
-          };
-          self.text_uniformbuffer.next(uniform_data).unwrap()
+        let push_constants = vs_text::ty::PushConstants {
+          model: model.into(),
+          letter_uv: letter_uv.into(),
+          edge_width: edge_width.into(),
+          colour: colour.into(),
+          outlineColour: outline.into(),
         };
         
         let uniform_set = Arc::new(PersistentDescriptorSet::start(Arc::clone(&self.text_pipeline), 0)
                                    .add_sampled_image(Arc::clone(&texture), Arc::clone(&self.sampler)).unwrap()
-                                   .add_buffer(uniform_buffer_text_subbuffer.clone()).unwrap()
+                                   .add_buffer(self.text_subbuffer.clone()).unwrap()
                                    .build().unwrap());
         
         cb = cb.draw_indexed(Arc::clone(&self.text_pipeline),
                                 dynamic_state,
                                 vec!(Arc::clone(&vertex_buffer)),
                                 Arc::clone(&index_buffer),
-                                uniform_set, ()).unwrap();
+                                uniform_set,
+                                push_constants).unwrap();
     }
     
     cb

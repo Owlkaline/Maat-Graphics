@@ -88,7 +88,9 @@ impl VkMaat {
     let queue = window.get_queue();
     let swapchain_format = window.get_swapchain_format();
     
-    let (texture_shader, future_textures) = TextureShader::create(device.clone(), queue.clone(), dim, samples);
+    let texture_projection = TextureShader::create_projection(dim[0] as f32, dim[1] as f32);
+    
+    let (texture_shader, future_textures) = TextureShader::create(device.clone(), queue.clone(), dim, samples, texture_projection.clone());
     let (final_shader, final_futures) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
     
     let mut resources = ResourceManager::new();
@@ -122,7 +124,7 @@ impl VkMaat {
     VkMaat {
       camera: Camera::default_vk(),
       
-      texture_projection: TextureShader::create_projection(dim[0] as f32, dim[1] as f32),
+      texture_projection: texture_projection,
       model_projection: create_3d_projection(dim[0] as f32, dim[1] as f32),
       
       resources: resources,
@@ -175,7 +177,7 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_font(font.clone());
           if let Some(font_info) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_text(texture_command_buffer, &self.dynamic_state, self.texture_projection, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
+            texture_command_buffer = self.texture_shader.draw_text(texture_command_buffer, &self.dynamic_state, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
           }
         },
         DrawType::DrawTextured(ref info) => {
@@ -183,7 +185,7 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture(reference.clone());
           if let Some(texture) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, false, None);
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
           }
         },
         DrawType::DrawColoured(ref info) => {
@@ -191,7 +193,7 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture("empty".to_string());
           if let Some(texture) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
           }
         },
         DrawType::DrawModel => {
@@ -203,7 +205,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture(texture.clone());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
           }
         },
         DrawType::DrawCustomShapeColoured(ref info) => {
@@ -212,7 +214,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
           }
         },
         DrawType::DrawInstancedColoured => {},
@@ -323,7 +325,7 @@ impl VkMaat {
             
             let texture_resource = self.resources.get_font(font.clone());
             if let Some(font_info) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
+              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
             }
           },
           DrawType::DrawTextured(ref info) => {
@@ -331,7 +333,7 @@ impl VkMaat {
             
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
             }
           },
           DrawType::DrawColoured(ref info) => {
@@ -339,7 +341,7 @@ impl VkMaat {
             
             let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
             }
           },
           DrawType::DrawModel => {
@@ -351,7 +353,7 @@ impl VkMaat {
             let shape_resource = self.resources.get_shape(reference.clone());
             let texture_resource = self.resources.get_texture(texture.clone());
               if let Some(texture) = texture_resource {
-                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
             }
           },
           DrawType::DrawCustomShapeColoured(ref info) => {
@@ -360,7 +362,7 @@ impl VkMaat {
             let shape_resource = self.resources.get_shape(reference.clone());
             let texture_resource = self.resources.get_texture("empty".to_string());
               if let Some(texture) = texture_resource {
-                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, self.texture_projection, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
             }
           },
           DrawType::DrawInstancedColoured => {},
@@ -537,8 +539,9 @@ impl CoreRender for VkMaat {
       let device = self.window.get_device();
       let queue = self.window.get_queue();
       let samples = self.samples;
+      let texture_projection = self.texture_projection.clone();
       
-      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples);
+      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples, self.texture_projection);
       self.final_shader.empty_framebuffer();
       
       self.dynamic_state.viewports = Some(

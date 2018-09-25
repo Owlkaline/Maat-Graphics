@@ -117,7 +117,7 @@ impl VkWindow {
         // Windowed
         temp_surface = winit::WindowBuilder::new()
                                           .with_dimensions(LogicalSize::new(width, height))
-                                          .with_resizable(false)
+                                          .with_resizable(true)
                                           .with_title("Vulkan Windowed")
                                           .build_vk_surface(&events_loop, instance.clone())
                                           .unwrap()
@@ -153,6 +153,7 @@ impl VkWindow {
           } else {
             println!("Non AMD card seleceted, Using secondary command buffers");
           }
+          println!("push constant Limit size: {}",device.limits().max_push_constants_size());
           break;
         }
       }

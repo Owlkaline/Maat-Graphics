@@ -149,6 +149,10 @@ impl FinalShader {
     
     let uniform_data = vs_final::ty::Data {
       projection: texture_projection.into(),
+     // model: model.into(),
+    };
+    
+    let push_constants = vs_final::ty::PushConstants {
       model: model.into(),
     };
     
@@ -162,7 +166,7 @@ impl FinalShader {
                               .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
                               .build().unwrap());
     
-    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
+    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
   }
   
   pub fn end_renderpass(&mut self, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {

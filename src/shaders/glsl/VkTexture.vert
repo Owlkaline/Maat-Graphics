@@ -9,16 +9,19 @@ layout(location = 2) out vec2 textured_blackwhite;
 
 layout(set = 0, binding = 1) uniform Data {
   mat4 projection;
+} uniforms;
+
+layout(push_constant) uniform PushConstants {
   mat4 model;
   vec4 colour;
   vec4 has_texture_blackwhite;
-} uniforms;
+} push_constants;
 
 void main() {
   uvs = uv;
-  new_colour = uniforms.colour;
+  new_colour = push_constants.colour;
   
-  textured_blackwhite = uniforms.has_texture_blackwhite.xy;
+  textured_blackwhite = push_constants.has_texture_blackwhite.xy;
   
-  gl_Position = uniforms.projection * uniforms.model * vec4(position, 0.0, 1.0);
+  gl_Position = uniforms.projection * push_constants.model * vec4(position, 0.0, 1.0);
 }
