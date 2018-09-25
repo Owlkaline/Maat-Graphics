@@ -26,8 +26,6 @@ pub struct Settings {
   samples: u32,
   fullscreen: bool,
   resolution: [u32; 2],
-  force_dpi: bool,
-  dpi: f32,
 }
 
 impl Settings {
@@ -36,7 +34,7 @@ impl Settings {
     let mut triple_buffer = false;
     let mut samples = 4;
     let mut is_fullscreen = false;
-    let mut resolution = [1280, 720];
+    let resolution = [1280, 720];
     let mut force_dpi = false;
     let mut dpi = 1.0;
     
@@ -130,14 +128,12 @@ impl Settings {
       samples: samples,
       fullscreen: is_fullscreen,
       resolution: resolution,
-      force_dpi: force_dpi,
-      dpi: dpi,
     }
   }
   
   pub fn force_dpi(dpi_value: f32) {
     #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
-    env::set_var("WINIT_SCALE_FACTOR", dpi_value.to_string());
+    env::set_var("WINIT_HIDPI_FACTOR", dpi_value.to_string());
     println!("Forcing dpi scale of {}", dpi_value);
   }
   

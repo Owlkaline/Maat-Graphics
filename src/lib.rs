@@ -124,10 +124,10 @@ pub mod camera;
 pub mod vulkan;
 pub mod math;
 mod drawcalls;
-mod gltf_interpreter;
+//mod gltf_interpreter;
 mod font;
 mod window;
-mod helperfunctions;
+//mod helperfunctions;
 mod vulkano_win_updated;
 mod threadpool;
 

@@ -15,8 +15,8 @@ pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, ro
 }
 
 pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
-  let mut x_rot = 0.0;
-  let mut z_rot = 0.0;
+  let x_rot;
+  let z_rot;
   
   let q1 = 90.0;
   let q2 = 180.0;

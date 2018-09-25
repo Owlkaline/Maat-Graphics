@@ -6,10 +6,7 @@ use graphics;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
-use cgmath::Matrix2;
 use cgmath::Matrix4;
-
-use std::collections::HashMap;
 
 #[derive(Clone, PartialEq)]
 pub enum DrawType {
@@ -56,7 +53,6 @@ pub enum DrawType {
 const DEFAULT_OUTLINE: Vector3<f32> = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
 const DEFAULT_BASIC_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.5, y: 0.1, z: 0.1, w: 0.1 };
 const DEFAULT_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.5, y: 0.1, z: 0.7, w: 0.1 };
-const DEFAULT_NO_EDGE_WIDTH: Vector4<f32> = Vector4 { x: 0.1, y: 0.1, z: 0.1, w: 0.1 };
 
 #[derive(Clone)]
 pub struct DrawCall {
@@ -264,7 +260,7 @@ impl DrawCall {
   }
 }
 
-pub fn get_text_length(text: String, size: f32, font: String, fonts: GenericFont) -> f32 {
+pub fn get_text_length(text: String, size: f32, fonts: GenericFont) -> f32 {
   let mut length = 0.0;
   
   for letter in text.as_bytes() {
@@ -282,7 +278,7 @@ pub fn setup_correct_wrapping(display_text: String, font: String, position: Vect
   let init_translation = {
     let mut temp = 0.0;
     if centered {
-      temp = get_text_length(display_text.clone(), scale.x, font.clone(), fonts.clone())*0.5;
+      temp = get_text_length(display_text.clone(), scale.x, fonts.clone())*0.5;
     }
     position.x-temp
   };
@@ -388,17 +384,4 @@ pub fn calculate_text_uv(c: &GenericCharacter) -> Vector4<f32> {
   let y_h: f32 = y + c.get_height() as f32;
   
   Vector4::new(x, y, x_w, y_h)
-}
-
-pub fn rotate(angle: f32) -> (f32, f32) {
-  let crnt_pos = Vector2::new(0.0, 1.0);
-  
-  let rotation_mat = Matrix2::new(
-    angle.cos(), -(angle.sin()),
-    angle.sin(), angle.cos()
-  );
-  
-  let new_pos = rotation_mat * crnt_pos;
-  
-  (new_pos.x, new_pos.y)
 }

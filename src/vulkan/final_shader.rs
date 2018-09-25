@@ -42,14 +42,14 @@ mod vs_final {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkFinal.vert"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 mod fs_final {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkFinal.frag"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 pub struct FinalShader {
@@ -97,7 +97,7 @@ impl FinalShader {
         .build(device.clone())
         .unwrap());
     
-    let (vertex_buffer, future_vtx) = TextureShader::create_vertex(Arc::clone(&device), Arc::clone(&queue));
+    let (vertex_buffer, future_vtx) = TextureShader::create_vertex(Arc::clone(&queue));
     let (idx_buffer, future_idx) = TextureShader::create_index(queue);
     
     let sampler = sampler::Sampler::new(device.clone(), sampler::Filter::Linear,

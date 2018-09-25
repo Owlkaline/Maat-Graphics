@@ -54,7 +54,7 @@ pub struct VkMaat {
   camera: Camera,
   
   texture_projection: Matrix4<f32>,
-  model_projection: Matrix4<f32>,
+  _model_projection: Matrix4<f32>,
   
   resources: ResourceManager,
   
@@ -131,7 +131,7 @@ impl VkMaat {
       camera: Camera::default_vk(),
       
       texture_projection: texture_projection,
-      model_projection: create_3d_projection(dim[0] as f32, dim[1] as f32),
+      _model_projection: create_3d_projection(dim[0] as f32, dim[1] as f32),
       
       resources: resources,
       
@@ -163,7 +163,7 @@ impl VkMaat {
   
   pub fn draw_with_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
     // draw_calls
-    let mut dimensions = {
+    let dimensions = {
       let dim = self.window.get_dimensions();
       [dim.width as u32, dim.height as u32]
     };
@@ -179,7 +179,7 @@ impl VkMaat {
       let black_and_white = draw.is_black_and_white();
       match draw.get_type() {
         DrawType::DrawFont(ref info) => {
-          let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = info.clone(); 
+          let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
           
           let texture_resource = self.resources.get_font(font.clone());
           if let Some(font_info) = texture_resource {
@@ -247,7 +247,7 @@ impl VkMaat {
         DrawType::RemoveDrawcallSet => {
           
         },
-        DrawType::NewTexture(ref info) => {
+        DrawType::NewTexture(ref _info) => {
           
         },
         DrawType::NewFont => {
@@ -260,18 +260,18 @@ impl VkMaat {
           let reference = info.clone();
           self.resources.load_texture_from_reference(reference, self.window.get_queue());
         },
-        DrawType::LoadFont(ref info) => {
+        DrawType::LoadFont(ref _info) => {
 //          let reference = info.clone();
 //          self.resources.load_font(reference);
         },
         DrawType::LoadModel => {
           
         },
-        DrawType::UnloadTexture(ref info) => {
+        DrawType::UnloadTexture(ref _info) => {
 //          let reference = info.clone();
 //          self.resources.unload_texture(reference);
         },
-        DrawType::UnloadFont(ref info) => {
+        DrawType::UnloadFont(ref _info) => {
 //          let reference = info.clone();
 //          self.resources.unload_font(reference);
         },
@@ -327,7 +327,7 @@ impl VkMaat {
         let black_and_white = draw.is_black_and_white();
         match draw.get_type() {
           DrawType::DrawFont(ref info) => {
-            let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = info.clone(); 
+            let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
             
             let texture_resource = self.resources.get_font(font.clone());
             if let Some(font_info) = texture_resource {
@@ -395,7 +395,7 @@ impl VkMaat {
           DrawType::RemoveDrawcallSet => {
             
           },
-          DrawType::NewTexture(ref info) => {
+          DrawType::NewTexture(ref _info) => {
             
           },
           DrawType::NewFont => {
@@ -408,18 +408,18 @@ impl VkMaat {
             let reference = info.clone();
             self.resources.load_texture_from_reference(reference, self.window.get_queue());
           },
-          DrawType::LoadFont(ref info) => {
+          DrawType::LoadFont(ref _info) => {
 //            let reference = info.clone();
 //            self.resources.load_font(reference);
           },
           DrawType::LoadModel => {
             
           },
-          DrawType::UnloadTexture(ref info) => {
+          DrawType::UnloadTexture(ref _info) => {
 //            let reference = info.clone();
 //            self.resources.unload_texture(reference);
           },
-          DrawType::UnloadFont(ref info) => {
+          DrawType::UnloadFont(ref _info) => {
 //            let reference = info.clone();
 //            self.resources.unload_font(reference);
           },
@@ -451,11 +451,11 @@ impl VkMaat {
 
 impl CoreRender for VkMaat {
   // Load 3D models
-  fn preload_model(&mut self, reference: String, location: String) {
+  fn preload_model(&mut self, _reference: String, _location: String) {
     
   }
   
-  fn add_model(&mut self, reference: String, location: String) {
+  fn add_model(&mut self, _reference: String, _location: String) {
     
   }
   
@@ -464,7 +464,8 @@ impl CoreRender for VkMaat {
   **/
   fn preload_texture(&mut self, reference: String, location: String) {
     let queue = self.window.get_queue();
-    self.resources.sync_load_texture(reference, location, queue);
+    let future = self.resources.sync_load_texture(reference, location, queue);
+    self.gather_futures(vec!(future));
   }
   
   /**
@@ -543,11 +544,10 @@ impl CoreRender for VkMaat {
       self.window.replace_images(new_images);
       
       let device = self.window.get_device();
-      let queue = self.window.get_queue();
       let samples = self.samples;
       self.texture_projection = TextureShader::create_projection(dimensions[0] as f32 / self.window.get_dpi_scale() as f32, dimensions[1] as f32 / self.window.get_dpi_scale() as f32);
       
-      self.texture_shader.recreate_framebuffer(device, queue, dimensions, samples, self.texture_projection);
+      self.texture_shader.recreate_framebuffer(device, dimensions, samples, self.texture_projection);
       self.final_shader.empty_framebuffer();
       
       self.dynamic_state.viewports = Some(
@@ -583,7 +583,7 @@ impl CoreRender for VkMaat {
       Err(err) => panic!("{:?}", err)
     };
     
-    let mut command_buffer;
+    let command_buffer;
     if self.window.gpu_is_amd() {
       command_buffer = self.draw_without_secondary_buffers(draw_calls, image_num);
     } else {
@@ -615,7 +615,7 @@ impl CoreRender for VkMaat {
     
   }
   
-  fn screen_resized(&mut self, window_size: LogicalSize) {
+  fn screen_resized(&mut self, _window_size: LogicalSize) {
     self.recreate_swapchain = true;
   }
   

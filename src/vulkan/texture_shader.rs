@@ -35,7 +35,6 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use math;
 use graphics::Vertex2d;
 use drawcalls;
-use drawcalls::DrawCall;
 use font::GenericFont;
 
 use cgmath::Vector2;
@@ -45,34 +44,33 @@ use cgmath::Matrix4;
 use cgmath::ortho;
 
 use std::sync::Arc;
-use std::collections::HashMap;
 
 mod vs_texture {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkTexture.vert"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 mod fs_texture {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkTexture.frag"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 mod vs_text {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkText.vert"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 mod fs_text {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkText.frag"]
-  struct Dummy;
+  struct _Dummy;
 }
 
 pub struct TextureShader {
@@ -92,8 +90,6 @@ pub struct TextureShader {
   
   attachment_image: Arc<vkimage::AttachmentImage>,
   sampler: Arc<sampler::Sampler>,
-  
-  fonts: HashMap<String, GenericFont>,
 }
 
 impl TextureShader {
@@ -151,7 +147,7 @@ impl TextureShader {
     
     let (ms_colour_attachment, fullcolour_attachment) = TextureShader::create_texture_attachments(Arc::clone(&device), dim, samples);
     
-    let (vertex_buffer, future_vtx) = TextureShader::create_vertex(Arc::clone(&device), Arc::clone(&queue));
+    let (vertex_buffer, future_vtx) = TextureShader::create_vertex(Arc::clone(&queue));
     let (idx_buffer, future_idx) = TextureShader::create_index(queue);
     
     let framebuffer = Arc::new({
@@ -197,7 +193,6 @@ impl TextureShader {
         attachment_image: fullcolour_attachment,
         
         sampler: sampler,
-        fonts: HashMap::new(),
       },
       vec!(future_idx, future_vtx)
     )
@@ -207,7 +202,7 @@ impl TextureShader {
     ortho(0.0, width, height, 0.0, -1.0, 1.0)
   }
   
-  pub fn create_vertex(device: Arc<Device>, queue: Arc<Queue>) -> (Arc<ImmutableBuffer<[Vertex2d]>>,
+  pub fn create_vertex(queue: Arc<Queue>) -> (Arc<ImmutableBuffer<[Vertex2d]>>,
                                     CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     let square = {
       [
@@ -247,7 +242,7 @@ impl TextureShader {
     self.text_subbuffer = self.text_uniformbuffer.next(uniform_data).unwrap();
   }
   
-  pub fn recreate_framebuffer(&mut self, device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>) {
+  pub fn recreate_framebuffer(&mut self, device: Arc<Device>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>) {
     let (ms_colour_attachment, fullcolour_attachment) = TextureShader::create_texture_attachments(Arc::clone(&device), dim, samples);
   
     let framebuffer = Arc::new({
@@ -333,7 +328,7 @@ impl TextureShader {
     let index_buffer = self.index_buffer.clone();
     
     for letter in wrapped_draw {
-      let (font, display_text, position, scale, colour, outline_colour, edge_width, wrapped, wrap_length, centered) = letter.draw_font_details().unwrap();
+      let (_font, display_text, position, _scale, colour, outline_colour, edge_width, _wrapped, _wrap_length, _centered) = letter.draw_font_details().unwrap();
       let char_letter = {
         display_text.as_bytes()[0] 
       };

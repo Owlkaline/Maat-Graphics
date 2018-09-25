@@ -16,7 +16,6 @@ use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
 use cgmath::Quaternion;
-use cgmath::Rotation;
 
 use image;
 use image::ImageFormat::{JPEG, PNG};
@@ -123,7 +122,7 @@ pub struct ModelDetails {
 
 impl Drop for ModelDetails{
   fn drop(&mut self) {
-    let mut children = mem::replace(&mut self.models, Vec::new());
+    let _children = mem::replace(&mut self.models, Vec::new());
     /*
     loop {
       children = match children {
@@ -199,7 +198,7 @@ impl ModelDetails {
     };*/
     //println!("{}", source);
     let load = gltf::import(source);
-    let (gltf, buffers, images) = match load {
+    let (gltf, buffers, _images) = match load {
       Ok(t) => {
         t
       },
@@ -259,7 +258,7 @@ impl ModelDetails {
       let scale = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
       let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
       let quaternion = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]);
-      let inverse_quaternion = quaternion.invert();
+      //let inverse_quaternion = quaternion.invert();
       let rotation = Matrix4::from(quaternion);
       
       for mesh in node.mesh() {
@@ -351,7 +350,7 @@ impl ModelDetails {
             let mut tangents = Vec::with_capacity(iter.len());
             for vertex_tangent in iter {
               let tangent = Vector4::new(vertex_tangent[0], vertex_tangent[1], vertex_tangent[2], vertex_tangent[3]);
-              let normal = (translation*scale)*rotation*Vector4::new(tangent.x, tangent.y, tangent.z, tangent.w);
+            //  let normal = (translation*scale)*rotation*Vector4::new(tangent.x, tangent.y, tangent.z, tangent.w);
               tangents.push([tangent.x, tangent.y, tangent.z, tangent.w]);
               
               models[index].has_tangents = true;

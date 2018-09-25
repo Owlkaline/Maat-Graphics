@@ -27,7 +27,7 @@ use std::sync::Mutex;
 enum ObjectType {
   Font(Option<(GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)>),
   Texture(Option<Arc<ImmutableImage<format::R8G8B8A8Unorm>>>),
-  Model(String),
+  _Model(String),
   Shape(Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>),
 }
 
@@ -93,7 +93,7 @@ impl ResourceManager {
             futures.push(future);
           }
         },
-        Err(e) => { },
+        Err(_e) => { },
       }
     }
     
@@ -160,7 +160,7 @@ impl ResourceManager {
   /**
   ** Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_shape(&mut self, reference: String, location: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
+  pub fn sync_load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -184,13 +184,6 @@ impl ResourceManager {
   pub fn load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    let object = LoadableObject {
-      loaded: false,
-      location: "".to_string(),
-      reference: reference.clone(),
-      object_type: ObjectType::Shape(None),
-    };
     
     self.num_recv_objects += 1;
     let idx = self.data.len();
@@ -296,7 +289,7 @@ impl ResourceManager {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
-    let (texture, futures) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
+    let (texture, futures) = ResourceManager::load_texture_into_memory(location.clone(), queue);
     
     self.objects.push(
       LoadableObject {
@@ -333,13 +326,6 @@ impl ResourceManager {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
-    let object = LoadableObject {
-      loaded: false,
-      location: location.clone(),
-      reference: reference.clone(),
-      object_type: ObjectType::Texture(None),
-    };
-    
     self.num_recv_objects += 1;
     let index = self.data.len();
     
@@ -348,7 +334,7 @@ impl ResourceManager {
     let (data, tx) = (self.data[index].clone(), self.tx.clone());
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
-      let (texture, future) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), queue);
+      let (texture, future) = ResourceManager::load_texture_into_memory(location.clone(), queue);
       
       let object = LoadableObject {
         loaded: true,
@@ -387,7 +373,7 @@ impl ResourceManager {
   **
   ** Note: The font details will be in memory, even if it is unloaded, remove_font is recommended if space is required.
   **/
-  pub fn insert_unloaded_font(&mut self, reference: String, location: String, font: &[u8]) {
+  pub fn insert_unloaded_font(&mut self, reference: String, location: String, _font: &[u8]) {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -425,7 +411,7 @@ impl ResourceManager {
     
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
-    let (texture, futures) = ResourceManager::load_texture_into_memory(reference.clone(), location.clone(), Arc::clone(&queue));
+    let (texture, futures) = ResourceManager::load_texture_into_memory(location.clone(), Arc::clone(&queue));
     let font = ResourceManager::load_font_into_memory(reference.clone(), font);
     
     self.objects.push(
@@ -481,11 +467,10 @@ impl ResourceManager {
     (vertex, index, vec!(future_vtx, future_idx))
   }
   
-  fn load_texture_into_memory(reference: String, location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+  fn load_texture_into_memory(location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     let texture_start_time = time::Instant::now();
     
     let (texture, tex_future) = {
-      let texture = location.clone();
       let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
       let (width, height) = image.dimensions();
       let image_data = image.into_raw().clone();

@@ -2,7 +2,6 @@ use winit;
 use winit::EventsLoop;
 use winit::dpi::LogicalSize;
 use winit::dpi::LogicalPosition;
-use winit::dpi::PhysicalSize;
 
 use settings::Settings;
 
@@ -40,11 +39,11 @@ pub struct VkWindow {
   device: Arc<Device>,
   swapchain: Arc<Swapchain<winit::Window>>,
   images: Vec<Arc<SwapchainImage<winit::Window>>>,
-  min_max_dim: Vector2<f32>,
+  _min_max_dim: Vector2<f32>,
 }
 
 impl VkWindow {
-  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
+  pub fn new(width: f64, height: f64, _min_width: u32, _min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
     let mut is_amd_gpu = false;
     env::set_var("WINIT_HIDPI_FACTOR", "1.0");
     let instance = {
@@ -118,7 +117,7 @@ impl VkWindow {
         // Windowed
         temp_surface = winit::WindowBuilder::new()
                                           .with_dimensions(LogicalSize::new(width, height))
-                                          .with_resizable(true)
+                                          .with_resizable(false)
                                           .with_title("Vulkan Windowed")
                                           .build_vk_surface(&events_loop, instance.clone())
                                           .unwrap()
@@ -255,7 +254,7 @@ impl VkWindow {
       device: device,
       swapchain: swapchain,
       images: images,
-      min_max_dim: Vector2::new(min_width as f32, min_height as f32),
+      _min_max_dim: Vector2::new(min_width as f32, min_height as f32),
     }
   }
   
@@ -268,9 +267,9 @@ impl VkWindow {
     self.is_amd_gpu
   }
   
-  pub fn get_max_msaa(&self) -> u32 {
+ /* fn get_max_msaa(&self) -> u32 {
     self.device.physical_device().limits().max_sampler_anisotropy() as u32
-  }
+  }*/
   
   // Returns a clone of device
   pub fn get_device(&self) -> Arc<Device> {
