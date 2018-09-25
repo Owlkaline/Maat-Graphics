@@ -85,16 +85,16 @@ impl VkMaat {
     
     let window = VkWindow::new(dim[0] as f64, dim[1] as f64, min_dim[0], min_dim[1], fullscreen, vsync, triple_buffer);
     
-    let actual_dim = {
+    let dim = {
       let logic_dim = window.get_dimensions();
-      [logic_dim.width as u32, logic_dim.height as u32]
+      [(logic_dim.width as f32 * window.get_dpi_scale() as f32) as u32, (logic_dim.height as f32 * window.get_dpi_scale() as f32) as u32]
     };
     
     let device = window.get_device();
     let queue = window.get_queue();
     let swapchain_format = window.get_swapchain_format();
     
-    let texture_projection = TextureShader::create_projection(dim[0] as f32, dim[1] as f32);
+    let texture_projection = TextureShader::create_projection(dim[0] as f32 / window.get_dpi_scale() as f32, dim[1] as f32 / window.get_dpi_scale() as f32);
     
     let (texture_shader, future_textures) = TextureShader::create(device.clone(), queue.clone(), dim, samples, texture_projection.clone());
     let (final_shader, final_futures) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);

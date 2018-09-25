@@ -46,7 +46,7 @@ pub struct VkWindow {
 impl VkWindow {
   pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
     let mut is_amd_gpu = false;
-    env::set_var("WINIT_HIDPI_FACTOR", "1");
+    env::set_var("WINIT_HIDPI_FACTOR", "1.0");
     let instance = {
       // Window specific extensions grabbed from vulkano_win
       let extensions = required_extensions();
