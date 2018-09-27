@@ -90,6 +90,8 @@ pub struct TextureShader {
   
   attachment_image: Arc<vkimage::AttachmentImage>,
   sampler: Arc<sampler::Sampler>,
+  
+  scale_matrix: Matrix4<f32>,
 }
 
 impl TextureShader {
@@ -129,6 +131,7 @@ impl TextureShader {
         .vertex_shader(vs_texture.main_entry_point(), ())
        // .triangle_strip()
         .viewports_dynamic_scissors_irrelevant(1)
+        //.viewports_scissors_dynamic(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(Arc::clone(&renderpass), 0).unwrap())
@@ -164,9 +167,10 @@ impl TextureShader {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
-    
+    let scale_matrix = Matrix4::from_scale(0.5);
     let uniform_data = vs_texture::ty::Data {
       projection: texture_projection.into(),
+      scale: scale_matrix.into(),
     };
     let texture_subbuffer = texture_uniform.next(uniform_data).unwrap();
     let uniform_data = vs_text::ty::Data {
@@ -193,6 +197,7 @@ impl TextureShader {
         attachment_image: fullcolour_attachment,
         
         sampler: sampler,
+        scale_matrix: scale_matrix,
       },
       vec!(future_idx, future_vtx)
     )
@@ -228,9 +233,15 @@ impl TextureShader {
                                .expect("failed to create immutable index buffer")
   }
   
+  pub fn set_scale(&mut self, scale: f32, texture_projection: Matrix4<f32>) {
+    self.scale_matrix = Matrix4::from_scale(scale);
+    self.update_uniform_buffers(texture_projection);
+  }
+  
   fn update_uniform_buffers(&mut self, texture_projection: Matrix4<f32>) {
     let uniform_data = vs_texture::ty::Data {
       projection: texture_projection.into(),
+      scale: self.scale_matrix.into(),
     };
     
     self.texture_subbuffer = self.texture_uniformbuffer.next(uniform_data).unwrap();

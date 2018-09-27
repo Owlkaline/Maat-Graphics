@@ -47,6 +47,8 @@ pub enum DrawType {
   DrawDrawcallSet,
   RemoveDrawcallSet,
   
+  SetTextureScale(f32),
+  
   None,
 }
 
@@ -148,6 +150,13 @@ impl DrawCall {
   pub fn draw_text_custom(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, centered: bool, wrap_length: u32, display_text: String, font: String) -> DrawCall {
     DrawCall {
       draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, outline_colour, edge_width, true, wrap_length, centered)),
+      coloured: true,
+    }
+  }
+  
+  pub fn set_texture_scale(scale: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::SetTextureScale(scale),
       coloured: true,
     }
   }

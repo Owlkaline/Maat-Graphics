@@ -91,6 +91,7 @@ impl FinalShader {
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_final.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
+        //.viewports_scissors_dynamic(1)
         .fragment_shader(fs_final.main_entry_point(), ())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(renderpass.clone(), 0).unwrap())
@@ -149,7 +150,6 @@ impl FinalShader {
     
     let uniform_data = vs_final::ty::Data {
       projection: texture_projection.into(),
-     // model: model.into(),
     };
     
     let push_constants = vs_final::ty::PushConstants {

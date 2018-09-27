@@ -9,6 +9,7 @@ layout(location = 2) out vec2 textured_blackwhite;
 
 layout(set = 0, binding = 1) uniform Data {
   mat4 projection;
+  mat4 scale;
 } uniforms;
 
 layout(push_constant) uniform PushConstants {
@@ -23,5 +24,5 @@ void main() {
   
   textured_blackwhite = push_constants.has_texture_blackwhite.xy;
   
-  gl_Position = uniforms.projection * push_constants.model * vec4(position, 0.0, 1.0);
+  gl_Position = uniforms.projection * uniforms.scale * push_constants.model * vec4(position, 0.0, 1.0);
 }

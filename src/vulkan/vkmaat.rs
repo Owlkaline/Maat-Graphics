@@ -278,6 +278,9 @@ impl VkMaat {
         DrawType::UnloadModel => {
           
         },
+        DrawType::SetTextureScale(ref scale) => {
+          self.texture_shader.set_scale(scale.clone(), self.texture_projection);
+        },
         _ => {}
       }
     }
