@@ -57,7 +57,23 @@ impl VkWindow {
       }
       
       let layer = "VK_LAYER_LUNARG_standard_validation";
-      let layers = vec![layer];
+      let layers = {
+        let mut display_debug = false;
+        match env::var("MAAT_DEBUG") {
+          Ok(val) => {
+            if val == "1".to_string() {
+              display_debug = true;
+            }
+          },
+          Err(_) => {},
+        }
+        
+        if display_debug {
+          vec![layer]
+        } else {
+          vec!()
+        }
+      };
       
       //Instance::new(None, &extensions, None).expect("failed to create Vulkan instance")
       Instance::new(None, &extensions, layers).expect("failed to create Vulkan instance")
