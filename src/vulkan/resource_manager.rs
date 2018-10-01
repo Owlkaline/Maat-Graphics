@@ -473,7 +473,7 @@ impl ResourceManager {
   
   fn load_texture_into_memory(location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     let texture_start_time = time::Instant::now();
-    println!("start");
+    
     let (texture, tex_future) = {
       let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
       let (width, height) = image.dimensions();
