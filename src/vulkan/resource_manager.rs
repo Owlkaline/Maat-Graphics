@@ -102,10 +102,12 @@ impl ResourceManager {
   
   fn get_unloaded_object(&mut self, reference: String) -> Option<LoadableObject> {
     let mut object = None;
-    for i in 0..self.objects.len()-1 {
+    
+    for i in 0..self.objects.len() {
       if self.objects[i].reference == reference {
         if !self.objects[i].loaded {
           object = Some(self.objects.remove(i));
+          break;
         }
       }
     }
@@ -316,6 +318,8 @@ impl ResourceManager {
       let reference = object.reference;
       
       self.load_texture(reference, location, queue);
+    } else {
+      println!("stuff?");
     }
   }
   
@@ -469,7 +473,7 @@ impl ResourceManager {
   
   fn load_texture_into_memory(location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
     let texture_start_time = time::Instant::now();
-    
+    println!("start");
     let (texture, tex_future) = {
       let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
       let (width, height) = image.dimensions();
