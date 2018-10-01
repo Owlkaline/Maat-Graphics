@@ -308,7 +308,7 @@ impl ResourceManager {
   **/
   pub fn load_texture_from_reference(&mut self, reference: String, queue: Arc<Queue>) {
     
-    debug_assert!(!self.check_object(reference.clone()), "Error: Object reference doesn't exist!");
+    debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
     
     let unloaded_object = self.get_unloaded_object(reference.clone());
     if let Some(object) = unloaded_object {
