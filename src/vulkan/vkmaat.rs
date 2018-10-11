@@ -329,108 +329,111 @@ impl VkMaat {
       for draw in draw_calls {
         let black_and_white = draw.is_black_and_white();
         match draw.get_type() {
-          DrawType::DrawFont(ref info) => {
-            let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
-            
-            let texture_resource = self.resources.get_font(font.clone());
-            if let Some(font_info) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
-            }
-          },
-          DrawType::DrawTextured(ref info) => {
-            let (reference, position, scale, rotation) = info.clone(); 
-            
-            let texture_resource = self.resources.get_texture(reference.clone());
+        DrawType::DrawFont(ref info) => {
+          let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
+          
+          let texture_resource = self.resources.get_font(font.clone());
+          if let Some(font_info) = texture_resource {
+            tmp_cmd_buffer = self.texture_shader.draw_text(tmp_cmd_buffer, &self.dynamic_state, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_info);
+          }
+        },
+        DrawType::DrawTextured(ref info) => {
+          let (reference, position, scale, rotation) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture(reference.clone());
+          if let Some(texture) = texture_resource {
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
+          }
+        },
+        DrawType::DrawColoured(ref info) => {
+          let (position, scale, colour, rotation) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture("empty".to_string());
+          if let Some(texture) = texture_resource {
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+          }
+        },
+        DrawType::DrawModel => {
+          
+        },
+        DrawType::DrawCustomShapeTextured(ref info) => {
+          let (reference, texture, position, scale, rotation) = info.clone(); 
+          
+          let shape_resource = self.resources.get_shape(reference.clone());
+          let texture_resource = self.resources.get_texture(texture.clone());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
-            }
-          },
-          DrawType::DrawColoured(ref info) => {
-            let (position, scale, colour, rotation) = info.clone(); 
-            
-            let texture_resource = self.resources.get_texture("empty".to_string());
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+          }
+        },
+        DrawType::DrawCustomShapeColoured(ref info) => {
+          let (reference, position, scale, colour, rotation) = info.clone(); 
+          
+          let shape_resource = self.resources.get_shape(reference.clone());
+          let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
-            }
-          },
-          DrawType::DrawModel => {
-            
-          },
-          DrawType::DrawCustomShapeTextured(ref info) => {
-            let (reference, texture, position, scale, rotation) = info.clone(); 
-            
-            let shape_resource = self.resources.get_shape(reference.clone());
-            let texture_resource = self.resources.get_texture(texture.clone());
-              if let Some(texture) = texture_resource {
-                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
-            }
-          },
-          DrawType::DrawCustomShapeColoured(ref info) => {
-            let (reference, position, scale, colour, rotation) = info.clone(); 
-            
-            let shape_resource = self.resources.get_shape(reference.clone());
-            let texture_resource = self.resources.get_texture("empty".to_string());
-              if let Some(texture) = texture_resource {
-                tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
-            }
-          },
-          DrawType::DrawInstancedColoured => {},
-          DrawType::DrawInstancedModel => {},
-          DrawType::NewShape => {
-            
-          },
-          DrawType::UpdateShape(ref info) => {
-            let (reference, vertex, index) = info.clone();
-            let futures = self.resources.update_shape(reference, vertex, index, self.window.get_queue());
-            self.gather_futures(futures);
-          },
-          DrawType::RemoveShape => {
-          //  if let Some(shape_name) = draw.shape_name() {
-         //     self.resources.remove_object(shape_name);
-         //   }
-          },
-          DrawType::NewDrawcallSet => {
-            
-          },
-          DrawType::DrawDrawcallSet => {
-            
-          },
-          DrawType::RemoveDrawcallSet => {
-            
-          },
-          DrawType::NewTexture(ref _info) => {
-            
-          },
-          DrawType::NewFont => {
-            
-          },
-          DrawType::NewModel => {
-            
-          },
-          DrawType::LoadTexture(ref info) => {
-            let reference = info.clone();
-            self.resources.load_texture_from_reference(reference, self.window.get_queue());
-          },
-          DrawType::LoadFont(ref _info) => {
-//            let reference = info.clone();
-//            self.resources.load_font(reference);
-          },
-          DrawType::LoadModel => {
-            
-          },
-          DrawType::UnloadTexture(ref _info) => {
-//            let reference = info.clone();
-//            self.resources.unload_texture(reference);
-          },
-          DrawType::UnloadFont(ref _info) => {
-//            let reference = info.clone();
-//            self.resources.unload_font(reference);
-          },
-          DrawType::UnloadModel => {
-            
-          },
-          _ => {}
-        }
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+          }
+        },
+        DrawType::DrawInstancedColoured => {},
+        DrawType::DrawInstancedModel => {},
+        DrawType::NewShape => {
+          
+        },
+        DrawType::UpdateShape(ref info) => {
+          let (reference, vertex, index) = info.clone();
+          let futures = self.resources.update_shape(reference, vertex, index, self.window.get_queue());
+          self.gather_futures(futures);
+        },
+        DrawType::RemoveShape => {
+        //  if let Some(shape_name) = draw.shape_name() {
+       //     self.resources.remove_object(shape_name);
+       //   }
+        },
+        DrawType::NewDrawcallSet => {
+          
+        },
+        DrawType::DrawDrawcallSet => {
+          
+        },
+        DrawType::RemoveDrawcallSet => {
+          
+        },
+        DrawType::NewTexture(ref _info) => {
+          
+        },
+        DrawType::NewFont => {
+          
+        },
+        DrawType::NewModel => {
+          
+        },
+        DrawType::LoadTexture(ref info) => {
+          let reference = info.clone();
+          self.resources.load_texture_from_reference(reference, self.window.get_queue());
+        },
+        DrawType::LoadFont(ref _info) => {
+//          let reference = info.clone();
+//          self.resources.load_font(reference);
+        },
+        DrawType::LoadModel => {
+          
+        },
+        DrawType::UnloadTexture(ref _info) => {
+//          let reference = info.clone();
+//          self.resources.unload_texture(reference);
+        },
+        DrawType::UnloadFont(ref _info) => {
+//          let reference = info.clone();
+//          self.resources.unload_font(reference);
+        },
+        DrawType::UnloadModel => {
+          
+        },
+        DrawType::SetTextureScale(ref scale) => {
+          self.texture_shader.set_scale(scale.clone(), self.texture_projection);
+        },
+        _ => {}
+      }
       }
       
      // let texture_cmd_buffer = texture_command_buffer.build().unwrap();

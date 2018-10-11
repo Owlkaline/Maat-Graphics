@@ -77,7 +77,9 @@ impl ResourceManager {
     let mut futures = Vec::new();
     
     if self.num_recv_objects <= 0 {
-      self.data.clear();
+      if self.data.len() > 0 {
+        self.data.clear();
+      }
       return futures;
     }
     
