@@ -35,6 +35,7 @@ use vulkano::format;
 use winit;
 use winit::dpi::LogicalSize;
 
+use cgmath::Vector4;
 use cgmath::Matrix4;
 
 use std::collections::HashMap;
@@ -187,11 +188,11 @@ impl VkMaat {
           }
         },
         DrawType::DrawTextured(ref info) => {
-          let (reference, position, scale, rotation) = info.clone(); 
+          let (reference, position, scale, rotation, alpha) = info.clone(); 
           
           let texture_resource = self.resources.get_texture(reference.clone());
           if let Some(texture) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
           }
         },
         DrawType::DrawColoured(ref info) => {
@@ -338,11 +339,11 @@ impl VkMaat {
           }
         },
         DrawType::DrawTextured(ref info) => {
-          let (reference, position, scale, rotation) = info.clone(); 
+          let (reference, position, scale, rotation, alpha) = info.clone(); 
           
           let texture_resource = self.resources.get_texture(reference.clone());
           if let Some(texture) = texture_resource {
-            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, false, None);
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
           }
         },
         DrawType::DrawColoured(ref info) => {

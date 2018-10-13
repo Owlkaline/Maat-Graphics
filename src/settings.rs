@@ -6,8 +6,6 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 //use std::fs;
 
-use std::env;
-
 const SETTINGS_LOCATION: &str = "./settings.ini";
 const NL: &str = "\n";
 const SPACE: &str = " ";

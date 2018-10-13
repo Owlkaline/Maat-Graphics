@@ -13,7 +13,7 @@ pub enum DrawType {
   // Font, Display Text, Position, Scale, Colour, Outline Colour, Edge_width, wrapped, wrap length, centered
   DrawFont((String, String, Vector2<f32>, Vector2<f32>, Vector4<f32>, Vector3<f32>, Vector4<f32>, bool, u32, bool)), 
   // Ref, Position, Scale, Rotation
-  DrawTextured((String, Vector2<f32>, Vector2<f32>, f32)),
+  DrawTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
   // Position, Scale, Colour, Rotation
   DrawColoured((Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   DrawModel,
@@ -64,8 +64,16 @@ pub struct DrawCall {
 
 impl DrawCall {
   pub fn draw_textured(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String) -> DrawCall {
+    let alpha = 1.0;
     DrawCall {
-      draw_type: DrawType::DrawTextured((texture, position, scale, rotation)),
+      draw_type: DrawType::DrawTextured((texture, position, scale, rotation, alpha)),
+      coloured: true,
+    }
+  }
+  
+  pub fn draw_textured_with_alpha(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, alpha: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::DrawTextured((texture, position, scale, rotation, alpha)),
       coloured: true,
     }
   }
@@ -204,7 +212,7 @@ impl DrawCall {
     None
   }
   
-  pub fn draw_textured_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32)> {
+  pub fn draw_textured_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, f32)> {
     let mut result = None;
     match self.draw_type {
       DrawType::DrawTextured(ref info) => {

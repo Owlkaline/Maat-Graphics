@@ -321,7 +321,7 @@ impl ResourceManager {
       
       self.load_texture(reference, location, queue);
     } else {
-      println!("stuff?");
+      println!("Object {} already loaded", reference);
     }
   }
   
