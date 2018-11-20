@@ -3,10 +3,12 @@ use font::GenericFont;
 
 use graphics;
 
+use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
+use cgmath::InnerSpace;
 
 #[derive(Clone, PartialEq)]
 pub enum DrawType {
@@ -14,6 +16,8 @@ pub enum DrawType {
   DrawFont((String, String, Vector2<f32>, Vector2<f32>, Vector4<f32>, Vector3<f32>, Vector4<f32>, bool, u32, bool)), 
   // Ref, Position, Scale, Rotation
   DrawTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
+  // Ref, Position, Scale, Rotation, SpriteDetails(x,y,rows)
+  DrawSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>)),
   // Position, Scale, Colour, Rotation
   DrawColoured((Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   DrawModel,
@@ -67,6 +71,18 @@ impl DrawCall {
     let alpha = 1.0;
     DrawCall {
       draw_type: DrawType::DrawTextured((texture, position, scale, rotation, alpha)),
+      coloured: true,
+    }
+  }
+  
+  pub fn draw_sprite_sheet(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
+    let alpha = 1.0;
+    debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
+    debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
+    debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
+    debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
+    DrawCall {
+      draw_type: DrawType::DrawSpriteSheet((texture, position, scale, rotation, alpha, sprite_details)),
       coloured: true,
     }
   }
@@ -216,6 +232,17 @@ impl DrawCall {
     let mut result = None;
     match self.draw_type {
       DrawType::DrawTextured(ref info) => {
+        result = Some(info.clone());
+      },
+      _ => {},
+    }
+    result
+  }
+  
+  pub fn draw_sprite_sheet_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>)> {
+    let mut result = None;
+    match self.draw_type {
+      DrawType::DrawSpriteSheet(ref info) => {
         result = Some(info.clone());
       },
       _ => {},
@@ -376,7 +403,7 @@ pub fn calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCha
        letter == 'q' as u8 ||
        letter == '@' as u8 ||
        letter == '$' as u8 {
-      temp = c.get_offset_y()*size;
+      temp = c.get_offset_y()*0.5*size;
     }
     
     if letter == '-' as u8 {
@@ -384,7 +411,8 @@ pub fn calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCha
     }
     temp
   };
-  
+  //let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
+  //let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(450.0-rotation));
   let mut model = Matrix4::from_translation(Vector3::new(
                                 translation.x + x_offset, 
                                 translation.y - y_offset, 

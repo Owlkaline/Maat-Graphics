@@ -157,9 +157,9 @@ impl FinalShader {
     };
     
     let uniform_subbuffer = self.uniformbuffer.next(uniform_data).unwrap();
-    let vertex = self.vertex_buffer.clone();
-    let index = self.index_buffer.clone();
-    let pipeline = self.pipeline.clone();
+    let vertex = Arc::clone(&self.vertex_buffer);
+    let index = Arc::clone(&self.index_buffer);
+    let pipeline = Arc::clone(&self.pipeline);
     
     let descriptor_set = Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
                               .add_buffer(uniform_subbuffer.clone()).unwrap()
@@ -167,6 +167,7 @@ impl FinalShader {
                               .build().unwrap());
     
     cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
+   //cb
   }
   
   pub fn end_renderpass(&mut self, cb: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {

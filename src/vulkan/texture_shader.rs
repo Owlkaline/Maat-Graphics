@@ -175,6 +175,7 @@ impl TextureShader {
     let texture_subbuffer = texture_uniform.next(uniform_data).unwrap();
     let uniform_data = vs_text::ty::Data {
       projection: texture_projection.into(),
+      scale: scale_matrix.into(),
     };
     let text_subbuffer = text_uniform.next(uniform_data).unwrap();
     
@@ -248,6 +249,7 @@ impl TextureShader {
     
     let uniform_data = vs_text::ty::Data {
       projection: texture_projection.into(),
+      scale: self.scale_matrix.into(),
     };
     
     self.text_subbuffer = self.text_uniformbuffer.next(uniform_data).unwrap();
@@ -279,7 +281,7 @@ impl TextureShader {
     cb.begin_render_pass(Arc::clone(&self.framebuffer), secondary, vec![clear_value, ClearValue::None]).unwrap()
   }
   
-  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32,  colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
+  pub fn draw_texture(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>, use_custom_buffer: bool, custom_buffer: Option<(Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>)>) -> AutoCommandBufferBuilder {
     let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
     
     let has_texture  = {
@@ -295,6 +297,14 @@ impl TextureShader {
       bw = 1.0;
     }
     
+    let sprite = {
+      let mut tex_view = Vector4::new(0.0, 0.0, 1.0, 0.0);
+      if let Some(details) = sprite_details {
+        tex_view = Vector4::new(details.x as f32, details.y as f32, details.z as f32, 0.0);
+      }
+      tex_view
+    };
+    
     let draw_colour;
     if let Some(colour) = colour {
       draw_colour = colour;
@@ -305,6 +315,7 @@ impl TextureShader {
     let push_constants = vs_texture::ty::PushConstants {
       model: model.into(),
       colour: draw_colour.into(),
+      sprite_sheet: sprite.into(),
       has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
     };
     
@@ -331,6 +342,7 @@ impl TextureShader {
   
   pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
     let mut cb = cb;
+    let scale = scale *2.0;
     let (fonts, texture) = font_info;
     let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, fonts.clone());
     let size = scale.x;

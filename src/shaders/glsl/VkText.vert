@@ -9,6 +9,7 @@ layout(location = 2) out vec3 outlineColour;
 layout(location = 3) out vec4 edge_width;
 
 layout(set = 0, binding = 1) uniform Data {
+  mat4 scale;
   mat4 projection;
 } uniforms;
 
@@ -42,7 +43,7 @@ void main() {
     new_pos.y = push_constants.letter_uv.w - push_constants.letter_uv.y;
   }
   
-  gl_Position = uniforms.projection * push_constants.model * vec4(new_pos, 0.0, 1.0);
+  gl_Position = uniforms.projection * uniforms.scale * push_constants.model * vec4(new_pos, 0.0, 1.0);
   
   uvs = new_uv;
   outlineColour = push_constants.outlineColour.rgb;

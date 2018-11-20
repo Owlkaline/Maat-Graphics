@@ -192,7 +192,15 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture(reference.clone());
           if let Some(texture) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
+          }
+        },
+        DrawType::DrawSpriteSheet(ref info) => {
+          let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture(reference.clone());
+          if let Some(texture) = texture_resource {
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
           }
         },
         DrawType::DrawColoured(ref info) => {
@@ -200,7 +208,7 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture("empty".to_string());
           if let Some(texture) = texture_resource {
-            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+            texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, Some(colour), black_and_white, false, texture, false, None);
           }
         },
         DrawType::DrawModel => {
@@ -212,7 +220,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture(texture.clone());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, None, black_and_white, true, texture, true, shape_resource);
           }
         },
         DrawType::DrawCustomShapeColoured(ref info) => {
@@ -221,7 +229,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+              texture_command_buffer = self.texture_shader.draw_texture(texture_command_buffer, &self.dynamic_state, position, scale, rotation, None, Some(colour), black_and_white, false, texture, true, shape_resource);
           }
         },
         DrawType::DrawInstancedColoured => {},
@@ -343,7 +351,15 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture(reference.clone());
           if let Some(texture) = texture_resource {
-            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
+          }
+        },
+        DrawType::DrawSpriteSheet(ref info) => {
+          let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+          
+          let texture_resource = self.resources.get_texture(reference.clone());
+          if let Some(texture) = texture_resource {
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, texture, false, None);
           }
         },
         DrawType::DrawColoured(ref info) => {
@@ -351,7 +367,7 @@ impl VkMaat {
           
           let texture_resource = self.resources.get_texture("empty".to_string());
           if let Some(texture) = texture_resource {
-            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, false, None);
+            tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, Some(colour), black_and_white, false, texture, false, None);
           }
         },
         DrawType::DrawModel => {
@@ -363,7 +379,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture(texture.clone());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, black_and_white, true, texture, true, shape_resource);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, None, black_and_white, true, texture, true, shape_resource);
           }
         },
         DrawType::DrawCustomShapeColoured(ref info) => {
@@ -372,7 +388,7 @@ impl VkMaat {
           let shape_resource = self.resources.get_shape(reference.clone());
           let texture_resource = self.resources.get_texture("empty".to_string());
             if let Some(texture) = texture_resource {
-              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, Some(colour), black_and_white, false, texture, true, shape_resource);
+              tmp_cmd_buffer = self.texture_shader.draw_texture(tmp_cmd_buffer, &self.dynamic_state, position, scale, rotation, None, Some(colour), black_and_white, false, texture, true, shape_resource);
           }
         },
         DrawType::DrawInstancedColoured => {},
@@ -434,7 +450,7 @@ impl VkMaat {
           self.texture_shader.set_scale(scale.clone(), self.texture_projection);
         },
         _ => {}
-      }
+        }
       }
       
      // let texture_cmd_buffer = texture_command_buffer.build().unwrap();
@@ -591,11 +607,11 @@ impl CoreRender for VkMaat {
     };
     
     let command_buffer;
-    if self.window.gpu_is_amd() {
+   // if self.window.gpu_is_amd() {
       command_buffer = self.draw_without_secondary_buffers(draw_calls, image_num);
-    } else {
-      command_buffer = self.draw_with_secondary_buffers(draw_calls, image_num);
-    }
+   // } else {
+     // command_buffer = self.draw_with_secondary_buffers(draw_calls, image_num);
+   // }
     
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
                      .then_execute(self.window.get_queue(), command_buffer).expect("future")
