@@ -32,18 +32,18 @@ use std::sync::Arc;
 use cgmath::Vector2;
 
 pub struct VkWindow {
-  is_amd_gpu: bool,
+  _is_amd_gpu: bool,
   events: EventsLoop,
   surface: Arc<Surface<winit::Window>>,
   queue: Arc<Queue>,
   device: Arc<Device>,
   swapchain: Arc<Swapchain<winit::Window>>,
   images: Vec<Arc<SwapchainImage<winit::Window>>>,
-  _min_max_dim: Vector2<f32>,
+  min_max_dim: Vector2<f32>,
 }
 
 impl VkWindow {
-  pub fn new(width: f64, height: f64, _min_width: u32, _min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
+  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
     let mut is_amd_gpu = false;
 //    env::set_var("WINIT_HIDPI_FACTOR", "1.0");
     let instance = {
@@ -191,7 +191,7 @@ impl VkWindow {
       Device::new(physical, physical.supported_features(), &device_ext, [(queue_family, 0.5)].iter().cloned()).expect("failed to create device")
     };
     
-    let settings = Settings::load();
+    let settings = Settings::load(Vector2::new(min_width as i32, min_height as i32), Vector2::new(width as i32, height as i32));
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     
@@ -263,14 +263,14 @@ impl VkWindow {
     };
     
     VkWindow {
-      is_amd_gpu: is_amd_gpu,
+      _is_amd_gpu: is_amd_gpu,
       surface: surface,
       events: events_loop,
       queue: queue,
       device: device,
       swapchain: swapchain,
       images: images,
-      _min_max_dim: Vector2::new(min_width as f32, min_height as f32),
+      min_max_dim: Vector2::new(min_width as f32, min_height as f32),
     }
   }
   
@@ -279,8 +279,8 @@ impl VkWindow {
     self.surface.window().set_title(&title);
   }
   
-  pub fn gpu_is_amd(&self) -> bool {
-    self.is_amd_gpu
+  pub fn _gpu_is_amd(&self) -> bool {
+    self._is_amd_gpu
   }
   
  /* fn get_max_msaa(&self) -> u32 {
@@ -304,12 +304,15 @@ impl VkWindow {
   
   // Recrates the swapchain to keep it relevant to the surface dimensions
   pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
+    let mut dimensions = dimensions;
    /* let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
     
     let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);*/
-    
+    if dimensions[0] < self.min_max_dim.x as u32 || dimensions[1] < self.min_max_dim.y as u32 {
+      dimensions = [self.min_max_dim.x as u32, self.min_max_dim.y as u32];
+    }
     println!("Window Resized, New Dimensions: {:?}", dimensions);
     self.swapchain.recreate_with_dimension(dimensions)
   }
@@ -354,6 +357,17 @@ impl VkWindow {
   /// Returns a reference to the events loop
   pub fn get_events(&mut self) -> &mut EventsLoop {
     &mut self.events
+  }
+  
+  // 
+  pub fn resize_window(&mut self, resolution: &Vector2<i32>) {
+    println!("Window forced resize");
+    self.set_resizable(true);
+    self.surface.window().set_inner_size(LogicalSize::new(resolution.x as f64, resolution.y as f64));
+  }
+  
+  pub fn set_resizable(&mut self, resizable: bool) {
+    self.surface.window().set_resizable(resizable);
   }
   
   /// Returns the current dpi scale factor

@@ -3,12 +3,10 @@ use font::GenericFont;
 
 use graphics;
 
-use cgmath::Deg;
 use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
-use cgmath::InnerSpace;
 
 #[derive(Clone, PartialEq)]
 pub enum DrawType {
@@ -52,6 +50,8 @@ pub enum DrawType {
   RemoveDrawcallSet,
   
   SetTextureScale(f32),
+  
+  NewResolution(Vector2<i32>),
   
   None,
 }
@@ -220,12 +220,30 @@ impl DrawCall {
     }
   }
   
+  pub fn change_resolution(new_resolution: Vector2<i32>) -> DrawCall {
+     DrawCall {
+      draw_type: DrawType::NewResolution(new_resolution),
+      coloured: false,
+    }
+  }
+  
   pub fn get_type(&self) -> DrawType {
     self.draw_type.clone()
   }
   
   pub fn model_name(&self) -> Option<String> {
     None
+  }
+  
+  pub fn new_resolution_details(&self) -> Option<Vector2<i32>> {
+    let mut result = None;
+    match self.draw_type {
+      DrawType::NewResolution(ref info) => {
+        result = Some(info.clone());
+      },
+      _ => {},
+    }
+    result
   }
   
   pub fn draw_textured_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, f32)> {

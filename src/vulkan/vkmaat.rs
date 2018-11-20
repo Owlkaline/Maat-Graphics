@@ -35,6 +35,7 @@ use vulkano::format;
 use winit;
 use winit::dpi::LogicalSize;
 
+use cgmath::Vector2;
 use cgmath::Vector4;
 use cgmath::Matrix4;
 
@@ -74,9 +75,9 @@ pub struct VkMaat {
 }
 
 impl VkMaat {
-  pub fn new() -> VkMaat {
+  pub fn new(minimum_resolution: Vector2<i32>, default_resolution: Vector2<i32>) -> VkMaat {
     
-    let mut settings = Settings::load();
+    let mut settings = Settings::load(minimum_resolution, default_resolution);
     let dim = settings.get_resolution();
     let min_dim = settings.get_minimum_resolution();
     let fullscreen = settings.is_fullscreen();
@@ -290,6 +291,9 @@ impl VkMaat {
         DrawType::SetTextureScale(ref scale) => {
           self.texture_shader.set_scale(scale.clone(), self.texture_projection);
         },
+        DrawType::NewResolution(ref resolution) => {
+          self.window.resize_window(resolution);
+        },
         _ => {}
       }
     }
@@ -449,6 +453,9 @@ impl VkMaat {
         DrawType::SetTextureScale(ref scale) => {
           self.texture_shader.set_scale(scale.clone(), self.texture_projection);
         },
+        DrawType::NewResolution(ref resolution) => {
+          self.window.resize_window(resolution);
+        },
         _ => {}
         }
       }
@@ -582,6 +589,7 @@ impl CoreRender for VkMaat {
       );
       
       self.recreate_swapchain = false;
+      self.window.set_resizable(false);
     }
     
     let images = self.window.get_images();

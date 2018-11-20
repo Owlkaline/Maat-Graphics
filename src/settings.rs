@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 //use std::fs;
 
 use std::env;
+use cgmath::Vector2;
 
 const SETTINGS_LOCATION: &str = "./settings.ini";
 const NL: &str = "\n";
@@ -19,22 +20,24 @@ const VSYNC: &str = "Vsync";
 const FORCE_DPI: &str = "ForceDpi";
 const DPI: &str = "Dpi";
 const TRIPLE_BUFFERING: &str = "TripleBuffer";
+const RESOLUTION: &str = "Resolution";
 
 pub struct Settings {
   vsync: bool,
   triple_buffer: bool,
   samples: u32,
   fullscreen: bool,
+  minimum_resolution: [u32; 2],
   resolution: [u32; 2],
 }
 
 impl Settings {
-  pub fn load() -> Settings {
+  pub fn load(minimum_resolution: Vector2<i32>, default_resolution: Vector2<i32>) -> Settings {
     let mut vsync = true;
     let mut triple_buffer = false;
     let mut samples = 4;
     let mut is_fullscreen = false;
-    let resolution = [1280, 720];
+    let mut resolution = default_resolution;//[1280, 720];
     let mut force_dpi = false;
     let mut dpi = 1.0;
     
@@ -46,6 +49,19 @@ impl Settings {
           let line = line.expect("Unable to read line");
           let v: Vec<&str> = line.split(" ").collect();
           match v[0] {
+            RESOLUTION => {
+              let mut temp_res = Vector2::new(0,0);
+              if let Ok(x) = v[1].parse::<i32>() {
+                temp_res.x = x;
+              }
+              if let Ok(y) = v[2].parse::<i32>() {
+                temp_res.y = y;
+              }
+              
+              if temp_res != Vector2::new(0, 0) && temp_res.x > 0 && temp_res.y > 0 {
+                resolution = temp_res;
+              }
+            }
             FULLSCREEN => {
               match v[1] {
                 TRUE => {
@@ -107,7 +123,8 @@ impl Settings {
       }
     } else {
       println!("Settings file not found");
-       let data = FULLSCREEN.to_owned() + SPACE + FALSE + NL + 
+       let data = RESOLUTION.to_owned() + SPACE + &default_resolution.x.to_string() + SPACE + &default_resolution.y.to_string() + NL +
+                  FULLSCREEN + SPACE + FALSE + NL + 
                   VSYNC             + SPACE + TRUE  + NL + 
                   TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
                   MSAA              + SPACE + "4"   + NL + 
@@ -127,7 +144,8 @@ impl Settings {
       triple_buffer: triple_buffer,
       samples: samples,
       fullscreen: is_fullscreen,
-      resolution: resolution,
+      resolution: [resolution.x as u32, resolution.y as u32],
+      minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
     }
   }
   
@@ -154,7 +172,7 @@ impl Settings {
   }
   
   pub fn get_minimum_resolution(&self) -> [u32; 2] {
-    [1280, 720]
+    self.minimum_resolution
   }
   
   pub fn get_resolution(&mut self) -> [u32; 2] {
