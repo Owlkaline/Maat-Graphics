@@ -45,6 +45,7 @@ use cgmath::ortho;
 
 use std::sync::Arc;
 
+/*
 mod vs_texture {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
@@ -71,6 +72,34 @@ mod fs_text {
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkText.frag"]
   struct _Dummy;
+}*/
+
+mod vs_texture {
+  vulkano_shaders::shader! {
+    ty: "vertex",
+    path: "src/shaders/glsl/VkTexture.vert"
+  }
+}
+
+mod fs_texture {
+  vulkano_shaders::shader! {
+    ty: "fragment",
+    path: "src/shaders/glsl/VkTexture.frag"
+  }
+}
+
+mod vs_text {
+  vulkano_shaders::shader! {
+    ty: "vertex",
+    path: "src/shaders/glsl/VkText.vert"
+  }
+}
+
+mod fs_text {
+  vulkano_shaders::shader! {
+    ty: "fragment",
+    path: "src/shaders/glsl/VkText.frag"
+  }
 }
 
 pub struct TextureShader {

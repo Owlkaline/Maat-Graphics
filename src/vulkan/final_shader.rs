@@ -37,7 +37,7 @@ use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use std::sync::Arc;
-
+/*
 mod vs_final {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
@@ -50,6 +50,21 @@ mod fs_final {
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkFinal.frag"]
   struct _Dummy;
+}
+*/
+
+mod vs_final {
+  vulkano_shaders::shader! {
+    ty: "vertex",
+    path: "src/shaders/glsl/VkFinal.vert"
+  }
+}
+
+mod fs_final {
+  vulkano_shaders::shader! {
+    ty: "fragment",
+    path: "src/shaders/glsl/VkFinal.frag"
+  }
 }
 
 pub struct FinalShader {
