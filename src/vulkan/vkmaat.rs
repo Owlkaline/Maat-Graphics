@@ -64,6 +64,7 @@ pub struct VkMaat {
   final_shader: FinalShader,
   
   samples: u32,
+  settings: Settings,
   
   clear_colour: ClearValue,
   dynamic_state: DynamicState,
@@ -78,14 +79,9 @@ impl VkMaat {
   pub fn new(minimum_resolution: Vector2<i32>, default_resolution: Vector2<i32>) -> VkMaat {
     
     let mut settings = Settings::load(minimum_resolution, default_resolution);
-    let dim = settings.get_resolution();
-    let min_dim = settings.get_minimum_resolution();
-    let fullscreen = settings.is_fullscreen();
-    let vsync = settings.vsync_enabled();
-    let triple_buffer = settings.triple_buffer_enabled();
     let samples = settings.get_msaa();
     
-    let window = VkWindow::new(dim[0] as f64, dim[1] as f64, min_dim[0], min_dim[1], fullscreen, vsync, triple_buffer);
+    let window = VkWindow::new(&mut settings);
     
     let dim = {
       let logic_dim = window.get_dimensions();
@@ -148,6 +144,7 @@ impl VkMaat {
       recreate_swapchain: false,
       previous_frame_end: previous_frame_end,
       
+      settings: settings,
       window: window,
     }
   }
@@ -293,6 +290,20 @@ impl VkMaat {
         },
         DrawType::NewResolution(ref resolution) => {
           self.window.resize_window(resolution);
+          self.settings.set_resolution(*resolution);
+        },
+        DrawType::NewDpi(ref dpi) => {
+          self.settings.set_dpi(*dpi);
+        },
+        DrawType::EnableDpi(ref enable) => {
+          self.settings.enable_dpi(*enable);
+        },
+        DrawType::EnableVsync(ref enable) => {
+          self.settings.enable_vsync(*enable);
+        },
+        DrawType::EnableFullscreen(ref enable) => {
+          self.settings.enable_fullscreen(*enable);
+          self.window.set_fullscreen(*enable);
         },
         _ => {}
       }
@@ -455,6 +466,20 @@ impl VkMaat {
         },
         DrawType::NewResolution(ref resolution) => {
           self.window.resize_window(resolution);
+          self.settings.set_resolution(*resolution);
+        },
+        DrawType::NewDpi(ref dpi) => {
+          self.settings.set_dpi(*dpi);
+        },
+        DrawType::EnableDpi(ref enable) => {
+          self.settings.enable_dpi(*enable);
+        },
+        DrawType::EnableVsync(ref enable) => {
+          self.settings.enable_vsync(*enable);
+        },
+        DrawType::EnableFullscreen(ref enable) => {
+          self.settings.enable_fullscreen(*enable);
+          self.window.set_fullscreen(*enable);
         },
         _ => {}
         }
@@ -646,7 +671,7 @@ impl CoreRender for VkMaat {
     
   }
   
-  fn screen_resized(&mut self, _window_size: LogicalSize) {
+  fn screen_resized(&mut self) {
     self.recreate_swapchain = true;
   }
   

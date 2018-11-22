@@ -29,6 +29,8 @@ pub struct Settings {
   fullscreen: bool,
   minimum_resolution: [u32; 2],
   resolution: [u32; 2],
+  force_dpi: bool,
+  dpi: f32,
 }
 
 impl Settings {
@@ -113,6 +115,7 @@ impl Settings {
             },
             DPI => {
               if let Ok(custom_dpi) = v[1].parse::<f32>() {
+                
                 dpi = custom_dpi;
               }
             }
@@ -122,17 +125,7 @@ impl Settings {
           }
       }
     } else {
-      println!("Settings file not found");
-       let data = RESOLUTION.to_owned() + SPACE + &default_resolution.x.to_string() + SPACE + &default_resolution.y.to_string() + NL +
-                  FULLSCREEN + SPACE + FALSE + NL + 
-                  VSYNC             + SPACE + TRUE  + NL + 
-                  TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
-                  MSAA              + SPACE + "4"   + NL + 
-                  FORCE_DPI         + SPACE + FALSE + NL + 
-                  DPI               + SPACE + "1"   + NL;
-       let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
-       let mut f = BufWriter::new(f);
-       f.write_all(data.as_bytes()).expect("Unable to write data");
+      Settings::save_defaults(default_resolution);
     }
     
     if force_dpi {
@@ -146,7 +139,69 @@ impl Settings {
       fullscreen: is_fullscreen,
       resolution: [resolution.x as u32, resolution.y as u32],
       minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
+      force_dpi: force_dpi,
+      dpi: dpi,
     }
+  }
+  
+  pub fn save(&self) {
+    let fullscreen = {
+      if self.fullscreen {
+        TRUE
+      } else {
+        FALSE
+      }
+    };
+    
+    let vsync = {
+      if self.vsync {
+        TRUE
+      } else {
+        FALSE
+      }
+    };
+     let triple_buffer = {
+      if self.triple_buffer {
+        TRUE
+      } else {
+        FALSE
+      }
+    };
+    
+    let force_dpi = {
+      if self.force_dpi {
+        TRUE
+      } else {
+        FALSE
+      }
+    };
+    
+    let data = RESOLUTION.to_owned() + SPACE + &self.resolution[0].to_string() + 
+                  SPACE + &self.resolution[1].to_string() + NL +
+                  FULLSCREEN + SPACE + fullscreen + NL + 
+                  VSYNC             + SPACE + vsync + NL + 
+                  TRIPLE_BUFFERING  + SPACE + triple_buffer + NL + 
+                  MSAA              + SPACE + &self.samples.to_string() + NL + 
+                  FORCE_DPI         + SPACE + force_dpi + NL + 
+                  DPI               + SPACE + &self.dpi.to_string() + NL;
+    let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
+    let mut f = BufWriter::new(f);
+    f.write_all(data.as_bytes()).expect("Unable to write data");
+  }
+  
+  pub fn save_defaults(default_resolution: Vector2<i32>) {
+    println!("Settings file not found");
+    let data = RESOLUTION.to_owned() + SPACE + &default_resolution.x.to_string() + 
+                  SPACE + &default_resolution.y.to_string() + NL +
+                  FULLSCREEN + SPACE + FALSE + NL + 
+                  VSYNC             + SPACE + TRUE  + NL + 
+                  TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
+                  MSAA              + SPACE + "4"   + NL + 
+                  FORCE_DPI         + SPACE + FALSE + NL + 
+                  DPI               + SPACE + "1"   + NL;
+    let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
+    let mut f = BufWriter::new(f);
+    f.write_all(data.as_bytes()).expect("Unable to write data");
   }
   
   pub fn force_dpi(dpi_value: f32) {
@@ -175,10 +230,33 @@ impl Settings {
     self.minimum_resolution
   }
   
+  pub fn set_resolution(&mut self, res: Vector2<i32>) {
+    self.resolution = [res.x as u32, res.y as u32];
+  }
+  
+  pub fn set_dpi(&mut self, new_dpi: f32) {
+    self.dpi = new_dpi;
+  }
+  
+  pub fn enable_dpi(&mut self, enable: bool) {
+    self.force_dpi = enable;
+  }
+  
+  pub fn enable_vsync(&mut self, enable: bool) {
+    self.vsync = enable;
+  }
+  
+  pub fn enable_fullscreen(&mut self, enable: bool) {
+    self.fullscreen = enable;
+  }
+  
   pub fn get_resolution(&mut self) -> [u32; 2] {
-    if self.resolution < self.get_minimum_resolution() {
-      self.resolution = self.get_minimum_resolution();
-    }    
     self.resolution
+  }
+}
+
+impl Drop for Settings {
+  fn drop(&mut self) {
+    self.save();
   }
 }

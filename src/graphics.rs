@@ -51,7 +51,7 @@ pub trait CoreRender {
   fn pre_draw(&mut self);
   fn draw(&mut self, draw_calls: &Vec<DrawCall>);
   fn post_draw(&self);
-  fn screen_resized(&mut self, window_size: LogicalSize);
+  fn screen_resized(&mut self);
   
   // Cleans up program
   fn clean(&self);

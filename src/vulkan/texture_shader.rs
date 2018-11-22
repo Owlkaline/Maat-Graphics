@@ -9,7 +9,7 @@ use vulkano::instance::QueueFamily;
 use vulkano::sampler;
 use vulkano::sync::NowFuture;
 use vulkano::memory::pool::StdMemoryPool;
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
 
 use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBuffer;
@@ -83,10 +83,12 @@ pub struct TextureShader {
   texture_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
   texture_uniformbuffer: CpuBufferPool<vs_texture::ty::Data>,
   texture_subbuffer: CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<StdMemoryPool>>,
+  texture_descriptor_pool: FixedSizeDescriptorSetsPool<Arc<GraphicsPipelineAbstract + Send + Sync>>, 
   
   text_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
   text_uniformbuffer: CpuBufferPool<vs_text::ty::Data>,
   text_subbuffer: CpuBufferPoolSubbuffer<vs_text::ty::Data, Arc<StdMemoryPool>>,
+  text_descriptor_pool: FixedSizeDescriptorSetsPool<Arc<GraphicsPipelineAbstract + Send + Sync>>,
   
   attachment_image: Arc<vkimage::AttachmentImage>,
   sampler: Arc<sampler::Sampler>,
@@ -126,7 +128,7 @@ impl TextureShader {
       }
     ).unwrap());
     
-    let texture_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+    let texture_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync> = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_texture.main_entry_point(), ())
        // .triangle_strip()
@@ -138,7 +140,7 @@ impl TextureShader {
         .build(Arc::clone(&device))
         .unwrap());
     
-    let text_pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+    let text_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync> = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_text.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
@@ -179,6 +181,9 @@ impl TextureShader {
     };
     let text_subbuffer = text_uniform.next(uniform_data).unwrap();
     
+    let texture_descriptor_set = FixedSizeDescriptorSetsPool::new(Arc::clone(&texture_pipeline), 0);
+    let text_descriptor_set = FixedSizeDescriptorSetsPool::new(Arc::clone(&text_pipeline), 0);
+    
     (
       TextureShader {
         renderpass: renderpass,
@@ -190,10 +195,12 @@ impl TextureShader {
         texture_pipeline: texture_pipeline,
         texture_uniformbuffer: texture_uniform,
         texture_subbuffer: texture_subbuffer,
+        texture_descriptor_pool: texture_descriptor_set,
         
         text_pipeline: text_pipeline,
         text_uniformbuffer: text_uniform,
         text_subbuffer: text_subbuffer,
+        text_descriptor_pool: text_descriptor_set,
         
         attachment_image: fullcolour_attachment,
         
@@ -333,9 +340,10 @@ impl TextureShader {
       (vertex, index)
     };
     
-    let descriptor_set = Arc::new(PersistentDescriptorSet::start(Arc::clone(&pipeline), 0)
-                                .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
-                                .add_buffer(self.texture_subbuffer.clone()).unwrap().build().unwrap());
+    let descriptor_set = self.texture_descriptor_pool.next()
+                             .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
+                             .add_buffer(self.texture_subbuffer.clone()).unwrap()
+                             .build().unwrap();
     
     cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
   }
@@ -372,10 +380,10 @@ impl TextureShader {
           outlineColour: outline.into(),
         };
         
-        let uniform_set = Arc::new(PersistentDescriptorSet::start(Arc::clone(&self.text_pipeline), 0)
+        let uniform_set = self.text_descriptor_pool.next()
                                    .add_sampled_image(Arc::clone(&texture), Arc::clone(&self.sampler)).unwrap()
                                    .add_buffer(self.text_subbuffer.clone()).unwrap()
-                                   .build().unwrap());
+                                   .build().unwrap();
         
         cb = cb.draw_indexed(Arc::clone(&self.text_pipeline),
                                 dynamic_state,

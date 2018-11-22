@@ -52,6 +52,10 @@ pub enum DrawType {
   SetTextureScale(f32),
   
   NewResolution(Vector2<i32>),
+  NewDpi(f32),
+  EnableDpi(bool),
+  EnableVsync(bool),
+  EnableFullscreen(bool),
   
   None,
 }
@@ -227,23 +231,40 @@ impl DrawCall {
     }
   }
   
+  pub fn change_dpi(new_dpi: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::NewDpi(new_dpi),
+      coloured: false,
+    }
+  }
+  
+  pub fn enable_dpi(enable: bool) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::EnableDpi(enable),
+      coloured: false,
+    }
+  }
+  
+  pub fn enable_vsync(enable: bool) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::EnableVsync(enable),
+      coloured: false,
+    }
+  }
+  
+  pub fn enable_fullscreen(enable: bool) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::EnableFullscreen(enable),
+      coloured: false,
+    }
+  }
+  
   pub fn get_type(&self) -> DrawType {
     self.draw_type.clone()
   }
   
   pub fn model_name(&self) -> Option<String> {
     None
-  }
-  
-  pub fn new_resolution_details(&self) -> Option<Vector2<i32>> {
-    let mut result = None;
-    match self.draw_type {
-      DrawType::NewResolution(ref info) => {
-        result = Some(info.clone());
-      },
-      _ => {},
-    }
-    result
   }
   
   pub fn draw_textured_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, f32)> {

@@ -4,7 +4,7 @@ use vulkano::buffer::cpu_pool::CpuBufferPool;
 
 use vulkano::sampler;
 use vulkano::sync::NowFuture;
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
 
 use vulkano::command_buffer::DynamicState;
 use vulkano::command_buffer::AutoCommandBuffer;
@@ -61,6 +61,8 @@ pub struct FinalShader {
   vertex_buffer: Arc<ImmutableBuffer<[Vertex2d]>>,
   index_buffer: Arc<ImmutableBuffer<[u32]>>,
   
+  descriptor_pool: FixedSizeDescriptorSetsPool<Arc<GraphicsPipelineAbstract + Send + Sync>>,
+  
   sampler: Arc<sampler::Sampler>,
 }
 
@@ -87,7 +89,7 @@ impl FinalShader {
       }
     ).unwrap());
     
-    let pipeline = Arc::new(pipeline::GraphicsPipeline::start()
+    let pipeline:  Arc<GraphicsPipelineAbstract + Send + Sync> = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_final.main_entry_point(), ())
         .viewports_dynamic_scissors_irrelevant(1)
@@ -109,12 +111,16 @@ impl FinalShader {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
     
+    let descriptor_set = FixedSizeDescriptorSetsPool::new(Arc::clone(&pipeline), 0);
+    
     (
       FinalShader {
         renderpass: renderpass,
         pipeline: pipeline,
         framebuffer: None,
         uniformbuffer: uniformbuffer,
+        
+        descriptor_pool: descriptor_set,
         
         vertex_buffer: vertex_buffer,
         index_buffer: idx_buffer,
@@ -161,10 +167,11 @@ impl FinalShader {
     let index = Arc::clone(&self.index_buffer);
     let pipeline = Arc::clone(&self.pipeline);
     
-    let descriptor_set = Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
-                              .add_buffer(uniform_subbuffer.clone()).unwrap()
-                              .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
-                              .build().unwrap());
+    let descriptor_set = self.descriptor_pool.next()
+                             .add_buffer(uniform_subbuffer.clone()).unwrap()
+                             .add_sampled_image(Arc::clone(&texture_image),
+                                                Arc::clone(&self.sampler)).unwrap()
+                             .build().unwrap();
     
     cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
    //cb

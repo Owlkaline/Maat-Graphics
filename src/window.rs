@@ -43,7 +43,13 @@ pub struct VkWindow {
 }
 
 impl VkWindow {
-  pub fn new(width: f64, height: f64, min_width: u32, min_height: u32, fullscreen: bool, vsync: bool, triple_buffer: bool) -> VkWindow {
+  pub fn new(settings: &mut Settings) -> VkWindow {
+    let width = settings.get_resolution()[0];
+    let height = settings.get_resolution()[1];
+    let fullscreen = settings.is_fullscreen();
+    let vsync = settings.vsync_enabled();
+    let triple_buffer = settings.triple_buffer_enabled();
+    
     let mut is_amd_gpu = false;
 //    env::set_var("WINIT_HIDPI_FACTOR", "1.0");
     let instance = {
@@ -132,7 +138,7 @@ impl VkWindow {
       } else {
         // Windowed
         temp_surface = winit::WindowBuilder::new()
-                                          .with_dimensions(LogicalSize::new(width, height))
+                                          .with_dimensions(LogicalSize::new(width as f64, height as f64))
                                           .with_resizable(false)
                                           .with_title("Vulkan Windowed")
                                           .build_vk_surface(&events_loop, instance.clone())
@@ -191,7 +197,6 @@ impl VkWindow {
       Device::new(physical, physical.supported_features(), &device_ext, [(queue_family, 0.5)].iter().cloned()).expect("failed to create device")
     };
     
-    let settings = Settings::load(Vector2::new(min_width as i32, min_height as i32), Vector2::new(width as i32, height as i32));
     let min_width = settings.get_minimum_resolution()[0];
     let min_height = settings.get_minimum_resolution()[1];
     
@@ -200,7 +205,6 @@ impl VkWindow {
       let caps = surface
                  .capabilities(physical)
                  .expect("failure to get surface capabilities");
-      
       let dimensions = caps.current_extent.unwrap_or([min_width, min_height]);
       
       let format = {
@@ -304,15 +308,12 @@ impl VkWindow {
   
   // Recrates the swapchain to keep it relevant to the surface dimensions
   pub fn recreate_swapchain(&self, dimensions: [u32; 2]) -> Result<(Arc<Swapchain<winit::Window>>, Vec<Arc<SwapchainImage<winit::Window>>>), SwapchainCreationError> {
-    let mut dimensions = dimensions;
+    let dimensions = dimensions;
    /* let caps = self.surface
     .capabilities(self.device.physical_device())
     .expect("failure to get surface capabilities");
     
     let dimensions = caps.current_extent.unwrap_or([self.min_max_dim.x as u32, self.min_max_dim.y as u32]);*/
-    if dimensions[0] < self.min_max_dim.x as u32 || dimensions[1] < self.min_max_dim.y as u32 {
-      dimensions = [self.min_max_dim.x as u32, self.min_max_dim.y as u32];
-    }
     println!("Window Resized, New Dimensions: {:?}", dimensions);
     self.swapchain.recreate_with_dimension(dimensions)
   }
@@ -359,11 +360,20 @@ impl VkWindow {
     &mut self.events
   }
   
+  pub fn enable_resizing(&mut self) {
+    self.set_resizable(true);
+  }
+  
   // 
   pub fn resize_window(&mut self, resolution: &Vector2<i32>) {
-    println!("Window forced resize");
-    self.set_resizable(true);
-    self.surface.window().set_inner_size(LogicalSize::new(resolution.x as f64, resolution.y as f64));
+    self.enable_resizing();
+    let mut new_resolution = *resolution;
+    if resolution.x < self.min_max_dim.x as i32 || resolution.y < self.min_max_dim.y as i32 {
+      println!("Window dimensions specified are lower than minimum");
+      new_resolution = self.min_max_dim.cast::<i32>().unwrap();
+    }
+    
+    self.surface.window().set_inner_size(LogicalSize::new(new_resolution.x as f64, new_resolution.y as f64));
   }
   
   pub fn set_resizable(&mut self, resizable: bool) {
@@ -385,6 +395,16 @@ impl VkWindow {
   /// Disables the cursor from being drawn whilst over the window
   pub fn hide_cursor(&mut self) {
     self.surface.window().hide_cursor(true);
+  }
+  
+  pub fn set_fullscreen(&mut self, fullscreen: bool) {
+    let mut current_monitor = None;
+    if fullscreen {
+      current_monitor = Some(self.surface.window().get_current_monitor());
+    }
+    
+    self.enable_resizing();
+    self.surface.window().set_fullscreen(current_monitor);
   }
   
   pub fn set_cursor_position(&mut self, x: f32, y: f32) {
