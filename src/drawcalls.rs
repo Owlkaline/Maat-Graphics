@@ -56,6 +56,8 @@ pub enum DrawType {
   EnableDpi(bool),
   EnableVsync(bool),
   EnableFullscreen(bool),
+  ScissorRender(Vector4<f32>),
+  ResetScissorRender,
   
   None,
 }
@@ -179,6 +181,20 @@ impl DrawCall {
     DrawCall {
       draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, outline_colour, edge_width, true, wrap_length, centered)),
       coloured: true,
+    }
+  }
+  
+  pub fn set_render_scissor(dim: Vector4<f32>) -> DrawCall{
+    DrawCall {
+      draw_type: DrawType::ScissorRender(dim),
+      coloured: false,
+    }
+  }
+  
+  pub fn reset_render_scissor() -> DrawCall{
+    DrawCall {
+      draw_type: DrawType::ResetScissorRender,
+      coloured: false,
     }
   }
   

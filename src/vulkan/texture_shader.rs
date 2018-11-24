@@ -52,21 +52,18 @@ mod vs_texture {
   #[path = "src/shaders/glsl/VkTexture.vert"]
   struct _Dummy;
 }
-
 mod fs_texture {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
   #[path = "src/shaders/glsl/VkTexture.frag"]
   struct _Dummy;
 }
-
 mod vs_text {
   #[derive(VulkanoShader)]
   #[ty = "vertex"]
   #[path = "src/shaders/glsl/VkText.vert"]
   struct _Dummy;
 }
-
 mod fs_text {
   #[derive(VulkanoShader)]
   #[ty = "fragment"]
@@ -161,8 +158,8 @@ impl TextureShader {
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_texture.main_entry_point(), ())
        // .triangle_strip()
-        .viewports_dynamic_scissors_irrelevant(1)
-        //.viewports_scissors_dynamic(1)
+        //.viewports_dynamic_scissors_irrelevant(1)
+        .viewports_scissors_dynamic(1)
         .fragment_shader(fs_texture.main_entry_point(), ())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(Arc::clone(&renderpass), 0).unwrap())
@@ -172,7 +169,8 @@ impl TextureShader {
     let text_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync> = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_text.main_entry_point(), ())
-        .viewports_dynamic_scissors_irrelevant(1)
+        //.viewports_dynamic_scissors_irrelevant(1)
+       .viewports_scissors_dynamic(1)
         .fragment_shader(fs_text.main_entry_point(), ())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(Arc::clone(&renderpass), 0).unwrap())
@@ -281,14 +279,26 @@ impl TextureShader {
       scale: self.scale_matrix.into(),
     };
     
-    self.texture_subbuffer = self.texture_uniformbuffer.next(uniform_data).unwrap();
+    if self.texture_uniformbuffer.capacity() > 2 {
+      if let Some(buffer) = self.texture_uniformbuffer.try_next(uniform_data) {
+        self.texture_subbuffer = buffer;
+      }
+    } else {
+      self.texture_subbuffer = self.texture_uniformbuffer.next(uniform_data).unwrap();
+    }
     
     let uniform_data = vs_text::ty::Data {
       projection: texture_projection.into(),
       scale: self.scale_matrix.into(),
     };
     
-    self.text_subbuffer = self.text_uniformbuffer.next(uniform_data).unwrap();
+    if self.text_uniformbuffer.capacity() > 2 {
+      if let Some(buffer) = self.text_uniformbuffer.try_next(uniform_data) {
+        self.text_subbuffer = buffer;
+      }
+    } else {
+      self.text_subbuffer = self.text_uniformbuffer.next(uniform_data).unwrap();
+    }
   }
   
   pub fn recreate_framebuffer(&mut self, device: Arc<Device>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>) {
@@ -406,7 +416,7 @@ impl TextureShader {
           letter_uv: letter_uv.into(),
           edge_width: edge_width.into(),
           colour: colour.into(),
-          outlineColour: outline.into(),
+          outline_colour: outline.into(),
         };
         
         let uniform_set = self.text_descriptor_pool.next()

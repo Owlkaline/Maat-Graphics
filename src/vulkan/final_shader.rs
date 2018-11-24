@@ -177,7 +177,17 @@ impl FinalShader {
       model: model.into(),
     };
     
-    let uniform_subbuffer = self.uniformbuffer.next(uniform_data).unwrap();
+    let uniform_subbuffer;
+    if self.uniformbuffer.capacity() > 2 {
+      if let Some(buffer) = self.uniformbuffer.try_next(uniform_data) {
+        uniform_subbuffer = buffer;
+      } else {
+        return cb;
+      }
+    } else {
+      uniform_subbuffer = self.uniformbuffer.next(uniform_data).unwrap();
+    }
+    
     let vertex = Arc::clone(&self.vertex_buffer);
     let index = Arc::clone(&self.index_buffer);
     let pipeline = Arc::clone(&self.pipeline);

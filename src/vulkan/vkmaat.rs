@@ -29,6 +29,8 @@ use vulkano::swapchain;
 use vulkano::swapchain::AcquireError;
 use vulkano::swapchain::SwapchainCreationError;
 
+use vulkano::pipeline::viewport::Scissor;
+
 use vulkano::image as vkimage;
 use vulkano::format;
 
@@ -68,6 +70,7 @@ pub struct VkMaat {
   
   clear_colour: ClearValue,
   dynamic_state: DynamicState,
+  static_dynamic_state: DynamicState,
   
   recreate_swapchain: bool,
   previous_frame_end: Option<Box<GpuFuture>>,
@@ -93,6 +96,7 @@ impl VkMaat {
     let swapchain_format = window.get_swapchain_format();
     
     let texture_projection = TextureShader::create_projection(dim[0] as f32 / window.get_dpi_scale() as f32, dim[1] as f32 / window.get_dpi_scale() as f32);
+    
     
     let (texture_shader, future_textures) = TextureShader::create(device.clone(), queue.clone(), dim, samples, texture_projection.clone());
     let (final_shader, final_futures) = FinalShader::create(device.clone(), queue.clone(), swapchain_format);
@@ -122,6 +126,16 @@ impl VkMaat {
                             dimensions: [dim[0] as f32, dim[1] as f32],
                             depth_range: 0.0 .. 1.0,
                           }]),
+                          scissors: Some(vec![Scissor::irrelevant()]),
+                        };
+    
+    let static_dynamic_state = DynamicState {
+                          line_width: None,
+                          viewports: Some(vec![Viewport {
+                            origin: [0.0, 0.0],
+                            dimensions: [dim[0] as f32, dim[1] as f32],
+                            depth_range: 0.0 .. 1.0,
+                          }]),
                           scissors: None,
                         };
     
@@ -140,6 +154,7 @@ impl VkMaat {
       
       clear_colour: ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
       dynamic_state: dynamic_state,
+      static_dynamic_state: static_dynamic_state,
       
       recreate_swapchain: false,
       previous_frame_end: previous_frame_end,
@@ -159,7 +174,7 @@ impl VkMaat {
       self.previous_frame_end = Some(Box::new(future.join(Box::new(self.previous_frame_end.take().unwrap()) as Box<GpuFuture>)) as Box<GpuFuture>);
     }
   }
-  
+  /*
   pub fn draw_with_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
     // draw_calls
     let dimensions = {
@@ -329,7 +344,7 @@ impl VkMaat {
     };
     
     command_buffer
-  }
+  }*/
   
   pub fn draw_without_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
     // draw_calls
@@ -481,6 +496,19 @@ impl VkMaat {
           self.settings.enable_fullscreen(*enable);
           self.window.set_fullscreen(*enable);
         },
+        DrawType::ScissorRender(ref dim) => {
+          self.dynamic_state.scissors = Some(
+            vec![Scissor {
+              origin: [dim.x as i32, (dimensions[1] as f32-dim.y) as i32],
+              dimensions: [dim.z as u32, dim.w as u32],
+            }]
+          );
+        },
+        DrawType::ResetScissorRender => {
+          self.dynamic_state.scissors = Some(
+            vec![Scissor::irrelevant()]
+          );
+        },
         _ => {}
         }
       }
@@ -491,10 +519,11 @@ impl VkMaat {
       //  tmp_cmd_buffer = tmp_cmd_buffer.execute_commands(texture_cmd_buffer).unwrap();
       //}
       tmp_cmd_buffer = self.texture_shader.end_renderpass(tmp_cmd_buffer);
+      
       tmp_cmd_buffer = self.final_shader.begin_renderpass(tmp_cmd_buffer, false, image_num);
       
       let texture_image = self.texture_shader.get_texture_attachment();
-      tmp_cmd_buffer = self.final_shader.draw(tmp_cmd_buffer, &self.dynamic_state, [dimensions[0] as f32, dimensions[1] as f32], self.texture_projection, texture_image);
+      tmp_cmd_buffer = self.final_shader.draw(tmp_cmd_buffer, &self.static_dynamic_state, [dimensions[0] as f32, dimensions[1] as f32], self.texture_projection, texture_image);
       
       self.final_shader.end_renderpass(tmp_cmd_buffer)
           .build().unwrap() as AutoCommandBuffer
@@ -606,6 +635,14 @@ impl CoreRender for VkMaat {
       self.final_shader.empty_framebuffer();
       
       self.dynamic_state.viewports = Some(
+        vec![Viewport {
+          origin: [0.0, 0.0],
+          dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+          depth_range: 0.0 .. 1.0,
+        }]
+      );
+      
+     self.static_dynamic_state.viewports = Some(
         vec![Viewport {
           origin: [0.0, 0.0],
           dimensions: [dimensions[0] as f32, dimensions[1] as f32],

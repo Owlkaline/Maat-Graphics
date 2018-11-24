@@ -186,7 +186,7 @@ impl ResourceManager {
   ** Loads vertex and index in a seperate thread, non bloacking.
   **/
   pub fn load_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) {
-    
+    println!("loading shape");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
     self.num_recv_objects += 1;
@@ -212,6 +212,7 @@ impl ResourceManager {
   }
   
   pub fn update_shape(&mut self, reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>> {
+    println!("updating shape");
     let (vertex, index, futures) = ResourceManager::load_shape_into_memory(reference.clone(), vertex, index, queue);
     
     let mut found = false;
@@ -273,7 +274,7 @@ impl ResourceManager {
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
   pub fn insert_texture(&mut self, reference: String, new_image: Arc<ImmutableImage<format::R8G8B8A8Unorm>>) {
-    
+        println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
     self.objects.push(
@@ -311,7 +312,6 @@ impl ResourceManager {
   ** Loads textures from inserted details in seperate threads, non bloacking.
   **/
   pub fn load_texture_from_reference(&mut self, reference: String, queue: Arc<Queue>) {
-    
     debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
     
     let unloaded_object = self.get_unloaded_object(reference.clone());
@@ -331,7 +331,7 @@ impl ResourceManager {
   pub fn load_texture(&mut self, reference: String, location: String, queue: Arc<Queue>) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
-    
+    println!("loading texture");
     self.num_recv_objects += 1;
     let index = self.data.len();
     
