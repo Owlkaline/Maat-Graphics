@@ -37,21 +37,6 @@ use cgmath::Vector3;
 use cgmath::Matrix4;
 
 use std::sync::Arc;
-/*
-mod vs_final {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkFinal.vert"]
-  struct _Dummy;
-}
-
-mod fs_final {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkFinal.frag"]
-  struct _Dummy;
-}
-*/
 
 mod vs_final {
   vulkano_shaders::shader! {
@@ -107,8 +92,8 @@ impl FinalShader {
     let pipeline:  Arc<GraphicsPipelineAbstract + Send + Sync> = Arc::new(pipeline::GraphicsPipeline::start()
         .vertex_input_single_buffer::<Vertex2d>()
         .vertex_shader(vs_final.main_entry_point(), ())
-        .viewports_dynamic_scissors_irrelevant(1)
-        //.viewports_scissors_dynamic(1)
+        //.viewports_dynamic_scissors_irrelevant(1)
+        .viewports_scissors_dynamic(1)
         .fragment_shader(fs_final.main_entry_point(), ())
         .blend_alpha_blending()
         .render_pass(framebuffer::Subpass::from(renderpass.clone(), 0).unwrap())
@@ -171,22 +156,19 @@ impl FinalShader {
     
     let uniform_data = vs_final::ty::Data {
       projection: texture_projection.into(),
-    };
-    
-    let push_constants = vs_final::ty::PushConstants {
       model: model.into(),
     };
     
     let uniform_subbuffer;
-    if self.uniformbuffer.capacity() > 2 {
-      if let Some(buffer) = self.uniformbuffer.try_next(uniform_data) {
-        uniform_subbuffer = buffer;
-      } else {
-        return cb;
-      }
-    } else {
+   // if self.uniformbuffer.capacity() > 2 {
+  //    if let Some(buffer) = self.uniformbuffer.try_next(uniform_data) {
+  //      uniform_subbuffer = buffer;
+  //    } else {
+  //      return cb;
+  //    }
+   // } else {
       uniform_subbuffer = self.uniformbuffer.next(uniform_data).unwrap();
-    }
+  //  }
     
     let vertex = Arc::clone(&self.vertex_buffer);
     let index = Arc::clone(&self.index_buffer);
@@ -195,10 +177,11 @@ impl FinalShader {
     let descriptor_set = self.descriptor_pool.next()
                              .add_buffer(uniform_subbuffer.clone()).unwrap()
                              .add_sampled_image(Arc::clone(&texture_image),
-                                                Arc::clone(&self.sampler)).unwrap()
+                                               Arc::clone(&self.sampler)).unwrap()
                              .build().unwrap();
     
-    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
+    let acb = cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap();
+    acb
    //cb
   }
   

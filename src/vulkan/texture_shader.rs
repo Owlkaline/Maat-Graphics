@@ -45,32 +45,6 @@ use cgmath::ortho;
 
 use std::sync::Arc;
 
-/*
-mod vs_texture {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkTexture.vert"]
-  struct _Dummy;
-}
-mod fs_texture {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkTexture.frag"]
-  struct _Dummy;
-}
-mod vs_text {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkText.vert"]
-  struct _Dummy;
-}
-mod fs_text {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkText.frag"]
-  struct _Dummy;
-}*/
-
 mod vs_texture {
   vulkano_shaders::shader! {
     ty: "vertex",
@@ -107,11 +81,13 @@ pub struct TextureShader {
   index_buffer: Arc<ImmutableBuffer<[u32]>>,
   
   texture_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+  texture_draw_uniformbuffer: CpuBufferPool<vs_texture::ty::DrawData>,
   texture_uniformbuffer: CpuBufferPool<vs_texture::ty::Data>,
   texture_subbuffer: CpuBufferPoolSubbuffer<vs_texture::ty::Data, Arc<StdMemoryPool>>,
   texture_descriptor_pool: FixedSizeDescriptorSetsPool<Arc<GraphicsPipelineAbstract + Send + Sync>>, 
   
   text_pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
+  text_draw_uniformbuffer: CpuBufferPool<vs_text::ty::DrawData>,
   text_uniformbuffer: CpuBufferPool<vs_text::ty::Data>,
   text_subbuffer: CpuBufferPoolSubbuffer<vs_text::ty::Data, Arc<StdMemoryPool>>,
   text_descriptor_pool: FixedSizeDescriptorSetsPool<Arc<GraphicsPipelineAbstract + Send + Sync>>,
@@ -124,8 +100,10 @@ pub struct TextureShader {
 
 impl TextureShader {
   pub fn create(device: Arc<Device>, queue: Arc<Queue>, dim: [u32; 2], samples: u32, texture_projection: Matrix4<f32>)-> (TextureShader, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
-    let text_uniform = CpuBufferPool::uniform_buffer(Arc::clone(&device));
-    let texture_uniform = CpuBufferPool::uniform_buffer(Arc::clone(&device));
+    let text_uniform = CpuBufferPool::<vs_text::ty::Data>::uniform_buffer(Arc::clone(&device));
+    let texture_uniform = CpuBufferPool::<vs_texture::ty::Data>::uniform_buffer(Arc::clone(&device));
+    let texture_draw_uniform = CpuBufferPool::<vs_texture::ty::DrawData>::uniform_buffer(Arc::clone(&device));
+    let text_draw_uniform = CpuBufferPool::<vs_text::ty::DrawData>::uniform_buffer(Arc::clone(&device));
     
     let vs_texture = vs_texture::Shader::load(Arc::clone(&device)).expect("failed to create shader module");
     let fs_texture = fs_texture::Shader::load(Arc::clone(&device)).expect("failed to create shader module");
@@ -201,6 +179,7 @@ impl TextureShader {
       projection: texture_projection.into(),
       scale: scale_matrix.into(),
     };
+    
     let texture_subbuffer = texture_uniform.next(uniform_data).unwrap();
     let uniform_data = vs_text::ty::Data {
       projection: texture_projection.into(),
@@ -210,7 +189,7 @@ impl TextureShader {
     
     let texture_descriptor_set = FixedSizeDescriptorSetsPool::new(Arc::clone(&texture_pipeline), 0);
     let text_descriptor_set = FixedSizeDescriptorSetsPool::new(Arc::clone(&text_pipeline), 0);
-    
+
     (
       TextureShader {
         renderpass: renderpass,
@@ -220,11 +199,13 @@ impl TextureShader {
         index_buffer: idx_buffer,
         
         texture_pipeline: texture_pipeline,
+        texture_draw_uniformbuffer: texture_draw_uniform,
         texture_uniformbuffer: texture_uniform,
         texture_subbuffer: texture_subbuffer,
         texture_descriptor_pool: texture_descriptor_set,
         
         text_pipeline: text_pipeline,
+        text_draw_uniformbuffer: text_draw_uniform,
         text_uniformbuffer: text_uniform,
         text_subbuffer: text_subbuffer,
         text_descriptor_pool: text_descriptor_set,
@@ -358,12 +339,23 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let push_constants = vs_texture::ty::PushConstants {
+    let texture_draw_subbuffer;
+    let uniform_draw_data = vs_texture::ty::DrawData {
       model: model.into(),
       colour: draw_colour.into(),
       sprite_sheet: sprite.into(),
       has_texture_blackwhite: Vector4::new(has_texture, bw, 0.0, 0.0).into(),
     };
+    
+ /*   if self.texture_draw_uniformbuffer.capacity() > 10000 {
+      if let Some(buffer) = self.texture_draw_uniformbuffer.try_next(uniform_draw_data) {
+        texture_draw_subbuffer = buffer;
+      } else {
+        return cb;
+      }
+    } else {*/
+      texture_draw_subbuffer = self.texture_draw_uniformbuffer.next(uniform_draw_data).unwrap();
+   // }
     
     let pipeline = Arc::clone(&self.texture_pipeline);
     let (vertex, index) = {
@@ -382,9 +374,10 @@ impl TextureShader {
     let descriptor_set = self.texture_descriptor_pool.next()
                              .add_sampled_image(Arc::clone(&texture_image), Arc::clone(&self.sampler)).unwrap()
                              .add_buffer(self.texture_subbuffer.clone()).unwrap()
+                             .add_buffer(texture_draw_subbuffer).unwrap()
                              .build().unwrap();
     
-    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, push_constants).unwrap()
+    cb.draw_indexed(pipeline, dynamic_state, vec!(vertex), index, descriptor_set, ()).unwrap()
   }
   
   pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
@@ -411,7 +404,10 @@ impl TextureShader {
         let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, 0.0);
         let edge_width = edge_width; 
         
-        let push_constants = vs_text::ty::PushConstants {
+
+        
+        let text_draw_subbuffer;
+        let uniform_draw_data = vs_text::ty::DrawData {
           model: model.into(),
           letter_uv: letter_uv.into(),
           edge_width: edge_width.into(),
@@ -419,9 +415,20 @@ impl TextureShader {
           outline_colour: outline.into(),
         };
         
+       // if self.text_draw_uniformbuffer.capacity() > 100 {
+         // if let Some(buffer) = self.text_draw_uniformbuffer.try_next(uniform_draw_data) {
+         //   text_draw_subbuffer = buffer;
+         // } else {
+          //  return cb;
+         // }
+        //} else {
+          text_draw_subbuffer = self.text_draw_uniformbuffer.next(uniform_draw_data).unwrap();
+        //}
+        
         let uniform_set = self.text_descriptor_pool.next()
                                    .add_sampled_image(Arc::clone(&texture), Arc::clone(&self.sampler)).unwrap()
                                    .add_buffer(self.text_subbuffer.clone()).unwrap()
+                                   .add_buffer(text_draw_subbuffer).unwrap()
                                    .build().unwrap();
         
         cb = cb.draw_indexed(Arc::clone(&self.text_pipeline),
@@ -429,7 +436,7 @@ impl TextureShader {
                                 vec!(Arc::clone(&vertex_buffer)),
                                 Arc::clone(&index_buffer),
                                 uniform_set,
-                                push_constants).unwrap();
+                                ()).unwrap();
     }
     
     cb

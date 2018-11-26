@@ -12,34 +12,26 @@ layout(set = 0, binding = 1) uniform Data {
   mat4 scale;
 } uniforms;
 
-// 128 bytes, float 4 bytes
-layout(push_constant) uniform PushConstants {
+layout(set = 0, binding = 2) uniform DrawData {
   mat4 model;
   vec4 colour;
   vec4 sprite_sheet; // block_x, block_y, num_of_rows
   vec4 has_texture_blackwhite;
-} push_constants;
+} draw_uniforms;
 
 void main() {
-  float num_rows = push_constants.sprite_sheet.z;
-  float block_x = push_constants.sprite_sheet.x;
-  float block_y = push_constants.sprite_sheet.y;
+  float num_rows = draw_uniforms.sprite_sheet.z;
+  float block_x = draw_uniforms.sprite_sheet.x;
+  float block_y = draw_uniforms.sprite_sheet.y;
   
   vec2 texcoords = uv.xy;
   texcoords += vec2(block_x, block_y);
   texcoords /= num_rows;
   uvs = texcoords;
   
-  //vec2 texcoords = position.xy;
-  //texcoords.y *= -1;
-  //texcoords.y = num_rows + push_constants.sprite_sheet.y;
- // texcoords /= num_rows;
-  //uvs = texcoords + vec2(block_x, block_y);
+  new_colour = draw_uniforms.colour;
   
-//  uvs = vec2(uvx,uvy);
-  new_colour = push_constants.colour;
+  textured_blackwhite = draw_uniforms.has_texture_blackwhite.xy;
   
-  textured_blackwhite = push_constants.has_texture_blackwhite.xy;
-  
-  gl_Position = uniforms.projection * uniforms.scale * push_constants.model * vec4(position, 0.0, 1.0);
+  gl_Position = uniforms.projection * uniforms.scale * draw_uniforms.model * vec4(position, 0.0, 1.0);
 }

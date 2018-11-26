@@ -506,7 +506,10 @@ impl VkMaat {
         },
         DrawType::ResetScissorRender => {
           self.dynamic_state.scissors = Some(
-            vec![Scissor::irrelevant()]
+            vec![Scissor {
+                   origin: [0, 0],
+                   dimensions: [dimensions[0] as u32, dimensions[1] as u32],
+                 }]
           );
         },
         _ => {}
@@ -523,7 +526,7 @@ impl VkMaat {
       tmp_cmd_buffer = self.final_shader.begin_renderpass(tmp_cmd_buffer, false, image_num);
       
       let texture_image = self.texture_shader.get_texture_attachment();
-      tmp_cmd_buffer = self.final_shader.draw(tmp_cmd_buffer, &self.static_dynamic_state, [dimensions[0] as f32, dimensions[1] as f32], self.texture_projection, texture_image);
+      tmp_cmd_buffer = self.final_shader.draw(tmp_cmd_buffer, &self.dynamic_state, [dimensions[0] as f32, dimensions[1] as f32], self.texture_projection, texture_image);
       
       self.final_shader.end_renderpass(tmp_cmd_buffer)
           .build().unwrap() as AutoCommandBuffer
@@ -649,6 +652,10 @@ impl CoreRender for VkMaat {
           depth_range: 0.0 .. 1.0,
         }]
       );
+      
+      self.dynamic_state.scissors = Some(
+            vec![Scissor::irrelevant()]
+          );
       
       self.recreate_swapchain = false;
       self.window.set_resizable(false);
