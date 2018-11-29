@@ -126,7 +126,10 @@ impl VkMaat {
                             dimensions: [dim[0] as f32, dim[1] as f32],
                             depth_range: 0.0 .. 1.0,
                           }]),
-                          scissors: Some(vec![Scissor::irrelevant()]),
+                          scissors: Some(vec![Scissor {
+                            origin: [0, 0],
+                            dimensions: [dim[0] as u32, dim[1] as u32],
+                          }]),
                         };
     
     let static_dynamic_state = DynamicState {
@@ -654,7 +657,10 @@ impl CoreRender for VkMaat {
       );
       
       self.dynamic_state.scissors = Some(
-            vec![Scissor::irrelevant()]
+            vec![Scissor {
+                   origin: [0, 0],
+                   dimensions: [dimensions[0] as u32, dimensions[1] as u32],
+             }]
           );
       
       self.recreate_swapchain = false;
