@@ -136,12 +136,12 @@ fn check_errors(result: vk::Result) -> bool {
 
 pub struct VkWindow {
   vk_instance: vk::InstancePointers,
-  vk_device: i32,//vk::DevicePointers,
-  device: i32,//vk::Device,
+  vk_device: vk::DevicePointers,
+  instance: vk::Instance,
+  device: vk::Device,
   window: winit::Window,
   events_loop: winit::EventsLoop,
   surface: vk::SurfaceKHR,
-  available_extensions: Vec<CString>,
 }
 
 impl VkWindow {
@@ -149,17 +149,41 @@ impl VkWindow {
     let function_pointers = OwnedOrRef::Ref(loader::auto_loader().unwrap());
     let entry_points = function_pointers.entry_points();
     let supported_extensions = VkWindow::supported_extensions(entry_points);
-    let (vk_instance, instance, available_extensions) = VkWindow::create_instance(entry_points, &function_pointers, app_name.to_string(), app_version, should_debug, supported_extensions);
-    let (window, events_loop, surface) = VkWindow::create_window(&vk_instance, &instance, app_name, width, height, available_extensions.clone());
+    
+    let (vk_instance, instance, available_extensions, enabled_layers) = {
+      VkWindow::create_instance(entry_points, 
+                                &function_pointers, 
+                                app_name.to_string(), 
+                                app_version, 
+                                should_debug, 
+                                supported_extensions)
+    };
+    
+    let (window, events_loop, surface) = {
+      VkWindow::create_window(&vk_instance, 
+                              &instance, app_name, 
+                              width, 
+                              height, 
+                              available_extensions.clone())
+    };
+    
+    let (device, device_available_extensions) = {
+      VkWindow::create_suitable_device(&vk_instance, 
+                                       &instance, &surface, 
+                                       available_extensions.clone(), 
+                                       enabled_layers)
+    };
+    
+    let vk_device = VkWindow::create_device_isntance(&vk_instance, &device);
     
     VkWindow {
       vk_instance: vk_instance,
-      vk_device: 0,
-      device: 0,
+      vk_device: vk_device,
+      instance: instance,
+      device: device,
       window: window,
       events_loop: events_loop,
       surface: surface,
-      available_extensions: available_extensions,
     }
   }
   
@@ -189,12 +213,215 @@ impl VkWindow {
     
     (window, events_loop, surface)
   }
-  /*
-  fn create_device_isntance() -> vk::DevicePointers {
-    
-  }*/
   
-  fn create_instance(entry_points: &vk::EntryPoints, function_pointers: &OwnedOrRef<FunctionPointers<Box<dyn Loader + Sync + Send>>>, app_name: String, app_version: u32, should_debug: bool, supported_extensions: Vec<CString>) -> (vk::InstancePointers, vk::Instance, Vec<CString>) {
+  fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>) {
+    for i in 0..physical_devices.len() as usize {
+      let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceProperties(physical_devices[i], &mut device_prop);
+      }
+      
+      let device_name = device_prop.deviceName.iter().map(|a| { 
+        let mut b = (*a as u8 as char).to_string();
+        if b == "\u{0}".to_string() {
+          b = "".to_string();
+        }
+        b
+      }).collect::<String>();
+      
+      let device_type = device_prop.deviceType;
+      let mut device_type_name = "";
+      match device_type {
+        vk::PHYSICAL_DEVICE_TYPE_OTHER => { device_type_name = "Other GPU"; },
+        vk::PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU => { device_type_name = "Integrated GPU"; },
+        vk::PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => { device_type_name = "Discrete GPU"; },
+        vk::PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU => { device_type_name = "Virtual GPU"; },
+        vk::PHYSICAL_DEVICE_TYPE_CPU => { device_type_name = "CPU"; },
+        _ => {},
+      }
+      
+      println!("{}: {} -> {}", i, device_type_name, device_name);
+    }
+    
+    for i in 0..physical_devices.len() {
+      println!("Device: {}", i);
+      let mut family_count = 0;
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, ptr::null_mut());
+      }
+      
+      let mut family_properties = Vec::with_capacity(family_count as usize);
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, family_properties.as_mut_ptr());
+        family_properties.set_len(family_count as usize);
+      }
+      
+      let mut queue_index = 0;
+      for j in 0..family_properties.len() {
+        println!("  Queue: {}", j);
+        let mut queue_flags = family_properties[j].queueFlags;
+        if queue_flags % 2 != 0 {
+          println!("    Graphics: True");
+          queue_flags -= 1;
+        } else {
+          println!("    Graphics: False");
+        };
+        if queue_flags >= 8 {
+          println!("     Binding: True");
+          queue_flags -= 8;
+        } else {
+          println!("     Binding: False");
+        }
+        if queue_flags >= 4 {
+          println!("    Transfer: True");
+          queue_flags -= 4;
+        } else {
+          println!("    Transfer: False");
+        }
+        if queue_flags != 0 {
+          println!("     Compute: True");
+        } else {
+          println!("     Compute: False");
+        }
+      }
+    }
+  }
+  
+  fn create_suitable_device(vk_instance: &vk::InstancePointers, instance: &vk::Instance, surface: &vk::SurfaceKHR, available_extensions: Vec<CString>, layer_names: Vec<CString>) -> (vk::Device, Vec<CString>) {
+    let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
+    
+    let mut physical_device_count = 0;
+    unsafe {
+      check_errors(vk_instance.EnumeratePhysicalDevices(*instance, &mut physical_device_count, ptr::null_mut()));
+    }
+    println!("Number of usable GPUs: {}", physical_device_count);
+    
+    let mut physical_devices: Vec<vk::PhysicalDevice> = Vec::with_capacity(physical_device_count as usize);
+    
+    unsafe {
+      check_errors(vk_instance.EnumeratePhysicalDevices(*instance, &mut physical_device_count, physical_devices.as_mut_ptr()));
+      physical_devices.set_len(physical_device_count as usize);
+    }
+    
+    VkWindow::print_physical_device_details(&vk_instance, &physical_devices);
+    
+    let mut device: vk::Device = unsafe { mem::uninitialized() };
+    let mut device_available_extensions = Vec::new();
+    
+    for i in 0..physical_devices.len() {
+      let mut family_count = 0;
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, ptr::null_mut());
+      }
+      
+      let mut family_properties = Vec::with_capacity(family_count as usize);
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, family_properties.as_mut_ptr());
+        family_properties.set_len(family_count as usize);
+      }
+      
+      let mut has_graphics_bit = false;
+      let mut device_supports_surface: u32 = 0;
+      let mut supported_queue_fam_index = 0;
+      
+      let mut queue_index = 0;
+      for j in 0..family_properties.len() {
+        let queue_count = family_properties[j].queueCount;
+        let mut queue_flags = family_properties[j].queueFlags;
+        if queue_flags % 2 != 0 {
+          has_graphics_bit = true;
+        }
+        
+        if device_supports_surface == 0 {
+          
+          unsafe {
+            vk_instance.GetPhysicalDeviceSurfaceSupportKHR(physical_devices[i], j as u32, *surface, &mut device_supports_surface);
+          }
+          
+          if device_supports_surface != 0 {
+            supported_queue_fam_index = j;
+          }
+        }
+      }
+      
+      if has_graphics_bit && device_supports_surface != 0 {
+        let mut property_count = 0;
+        let mut device_extensions;
+        
+        unsafe {
+          vk_instance.EnumerateDeviceExtensionProperties(physical_devices[i], ptr::null(), &mut property_count, ptr::null_mut());
+          device_extensions = Vec::with_capacity(property_count as usize);
+          vk_instance.EnumerateDeviceExtensionProperties(physical_devices[i], ptr::null(), &mut property_count, device_extensions.as_mut_ptr());
+          device_extensions.set_len(property_count as usize);
+        }
+        
+        let supported_device_extensions: Vec<CString>
+           = device_extensions.iter().map(|x| unsafe { CStr::from_ptr(x.extensionName.as_ptr()) }.to_owned()).collect();
+          
+          for supported_device_extension in supported_device_extensions {
+            for available_extension in &available_extensions {
+              if *available_extension == supported_device_extension {
+                device_available_extensions.push(supported_device_extension.clone());
+              }
+            }
+          }
+          
+          
+        let device_available_extensions_raw: Vec<*const i8> = device_available_extensions.iter().map(|raw_name| raw_name.as_ptr()).collect();
+        
+        let mut device_queue_infos = Vec::with_capacity(family_properties.len());
+        for j in 0..family_properties.len() {
+          let queue_count = family_properties[j].queueCount;
+          let queue_flags = family_properties[j].queueFlags;
+          device_queue_infos.push( 
+            vk::DeviceQueueCreateInfo {
+              sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+              pNext: ptr::null(),
+              flags: Default::default(),//queue_flags,
+              queueFamilyIndex: j as u32,
+              queueCount: family_count-1,
+              pQueuePriorities: &1.0,
+            }
+          );
+        }
+        
+        let device_info = vk::DeviceCreateInfo {
+          sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+          pNext: ptr::null(),
+          flags: Default::default(),
+          queueCreateInfoCount: family_properties.len() as u32,
+          pQueueCreateInfos: device_queue_infos.as_ptr(),
+          ppEnabledLayerNames: layers_names_raw.as_ptr(),
+          enabledLayerCount: layers_names_raw.len() as u32,
+          ppEnabledExtensionNames: device_available_extensions_raw.as_ptr(),
+          enabledExtensionCount: device_available_extensions_raw.len() as u32,
+          pEnabledFeatures: ptr::null(), // For more features use vk::GetPhysicalDeviceFeatures
+        };
+        
+        unsafe {
+          check_errors(vk_instance.CreateDevice(physical_devices[i], &device_info, ptr::null(), &mut device));
+        }
+        break;
+      }
+    }
+    
+    (device, device_available_extensions)
+  }
+  
+  fn create_device_isntance(vk_instance: &vk::InstancePointers, device: &vk::Device) -> vk::DevicePointers {
+    let vk_device = vk::DevicePointers::load(|name| unsafe {
+      vk_instance.GetDeviceProcAddr(*device, name.as_ptr()) as *const _
+    });
+    
+    vk_device
+  }
+  
+  fn create_instance(entry_points: &vk::EntryPoints, function_pointers: &OwnedOrRef<FunctionPointers<Box<dyn Loader + Sync + Send>>>, app_name: String, app_version: u32, should_debug: bool, supported_extensions: Vec<CString>) -> (vk::InstancePointers, vk::Instance, Vec<CString>, Vec<CString>) {
     let app_name = CString::new(app_name).unwrap();
     let engine_name = CString::new("Maat-Graphics").unwrap();
     
@@ -264,7 +491,19 @@ impl VkWindow {
       })
     };
     
-    (vk_instance, instance, available_extensions)
+    (vk_instance, instance, available_extensions, layer_names.to_vec())
+  }
+}
+
+impl Drop for VkWindow {
+  fn drop(&mut self) {
+    unsafe {
+      println!("Waiting for device to idle");
+      self.vk_device.DeviceWaitIdle(self.device);
+      println!("Destroying Device and Instance");
+      self.vk_device.DestroyDevice(self.device, ptr::null());
+      self.vk_instance.DestroyInstance(self.instance, ptr::null());
+    }
   }
 }
 
