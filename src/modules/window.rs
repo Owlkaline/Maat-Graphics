@@ -3,6 +3,7 @@ use winit;
 use loader;
 use loader::Loader;
 use loader::FunctionPointers;
+use modules::Swapchain;
 
 use std::ptr;
 use std::mem;
@@ -104,10 +105,9 @@ pub struct VkWindow {
   vk_device: vk::DevicePointers,
   instance: vk::Instance,
   device: vk::Device,
+  phys_device: vk::PhysicalDevice,
   surface: vk::SurfaceKHR,
-  swapchain: vk::SwapchainKHR,
-  swapchain_format: vk::Format,
-  images: Vec<vk::Image>,
+  swapchain: Swapchain,
   graphics_queue: vk::Queue,
   present_queue: vk::Queue,
   graphics_present_family_index: (u32, u32),
@@ -145,23 +145,36 @@ impl VkWindow {
                                        enabled_layers)
     };
     let vk_device = VkWindow::create_device_isntance(&vk_instance, &device);
-    let (swapchain, swapchain_format, graphics_family, present_family, graphics_queue, present_queue) = VkWindow::create_swapchain(&vk_instance, &vk_device, &physical_device, &device, &surface);
-    let swapchain_images = VkWindow::create_swapchain_images(&vk_device, &device, &swapchain);
+    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&vk_instance, &vk_device, &device, &physical_device, &surface);
+    
+    let swapchain = Swapchain::new(&vk_instance, &vk_device, &physical_device, &device, &surface, graphics_family, present_family);
+    
     VkWindow {
       vk_instance: vk_instance,
       vk_device: vk_device,
       instance: instance,
       device: device,
+      phys_device: physical_device,
       surface: surface,
       swapchain: swapchain,
-      swapchain_format: swapchain_format,
-      images: swapchain_images,
       graphics_queue: graphics_queue,
       present_queue: present_queue,
       graphics_present_family_index: (graphics_family, present_family),
       window: window,
       events_loop: events_loop,
     }
+  }
+  
+  pub fn get_current_extent(&self) -> vk::Extent2D {
+    self.get_capabilities().currentExtent
+  }
+  
+  pub fn swapchain_image_views(&self) -> &Vec<vk::ImageView> {
+    self.swapchain.get_image_views()
+  }
+  
+  pub fn swapchain_format(&self) -> vk::Format {
+    self.swapchain.get_format()
   }
   
   pub fn get_events(&mut self) -> &mut winit::EventsLoop {
@@ -186,6 +199,14 @@ impl VkWindow {
   
   pub fn get_graphics_family(&self) -> u32 {
     self.graphics_present_family_index.0
+  }
+  
+  fn get_capabilities(&self) -> vk::SurfaceCapabilitiesKHR {
+    let mut capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::uninitialized() };
+    unsafe { 
+      self.vk_instance.GetPhysicalDeviceSurfaceCapabilitiesKHR(self.phys_device, self.surface, &mut capabilities);
+    }
+    capabilities
   }
   
   fn supported_extensions(entry_points: &vk::EntryPoints) -> Vec<CString> {
@@ -213,140 +234,6 @@ impl VkWindow {
     let surface = unsafe { create_surface(&vk_instance, &instance, available_extensions.clone(), &window) };
     
     (window, events_loop, surface)
-  }
-  
-  fn create_swapchain_images(vk_device: &vk::DevicePointers, device: &vk::Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
-    
-    let mut image_count = 0;
-    let mut images: Vec<vk::Image>;
-    
-    unsafe {
-      check_errors(vk_device.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, ptr::null_mut()));
-      images = Vec::with_capacity(image_count as usize);
-      check_errors(vk_device.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, images.as_mut_ptr()));
-      images.set_len(image_count as usize);
-    }
-    
-    images
-  }
-  
-  fn create_swapchain(vk_instance: &vk::InstancePointers, vk_device: &vk::DevicePointers, physical_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR) -> (vk::SwapchainKHR, vk::Format, u32, u32, vk::Queue, vk::Queue) {
-    
-    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::uninitialized() };
-    
-    unsafe {
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceCapabilitiesKHR(*physical_device, *surface, &mut surface_capabilities));
-    }
-    
-    let current_extent = surface_capabilities.currentExtent;
-    let supported_composite_alpha = surface_capabilities.supportedCompositeAlpha;
-    let supported_usage_flags: vk::ImageUsageFlagBits = surface_capabilities.supportedUsageFlags;
-    let current_transform: vk::SurfaceTransformFlagBitsKHR = surface_capabilities.currentTransform;
-    
-    let mut surface_formats: Vec<vk::SurfaceFormatKHR>;
-    let mut num_surface_formats = 0;
-    
-    let mut present_modes: Vec<vk::PresentModeKHR>;
-    let mut num_present_modes = 0;
-    
-    let mut image_count = surface_capabilities.minImageCount + 1;
-    if surface_capabilities.maxImageCount > 0 && image_count > surface_capabilities.maxImageCount {
-      image_count = surface_capabilities.maxImageCount;
-    }
-    
-    unsafe {
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceFormatsKHR(*physical_device, *surface, &mut num_surface_formats, ptr::null_mut()));
-      surface_formats = Vec::with_capacity(num_surface_formats as usize);
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceFormatsKHR(*physical_device, *surface, &mut num_surface_formats, surface_formats.as_mut_ptr()));
-      surface_formats.set_len(num_surface_formats as usize);
-      
-      check_errors(vk_instance.GetPhysicalDeviceSurfacePresentModesKHR(*physical_device, *surface, &mut num_present_modes, ptr::null_mut()));
-      present_modes = Vec::with_capacity(num_present_modes as usize);
-      check_errors(vk_instance.GetPhysicalDeviceSurfacePresentModesKHR(*physical_device, *surface, &mut num_present_modes, present_modes.as_mut_ptr()));
-      present_modes.set_len(num_surface_formats as usize);
-    }
-    
-    let (format, colour_space) = {
-      let ideal_format = vk::FORMAT_B8G8R8A8_UNORM;
-      let mut final_format = &surface_formats[0];
-      for i in 0..surface_formats.len() {
-        if surface_formats[i].format == ideal_format {
-          println!("Using ideal swapchain format");
-          final_format = &surface_formats[i];
-        }
-      }
-      
-      (final_format.format, final_format.colorSpace)
-    };
-    
-    let mut present_mode = {
-      if present_modes.contains(&vk::PRESENT_MODE_FIFO_KHR) {
-        println!("Using Fifo present mode (vsync)");
-        vk::PRESENT_MODE_FIFO_KHR
-      } else if present_modes.contains(&vk::PRESENT_MODE_MAILBOX_KHR) {
-        println!("Using Mailbox present mode (triple buffering)");
-        vk::PRESENT_MODE_MAILBOX_KHR
-      } else if present_modes.contains(&vk::PRESENT_MODE_IMMEDIATE_KHR) {
-        println!("Using immediate present mode");
-        vk::PRESENT_MODE_IMMEDIATE_KHR
-      } else {
-        panic!("No present mode found!");
-      }
-    };
-    
-    let alpha;
-    if supported_composite_alpha % 2 != 0 {
-      alpha = vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    } else if supported_composite_alpha == 6 || supported_composite_alpha == 2 || supported_composite_alpha == 10 {
-      alpha = vk::COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
-    } else if supported_composite_alpha == 4 || supported_composite_alpha == 12 {
-      alpha = vk::COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
-    } else {
-      alpha = vk::COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-    }
-    
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(vk_instance, vk_device, device, physical_device, surface);
-    
-    let mut image_sharing_mode;
-    let mut queue_family_index_count;
-    let mut queue_family_indices: Vec<u32> = Vec::new();
-    
-    if graphics_family != present_family {
-      image_sharing_mode = vk::SHARING_MODE_CONCURRENT;
-      queue_family_index_count = 2;
-      queue_family_indices = vec!(graphics_family, present_family);
-    } else {
-      image_sharing_mode = vk::SHARING_MODE_EXCLUSIVE;
-      queue_family_index_count = 0;
-    }
-    
-    
-    let swapchain_info = vk::SwapchainCreateInfoKHR {
-      sType: vk::STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      pNext: ptr::null(),
-      flags: 0,
-      surface: *surface,
-      minImageCount: image_count,
-      imageFormat: format,
-      imageColorSpace: colour_space,
-      imageExtent: current_extent,
-      imageArrayLayers: 1,
-      imageUsage: vk::IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      imageSharingMode: image_sharing_mode,
-      queueFamilyIndexCount: queue_family_index_count,
-      pQueueFamilyIndices: queue_family_indices.as_ptr(),
-      preTransform: current_transform,
-      compositeAlpha: alpha,
-      presentMode: present_mode,
-      clipped: vk::TRUE,
-      oldSwapchain: 0,
-    };
-    let mut swapchain: vk::SwapchainKHR = unsafe { mem::uninitialized() };
-    unsafe {
-      check_errors(vk_device.CreateSwapchainKHR(*device, &swapchain_info, ptr::null(), &mut swapchain));
-    }
-    
-    (swapchain, format, graphics_family, present_family, graphics_queue, present_queue)
   }
   
   fn find_queue_families(vk_instance: &vk::InstancePointers, vk_device: &vk::DevicePointers, device: &vk::Device, p_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
@@ -699,11 +586,16 @@ impl VkWindow {
 
 impl Drop for VkWindow {
   fn drop(&mut self) {
+    let image_views = self.swapchain.get_image_views();
     unsafe {
+      for image_view in image_views.iter() {
+        self.vk_device.DestroyImageView(self.device, *image_view, ptr::null());
+      }
+      
       println!("Waiting for device to idle");
       self.vk_device.DeviceWaitIdle(self.device);
       println!("Destroying Device and Instance");
-      self.vk_device.DestroySwapchainKHR(self.device, self.swapchain, ptr::null());
+      self.vk_device.DestroySwapchainKHR(self.device, *self.swapchain.get_swapchain(), ptr::null());
       self.vk_device.DestroyDevice(self.device, ptr::null());
       self.vk_instance.DestroyInstance(self.instance, ptr::null());
     }
