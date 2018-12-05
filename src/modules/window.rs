@@ -144,7 +144,7 @@ impl VkWindow {
                                        available_extensions.clone(), 
                                        enabled_layers)
     };
-    let vk_device = VkWindow::create_device_isntance(&vk_instance, &device);
+    let vk_device = VkWindow::create_device_instance(&vk_instance, &device);
     let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&vk_instance, &vk_device, &device, &physical_device, &surface);
     
     let swapchain = Swapchain::new(&vk_instance, &vk_device, &physical_device, &device, &surface, graphics_family, present_family);
@@ -169,6 +169,10 @@ impl VkWindow {
     self.get_capabilities().currentExtent
   }
   
+  pub fn get_swapchain(&self) -> &vk::SurfaceKHR {
+    self.swapchain.get_swapchain()
+  }
+  
   pub fn swapchain_image_views(&self) -> &Vec<vk::ImageView> {
     self.swapchain.get_image_views()
   }
@@ -181,12 +185,20 @@ impl VkWindow {
     &mut self.events_loop
   }
   
+  pub fn instance_pointers(&self) -> &vk::InstancePointers {
+    &self.vk_instance
+  } 
+  
   pub fn device_pointers(&self) -> &vk::DevicePointers {
     &self.vk_device
   }
   
   pub fn device(&self) -> &vk::Device {
     &self.device
+  }
+  
+  pub fn physical_device(&self) -> &vk::PhysicalDevice {
+    &self.phys_device
   }
   
   pub fn get_graphics_queue(&self) -> &vk::Queue {
@@ -498,7 +510,7 @@ impl VkWindow {
     (device, physical_devices[physical_device_index], device_available_extensions)
   }
   
-  fn create_device_isntance(vk_instance: &vk::InstancePointers, device: &vk::Device) -> vk::DevicePointers {
+  fn create_device_instance(vk_instance: &vk::InstancePointers, device: &vk::Device) -> vk::DevicePointers {
     let vk_device = vk::DevicePointers::load(|name| unsafe {
       vk_instance.GetDeviceProcAddr(*device, name.as_ptr()) as *const _
     });
