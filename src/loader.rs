@@ -254,19 +254,3 @@ impl fmt::Display for LoadingError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use instance::loader::DynamicLibraryLoader;
-    use instance::loader::LoadingError;
-
-    #[test]
-    fn dl_open_error() {
-        unsafe {
-            match DynamicLibraryLoader::new("_non_existing_library.void") {
-                Err(LoadingError::LibraryLoadFailure(_)) => (),
-                _ => panic!(),
-            }
-        }
-    }
-}
-
