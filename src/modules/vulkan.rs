@@ -412,15 +412,15 @@ impl Vulkan {
     let model_matrix = Matrix4::identity();
     
     struct uniform {
-      perspective: [[f32; 4]; 4],
-      view: [[f32; 4]; 4],
-      model: [[f32; 4]; 4],
+      projectionMatrix: [[f32; 4]; 4],
+      modelMatrix: [[f32; 4]; 4],
+      viewMatrix: [[f32; 4]; 4],
     };
     
     let ubo = uniform {
-      perspective: perspective.into(),
-      view: view_matrix.into(),
-      model: model_matrix.into(),
+      projectionMatrix: perspective.into(),
+      modelMatrix: model_matrix.into(),
+      viewMatrix: view_matrix.into(),
     };
     
     let mut data = unsafe { mem::uninitialized() };
@@ -445,12 +445,17 @@ impl Vulkan {
     let mut host_visible_data = unsafe { mem::uninitialized() };
     
     unsafe {
-      vk.MapMemory(*device, staging_index_buffer_memory, 0, buffer_size, 0, &mut host_visible_data);
+      check_errors(vk.MapMemory(*device, staging_index_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
       host_visible_data = mem::transmute_copy(&indices);
       vk.UnmapMemory(*device, staging_index_buffer_memory);
+      check_errors(vk.BindBufferMemory(*device, staging_index_buffer, staging_index_buffer_memory, 0));
     }
     
-    let (index_buffer, index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_DST_BIT | vk::BUFFER_USAGE_INDEX_BUFFER_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    let (index_buffer, index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_INDEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    
+    unsafe {
+      check_errors(vk.BindBufferMemory(*device, index_buffer, index_buffer_memory, 0));
+    }
     
     let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
     
@@ -478,9 +483,9 @@ impl Vulkan {
   
   fn create_vertex_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, command_pool: &vk::CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
     let square = [
-      [1.0, 1.0, 0.0], [1.0, 0.0, 0.0],
-      [-1.0, 1.0, 0.0], [0.0, 1.0, 0.0],
-      [0.0, -1.0, 0.0], [0.0, 0.0, 1.0],
+      [[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
+      [[-1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+      [[0.0, -1.0, 0.0], [0.0, 0.0, 1.0]],
     ];
     
     let mut buffer_size: vk::DeviceSize = (mem::size_of::<f32>() * square.len()*3) as u64;
@@ -490,12 +495,17 @@ impl Vulkan {
     let mut host_visible_data = unsafe { mem::uninitialized() };
     
     unsafe {
-      vk.MapMemory(*device, staging_vertex_buffer_memory, 0, buffer_size, 0, &mut host_visible_data);
+      check_errors(vk.MapMemory(*device, staging_vertex_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
       host_visible_data = mem::transmute_copy(&square);
       vk.UnmapMemory(*device, staging_vertex_buffer_memory);
+      check_errors(vk.BindBufferMemory(*device, staging_vertex_buffer, staging_vertex_buffer_memory, 0));
     }
     
-    let (vertex_buffer, vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_DST_BIT | vk::BUFFER_USAGE_VERTEX_BUFFER_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    let (vertex_buffer, vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_VERTEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    
+    unsafe {
+      check_errors(vk.BindBufferMemory(*device, vertex_buffer, vertex_buffer_memory, 0));
+    }
     
     let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
     
@@ -1074,7 +1084,7 @@ impl Vulkan {
   
   fn create_descriptor_pool(vk: &vk::DevicePointers, device: &vk::Device) -> vk::DescriptorPool {
     let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
-    let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity(2);
+    let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity(1);
     
     descriptor_pool_size.push(
       vk::DescriptorPoolSize {
@@ -1110,7 +1120,7 @@ impl Vulkan {
   
   fn create_descriptor_set_layout(vk: &vk::DevicePointers, device: &vk::Device) -> vk::DescriptorSetLayout {
     let mut descriptor_set_layout: vk::DescriptorSetLayout = unsafe { mem::uninitialized() };
-    let mut descriptor_bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(2);
+    let mut descriptor_bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(1);
     
     descriptor_bindings.push(
       vk::DescriptorSetLayoutBinding {
@@ -1138,7 +1148,7 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        bindingCount: descriptor_bindings.len() as u32,
+        bindingCount: 1,
         pBindings: descriptor_bindings.as_ptr(),
       }
     };
