@@ -11,8 +11,10 @@ VkResult vkAcquireNextImageKHR(
 use vk;
 use winit;
 use image;
-use cgmath::{perspective, Matrix4, Deg, Rad};
+use cgmath::{perspective, Matrix4, Deg, Rad, Vector2, Vector3};
 use cgmath::prelude::SquareMatrix;
+
+use libc::memcpy;
 
 use modules::VkWindow;
 use ownage::check_errors;
@@ -21,6 +23,45 @@ use std::ptr;
 use std::mem;
 use std::ffi::c_void;
 use std::ffi::CString;
+
+struct Vertex {
+  pos: Vector2<f32>,
+  colour: Vector3<f32>,
+}
+
+impl Vertex {
+  pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
+    vk::VertexInputBindingDescription {
+      binding: 0,
+      stride: (mem::size_of::<Vertex>()) as u32,
+      inputRate: vk::VERTEX_INPUT_RATE_VERTEX+600,
+    }
+  }
+  
+  pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
+    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(2);
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 0,
+        binding: 0,
+        format: vk::FORMAT_R32G32_SFLOAT,//*swapchain_format,
+        offset: 0,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 1,
+        binding: 0,
+        format: vk::FORMAT_R32G32B32_SFLOAT,//*swapchain_format,
+        offset: (mem::size_of::<f32>()*2) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions
+  }
+}
 
 pub struct Vulkan {
   window: VkWindow,
@@ -197,7 +238,7 @@ impl Vulkan {
     let command_buffer_begin_info = vk::CommandBufferBeginInfo {
       sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       pNext: ptr::null(),
-      flags: vk::COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      flags: vk::COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
       pInheritanceInfo: ptr::null(),
     };
     
@@ -214,7 +255,7 @@ impl Vulkan {
         renderPass: self.render_pass,
         framebuffer: self.framebuffers[0],
         renderArea: vk::Rect2D { offset: vk::Offset2D {x: 0, y: 0 }, extent: vk::Extent2D { width: window_size.width, height: window_size.height, } },
-        clearValueCount: 2,
+        clearValueCount: 1,
         pClearValues: &clear_values,
       }
     };
@@ -226,7 +267,7 @@ impl Vulkan {
         check_errors(vk.BeginCommandBuffer(self.command_buffers[i], &command_buffer_begin_info));
         
         vk.CmdBeginRenderPass(self.command_buffers[i], &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
-        
+        /*
         let viewport = {
           vk::Viewport {
             x: 0.0,
@@ -246,13 +287,13 @@ impl Vulkan {
           }
         };
         vk.CmdSetScissor(self.command_buffers[i], 0, 1, &scissor);
-        
-        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
+        */
+      //  vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
         vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipelines[0]);
         vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
-        vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
+       // vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
         let indices_count = 3;
-        vk.CmdDrawIndexed(self.command_buffers[i], indices_count, 1, 0, 0, 1);
+        vk.CmdDraw(self.command_buffers[i], 3, 1, 0, 1);
         vk.CmdEndRenderPass(self.command_buffers[i]);
         
         check_errors(vk.EndCommandBuffer(self.command_buffers[i]));
@@ -265,6 +306,7 @@ impl Vulkan {
     let device = self.window.device();
     let swapchain = self.window.get_swapchain();
     let graphics_queue = self.window.get_graphics_queue();
+    let present_queue = self.window.get_present_queue();
     
     let mut current_buffer = 0;
     unsafe {
@@ -312,7 +354,8 @@ impl Vulkan {
     println!("There1");
     unsafe {
       check_errors(vk.QueuePresentKHR(*graphics_queue, &present_info_khr));
-      vk.DeviceWaitIdle(*device);
+    //  vk.DeviceWaitIdle(*device);
+      vk.QueueWaitIdle(*graphics_queue);
     }
     
     println!("here");
@@ -423,10 +466,28 @@ impl Vulkan {
       viewMatrix: view_matrix.into(),
     };
     
+    let mut real_data: [f32; 48] = unsafe { mem::uninitialized() };
+    
+    for i in 0..4 {
+      for j in 0..4 {
+        real_data[i] = ubo.projectionMatrix[i][j];
+      }
+    }
+    for i in 0..4 {
+      for j in 0..4 {
+        real_data[16+i] = ubo.modelMatrix[i][j];
+      }
+    }
+    for i in 0..4 {
+      for j in 0..4 {
+        real_data[32+i] = ubo.viewMatrix[i][j];
+      }
+    }
+    
     let mut data = unsafe { mem::uninitialized() };
     unsafe {
       check_errors(vk.MapMemory(*device, uniform_buffer_memory, 0, (mem::size_of::<f32>()*48) as u64, 0, &mut data));
-      data = mem::transmute_copy(&ubo);
+      memcpy(data, real_data.as_ptr() as *const _, (mem::size_of::<f32>() * 48));
       vk.UnmapMemory(*device, uniform_buffer_memory);
     }
     
@@ -438,7 +499,7 @@ impl Vulkan {
       0, 1, 2
     ];
     
-    let mut buffer_size: vk::DeviceSize = (mem::size_of::<f32>() * indices.len()) as u64;
+    let mut buffer_size: vk::DeviceSize = (mem::size_of::<[f32; 3]>()) as u64;
     
     let (staging_index_buffer, staging_index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
@@ -446,16 +507,11 @@ impl Vulkan {
     
     unsafe {
       check_errors(vk.MapMemory(*device, staging_index_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
-      host_visible_data = mem::transmute_copy(&indices);
+      memcpy(host_visible_data, indices.as_ptr() as *const _, buffer_size as usize);
       vk.UnmapMemory(*device, staging_index_buffer_memory);
-      check_errors(vk.BindBufferMemory(*device, staging_index_buffer, staging_index_buffer_memory, 0));
     }
     
     let (index_buffer, index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_INDEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    
-    unsafe {
-      check_errors(vk.BindBufferMemory(*device, index_buffer, index_buffer_memory, 0));
-    }
     
     let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
     
@@ -482,13 +538,25 @@ impl Vulkan {
   }
   
   fn create_vertex_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, command_pool: &vk::CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
-    let square = [
+   /* let square = [
       [[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
       [[-1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
       [[0.0, -1.0, 0.0], [0.0, 0.0, 1.0]],
-    ];
+    ];*/
+    /*
+    let triangle = vec!(
+      [0.0, -0.5], 
+      [0.5, 0.5],
+      [-0.5, 0.5],
+    );*/
     
-    let mut buffer_size: vk::DeviceSize = (mem::size_of::<f32>() * square.len()*3) as u64;
+    let triangle = vec!(
+      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 0.0) },
+      Vertex { pos: Vector2::new(0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0) },
+      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 0.0, 1.0) },
+    );
+    
+    let mut buffer_size: vk::DeviceSize = (mem::size_of::<Vertex>()*triangle.len()) as u64;
     
     let (staging_vertex_buffer, staging_vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
@@ -496,16 +564,11 @@ impl Vulkan {
     
     unsafe {
       check_errors(vk.MapMemory(*device, staging_vertex_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
-      host_visible_data = mem::transmute_copy(&square);
+      memcpy(host_visible_data, triangle.as_ptr() as *const _, buffer_size as usize);
       vk.UnmapMemory(*device, staging_vertex_buffer_memory);
-      check_errors(vk.BindBufferMemory(*device, staging_vertex_buffer, staging_vertex_buffer_memory, 0));
     }
     
     let (vertex_buffer, vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_VERTEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    
-    unsafe {
-      check_errors(vk.BindBufferMemory(*device, vertex_buffer, vertex_buffer_memory, 0));
-    }
     
     let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
     
@@ -762,13 +825,12 @@ impl Vulkan {
     let mut graphics_pipeline_create_infos: Vec<vk::GraphicsPipelineCreateInfo> = Vec::with_capacity(2);
     let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::with_capacity(2);
     let mut vertex_input_binding_descriptions: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
-    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(4);
     
     let topology = vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     let polygon_mode = vk::POLYGON_MODE_FILL;
-    let enable_depth_clamp = vk::TRUE;
+    let enable_depth_clamp = vk::FALSE;
     let cull_mode =  vk::CULL_MODE_BACK_BIT;
-    let front_face = vk::FRONT_FACE_COUNTER_CLOCKWISE;
+    let front_face = vk::FRONT_FACE_CLOCKWISE;
     let depth_test = vk::FALSE;
     let depth_write = vk::FALSE;
     
@@ -781,7 +843,7 @@ impl Vulkan {
         flags: 0,
         stage: vk::SHADER_STAGE_VERTEX_BIT,
         module: *vertex_shader,
-        pName: "main".as_ptr() as *const i8,
+        pName: CString::new("main").unwrap().into_raw(),
         pSpecializationInfo: ptr::null(),
       }
     );
@@ -793,7 +855,7 @@ impl Vulkan {
         flags: 0,
         stage: vk::SHADER_STAGE_FRAGMENT_BIT,
         module: *fragment_shader,
-        pName: "main".as_ptr() as *const i8,
+        pName: CString::new("main").unwrap().into_raw(),
         pSpecializationInfo: ptr::null(),
       }
     );
@@ -801,26 +863,26 @@ impl Vulkan {
     vertex_input_binding_descriptions.push(
       vk::VertexInputBindingDescription {
         binding: 0,
-        stride: (mem::size_of::<f32>()*7) as u32,
+        stride: (mem::size_of::<f32>()*6) as u32,
         inputRate: vk::VERTEX_INPUT_RATE_VERTEX,
       }
     );
+    /*
+    float: VK_FORMAT_R32_SFLOAT
+    vec2: VK_FORMAT_R32G32_SFLOAT
+    vec3: VK_FORMAT_R32G32B32_SFLOAT
+    vec4: VK_FORMAT_R32G32B32A32_SFLOAT
+    ivec2: VK_FORMAT_R32G32_SINT
+    uvec4: VK_FORMAT_R32G32B32A32_UINT
+    double: VK_FORMAT_R64_SFLOAT
+    */
+    let mut vertex_binding: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
     
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 0,
+    vertex_binding.push(
+      vk::VertexInputBindingDescription {
         binding: 0,
-        format: *swapchain_format,
-        offset: 0,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 1,
-        binding: 0,
-        format: *swapchain_format,
-        offset: (mem::size_of::<f32>()*3) as u32,
+        stride: (mem::size_of::<Vertex>()) as u32,
+        inputRate: vk::VERTEX_INPUT_RATE_VERTEX,
       }
     );
     
@@ -829,10 +891,10 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        vertexBindingDescriptionCount: vertex_input_binding_descriptions.len() as u32,
-        pVertexBindingDescriptions: vertex_input_binding_descriptions.as_ptr(),
-        vertexAttributeDescriptionCount: vertex_input_attribute_descriptions.len() as u32,
-        pVertexAttributeDescriptions: vertex_input_attribute_descriptions.as_ptr(),
+        vertexBindingDescriptionCount: vertex_binding.len() as u32,//vertex_input_binding_descriptions.len() as u32,
+        pVertexBindingDescriptions: vertex_binding.as_ptr(),//vertex_input_binding_descriptions.as_ptr(),
+        vertexAttributeDescriptionCount: 2,//vertex_input_attribute_descriptions.len() as u32,
+        pVertexAttributeDescriptions: &Vertex::vertex_input_attributes()[0],//vertex_input_attribute_descriptions.as_ptr(),
       }
     };
     
@@ -989,8 +1051,8 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        dynamicStateCount: 1,
-        pDynamicStates: &vk::DYNAMIC_STATE_VIEWPORT,
+        dynamicStateCount: 2,
+        pDynamicStates: vec!(vk::DYNAMIC_STATE_VIEWPORT, vk::DYNAMIC_STATE_LINE_WIDTH).as_ptr(),
       }
     };
     
@@ -1010,7 +1072,7 @@ impl Vulkan {
         setLayoutCount: 1,
         pSetLayouts: descriptor_set_layout,
         pushConstantRangeCount: 0,
-        pPushConstantRanges: &push_constant_range,
+        pPushConstantRanges: ptr::null(),//&push_constant_range,
       }
     };
     
@@ -1031,9 +1093,9 @@ impl Vulkan {
         pViewportState: &pipeline_viewport_state_create_info,
         pRasterizationState: &pipeline_rasterization_state_create_info,
         pMultisampleState: &pipeline_multisample_state_create_info,
-        pDepthStencilState: &pipeline_depth_stencil_state_create_info,
+        pDepthStencilState: ptr::null(),//&pipeline_depth_stencil_state_create_info,
         pColorBlendState: &pipeline_colour_blend_state_create_info,
-        pDynamicState: &dynamic_state_create_info,
+        pDynamicState: ptr::null(),//&dynamic_state_create_info,
         layout: pipeline_layout,
         renderPass: *render_pass,
         subpass: 0,
@@ -1169,7 +1231,7 @@ impl Vulkan {
     
     let mut vertex_code_size = mem::size_of::<u8>() * vertex_shader_data.len();
     let mut fragment_code_size = mem::size_of::<u8>() * fragment_shader_data.len();
-    
+    /*
     let mut multiple_of_4 = false;
     while !multiple_of_4 {
       if vertex_code_size % 4 == 0 {
@@ -1184,14 +1246,14 @@ impl Vulkan {
         break;
       }
       fragment_code_size += 1;
-    }
+    }*/
     
     let mut vertex_shader_module_create_info = vk::ShaderModuleCreateInfo {
       sType: vk::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       pNext: ptr::null(),
       flags: 0,
       codeSize: vertex_code_size,
-      pCode: vertex_shader_data.as_ptr() as *const u32,
+      pCode: vertex_shader_data.as_ptr() as *const _,
     };
     
     let mut fragment_shader_module_create_info = vk::ShaderModuleCreateInfo {
@@ -1199,7 +1261,7 @@ impl Vulkan {
       pNext: ptr::null(),
       flags: 0,
       codeSize: fragment_code_size,
-      pCode: fragment_shader_data.as_ptr() as *const u32,
+      pCode: fragment_shader_data.as_ptr() as *const _,
     };
     
     unsafe {
@@ -1283,13 +1345,13 @@ impl Vulkan {
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: vk::SUBPASS_EXTERNAL,
       dstSubpass: 0,
-      srcStageMask: vk::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
       dstStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      srcAccessMask: vk::ACCESS_MEMORY_READ_BIT,
+      srcAccessMask: 0,
       dstAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
       dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
     });
-    
+    /*
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: 0,
       dstSubpass: vk::SUBPASS_EXTERNAL,
@@ -1298,7 +1360,7 @@ impl Vulkan {
       srcAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
       dstAccessMask: 0,//vk::ACCESS_MEMORY_READ_BIT,
       dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
-    });
+    });*/
     
     let render_pass_create_info = vk::RenderPassCreateInfo {
       sType: vk::STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,

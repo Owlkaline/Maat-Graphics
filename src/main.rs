@@ -5,6 +5,7 @@ extern crate shared_library;
 extern crate vk_sys as vk;
 extern crate image;
 extern crate cgmath;
+extern crate libc;
 
 use modules::Vulkan;
 
