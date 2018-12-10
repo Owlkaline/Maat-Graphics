@@ -34,7 +34,7 @@ impl Vertex {
     vk::VertexInputBindingDescription {
       binding: 0,
       stride: (mem::size_of::<Vertex>()) as u32,
-      inputRate: vk::VERTEX_INPUT_RATE_VERTEX+600,
+      inputRate: vk::VERTEX_INPUT_RATE_VERTEX,
     }
   }
   
@@ -288,12 +288,13 @@ impl Vulkan {
         };
         vk.CmdSetScissor(self.command_buffers[i], 0, 1, &scissor);
         */
-      //  vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
+        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
         vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipelines[0]);
         vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
-       // vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
+        vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
+        
         let indices_count = 3;
-        vk.CmdDraw(self.command_buffers[i], 3, 1, 0, 1);
+        vk.CmdDrawIndexed(self.command_buffers[i], indices_count, 1, 0, 0, 0);
         vk.CmdEndRenderPass(self.command_buffers[i]);
         
         check_errors(vk.EndCommandBuffer(self.command_buffers[i]));
@@ -419,7 +420,7 @@ impl Vulkan {
   }
   
   fn create_uniform_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, swapchain_extent: vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
-    let buffer_size: vk::DeviceSize = (mem::size_of::<f32>()*48) as u64;
+    let buffer_size: vk::DeviceSize = (mem::size_of::<f32>()*2) as u64;
     
     let (uniform_buffer, uniform_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
@@ -427,7 +428,7 @@ impl Vulkan {
       vk::DescriptorBufferInfo {
         buffer: uniform_buffer,
         offset: 0,
-        range: (mem::size_of::<f32>()*48) as u64,
+        range: buffer_size,
       }
     };
     
@@ -449,7 +450,7 @@ impl Vulkan {
     unsafe {
       vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
     }
-     
+     /*
     let perspective = perspective(Deg(60.0), (swapchain_extent.width as f32 / swapchain_extent.height as f32), 0.1, 256.0);
     let view_matrix = Matrix4::identity();
     let model_matrix = Matrix4::identity();
@@ -482,11 +483,13 @@ impl Vulkan {
       for j in 0..4 {
         real_data[32+i] = ubo.viewMatrix[i][j];
       }
-    }
+    }*/
+    
+    let real_data: [f32; 2] = Vector2::new(0.4, 0.4).into();
     
     let mut data = unsafe { mem::uninitialized() };
     unsafe {
-      check_errors(vk.MapMemory(*device, uniform_buffer_memory, 0, (mem::size_of::<f32>()*48) as u64, 0, &mut data));
+      check_errors(vk.MapMemory(*device, uniform_buffer_memory, 0, buffer_size, 0, &mut data));
       memcpy(data, real_data.as_ptr() as *const _, (mem::size_of::<f32>() * 48));
       vk.UnmapMemory(*device, uniform_buffer_memory);
     }
@@ -861,12 +864,9 @@ impl Vulkan {
     );
     
     vertex_input_binding_descriptions.push(
-      vk::VertexInputBindingDescription {
-        binding: 0,
-        stride: (mem::size_of::<f32>()*6) as u32,
-        inputRate: vk::VERTEX_INPUT_RATE_VERTEX,
-      }
+      Vertex::vertex_input_binding()
     );
+    
     /*
     float: VK_FORMAT_R32_SFLOAT
     vec2: VK_FORMAT_R32G32_SFLOAT
@@ -876,25 +876,24 @@ impl Vulkan {
     uvec4: VK_FORMAT_R32G32B32A32_UINT
     double: VK_FORMAT_R64_SFLOAT
     */
+    
     let mut vertex_binding: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
     
     vertex_binding.push(
-      vk::VertexInputBindingDescription {
-        binding: 0,
-        stride: (mem::size_of::<Vertex>()) as u32,
-        inputRate: vk::VERTEX_INPUT_RATE_VERTEX,
-      }
+      Vertex::vertex_input_binding()
     );
+    
+    let mut vertex_input_attribute_descriptions = Vertex::vertex_input_attributes();
     
     let pipeline_vertex_input_state_create_info = {
       vk::PipelineVertexInputStateCreateInfo {
         sType: vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        vertexBindingDescriptionCount: vertex_binding.len() as u32,//vertex_input_binding_descriptions.len() as u32,
-        pVertexBindingDescriptions: vertex_binding.as_ptr(),//vertex_input_binding_descriptions.as_ptr(),
-        vertexAttributeDescriptionCount: 2,//vertex_input_attribute_descriptions.len() as u32,
-        pVertexAttributeDescriptions: &Vertex::vertex_input_attributes()[0],//vertex_input_attribute_descriptions.as_ptr(),
+        vertexBindingDescriptionCount: vertex_binding.len() as u32,
+        pVertexBindingDescriptions: vertex_binding.as_ptr(),
+        vertexAttributeDescriptionCount: vertex_input_attribute_descriptions.len() as u32,
+        pVertexAttributeDescriptions: vertex_input_attribute_descriptions.as_ptr(),
       }
     };
     
@@ -1304,17 +1303,20 @@ impl Vulkan {
     
     let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
     
-    let attachment_description = vk::AttachmentDescription {
-      flags: 0,
-      format: *format,
-      samples: vk::SAMPLE_COUNT_1_BIT,
-      loadOp: vk::ATTACHMENT_LOAD_OP_CLEAR,
-      storeOp: vk::ATTACHMENT_STORE_OP_STORE,
-      stencilLoadOp: vk::ATTACHMENT_LOAD_OP_DONT_CARE,
-      stencilStoreOp: vk::ATTACHMENT_STORE_OP_DONT_CARE,
-      initialLayout: vk::IMAGE_LAYOUT_UNDEFINED,
-      finalLayout: vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    };
+    let mut attachment_description = Vec::with_capacity(1);
+    attachment_description.push(
+      vk::AttachmentDescription {
+        flags: 0,
+        format: *format,
+        samples: vk::SAMPLE_COUNT_1_BIT,
+        loadOp: vk::ATTACHMENT_LOAD_OP_CLEAR,
+        storeOp: vk::ATTACHMENT_STORE_OP_STORE,
+        stencilLoadOp: vk::ATTACHMENT_LOAD_OP_DONT_CARE,
+        stencilStoreOp: vk::ATTACHMENT_STORE_OP_DONT_CARE,
+        initialLayout: vk::IMAGE_LAYOUT_UNDEFINED,
+        finalLayout: vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      }
+    );
     
    // let mut input_attachments: Vec<vk::AttachmentReference>;
     let mut colour_attachments: Vec<vk::AttachmentReference> = Vec::new();
@@ -1327,18 +1329,21 @@ impl Vulkan {
       }
     );
     
-    let subpass_description = vk::SubpassDescription {
-      flags: 0,
-      pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
-      inputAttachmentCount: 0,//input_attachments.len() as u32,
-      pInputAttachments: ptr::null(),//input_attachments,
-      colorAttachmentCount: colour_attachments.len() as u32,
-      pColorAttachments: colour_attachments.as_ptr(),
-      pResolveAttachments: ptr::null(),//resolve_attachmets.len() as u32,
-      pDepthStencilAttachment: ptr::null(),//resolve_attachmets,
-      preserveAttachmentCount: 0,
-      pPreserveAttachments: ptr::null(),
-    };
+    let mut subpass_description = Vec::with_capacity(1);
+    subpass_description.push(
+      vk::SubpassDescription {
+        flags: 0,
+        pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
+        inputAttachmentCount: 0,//input_attachments.len() as u32,
+        pInputAttachments: ptr::null(),//input_attachments,
+        colorAttachmentCount: colour_attachments.len() as u32,
+        pColorAttachments: colour_attachments.as_ptr(),
+        pResolveAttachments: ptr::null(),//resolve_attachmets.len() as u32,
+        pDepthStencilAttachment: ptr::null(),//resolve_attachmets,
+        preserveAttachmentCount: 0,
+        pPreserveAttachments: ptr::null(),
+      }
+    );
     
     let mut subpass_dependency: Vec<vk::SubpassDependency> = Vec::with_capacity(2);
     
@@ -1366,10 +1371,10 @@ impl Vulkan {
       sType: vk::STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
       pNext: ptr::null(),
       flags: 0,
-      attachmentCount: 1,
-      pAttachments: &attachment_description,
-      subpassCount: 1,
-      pSubpasses: &subpass_description,
+      attachmentCount: attachment_description.len() as u32,
+      pAttachments: attachment_description.as_ptr(),
+      subpassCount: subpass_description.len() as u32,
+      pSubpasses: subpass_description.as_ptr(),
       dependencyCount: subpass_dependency.len() as u32,
       pDependencies: subpass_dependency.as_ptr(),
     };
