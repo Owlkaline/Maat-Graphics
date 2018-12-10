@@ -1,6 +1,7 @@
 use vk;
 
 use ownage::check_errors;
+use modules::Instance;
 
 use std::ptr;
 use std::mem;
@@ -13,9 +14,9 @@ pub struct Swapchain {
 }
 
 impl Swapchain {
-  pub fn new(vk_instance: &vk::InstancePointers, vk_device: &vk::DevicePointers, physical_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
+  pub fn new(instance: &Instance, vk_device: &vk::DevicePointers, physical_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
     
-    let (swapchain, format) = Swapchain::create_swapchain(vk_instance, vk_device, physical_device, device, surface, graphics_family, present_family);
+    let (swapchain, format) = Swapchain::create_swapchain(instance, vk_device, physical_device, device, surface, graphics_family, present_family);
     let images = Swapchain::create_swapchain_images(vk_device, device, &swapchain);
     let image_views = Swapchain::create_image_views(vk_device, device, &images, &format);
     
@@ -94,40 +95,21 @@ impl Swapchain {
     images
   }
   
-  fn create_swapchain(vk_instance: &vk::InstancePointers, vk_device: &vk::DevicePointers, physical_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> (vk::SwapchainKHR, vk::Format) {
+  fn create_swapchain(instance: &Instance, vk_device: &vk::DevicePointers, phys_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> (vk::SwapchainKHR, vk::Format) {
     
-    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::uninitialized() };
-    
-    unsafe {
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceCapabilitiesKHR(*physical_device, *surface, &mut surface_capabilities));
-    }
+    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = instance.get_surface_capabilities(phys_device, surface);
     
     let current_extent = surface_capabilities.currentExtent;
     let supported_composite_alpha = surface_capabilities.supportedCompositeAlpha;
     let supported_usage_flags: vk::ImageUsageFlagBits = surface_capabilities.supportedUsageFlags;
     let current_transform: vk::SurfaceTransformFlagBitsKHR = surface_capabilities.currentTransform;
     
-    let mut surface_formats: Vec<vk::SurfaceFormatKHR>;
-    let mut num_surface_formats = 0;
-    
-    let mut present_modes: Vec<vk::PresentModeKHR>;
-    let mut num_present_modes = 0;
+    let mut surface_formats: Vec<vk::SurfaceFormatKHR> = instance.get_physical_device_formats(phys_device, surface);
+    let mut present_modes: Vec<vk::PresentModeKHR> = instance.get_present_modes(phys_device, surface);
     
     let mut image_count = surface_capabilities.minImageCount + 1;
     if surface_capabilities.maxImageCount > 0 && image_count > surface_capabilities.maxImageCount {
       image_count = surface_capabilities.maxImageCount;
-    }
-    
-    unsafe {
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceFormatsKHR(*physical_device, *surface, &mut num_surface_formats, ptr::null_mut()));
-      surface_formats = Vec::with_capacity(num_surface_formats as usize);
-      check_errors(vk_instance.GetPhysicalDeviceSurfaceFormatsKHR(*physical_device, *surface, &mut num_surface_formats, surface_formats.as_mut_ptr()));
-      surface_formats.set_len(num_surface_formats as usize);
-      
-      check_errors(vk_instance.GetPhysicalDeviceSurfacePresentModesKHR(*physical_device, *surface, &mut num_present_modes, ptr::null_mut()));
-      present_modes = Vec::with_capacity(num_present_modes as usize);
-      check_errors(vk_instance.GetPhysicalDeviceSurfacePresentModesKHR(*physical_device, *surface, &mut num_present_modes, present_modes.as_mut_ptr()));
-      present_modes.set_len(num_surface_formats as usize);
     }
     
     let (format, colour_space) = {

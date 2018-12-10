@@ -4,6 +4,7 @@ use loader;
 use loader::Loader;
 use loader::FunctionPointers;
 use modules::Swapchain;
+use modules::Instance;
 
 use std::ptr;
 use std::mem;
@@ -21,16 +22,18 @@ use ENGINE_VERSION;
 
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
 unsafe fn create_surface(
-    vk: &vk::InstancePointers,
-    instance: &vk::Instance,
-    instance_extensions: Vec<CString>,
+    instance: &Instance,
     window: &winit::Window,
 ) -> vk::SurfaceKHR {
   use winit::os::unix::WindowExt;
   
+  let vk = instance.pointers();
+  let extensions = instance.get_extensions();
+  let instance = instance.local_instance();
+  
   match (window.borrow().get_wayland_display(), window.borrow().get_wayland_surface()) {
     (Some(display), Some(surface)) => {//wayland
-      if !instance_extensions.contains(&CString::new("VK_KHR_wayland_surface").unwrap()) {
+      if !extensions.contains(&CString::new("VK_KHR_wayland_surface").unwrap()) {
         panic!("Missing extension VK_KHR_wayland_surface");
       }
       
@@ -53,7 +56,7 @@ unsafe fn create_surface(
     },
     _ => {
       //xlib
-      if !instance_extensions.contains(&CString::new("VK_KHR_xlib_surface").unwrap()) {
+      if !extensions.contains(&CString::new("VK_KHR_xlib_surface").unwrap()) {
         let surface = {
           let infos = vk::XlibSurfaceCreateInfoKHR {
             sType: vk::STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
@@ -73,7 +76,7 @@ unsafe fn create_surface(
         
         surface
       } else {//xcb
-        if !instance_extensions.contains(&CString::new("VK_KHR_xcb_surface").unwrap()) {
+        if !extensions.contains(&CString::new("VK_KHR_xcb_surface").unwrap()) {
           panic!("Missing extension VK_KHR_xcb_surface");
         }
         
@@ -101,9 +104,8 @@ unsafe fn create_surface(
 }
 
 pub struct VkWindow {
-  vk_instance: vk::InstancePointers,
   vk_device: vk::DevicePointers,
-  instance: vk::Instance,
+  instance: Instance,
   device: vk::Device,
   phys_device: vk::PhysicalDevice,
   surface: vk::SurfaceKHR,
@@ -119,38 +121,26 @@ impl VkWindow {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> VkWindow {
     let function_pointers = OwnedOrRef::Ref(loader::auto_loader().unwrap());
     let entry_points = function_pointers.entry_points();
-    let supported_extensions = VkWindow::supported_extensions(entry_points);
     
-    let (vk_instance, instance, available_extensions, enabled_layers) = {
-      VkWindow::create_instance(entry_points, 
-                                &function_pointers, 
-                                app_name.to_string(), 
-                                app_version, 
-                                should_debug, 
-                                supported_extensions)
-    };
+    let instance = Instance::new(app_name.to_string(), app_version, should_debug);
     
     let (window, events_loop, surface) = {
-      VkWindow::create_window(&vk_instance, 
-                              &instance, app_name, 
+      VkWindow::create_window(&instance,
+                              app_name, 
                               width, 
-                              height, 
-                              available_extensions.clone())
+                              height)
     };
     
     let (device, physical_device, device_available_extensions) = {
-      VkWindow::create_suitable_device(&vk_instance, 
-                                       &instance, &surface, 
-                                       available_extensions.clone(), 
-                                       enabled_layers)
+      VkWindow::create_suitable_device(&instance, &surface)
     };
-    let vk_device = VkWindow::create_device_instance(&vk_instance, &device);
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&vk_instance, &vk_device, &device, &physical_device, &surface);
     
-    let swapchain = Swapchain::new(&vk_instance, &vk_device, &physical_device, &device, &surface, graphics_family, present_family);
+    let vk_device = VkWindow::create_device_instance(instance.pointers(), &device);
+    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&instance, &vk_device, &device, &physical_device, &surface);
+    
+    let swapchain = Swapchain::new(&instance, &vk_device, &physical_device, &device, &surface, graphics_family, present_family);
     
     VkWindow {
-      vk_instance: vk_instance,
       vk_device: vk_device,
       instance: instance,
       device: device,
@@ -186,7 +176,7 @@ impl VkWindow {
   }
   
   pub fn instance_pointers(&self) -> &vk::InstancePointers {
-    &self.vk_instance
+    &self.instance.pointers()
   } 
   
   pub fn device_pointers(&self) -> &vk::DevicePointers {
@@ -214,50 +204,21 @@ impl VkWindow {
   }
   
   fn get_capabilities(&self) -> vk::SurfaceCapabilitiesKHR {
-    let mut capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::uninitialized() };
-    unsafe { 
-      self.vk_instance.GetPhysicalDeviceSurfaceCapabilitiesKHR(self.phys_device, self.surface, &mut capabilities);
-    }
-    capabilities
+    self.instance.get_surface_capabilities(&self.phys_device, &self.surface)
   }
   
-  fn supported_extensions(entry_points: &vk::EntryPoints) -> Vec<CString> {
-    let properties: Vec<vk::ExtensionProperties> = unsafe {
-      let mut num = 0;
-      check_errors(entry_points.EnumerateInstanceExtensionProperties(
-                                     ptr::null(), &mut num, ptr::null_mut()));
-      let mut properties = Vec::with_capacity(num as usize);
-      check_errors(entry_points.EnumerateInstanceExtensionProperties(
-                        ptr::null(), &mut num, properties.as_mut_ptr()));
-      properties.set_len(num as usize);
-      properties
-    };
-    
-    let supported_extensions: Vec<CString>
-     = properties.iter().map(|x| unsafe { CStr::from_ptr(x.extensionName.as_ptr()) }.to_owned()).collect();
-     
-     supported_extensions
-  }
-  
-  fn create_window(vk_instance: &vk::InstancePointers, instance: &vk::Instance, app_name: String, width: f32, height: f32, available_extensions: Vec<CString>) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
+  fn create_window(instance: &Instance, app_name: String, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
     let events_loop = winit::EventsLoop::new();
     let window = winit::WindowBuilder::new().with_title(app_name).with_dimensions(LogicalSize::new(width as f64, height as f64)).build(&events_loop).unwrap();
     
-    let surface = unsafe { create_surface(&vk_instance, &instance, available_extensions.clone(), &window) };
+    let surface = unsafe { create_surface(&instance, &window) };
     
     (window, events_loop, surface)
   }
   
-  fn find_queue_families(vk_instance: &vk::InstancePointers, vk_device: &vk::DevicePointers, device: &vk::Device, p_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
-    let mut queue_count = 0;
-    let mut queue_family_properties: Vec<vk::QueueFamilyProperties>;
+  fn find_queue_families(instance: &Instance, vk_device: &vk::DevicePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
     
-    unsafe {
-      vk_instance.GetPhysicalDeviceQueueFamilyProperties(*p_device, &mut queue_count, ptr::null_mut());
-      queue_family_properties = Vec::with_capacity(queue_count as usize);
-      vk_instance.GetPhysicalDeviceQueueFamilyProperties(*p_device, &mut queue_count, queue_family_properties.as_mut_ptr());
-      queue_family_properties.set_len(queue_count as usize);
-    }
+    let queue_family_properties: Vec<vk::QueueFamilyProperties> = instance.get_queue_family_properties(phys_device);
     
     let mut graphics_family: i32 = -1;
     let mut present_family: i32 = -1;
@@ -268,10 +229,7 @@ impl VkWindow {
         graphics_family = i as i32;
       }
       
-      let mut present_supported = 0;
-      unsafe {
-        check_errors(vk_instance.GetPhysicalDeviceSurfaceSupportKHR(*p_device, i as u32, *surface, &mut present_supported));
-      }
+      let mut present_supported = instance.get_supported_display_queue_families(phys_device, surface, i as u32);
       
       if queue_family.queueCount > 0 && present_supported != 0 {
          present_family = i as i32;
@@ -369,41 +327,20 @@ impl VkWindow {
     }
   }
   
-  fn create_suitable_device(vk_instance: &vk::InstancePointers, instance: &vk::Instance, surface: &vk::SurfaceKHR, available_extensions: Vec<CString>, layer_names: Vec<CString>) -> (vk::Device, vk::PhysicalDevice, Vec<CString>) {
+  fn create_suitable_device(instance: &Instance, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, Vec<CString>) {
+    let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
-    let mut physical_device_count = 0;
-    unsafe {
-      check_errors(vk_instance.EnumeratePhysicalDevices(*instance, &mut physical_device_count, ptr::null_mut()));
-    }
-    println!("Number of usable GPUs: {}", physical_device_count);
+    let physical_devices = instance.enumerate_physical_devices();
     
-    let mut physical_devices: Vec<vk::PhysicalDevice> = Vec::with_capacity(physical_device_count as usize);
-    
-    unsafe {
-      check_errors(vk_instance.EnumeratePhysicalDevices(*instance, &mut physical_device_count, physical_devices.as_mut_ptr()));
-      physical_devices.set_len(physical_device_count as usize);
-    }
-    
-    VkWindow::print_physical_device_details(&vk_instance, &physical_devices);
+    VkWindow::print_physical_device_details(instance.pointers(), &physical_devices);
     
     let mut device: vk::Device = unsafe { mem::uninitialized() };
     let mut device_available_extensions = Vec::new();
     let mut physical_device_index = 0;
     
     for i in 0..physical_devices.len() {
-      let mut family_count = 0;
-      
-      unsafe {
-        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, ptr::null_mut());
-      }
-      
-      let mut family_properties = Vec::with_capacity(family_count as usize);
-      
-      unsafe {
-        vk_instance.GetPhysicalDeviceQueueFamilyProperties(physical_devices[i], &mut family_count, family_properties.as_mut_ptr());
-        family_properties.set_len(family_count as usize);
-      }
+      let family_properties = instance.get_device_queue_family_properties(&physical_devices[i]);
       
       let mut has_graphics_bit = false;
       let mut device_supports_surface: u32 = 0;
@@ -419,9 +356,7 @@ impl VkWindow {
         
         if device_supports_surface == 0 {
           
-          unsafe {
-            vk_instance.GetPhysicalDeviceSurfaceSupportKHR(physical_devices[i], j as u32, *surface, &mut device_supports_surface);
-          }
+          device_supports_surface = instance.physical_device_supports_surface(&physical_devices[i], j as u32, surface);
           
           if device_supports_surface != 0 {
             supported_queue_fam_index = j;
@@ -431,16 +366,9 @@ impl VkWindow {
       
       if has_graphics_bit && device_supports_surface != 0 {
         let mut property_count = 0;
-        let mut device_extensions;
+        let mut device_extensions = instance.enumerate_device_extension_properties(&physical_devices[i]);
         
-        unsafe {
-          vk_instance.EnumerateDeviceExtensionProperties(physical_devices[i], ptr::null(), &mut property_count, ptr::null_mut());
-          device_extensions = Vec::with_capacity(property_count as usize);
-          vk_instance.EnumerateDeviceExtensionProperties(physical_devices[i], ptr::null(), &mut property_count, device_extensions.as_mut_ptr());
-          device_extensions.set_len(property_count as usize);
-        }
-        
-        let mut available_extensions = available_extensions;
+        let mut available_extensions = instance.get_extensions();
         available_extensions.push(CString::new("VK_KHR_swapchain").unwrap());
         available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
 //        available_extensions.push(CString::new("VK_KHR_sampler_mirror_clamp_to_edge").unwrap());
@@ -472,17 +400,13 @@ impl VkWindow {
               pNext: ptr::null(),
               flags: 0,//Default::default(),//queue_flags,
               queueFamilyIndex: j as u32,
-              queueCount: family_count-1,
+              queueCount: family_properties.len() as u32-1,
               pQueuePriorities: &1.0,
             }
           );
         }
         
-        let mut features: vk::PhysicalDeviceFeatures = unsafe { mem::uninitialized() };
-        
-        unsafe {
-          vk_instance.GetPhysicalDeviceFeatures(physical_devices[physical_device_index], &mut features);
-        }
+        let mut features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
         
         features.robustBufferAccess = vk::TRUE;
         
@@ -499,9 +423,8 @@ impl VkWindow {
           pEnabledFeatures: &features, // For more features use vk::GetPhysicalDeviceFeatures
         };
         
-        unsafe {
-          check_errors(vk_instance.CreateDevice(physical_devices[i], &device_info, ptr::null(), &mut device));
-        }
+        device = instance.create_device(&physical_devices[i], &device_info);
+        
         physical_device_index = i;
         break;
       }
@@ -609,7 +532,7 @@ impl Drop for VkWindow {
       println!("Destroying Device and Instance");
       self.vk_device.DestroySwapchainKHR(self.device, *self.swapchain.get_swapchain(), ptr::null());
       self.vk_device.DestroyDevice(self.device, ptr::null());
-      self.vk_instance.DestroyInstance(self.instance, ptr::null());
+      self.instance.destroy();
     }
   }
 }

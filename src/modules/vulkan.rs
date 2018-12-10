@@ -17,6 +17,7 @@ use cgmath::prelude::SquareMatrix;
 use libc::memcpy;
 
 use modules::VkWindow;
+use modules::Shader;
 use ownage::check_errors;
 
 use std::ptr;
@@ -72,8 +73,8 @@ pub struct Vulkan {
   command_buffers: Vec<vk::CommandBuffer>,
   render_pass: vk::RenderPass,
   framebuffers: Vec<vk::Framebuffer>,
-  vertex_shader: vk::ShaderModule,
-  fragment_shader: vk::ShaderModule,
+  vertex_shader: Shader,
+  fragment_shader: Shader,
   descriptor_set_layout: vk::DescriptorSetLayout,
   descriptor_set_pool: vk::DescriptorPool,
   descriptor_sets: Vec<vk::DescriptorSet>,
@@ -103,8 +104,8 @@ impl Vulkan {
     let command_buffers: Vec<vk::CommandBuffer>;
     let render_pass: vk::RenderPass;
     let framebuffers: Vec<vk::Framebuffer>;
-    let vertex_shader: vk::ShaderModule;
-    let fragment_shader: vk::ShaderModule;
+    let vertex_shader: Shader;
+    let fragment_shader: Shader;
     let descriptor_set_layout: vk::DescriptorSetLayout;
     let descriptor_set_pool: vk::DescriptorPool;
     let descriptor_sets: Vec<vk::DescriptorSet>;
@@ -133,6 +134,9 @@ impl Vulkan {
       let image_views = window.swapchain_image_views();
       let phys_device = window.physical_device();
       
+      vertex_shader = Shader::new(vk, device, include_bytes!("../shaders/test_vert.spv"));
+      fragment_shader = Shader::new(vk, device, include_bytes!("../shaders/test_frag.spv"));
+      
       let (semaphore1, semaphore2) = Vulkan::create_semaphores(vk, device);
       semaphore_image_available = semaphore1;
       semaphore_render_finished = semaphore2;
@@ -142,15 +146,11 @@ impl Vulkan {
       command_pool = Vulkan::create_command_pool(vk, device, graphics_family);
       command_buffers = Vulkan::create_command_buffers(vk, device, &command_pool, framebuffers.len() as u32);
       
-      let (vshader, fshader) = Vulkan::create_shaders(vk, device);
-      vertex_shader = vshader;
-      fragment_shader = fshader;
-      
       descriptor_set_layout = Vulkan::create_descriptor_set_layout(vk, device);
       descriptor_set_pool = Vulkan::create_descriptor_pool(vk, device);
       descriptor_sets = Vulkan::create_descriptor_sets(vk, device, &descriptor_set_layout, &descriptor_set_pool);
       
-      let (pipeline, cache, layout) = Vulkan::create_pipelines(vk, device, &vertex_shader, &fragment_shader, &render_pass, &current_extent, &format, &descriptor_set_layout);
+      let (pipeline, cache, layout) = Vulkan::create_pipelines(vk, device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set_layout);
       pipelines = pipeline;
       pipeline_cache = cache;
       pipeline_layout = layout;
@@ -267,27 +267,7 @@ impl Vulkan {
         check_errors(vk.BeginCommandBuffer(self.command_buffers[i], &command_buffer_begin_info));
         
         vk.CmdBeginRenderPass(self.command_buffers[i], &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
-        /*
-        let viewport = {
-          vk::Viewport {
-            x: 0.0,
-            y: 0.0,
-            width: window_size.width as f32,
-            height: window_size.height as f32,
-            minDepth: 0.0,
-            maxDepth: 1.0,
-          }
-        };
-        vk.CmdSetViewport(self.command_buffers[i], 0, 1, &viewport);
         
-        let scissor = {
-          vk::Rect2D {
-            offset: vk::Offset2D { x: 0, y: 0 },
-            extent: vk::Extent2D { width: window_size.width, height: window_size.height },
-          }
-        };
-        vk.CmdSetScissor(self.command_buffers[i], 0, 1, &scissor);
-        */
         vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
         vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipelines[0]);
         vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
@@ -312,10 +292,8 @@ impl Vulkan {
     let mut current_buffer = 0;
     unsafe {
       check_errors(vk.AcquireNextImageKHR(*device, *swapchain, 0, self.semaphore_image_available, 0, &mut current_buffer));
-      println!("wait for fences");
       check_errors(vk.WaitForFences(*device, 1, &self.fences[current_buffer as usize], vk::TRUE, u64::max_value()));
       check_errors(vk.ResetFences(*device, 1, &self.fences[current_buffer as usize]));
-      println!("reset fences");
     }
     
     let current_buffer = current_buffer as usize;
@@ -335,7 +313,6 @@ impl Vulkan {
         pSignalSemaphores: &self.semaphore_render_finished,
       }
     };
-    println!("There");
     unsafe {
       check_errors(vk.QueueSubmit(*graphics_queue, 1, &submit_info, self.fences[current_buffer]));
     }
@@ -352,14 +329,12 @@ impl Vulkan {
         pResults: ptr::null_mut(),
       }
     };
-    println!("There1");
+    
     unsafe {
       check_errors(vk.QueuePresentKHR(*graphics_queue, &present_info_khr));
     //  vk.DeviceWaitIdle(*device);
       vk.QueueWaitIdle(*graphics_queue);
     }
-    
-    println!("here");
   }
   
   pub fn get_events(&mut self) -> &mut winit::EventsLoop {
@@ -1221,56 +1196,6 @@ impl Vulkan {
     descriptor_set_layout
   }
   
-  fn create_shaders(vk: &vk::DevicePointers, device: &vk::Device) -> (vk::ShaderModule, vk::ShaderModule) {
-    let vertex_shader_data = include_bytes!("../shaders/test_vert.spv");
-    let fragment_shader_data = include_bytes!("../shaders/test_frag.spv");
-    
-    let mut shader_module_vertex: vk::ShaderModule = unsafe { mem::uninitialized() };
-    let mut shader_module_fragment: vk::ShaderModule = unsafe { mem::uninitialized() };
-    
-    let mut vertex_code_size = mem::size_of::<u8>() * vertex_shader_data.len();
-    let mut fragment_code_size = mem::size_of::<u8>() * fragment_shader_data.len();
-    /*
-    let mut multiple_of_4 = false;
-    while !multiple_of_4 {
-      if vertex_code_size % 4 == 0 {
-        break;
-      }
-      vertex_code_size += 1;
-    }
-    
-    multiple_of_4 = false;
-    while !multiple_of_4 {
-      if fragment_code_size % 4 == 0 {
-        break;
-      }
-      fragment_code_size += 1;
-    }*/
-    
-    let mut vertex_shader_module_create_info = vk::ShaderModuleCreateInfo {
-      sType: vk::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: 0,
-      codeSize: vertex_code_size,
-      pCode: vertex_shader_data.as_ptr() as *const _,
-    };
-    
-    let mut fragment_shader_module_create_info = vk::ShaderModuleCreateInfo {
-      sType: vk::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: 0,
-      codeSize: fragment_code_size,
-      pCode: fragment_shader_data.as_ptr() as *const _,
-    };
-    
-    unsafe {
-      vk.CreateShaderModule(*device, &vertex_shader_module_create_info, ptr::null(), &mut shader_module_vertex);
-      vk.CreateShaderModule(*device, &fragment_shader_module_create_info, ptr::null(), &mut shader_module_fragment);
-    }
-    
-    (shader_module_vertex, shader_module_fragment)
-  }
-  
   fn create_frame_buffers(vk: &vk::DevicePointers, device: &vk::Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
     let mut framebuffers: Vec<vk::Framebuffer> = Vec::with_capacity(image_views.len());
     
@@ -1497,8 +1422,8 @@ impl Drop for Vulkan {
       vk.DestroyDescriptorPool(*device, self.descriptor_set_pool, ptr::null());
       vk.DestroyDescriptorSetLayout(*device, self.descriptor_set_layout, ptr::null());
       
-      vk.DestroyShaderModule(*device, self.vertex_shader, ptr::null());
-      vk.DestroyShaderModule(*device, self.fragment_shader, ptr::null());
+      self.vertex_shader.destroy(vk, device);
+      self.fragment_shader.destroy(vk, device);
       
       for framebuffer in &self.framebuffers {
         vk.DestroyFramebuffer(*device, *framebuffer, ptr::null());

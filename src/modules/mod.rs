@@ -1,6 +1,12 @@
 pub use self::vulkan::Vulkan;
 pub use self::window::VkWindow;
 pub use self::swapchain::Swapchain;
+pub use self::shader::Shader;
+pub use self::instance::Instance;
+pub use self::device::Device;
 mod vulkan;
 mod window;
 mod swapchain;
+mod shader;
+mod instance;
+mod device;
