@@ -1,0 +1,70 @@
+use vk;
+
+use modules::Device;
+use ownage::check_errors; 
+
+use std::mem;
+use std::ptr;
+
+pub struct DescriptorPool {
+  pool: vk::DescriptorPool
+}
+
+impl DescriptorPool {
+  pub fn new(device: &Device, num_uniforms: u32, num_images: u32) -> DescriptorPool {
+    let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
+    let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity((num_uniforms + num_images) as usize);
+    
+    if num_uniforms > 0 {
+      descriptor_pool_size.push(
+        vk::DescriptorPoolSize {
+          ty: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          descriptorCount: num_uniforms,
+        }
+      );
+    }
+    
+    if num_images > 0 {
+      descriptor_pool_size.push(
+        vk::DescriptorPoolSize {
+          ty: vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          descriptorCount: num_images,
+        }
+      );
+    }
+    
+    let descriptor_pool_create_info = {
+      vk::DescriptorPoolCreateInfo {
+        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        pNext: ptr::null(),
+        flags: 0,
+        maxSets: descriptor_pool_size.len() as u32 + 1,
+        poolSizeCount: descriptor_pool_size.len() as u32,
+        pPoolSizes: descriptor_pool_size.as_ptr(),
+      }
+    };
+    
+    let vk = device.pointers();
+    let device = device.local_device();
+    
+    unsafe {
+      check_errors(vk.CreateDescriptorPool(*device, &descriptor_pool_create_info, ptr::null(), &mut descriptor_pool));
+    }
+    
+    DescriptorPool {
+      pool: descriptor_pool,
+    }
+  }
+  
+  pub fn local_pool(&self) -> &vk::DescriptorPool {
+    &self.pool
+  }
+  
+  pub fn destroy(&self, device: &Device) {
+    let vk = device.pointers();
+    let device = device.local_device();
+    unsafe {
+      vk.DestroyDescriptorPool(*device, self.pool, ptr::null());
+    }
+  }
+}

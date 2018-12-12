@@ -8,7 +8,7 @@ use std::mem;
 use std::ptr;
 
 pub struct CommandPool {
-  command_pool: vk::CommandPool,
+  pool: vk::CommandPool,
 }
 
 impl CommandPool {
@@ -30,7 +30,7 @@ impl CommandPool {
     }
     
     CommandPool {
-      command_pool: command_pool,
+      pool: command_pool,
     }
   }
   
@@ -52,12 +52,12 @@ impl CommandPool {
     }
     
     CommandPool {
-      command_pool: command_pool,
+      pool: command_pool,
     }
   }
   
   pub fn local_command_pool(&self) -> &vk::CommandPool {
-    &self.command_pool
+    &self.pool
   }
   
   pub fn create_command_buffers(&self, device: &Device, num_command_command_buffers: u32) -> Vec<vk::CommandBuffer> {
@@ -66,7 +66,7 @@ impl CommandPool {
     let allocate_command_buffer_info = vk::CommandBufferAllocateInfo {
       sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       pNext: ptr::null(),
-      commandPool: self.command_pool,
+      commandPool: self.pool,
       level: vk::COMMAND_BUFFER_LEVEL_PRIMARY,
       commandBufferCount: num_command_command_buffers,
     };
@@ -80,5 +80,14 @@ impl CommandPool {
     }
     
     command_buffers
+  }
+  
+  pub fn destroy(&self, device: &Device) {
+    let vk = device.pointers();
+    let device = device.local_device();
+    
+    unsafe {
+      vk.DestroyCommandPool(*device, self.pool, ptr::null());
+    }
   }
 }
