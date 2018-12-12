@@ -18,6 +18,9 @@ use libc::memcpy;
 
 use modules::VkWindow;
 use modules::Shader;
+use modules::CommandPool;
+use modules::Instance;
+use modules::Device;
 use ownage::check_errors;
 
 use std::ptr;
@@ -71,7 +74,7 @@ pub struct Vulkan {
   fences: Vec<vk::Fence>,
   semaphore_image_available: vk::Semaphore,
   semaphore_render_finished: vk::Semaphore,
-  command_pool: vk::CommandPool,
+  command_pool: CommandPool,
   command_buffers: Vec<vk::CommandBuffer>,
   render_pass: vk::RenderPass,
   framebuffers: Vec<vk::Framebuffer>,
@@ -102,7 +105,7 @@ impl Vulkan {
     let fences: Vec<vk::Fence>;
     let semaphore_image_available: vk::Semaphore;
     let semaphore_render_finished: vk::Semaphore;
-    let command_pool: vk::CommandPool;
+    let command_pool: CommandPool;
     let command_buffers: Vec<vk::CommandBuffer>;
     let render_pass: vk::RenderPass;
     let framebuffers: Vec<vk::Framebuffer>;
@@ -128,8 +131,7 @@ impl Vulkan {
     let current_extent = window.get_current_extent();
     
     {
-      let vk = window.device_pointers();
-      let vk_instance = window.instance_pointers();
+      let instance = window.instance();
       let device = window.device();
       let format = window.swapchain_format();
       let graphics_family = window.get_graphics_family();
@@ -137,23 +139,23 @@ impl Vulkan {
       let image_views = window.swapchain_image_views();
       let phys_device = window.physical_device();
       
-      vertex_shader = Shader::new(vk, device, include_bytes!("../shaders/test_vert.spv"));
-      fragment_shader = Shader::new(vk, device, include_bytes!("../shaders/test_frag.spv"));
+      vertex_shader = Shader::new(device, include_bytes!("../shaders/test_vert.spv"));
+      fragment_shader = Shader::new(device, include_bytes!("../shaders/test_frag.spv"));
       
-      let (semaphore1, semaphore2) = Vulkan::create_semaphores(vk, device);
+      let (semaphore1, semaphore2) = Vulkan::create_semaphores(device);
       semaphore_image_available = semaphore1;
       semaphore_render_finished = semaphore2;
-      render_pass = Vulkan::create_render_pass(vk, device, &format);
-      framebuffers = Vulkan::create_frame_buffers(vk, device, &render_pass, &current_extent, image_views);
-      fences = Vulkan::create_fences(vk, device, framebuffers.len() as u32);
-      command_pool = Vulkan::create_command_pool(vk, device, graphics_family);
-      command_buffers = Vulkan::create_command_buffers(vk, device, &command_pool, framebuffers.len() as u32);
+      render_pass = Vulkan::create_render_pass(device, &format);
+      framebuffers = Vulkan::create_frame_buffers(device, &render_pass, &current_extent, image_views);
+      fences = Vulkan::create_fences(device, framebuffers.len() as u32);
+      command_pool = CommandPool::new(device, graphics_family);
+      command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      descriptor_set_layout = Vulkan::create_descriptor_set_layout(vk, device);
-      descriptor_set_pool = Vulkan::create_descriptor_pool(vk, device);
-      descriptor_sets = Vulkan::create_descriptor_sets(vk, device, &descriptor_set_layout, &descriptor_set_pool);
+      descriptor_set_layout = Vulkan::create_descriptor_set_layout(device);
+      descriptor_set_pool = Vulkan::create_descriptor_pool(device);
+      descriptor_sets = Vulkan::create_descriptor_sets(device, &descriptor_set_layout, &descriptor_set_pool);
       
-      let (pipeline, cache, layout) = Vulkan::create_pipelines(vk, device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set_layout);
+      let (pipeline, cache, layout) = Vulkan::create_pipelines(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set_layout);
       pipelines = pipeline;
       pipeline_cache = cache;
       pipeline_layout = layout;
@@ -165,15 +167,15 @@ impl Vulkan {
       
       texture_sampler = Vulkan::create_texture_sampler(vk, device);*/
       
-      let (vertex, vertex_memory) = Vulkan::create_vertex_buffer(vk, vk_instance, device, phys_device, &command_pool, graphics_queue);
+      let (vertex, vertex_memory) = Vulkan::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
       vertex_buffer = vertex;
       vertex_buffer_memory = vertex_memory;
       
-      let (index, index_memory) = Vulkan::create_index_buffer(vk, vk_instance, device, phys_device, &command_pool, graphics_queue);
+      let (index, index_memory) = Vulkan::create_index_buffer(instance, device, &command_pool, graphics_queue);
       index_buffer = index;
       index_buffer_memory = index_memory;
       
-      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(vk, vk_instance, device, phys_device, &current_extent, &descriptor_sets[0]);
+      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(instance, device, &current_extent, &descriptor_sets[0]);
       uniform_buffer = uniform;
       uniform_buffer_memory = uniform_memory;
     }
@@ -298,6 +300,7 @@ impl Vulkan {
     
     let vk = self.window.device_pointers();
     let device = self.window.device();
+    let device = device.local_device();
     let swapchain = self.window.get_swapchain();
     let graphics_queue = self.window.get_graphics_queue();
     let present_queue = self.window.get_present_queue();
@@ -448,7 +451,9 @@ impl Vulkan {
     self.window.get_events()
   }
   
-  fn begin_single_time_command(vk: &vk::DevicePointers, device: &vk::Device, command_pool: &vk::CommandPool) -> vk::CommandBuffer {
+  fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> vk::CommandBuffer {
+    let command_pool = command_pool.local_command_pool();
+    
     let command_buffer_allocate_info = {
       vk::CommandBufferAllocateInfo {
         sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -471,6 +476,8 @@ impl Vulkan {
     let mut command_buffer: vk::CommandBuffer = unsafe { mem::uninitialized() };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.AllocateCommandBuffers(*device, &command_buffer_allocate_info, &mut command_buffer));
       check_errors(vk.BeginCommandBuffer(command_buffer, &command_buffer_begin_info));
     }
@@ -478,7 +485,7 @@ impl Vulkan {
     command_buffer
   }
   
-  fn end_single_time_command(vk: &vk::DevicePointers, device: &vk::Device, command_buffer: vk::CommandBuffer, command_pool: &vk::CommandPool, graphics_queue: &vk::Queue) {
+  fn end_single_time_command(device: &Device, command_buffer: vk::CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     let submit_info = {
       vk::SubmitInfo {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
@@ -494,6 +501,9 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
+      let command_pool = command_pool.local_command_pool();
       vk.EndCommandBuffer(command_buffer);
       vk.QueueSubmit(*graphics_queue, 1, &submit_info, 0);
       vk.QueueWaitIdle(*graphics_queue);
@@ -501,10 +511,10 @@ impl Vulkan {
     }
   }
   
-  fn create_uniform_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, swapchain_extent: &vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_uniform_buffer(instance: &Instance, device: &Device, swapchain_extent: &vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
     let buffer_size: vk::DeviceSize = (mem::size_of::<f32>()*2) as u64;
     
-    let (uniform_buffer, uniform_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    let (uniform_buffer, uniform_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
     let descriptor_buffer_info = {
       vk::DescriptorBufferInfo {
@@ -530,6 +540,8 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
     }
      /*
@@ -571,6 +583,8 @@ impl Vulkan {
     
     let mut data = unsafe { mem::uninitialized() };
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.MapMemory(*device, uniform_buffer_memory, 0, buffer_size, 0, &mut data));
       memcpy(data, real_data.as_ptr() as *const _, (mem::size_of::<f32>() * 48));
       vk.UnmapMemory(*device, uniform_buffer_memory);
@@ -579,26 +593,28 @@ impl Vulkan {
     (uniform_buffer, uniform_buffer_memory)
   }
   
-  fn create_index_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, command_pool: &vk::CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_index_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
     let indices = [
       0, 1, 2
     ];
     
     let mut buffer_size: vk::DeviceSize = (mem::size_of::<[f32; 3]>()) as u64;
     
-    let (staging_index_buffer, staging_index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    let (staging_index_buffer, staging_index_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
     let mut host_visible_data = unsafe { mem::uninitialized() };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.MapMemory(*device, staging_index_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
       memcpy(host_visible_data, indices.as_ptr() as *const _, buffer_size as usize);
       vk.UnmapMemory(*device, staging_index_buffer_memory);
     }
     
-    let (index_buffer, index_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_INDEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    let (index_buffer, index_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_INDEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     
-    let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
+    let command_buffer = Vulkan::begin_single_time_command(device, command_pool);
     
     let buffer_copy = {
       vk::BufferCopy {
@@ -609,12 +625,15 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
       vk.CmdCopyBuffer(command_buffer, staging_index_buffer, index_buffer, 1, &buffer_copy);
     }
     
-    Vulkan::end_single_time_command(vk, device, command_buffer, command_pool, graphics_queue);
+    Vulkan::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       vk.FreeMemory(*device, staging_index_buffer_memory, ptr::null());
       vk.DestroyBuffer(*device, staging_index_buffer, ptr::null());
     }
@@ -622,7 +641,7 @@ impl Vulkan {
     (index_buffer, index_buffer_memory)
   }
   
-  fn create_vertex_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, command_pool: &vk::CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
    /* let square = [
       [[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
       [[-1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
@@ -643,19 +662,21 @@ impl Vulkan {
     
     let mut buffer_size: vk::DeviceSize = (mem::size_of::<Vertex>()*triangle.len()) as u64;
     
-    let (staging_vertex_buffer, staging_vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    let (staging_vertex_buffer, staging_vertex_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
     let mut host_visible_data = unsafe { mem::uninitialized() };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.MapMemory(*device, staging_vertex_buffer_memory, 0, buffer_size, 0, &mut host_visible_data));
       memcpy(host_visible_data, triangle.as_ptr() as *const _, buffer_size as usize);
       vk.UnmapMemory(*device, staging_vertex_buffer_memory);
     }
     
-    let (vertex_buffer, vertex_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_VERTEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    let (vertex_buffer, vertex_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_VERTEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     
-    let command_buffer = Vulkan::begin_single_time_command(vk, device, command_pool);
+    let command_buffer = Vulkan::begin_single_time_command(device, command_pool);
     
     let buffer_copy = {
       vk::BufferCopy {
@@ -666,12 +687,16 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       vk.CmdCopyBuffer(command_buffer, staging_vertex_buffer, vertex_buffer, 1, &buffer_copy);
     }
     
-    Vulkan::end_single_time_command(vk, device, command_buffer, command_pool, graphics_queue);
+    Vulkan::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       vk.FreeMemory(*device, staging_vertex_buffer_memory, ptr::null());
       vk.DestroyBuffer(*device, staging_vertex_buffer, ptr::null());
     }
@@ -679,7 +704,7 @@ impl Vulkan {
     (vertex_buffer, vertex_buffer_memory)
   }
   
-  fn create_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers,  device: &vk::Device, phys_device: &vk::PhysicalDevice, buffer_size: vk::DeviceSize, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_buffer(instance: &Instance, device: &Device, buffer_size: vk::DeviceSize, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> (vk::Buffer, vk::DeviceMemory) {
     
     let mut buffer: vk::Buffer = unsafe { mem::uninitialized() };
     let mut buffer_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
@@ -700,6 +725,8 @@ impl Vulkan {
     let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::uninitialized() };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.CreateBuffer(*device, &buffer_create_info, ptr::null(), &mut buffer));
       vk.GetBufferMemoryRequirements(*device, buffer, &mut memory_requirements);
     }
@@ -708,7 +735,9 @@ impl Vulkan {
       let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::uninitialized() };
       
       unsafe {
-        vk_instance.GetPhysicalDeviceMemoryProperties(*phys_device, &mut memory_properties);
+        let vk = instance.pointers();
+        let phys_device = device.physical_device();
+        vk.GetPhysicalDeviceMemoryProperties(*phys_device, &mut memory_properties);
       }
       
       let mut index: i32 = -1;
@@ -735,6 +764,8 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.AllocateMemory(*device, &memory_allocate_info, ptr::null(), &mut buffer_memory));
       vk.BindBufferMemory(*device, buffer, buffer_memory, 0);
     }
@@ -902,7 +933,7 @@ impl Vulkan {
     }
   }
   
-  fn create_pipelines(vk: &vk::DevicePointers, device: &vk::Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set_layout: &vk::DescriptorSetLayout) -> (Vec<vk::Pipeline>, vk::PipelineCache, vk::PipelineLayout) {
+  fn create_pipelines(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set_layout: &vk::DescriptorSetLayout) -> (Vec<vk::Pipeline>, vk::PipelineCache, vk::PipelineLayout) {
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut pipeline_layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
     let mut pipeline_cache: vk::PipelineCache = unsafe { mem::uninitialized() };
@@ -1157,6 +1188,9 @@ impl Vulkan {
       }
     };
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
       vk.CreatePipelineLayout(*device, &pipeline_layout_create_info, ptr::null(), &mut pipeline_layout);
     }
@@ -1204,7 +1238,7 @@ impl Vulkan {
     (pipelines, pipeline_cache, pipeline_layout)
   }
   
-  fn create_descriptor_sets(vk: &vk::DevicePointers, device: &vk::Device, descriptor_set_layout: &vk::DescriptorSetLayout, descriptor_set_pool: &vk::DescriptorPool) -> Vec<vk::DescriptorSet> {
+  fn create_descriptor_sets(device: &Device, descriptor_set_layout: &vk::DescriptorSetLayout, descriptor_set_pool: &vk::DescriptorPool) -> Vec<vk::DescriptorSet> {
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(1);
     
     let descriptor_set_allocate_info = {
@@ -1217,6 +1251,9 @@ impl Vulkan {
       }
     };
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
       check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, descriptor_sets.as_mut_ptr()));
       descriptor_sets.set_len(1);
@@ -1225,7 +1262,7 @@ impl Vulkan {
     descriptor_sets
   }
   
-  fn create_descriptor_pool(vk: &vk::DevicePointers, device: &vk::Device) -> vk::DescriptorPool {
+  fn create_descriptor_pool(device: &Device) -> vk::DescriptorPool {
     let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
     let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity(1);
     
@@ -1254,6 +1291,9 @@ impl Vulkan {
       }
     };
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
       check_errors(vk.CreateDescriptorPool(*device, &descriptor_pool_create_info, ptr::null(), &mut descriptor_pool));
     }
@@ -1261,7 +1301,7 @@ impl Vulkan {
     descriptor_pool
   }
   
-  fn create_descriptor_set_layout(vk: &vk::DevicePointers, device: &vk::Device) -> vk::DescriptorSetLayout {
+  fn create_descriptor_set_layout(device: &Device) -> vk::DescriptorSetLayout {
     let mut descriptor_set_layout: vk::DescriptorSetLayout = unsafe { mem::uninitialized() };
     let mut descriptor_bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(1);
     
@@ -1296,6 +1336,9 @@ impl Vulkan {
       }
     };
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
       vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut descriptor_set_layout);
     }
@@ -1303,7 +1346,7 @@ impl Vulkan {
     descriptor_set_layout
   }
   
-  fn create_frame_buffers(vk: &vk::DevicePointers, device: &vk::Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
+  fn create_frame_buffers(device: &Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
     let mut framebuffers: Vec<vk::Framebuffer> = Vec::with_capacity(image_views.len());
     
     for i in 0..image_views.len() {
@@ -1321,6 +1364,9 @@ impl Vulkan {
         layers: 1,
       };
       
+      let vk = device.pointers();
+      let device = device.local_device();
+      
       unsafe {
         check_errors(vk.CreateFramebuffer(*device, &framebuffer_create_info, ptr::null(), &mut framebuffer));
       }
@@ -1331,7 +1377,7 @@ impl Vulkan {
     framebuffers
   }
   
-  fn create_render_pass(vk: &vk::DevicePointers, device: &vk::Device, format: &vk::Format) -> vk::RenderPass {
+  fn create_render_pass(device: &Device, format: &vk::Format) -> vk::RenderPass {
     
     let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
     
@@ -1411,6 +1457,9 @@ impl Vulkan {
       pDependencies: subpass_dependency.as_ptr(),
     };
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
       vk.CreateRenderPass(*device, &render_pass_create_info, ptr::null(), &mut render_pass);
     }
@@ -1418,43 +1467,7 @@ impl Vulkan {
     render_pass
   }
   
-  fn create_command_buffers(vk: &vk::DevicePointers, device: &vk::Device, command_pool: &vk::CommandPool, num_command_command_buffers: u32) -> Vec<vk::CommandBuffer> {
-    let mut command_buffers: Vec<vk::CommandBuffer> = Vec::with_capacity(num_command_command_buffers as usize);
-    
-    let allocate_command_buffer_info = vk::CommandBufferAllocateInfo {
-      sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      pNext: ptr::null(),
-      commandPool: *command_pool,
-      level: vk::COMMAND_BUFFER_LEVEL_PRIMARY,
-      commandBufferCount: num_command_command_buffers,
-    };
-    
-    unsafe {
-      check_errors(vk.AllocateCommandBuffers(*device, &allocate_command_buffer_info, command_buffers.as_mut_ptr()));
-      command_buffers.set_len(num_command_command_buffers as usize);
-    }
-    
-    command_buffers
-  }
-  
-  fn create_command_pool(vk: &vk::DevicePointers, device: &vk::Device, graphics_family: u32) -> vk::CommandPool {
-    let mut command_pool: vk::CommandPool = unsafe { mem::uninitialized() };
-    
-    let command_pool_info = vk::CommandPoolCreateInfo {
-      sType: vk::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: vk::COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,//vk::COMMAND_POOL_CREATE_TRANSIENT_BIT, //to use vkResetCommandBuffer change to vk::COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-      queueFamilyIndex: graphics_family,
-    };
-    
-    unsafe {
-      check_errors(vk.CreateCommandPool(*device, &command_pool_info, ptr::null(), &mut command_pool));
-    }
-    
-    command_pool
-  }
-  
-  fn create_semaphores(vk: &vk::DevicePointers, device: &vk::Device) -> (vk::Semaphore, vk::Semaphore) {
+  fn create_semaphores(device: &Device) -> (vk::Semaphore, vk::Semaphore) {
     let mut semaphore_image_available: vk::Semaphore = unsafe { mem::uninitialized() };
     let mut semaphore_render_finished: vk::Semaphore = unsafe { mem::uninitialized() };
     
@@ -1465,6 +1478,8 @@ impl Vulkan {
     };
     
     unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
       check_errors(vk.CreateSemaphore(*device, &semaphore_info, ptr::null(), &mut semaphore_image_available));
       check_errors(vk.CreateSemaphore(*device, &semaphore_info, ptr::null(), &mut semaphore_render_finished));
     }
@@ -1472,7 +1487,7 @@ impl Vulkan {
     (semaphore_image_available, semaphore_render_finished)
   }
   
-  fn create_fences(vk: &vk::DevicePointers, device: &vk::Device, num_fences: u32) -> Vec<vk::Fence> {
+  fn create_fences(device: &Device, num_fences: u32) -> Vec<vk::Fence> {
     let mut fences: Vec<vk::Fence> = Vec::with_capacity(num_fences as usize);
     
     let fence_info = vk::FenceCreateInfo {
@@ -1480,6 +1495,9 @@ impl Vulkan {
       pNext: ptr::null(),
       flags: vk::FENCE_CREATE_SIGNALED_BIT,
     };
+    
+    let vk = device.pointers();
+    let device = device.local_device();
     
     for i in 0..num_fences {
       let mut fence: vk::Fence = unsafe { mem::uninitialized() };
@@ -1496,6 +1514,7 @@ impl Vulkan {
 impl Drop for Vulkan {
   fn drop(&mut self) {
     let device = self.window.device();
+    let device = device.local_device();
     let vk = self.window.device_pointers();
     println!("Destroying Command pool, semaphores and fences");
     unsafe {
@@ -1536,8 +1555,8 @@ impl Drop for Vulkan {
         vk.DestroyFramebuffer(*device, *framebuffer, ptr::null());
       }
       vk.DestroyRenderPass(*device, self.render_pass, ptr::null());
-      vk.FreeCommandBuffers(*device, self.command_pool, self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
-      vk.DestroyCommandPool(*device, self.command_pool, ptr::null());
+      vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
+      vk.DestroyCommandPool(*device, *self.command_pool.local_command_pool(), ptr::null());
       vk.DestroySemaphore(*device, self.semaphore_image_available, ptr::null());
       vk.DestroySemaphore(*device, self.semaphore_render_finished, ptr::null());
     }

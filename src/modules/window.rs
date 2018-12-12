@@ -182,8 +182,12 @@ impl VkWindow {
     &self.device.pointers()
   }
   
-  pub fn device(&self) -> &vk::Device {
-    &self.device.local_device()
+  pub fn instance(&self) -> &Instance {
+    &self.instance
+  }
+  
+  pub fn device(&self) -> &Device {
+    &self.device
   }
   
   pub fn physical_device(&self) -> &vk::PhysicalDevice {

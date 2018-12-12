@@ -1,5 +1,7 @@
 use vk;
 
+use modules::Device;
+
 use std::mem;
 use std::ptr;
 
@@ -8,7 +10,7 @@ pub struct Shader {
 }
 
 impl Shader {
-  pub fn new(vk: &vk::DevicePointers, device: &vk::Device, shader_code: &[u8]) -> Shader {
+  pub fn new(device: &Device, shader_code: &[u8]) -> Shader {
     let mut shader_module: vk::ShaderModule = unsafe { mem::uninitialized() };
     
     let mut shader_code_size = mem::size_of::<u8>() * shader_code.len();
@@ -20,6 +22,9 @@ impl Shader {
       codeSize: shader_code_size,
       pCode: shader_code.as_ptr() as *const _,
     };
+    
+    let vk = device.pointers();
+    let device = device.local_device();
     
     unsafe {
       vk.CreateShaderModule(*device, &shader_module_create_info, ptr::null(), &mut shader_module);
