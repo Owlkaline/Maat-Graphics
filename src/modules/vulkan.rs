@@ -66,6 +66,8 @@ impl Vertex {
 
 pub struct Vulkan {
   window: VkWindow,
+  window_dimensions: vk::Extent2D,
+  recreate_swapchain: bool,
   fences: Vec<vk::Fence>,
   semaphore_image_available: vk::Semaphore,
   semaphore_render_finished: vk::Semaphore,
@@ -123,6 +125,8 @@ impl Vulkan {
     let uniform_buffer: vk::Buffer;
     let uniform_buffer_memory: vk::DeviceMemory;
     
+    let current_extent = window.get_current_extent();
+    
     {
       let vk = window.device_pointers();
       let vk_instance = window.instance_pointers();
@@ -130,7 +134,6 @@ impl Vulkan {
       let format = window.swapchain_format();
       let graphics_family = window.get_graphics_family();
       let graphics_queue = window.get_graphics_queue();
-      let current_extent = window.get_current_extent();
       let image_views = window.swapchain_image_views();
       let phys_device = window.physical_device();
       
@@ -170,13 +173,15 @@ impl Vulkan {
       index_buffer = index;
       index_buffer_memory = index_memory;
       
-      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(vk, vk_instance, device, phys_device, current_extent, &descriptor_sets[0]);
+      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(vk, vk_instance, device, phys_device, &current_extent, &descriptor_sets[0]);
       uniform_buffer = uniform;
       uniform_buffer_memory = uniform_memory;
     }
     
     Vulkan {
       window: window,
+      window_dimensions: current_extent,
+      recreate_swapchain: false,
       fences: fences,
       semaphore_image_available: semaphore_image_available,
       semaphore_render_finished: semaphore_render_finished,
@@ -232,6 +237,10 @@ impl Vulkan {
   }
   
   pub fn build(&mut self) {
+    if self.recreate_swapchain {
+    //  return;
+    }
+    
     let vk = self.window.device_pointers();
     let window_size = self.window.get_current_extent();
     
@@ -283,6 +292,10 @@ impl Vulkan {
   }
   
   pub fn draw(&mut self) {
+    if self.recreate_swapchain {
+    //  return;
+    }
+    
     let vk = self.window.device_pointers();
     let device = self.window.device();
     let swapchain = self.window.get_swapchain();
@@ -331,10 +344,104 @@ impl Vulkan {
     };
     
     unsafe {
-      check_errors(vk.QueuePresentKHR(*graphics_queue, &present_info_khr));
+      match vk.QueuePresentKHR(*graphics_queue, &present_info_khr) {
+        vk::ERROR_OUT_OF_DATE_KHR => {
+          self.recreate_swapchain = true;
+        },
+        e => { check_errors(e); },
+      }
     //  vk.DeviceWaitIdle(*device);
       vk.QueueWaitIdle(*graphics_queue);
     }
+  }
+  
+  /*
+  pub fn check_errors(result: vk::Result) -> bool {
+    match result {
+        vk::SUCCESS => true,
+        vk::NOT_READY => { println!("Success: A fence or query has not yet completed"); true },
+        vk::TIMEOUT => { println!("Success: A wait operation has not completed in the specified time"); true },
+        vk::EVENT_SET => { println!("Success: An event is signaled"); true },
+        vk::EVENT_RESET => { println!("Success: An event is unsignaled"); true },
+        vk::INCOMPLETE => {println!("Success: A return array was too small for the result"); true },
+        vk::ERROR_OUT_OF_HOST_MEMORY => panic!("Vulkan out of host memory"),
+        vk::ERROR_OUT_OF_DEVICE_MEMORY => panic!("Vulkan out of device memory"),
+        vk::ERROR_INITIALIZATION_FAILED => panic!("Vulkan initialization failed"),
+        vk::ERROR_DEVICE_LOST => panic!("Vulkan device lost"),
+        vk::ERROR_MEMORY_MAP_FAILED => panic!("Vulkan memorymap failed"),
+        vk::ERROR_LAYER_NOT_PRESENT => panic!("Vulkan layer not present"),
+        vk::ERROR_EXTENSION_NOT_PRESENT => panic!("Vulkan extension not present"),
+        vk::ERROR_FEATURE_NOT_PRESENT => panic!("Vulkan feature not present"),
+        vk::ERROR_INCOMPATIBLE_DRIVER => panic!("Vulkan incompatable driver"),
+        vk::ERROR_TOO_MANY_OBJECTS => panic!("Vulkan too many objects"),
+        vk::ERROR_FORMAT_NOT_SUPPORTED => panic!("Vulkan format not supported"),
+        vk::ERROR_SURFACE_LOST_KHR => panic!("Vulkan surface last khr"),
+        vk::ERROR_NATIVE_WINDOW_IN_USE_KHR => panic!("Vulkan window in use khr"),
+        vk::SUBOPTIMAL_KHR => panic!("Vulkan suboptimal khr"),
+        vk::ERROR_OUT_OF_DATE_KHR => panic!("Vulkan out of date khr"),
+        vk::ERROR_INCOMPATIBLE_DISPLAY_KHR => panic!("Vulkan incompatable display khr"),
+        vk::ERROR_VALIDATION_FAILED_EXT => panic!("Vulkan validation failed ext"),
+        vk::ERROR_OUT_OF_POOL_MEMORY_KHR => panic!("Vulkan of out pool memory khr"),
+        vk::ERROR_INVALID_SHADER_NV => panic!("Vulkan function returned \
+                                               VK_ERROR_INVALID_SHADER_NV"),
+        c => unreachable!("Unexpected error code returned by Vulkan: {}", c),
+    }
+  }
+  */
+  
+  /*
+  pub fn resize_window(&mut self) {
+    if !self.recreate_swapchain {
+      return;
+    }
+    println!("Reszing window");
+    self.recreate_swapchain = false;
+    
+    self.window_dimensions = self.window.get_current_extent();
+    
+    self.window.recreate_swapchain_images(&self.window_dimensions);
+    
+    {
+      let vk = self.window.device_pointers();
+      let device = self.window.device();
+      
+      unsafe {
+        for i in 0..self.fences.len() {
+          check_errors(vk.WaitForFences(*device, 1, &self.fences[i], vk::TRUE, u64::max_value()));
+          check_errors(vk.ResetFences(*device, 1, &self.fences[i]));
+        }
+        
+        vk.DeviceWaitIdle(*device);
+        
+        for i in 0..self.framebuffers.len() {
+          vk.DestroyFramebuffer(*device, self.framebuffers[i], ptr::null());
+        }
+        
+        vk.FreeCommandBuffers(*device, self.command_pool, self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
+      }
+    }
+    
+    self.window.recreate_swapchain_images(&self.window_dimensions);
+    let image_views = self.window.swapchain_image_views();
+    
+    {
+      let vk = self.window.device_pointers();
+      let device = self.window.device();
+      
+      
+      self.framebuffers = Vulkan::create_frame_buffers(vk, device, &self.render_pass, &self.window_dimensions, image_views);
+      self.command_buffers = Vulkan::create_command_buffers(vk, device, &self.command_pool, self.framebuffers.len() as u32);
+      
+      unsafe {
+        vk.DeviceWaitIdle(*device);
+      }
+    }
+    
+    println!("Finished resize");
+  }*/
+  
+  pub fn window_resized(&mut self) {
+    self.recreate_swapchain = true;
   }
   
   pub fn get_events(&mut self) -> &mut winit::EventsLoop {
@@ -394,7 +501,7 @@ impl Vulkan {
     }
   }
   
-  fn create_uniform_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, swapchain_extent: vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_uniform_buffer(vk: &vk::DevicePointers, vk_instance: &vk::InstancePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, swapchain_extent: &vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
     let buffer_size: vk::DeviceSize = (mem::size_of::<f32>()*2) as u64;
     
     let (uniform_buffer, uniform_buffer_memory) = Vulkan::create_buffer(vk, vk_instance, device, phys_device, buffer_size, vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);

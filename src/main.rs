@@ -20,9 +20,11 @@ fn main() {
   let mut vulkan = Vulkan::new(app_name, (0 as u32) << 22 | (0 as u32) << 12 | (0 as u32), 1280.0, 720.0, true);
   vulkan.setup();
   
-  let mut resized = false;
-  let mut done = false;
   loop {
+    let mut resized = false;
+    let mut done = false;
+    
+   // vulkan.resize_window();
     vulkan.build();
     vulkan.draw();
     
@@ -46,6 +48,11 @@ fn main() {
         _ => {},
       }
     });
+    
+    if resized {
+      println!("Resize triggered");
+      vulkan.window_resized();
+    }
     
     if done {
       break;

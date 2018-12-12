@@ -2,6 +2,7 @@ use vk;
 
 use ownage::check_errors;
 use modules::Instance;
+use modules::Device;
 
 use std::ptr;
 use std::mem;
@@ -14,11 +15,11 @@ pub struct Swapchain {
 }
 
 impl Swapchain {
-  pub fn new(instance: &Instance, vk_device: &vk::DevicePointers, physical_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
+  pub fn new(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
     
-    let (swapchain, format) = Swapchain::create_swapchain(instance, vk_device, physical_device, device, surface, graphics_family, present_family);
-    let images = Swapchain::create_swapchain_images(vk_device, device, &swapchain);
-    let image_views = Swapchain::create_image_views(vk_device, device, &images, &format);
+    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, None);
+    let images = Swapchain::create_swapchain_images(device, &swapchain);
+    let image_views = Swapchain::create_image_views(device, &images, &format);
     
     Swapchain {
       swapchain: swapchain,
@@ -27,6 +28,24 @@ impl Swapchain {
       format: format,
     }
   }
+  /*
+  pub fn recreate_swapchain_images(&mut self, instance: &Instance, vk: &vk::DevicePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
+    unsafe {
+      for image_view in self.image_views.iter() {
+        vk.DestroyImageView(*device, *image_view, ptr::null());
+      }
+    }
+    
+    let (swapchain, format) = Swapchain::create_swapchain(instance, vk, phys_device, device, surface, graphics_family, present_family, Some(self.swapchain));
+    unsafe {
+      vk.DestroySwapchainKHR(*device, self.swapchain, ptr::null());
+    }
+    
+    self.swapchain = swapchain;
+    self.format = format;
+    self.images = Swapchain::create_swapchain_images(vk, device, &self.swapchain);
+    self.image_views = Swapchain::create_image_views(vk, device, &self.images, &self.format);
+  }*/
   
   pub fn get_format(&self) -> vk::Format {
     self.format
@@ -40,7 +59,25 @@ impl Swapchain {
     &self.swapchain
   }
   
-  fn create_image_views(vk: &vk::DevicePointers, device: &vk::Device, images: &Vec<vk::Image>, format: &vk::Format) -> Vec<vk::ImageView> {
+  pub fn destroy(&self, device: &Device) {
+    let vk = device.pointers();
+    let device = device.local_device();
+    
+    unsafe {
+      println!("Destroying Swapchain image views");
+      for image_view in self.image_views.iter() {
+        vk.DestroyImageView(*device, *image_view, ptr::null());
+      }
+      
+      println!("Destroying Swapchain");
+      vk.DestroySwapchainKHR(*device, self.swapchain, ptr::null());
+    }
+  }
+  
+  fn create_image_views(device: &Device, images: &Vec<vk::Image>, format: &vk::Format) -> Vec<vk::ImageView> {
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     let mut image_views = Vec::with_capacity(images.len());
     for image in images.iter() {
       let component = vk::ComponentMapping {
@@ -80,22 +117,27 @@ impl Swapchain {
     image_views
   }
   
-  fn create_swapchain_images(vk_device: &vk::DevicePointers, device: &vk::Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
-    
+  fn create_swapchain_images(device: &Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
     let mut image_count = 0;
     let mut images: Vec<vk::Image>;
     
+    let vk = device.pointers();
+    let device = device.local_device();
+    
     unsafe {
-      check_errors(vk_device.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, ptr::null_mut()));
+      check_errors(vk.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, ptr::null_mut()));
       images = Vec::with_capacity(image_count as usize);
-      check_errors(vk_device.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, images.as_mut_ptr()));
+      check_errors(vk.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, images.as_mut_ptr()));
       images.set_len(image_count as usize);
     }
     
     images
   }
   
-  fn create_swapchain(instance: &Instance, vk_device: &vk::DevicePointers, phys_device: &vk::PhysicalDevice, device: &vk::Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> (vk::SwapchainKHR, vk::Format) {
+  fn create_swapchain(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>) -> (vk::SwapchainKHR, vk::Format) {
+    let vk = device.pointers();
+    let phys_device = device.physical_device();
+    let device = device.local_device();
     
     let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = instance.get_surface_capabilities(phys_device, surface);
     
@@ -182,11 +224,12 @@ impl Swapchain {
       compositeAlpha: alpha,
       presentMode: present_mode,
       clipped: vk::TRUE,
-      oldSwapchain: 0,
+      oldSwapchain: if old_swapchain.is_some() { old_swapchain.unwrap() } else { 0 },
     };
+    
     let mut swapchain: vk::SwapchainKHR = unsafe { mem::uninitialized() };
     unsafe {
-      check_errors(vk_device.CreateSwapchainKHR(*device, &swapchain_info, ptr::null(), &mut swapchain));
+      check_errors(vk.CreateSwapchainKHR(*device, &swapchain_info, ptr::null(), &mut swapchain));
     }
     
     (swapchain, format)
