@@ -24,6 +24,7 @@ use modules::Device;
 use modules::DescriptorPool;
 use modules::DescriptorSet;
 use modules::Pipeline;
+use modules::RenderPass;
 use ownage::check_errors;
 
 use std::ptr;
@@ -79,11 +80,10 @@ pub struct Vulkan {
   semaphore_render_finished: vk::Semaphore,
   command_pool: CommandPool,
   command_buffers: Vec<vk::CommandBuffer>,
-  render_pass: vk::RenderPass,
+  render_pass: RenderPass,
   framebuffers: Vec<vk::Framebuffer>,
   vertex_shader: Shader,
   fragment_shader: Shader,
- // descriptor_set_layout: vk::DescriptorSetLayout,
   descriptor_set_pool: DescriptorPool,
   descriptor_set: DescriptorSet,
   pipelines: Pipeline,
@@ -108,7 +108,7 @@ impl Vulkan {
     let semaphore_render_finished: vk::Semaphore;
     let command_pool: CommandPool;
     let command_buffers: Vec<vk::CommandBuffer>;
-    let render_pass: vk::RenderPass;
+    let render_pass: RenderPass;
     let framebuffers: Vec<vk::Framebuffer>;
     let vertex_shader: Shader;
     let fragment_shader: Shader;
@@ -143,7 +143,7 @@ impl Vulkan {
       let (semaphore1, semaphore2) = Vulkan::create_semaphores(device);
       semaphore_image_available = semaphore1;
       semaphore_render_finished = semaphore2;
-      render_pass = Vulkan::create_render_pass(device, &format);
+      render_pass = RenderPass::new(device, &format);
       framebuffers = Vulkan::create_frame_buffers(device, &render_pass, &current_extent, image_views);
       fences = Vulkan::create_fences(device, framebuffers.len() as u32);
       command_pool = CommandPool::new(device, graphics_family);
@@ -255,7 +255,7 @@ impl Vulkan {
       vk::RenderPassBeginInfo {
         sType: vk::STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         pNext: ptr::null(),
-        renderPass: self.render_pass,
+        renderPass: *self.render_pass.local_render_pass(),
         framebuffer: self.framebuffers[0],
         renderArea: vk::Rect2D { offset: vk::Offset2D {x: 0, y: 0 }, extent: vk::Extent2D { width: window_size.width, height: window_size.height, } },
         clearValueCount: 1,
@@ -925,7 +925,7 @@ impl Vulkan {
     }
   }
   
-  fn create_frame_buffers(device: &Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
+  fn create_frame_buffers(device: &Device, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
     let mut framebuffers: Vec<vk::Framebuffer> = Vec::with_capacity(image_views.len());
     
     for i in 0..image_views.len() {
@@ -935,7 +935,7 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        renderPass: *render_pass,
+        renderPass: *render_pass.local_render_pass(),
         attachmentCount: 1,
         pAttachments: &image_views[i],
         width: swapchain_extent.width,
@@ -954,96 +954,6 @@ impl Vulkan {
     }
     
     framebuffers
-  }
-  
-  fn create_render_pass(device: &Device, format: &vk::Format) -> vk::RenderPass {
-    
-    let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
-    
-    let mut attachment_description = Vec::with_capacity(1);
-    attachment_description.push(
-      vk::AttachmentDescription {
-        flags: 0,
-        format: *format,
-        samples: vk::SAMPLE_COUNT_1_BIT,
-        loadOp: vk::ATTACHMENT_LOAD_OP_CLEAR,
-        storeOp: vk::ATTACHMENT_STORE_OP_STORE,
-        stencilLoadOp: vk::ATTACHMENT_LOAD_OP_DONT_CARE,
-        stencilStoreOp: vk::ATTACHMENT_STORE_OP_DONT_CARE,
-        initialLayout: vk::IMAGE_LAYOUT_UNDEFINED,
-        finalLayout: vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
-      }
-    );
-    
-   // let mut input_attachments: Vec<vk::AttachmentReference>;
-    let mut colour_attachments: Vec<vk::AttachmentReference> = Vec::new();
-    //let mut resolve_attachmets: Vec<vk::AttachmentReference>;
-    
-    colour_attachments.push(
-      vk::AttachmentReference {
-        attachment: 0,
-        layout: vk::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-      }
-    );
-    
-    let mut subpass_description = Vec::with_capacity(1);
-    subpass_description.push(
-      vk::SubpassDescription {
-        flags: 0,
-        pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
-        inputAttachmentCount: 0,//input_attachments.len() as u32,
-        pInputAttachments: ptr::null(),//input_attachments,
-        colorAttachmentCount: colour_attachments.len() as u32,
-        pColorAttachments: colour_attachments.as_ptr(),
-        pResolveAttachments: ptr::null(),//resolve_attachmets.len() as u32,
-        pDepthStencilAttachment: ptr::null(),//resolve_attachmets,
-        preserveAttachmentCount: 0,
-        pPreserveAttachments: ptr::null(),
-      }
-    );
-    
-    let mut subpass_dependency: Vec<vk::SubpassDependency> = Vec::with_capacity(2);
-    
-    subpass_dependency.push(vk::SubpassDependency {
-      srcSubpass: vk::SUBPASS_EXTERNAL,
-      dstSubpass: 0,
-      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      dstStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      srcAccessMask: 0,
-      dstAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
-    });
-    /*
-    subpass_dependency.push(vk::SubpassDependency {
-      srcSubpass: 0,
-      dstSubpass: vk::SUBPASS_EXTERNAL,
-      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      dstStageMask: vk::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      srcAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      dstAccessMask: 0,//vk::ACCESS_MEMORY_READ_BIT,
-      dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
-    });*/
-    
-    let render_pass_create_info = vk::RenderPassCreateInfo {
-      sType: vk::STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: 0,
-      attachmentCount: attachment_description.len() as u32,
-      pAttachments: attachment_description.as_ptr(),
-      subpassCount: subpass_description.len() as u32,
-      pSubpasses: subpass_description.as_ptr(),
-      dependencyCount: subpass_dependency.len() as u32,
-      pDependencies: subpass_dependency.as_ptr(),
-    };
-    
-    let vk = device.pointers();
-    let device = device.local_device();
-    
-    unsafe {
-      vk.CreateRenderPass(*device, &render_pass_create_info, ptr::null(), &mut render_pass);
-    }
-    
-    render_pass
   }
   
   fn create_semaphores(device: &Device) -> (vk::Semaphore, vk::Semaphore) {
@@ -1130,7 +1040,7 @@ impl Drop for Vulkan {
       for framebuffer in &self.framebuffers {
         vk.DestroyFramebuffer(*device, *framebuffer, ptr::null());
       }
-      vk.DestroyRenderPass(*device, self.render_pass, ptr::null());
+      self.render_pass.destroy(the_device);
       vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
       self.command_pool.destroy(self.window.device());
       vk.DestroySemaphore(*device, self.semaphore_image_available, ptr::null());

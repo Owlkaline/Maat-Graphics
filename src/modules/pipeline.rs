@@ -2,6 +2,7 @@ use vk;
 
 use modules::Device;
 use modules::DescriptorSet;
+use modules::RenderPass;
 use ownage::check_errors;
 
 use std::mem;
@@ -15,7 +16,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-  pub fn new(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
+  pub fn new(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
     let mut cache: vk::PipelineCache = unsafe { mem::uninitialized() };
@@ -282,7 +283,7 @@ impl Pipeline {
         pColorBlendState: &pipeline_colour_blend_state_create_info,
         pDynamicState: ptr::null(),//&dynamic_state_create_info,
         layout: layout,
-        renderPass: *render_pass,
+        renderPass: *render_pass.local_render_pass(),
         subpass: 0,
         basePipelineHandle: 0,
         basePipelineIndex: -1,
