@@ -23,6 +23,7 @@ use modules::Instance;
 use modules::Device;
 use modules::DescriptorPool;
 use modules::DescriptorSet;
+use modules::Pipeline;
 use ownage::check_errors;
 
 use std::ptr;
@@ -85,9 +86,7 @@ pub struct Vulkan {
  // descriptor_set_layout: vk::DescriptorSetLayout,
   descriptor_set_pool: DescriptorPool,
   descriptor_set: DescriptorSet,
-  pipelines: Vec<vk::Pipeline>,
-  pipeline_cache: vk::PipelineCache,
-  pipeline_layout: vk::PipelineLayout,
+  pipelines: Pipeline,
   /*texture_image: vk::Image,
   texture_image_memory: vk::DeviceMemory,
   texture_image_view: vk::ImageView,
@@ -115,9 +114,7 @@ impl Vulkan {
     let fragment_shader: Shader;
     let descriptor_set_pool: DescriptorPool;
     let descriptor_set: DescriptorSet;
-    let pipelines: Vec<vk::Pipeline>;
-    let pipeline_cache: vk::PipelineCache;
-    let pipeline_layout: vk::PipelineLayout;
+    let pipelines: Pipeline;
    /* let texture_image: vk::Image;
     let texture_image_memory: vk::DeviceMemory;
     let texture_image_view: vk::ImageView;
@@ -152,14 +149,11 @@ impl Vulkan {
       command_pool = CommandPool::new(device, graphics_family);
       command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      //descriptor_set_layout = Vulkan::create_descriptor_set_layout(device);
       descriptor_set_pool = DescriptorPool::new(device, 1, 0);
-      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool);//Vulkan::create_descriptor_sets(device, &descriptor_set_layout, &descriptor_set_pool);
+      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool);
       
-      let (pipeline, cache, layout) = Vulkan::create_pipelines(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set);
-      pipelines = pipeline;
-      pipeline_cache = cache;
-      pipeline_layout = layout;
+      pipelines = Pipeline::new(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set, vec!(Vertex::vertex_input_binding()), Vertex::vertex_input_attributes());
+      
       /*
       let (texture, texture_memory, texture_view) = Vulkan::create_texture_image(vk, vk_instance, device, phys_device, &format, "./src/shaders/statue.jpg".to_string());
       texture_image = texture;
@@ -197,8 +191,6 @@ impl Vulkan {
       descriptor_set_pool: descriptor_set_pool,
       descriptor_set: descriptor_set,
       pipelines: pipelines,
-      pipeline_cache: pipeline_cache,
-      pipeline_layout: pipeline_layout,
      /* texture_image: texture_image,
       texture_image_memory: texture_image_memory,
       texture_image_view: texture_image_view,
@@ -279,8 +271,8 @@ impl Vulkan {
         
         vk.CmdBeginRenderPass(self.command_buffers[i], &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
         
-        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, self.descriptor_set.set(), 0, ptr::null());
-        vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipelines[0]);
+        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.layout(), 0, 1, self.descriptor_set.set(), 0, ptr::null());
+        vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.pipeline(0));
         vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
         vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
         
@@ -933,311 +925,6 @@ impl Vulkan {
     }
   }
   
-  fn create_pipelines(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set: &DescriptorSet) -> (Vec<vk::Pipeline>, vk::PipelineCache, vk::PipelineLayout) {
-    let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
-    let mut pipeline_layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
-    let mut pipeline_cache: vk::PipelineCache = unsafe { mem::uninitialized() };
-    
-    let mut graphics_pipeline_create_infos: Vec<vk::GraphicsPipelineCreateInfo> = Vec::with_capacity(2);
-    let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::with_capacity(2);
-    let mut vertex_input_binding_descriptions: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
-    
-    let topology = vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    let polygon_mode = vk::POLYGON_MODE_FILL;
-    let enable_depth_clamp = vk::FALSE;
-    let cull_mode =  vk::CULL_MODE_BACK_BIT;
-    let front_face = vk::FRONT_FACE_CLOCKWISE;
-    let depth_test = vk::FALSE;
-    let depth_write = vk::FALSE;
-    
-    let blend_constants: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
-    
-    shader_stages.push(
-      vk::PipelineShaderStageCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        stage: vk::SHADER_STAGE_VERTEX_BIT,
-        module: *vertex_shader,
-        pName: CString::new("main").unwrap().into_raw(),
-        pSpecializationInfo: ptr::null(),
-      }
-    );
-    
-    shader_stages.push(
-      vk::PipelineShaderStageCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        stage: vk::SHADER_STAGE_FRAGMENT_BIT,
-        module: *fragment_shader,
-        pName: CString::new("main").unwrap().into_raw(),
-        pSpecializationInfo: ptr::null(),
-      }
-    );
-    
-    vertex_input_binding_descriptions.push(
-      Vertex::vertex_input_binding()
-    );
-    
-    /*
-    float: VK_FORMAT_R32_SFLOAT
-    vec2: VK_FORMAT_R32G32_SFLOAT
-    vec3: VK_FORMAT_R32G32B32_SFLOAT
-    vec4: VK_FORMAT_R32G32B32A32_SFLOAT
-    ivec2: VK_FORMAT_R32G32_SINT
-    uvec4: VK_FORMAT_R32G32B32A32_UINT
-    double: VK_FORMAT_R64_SFLOAT
-    */
-    
-    let mut vertex_binding: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
-    
-    vertex_binding.push(
-      Vertex::vertex_input_binding()
-    );
-    
-    let mut vertex_input_attribute_descriptions = Vertex::vertex_input_attributes();
-    
-    let pipeline_vertex_input_state_create_info = {
-      vk::PipelineVertexInputStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        vertexBindingDescriptionCount: vertex_binding.len() as u32,
-        pVertexBindingDescriptions: vertex_binding.as_ptr(),
-        vertexAttributeDescriptionCount: vertex_input_attribute_descriptions.len() as u32,
-        pVertexAttributeDescriptions: vertex_input_attribute_descriptions.as_ptr(),
-      }
-    };
-    
-    let pipeline_input_assembly_state_create_info = {
-      vk::PipelineInputAssemblyStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        topology: topology,
-        primitiveRestartEnable: vk::FALSE,
-      }
-    };
-    
-    let pipeline_tessellation_state_create_info = {
-      vk::PipelineTessellationStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        patchControlPoints: 0,
-      }
-    };
-    
-    let viewport = {
-      vk::Viewport {
-        x: 0.0,
-        y: 0.0,
-        width: swapchain_extent.width as f32,
-        height: swapchain_extent.height as f32,
-        minDepth: 0.0,
-        maxDepth: 1.0,
-      }
-    };
-    
-    let scissor = {
-      vk::Rect2D {
-        offset: vk::Offset2D { x: 0, y: 0,},
-        extent: vk::Extent2D { width: swapchain_extent.width, height: swapchain_extent.height },
-      }
-    };
-    
-    let pipeline_viewport_state_create_info = {
-      vk::PipelineViewportStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        viewportCount: 1,
-        pViewports: &viewport,
-        scissorCount: 1,
-        pScissors: &scissor,
-      }
-    };
-    
-    let pipeline_rasterization_state_create_info = {
-      vk::PipelineRasterizationStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        depthClampEnable: enable_depth_clamp,
-        rasterizerDiscardEnable: vk::FALSE,
-        polygonMode: polygon_mode,
-        cullMode: cull_mode,
-        frontFace: front_face,
-        depthBiasEnable: vk::FALSE,
-        depthBiasConstantFactor: 0.0,
-        depthBiasClamp: 0.0,
-        depthBiasSlopeFactor: 0.0,
-        lineWidth: 1.0,
-      }
-    };
-    
-    let pipeline_multisample_state_create_info = {
-      vk::PipelineMultisampleStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        rasterizationSamples: vk::SAMPLE_COUNT_1_BIT,
-        sampleShadingEnable: vk::FALSE,
-        minSampleShading: 1.0,
-        pSampleMask: ptr::null(),
-        alphaToCoverageEnable: vk::FALSE,
-        alphaToOneEnable: vk::FALSE,
-      }
-    };
-    
-    let front_stencil_op_state = {
-      vk::StencilOpState {
-        failOp: vk::STENCIL_OP_KEEP,
-        passOp: vk::STENCIL_OP_KEEP,
-        depthFailOp: vk::STENCIL_OP_KEEP,
-        compareOp: vk::COMPARE_OP_NEVER,
-        compareMask: 0,
-        writeMask: 0,
-        reference: 0,
-      }
-    };
-    
-    let back_stencil_op_state = {
-      vk::StencilOpState {
-        failOp: vk::STENCIL_OP_KEEP,
-        passOp: vk::STENCIL_OP_KEEP,
-        depthFailOp: vk::STENCIL_OP_KEEP,
-        compareOp: vk::COMPARE_OP_NEVER,
-        compareMask: 0,
-        writeMask: 0,
-        reference: 0,
-      }
-    };
-    
-    let pipeline_depth_stencil_state_create_info = {
-      vk::PipelineDepthStencilStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        depthTestEnable: depth_test,
-        depthWriteEnable: depth_write,
-        depthCompareOp: vk::COMPARE_OP_LESS_OR_EQUAL,
-        depthBoundsTestEnable: vk::FALSE,
-        stencilTestEnable: vk::FALSE,
-        front: front_stencil_op_state,
-        back: back_stencil_op_state,
-        minDepthBounds: 0.0,
-        maxDepthBounds: 1.0,
-      }
-    };
-    
-    let pipeline_color_blend_attachments = {
-      vk::PipelineColorBlendAttachmentState {
-        blendEnable: vk::FALSE,
-        srcColorBlendFactor: vk::BLEND_FACTOR_ONE,
-        dstColorBlendFactor: vk::BLEND_FACTOR_ZERO,
-        colorBlendOp: vk::BLEND_OP_ADD,
-        srcAlphaBlendFactor: vk::BLEND_FACTOR_ONE,
-        dstAlphaBlendFactor: vk::BLEND_FACTOR_ZERO,
-        alphaBlendOp: vk::BLEND_OP_ADD,
-        colorWriteMask: vk::COLOR_COMPONENT_R_BIT | vk::COLOR_COMPONENT_G_BIT | vk::COLOR_COMPONENT_B_BIT | vk::COLOR_COMPONENT_A_BIT,
-      }
-    };
-    
-    let pipeline_colour_blend_state_create_info = {
-      vk::PipelineColorBlendStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        logicOpEnable: vk::FALSE,
-        logicOp: vk::LOGIC_OP_COPY,
-        attachmentCount: 1,
-        pAttachments: &pipeline_color_blend_attachments,
-        blendConstants: blend_constants,
-      }
-    };
-    
-    let dynamic_state_create_info = {
-      vk::PipelineDynamicStateCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        dynamicStateCount: 2,
-        pDynamicStates: vec!(vk::DYNAMIC_STATE_VIEWPORT, vk::DYNAMIC_STATE_LINE_WIDTH).as_ptr(),
-      }
-    };
-    
-    let push_constant_range = {
-      vk::PushConstantRange {
-        stageFlags: vk::SHADER_STAGE_VERTEX_BIT,
-        offset: 0,
-        size: 0,
-      }
-    };
-    
-    let pipeline_layout_create_info = {
-      vk::PipelineLayoutCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        setLayoutCount: 1,
-        pSetLayouts: descriptor_set.layout(),
-        pushConstantRangeCount: 0,
-        pPushConstantRanges: ptr::null(),//&push_constant_range,
-      }
-    };
-    
-    let vk = device.pointers();
-    let device = device.local_device();
-    
-    unsafe {
-      vk.CreatePipelineLayout(*device, &pipeline_layout_create_info, ptr::null(), &mut pipeline_layout);
-    }
-    
-    graphics_pipeline_create_infos.push(
-      vk::GraphicsPipelineCreateInfo {
-        sType: vk::STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        stageCount: shader_stages.len() as u32,
-        pStages: shader_stages.as_ptr(),
-        pVertexInputState: &pipeline_vertex_input_state_create_info,
-        pInputAssemblyState: &pipeline_input_assembly_state_create_info,
-        pTessellationState: &pipeline_tessellation_state_create_info,
-        pViewportState: &pipeline_viewport_state_create_info,
-        pRasterizationState: &pipeline_rasterization_state_create_info,
-        pMultisampleState: &pipeline_multisample_state_create_info,
-        pDepthStencilState: ptr::null(),//&pipeline_depth_stencil_state_create_info,
-        pColorBlendState: &pipeline_colour_blend_state_create_info,
-        pDynamicState: ptr::null(),//&dynamic_state_create_info,
-        layout: pipeline_layout,
-        renderPass: *render_pass,
-        subpass: 0,
-        basePipelineHandle: 0,
-        basePipelineIndex: -1,
-      }
-    );
-    
-    let pipeline_cache_create_info = {
-      vk::PipelineCacheCreateInfo {
-        sType: vk::STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        initialDataSize: 0,
-        pInitialData: ptr::null(),
-      }
-    };
-    
-    unsafe {
-      check_errors(vk.CreatePipelineCache(*device, &pipeline_cache_create_info, ptr::null(), &mut pipeline_cache));
-      check_errors(vk.CreateGraphicsPipelines(*device, pipeline_cache, graphics_pipeline_create_infos.len() as u32, graphics_pipeline_create_infos.as_ptr(), ptr::null(), pipelines.as_mut_ptr()));
-      pipelines.set_len(graphics_pipeline_create_infos.len());
-    }
-    
-    (pipelines, pipeline_cache, pipeline_layout)
-  }
-  
   fn create_frame_buffers(device: &Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
     let mut framebuffers: Vec<vk::Framebuffer> = Vec::with_capacity(image_views.len());
     
@@ -1432,13 +1119,7 @@ impl Drop for Vulkan {
       vk.FreeMemory(*device, self.texture_image_memory, ptr::null());
       vk.DestroyImage(*device, self.texture_image, ptr::null());*/
       
-      println!("Destroying Pipeline");
-      vk.DestroyPipelineLayout(*device, self.pipeline_layout, ptr::null());
-      vk.DestroyPipelineCache(*device, self.pipeline_cache, ptr::null());
-      
-      for pipeline in &self.pipelines {
-        vk.DestroyPipeline(*device, *pipeline, ptr::null());
-      }
+      self.pipelines.destroy(the_device);
       
       self.descriptor_set.destroy(the_device);
       self.descriptor_set_pool.destroy(the_device);
