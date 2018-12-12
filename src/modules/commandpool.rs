@@ -86,6 +86,8 @@ impl CommandPool {
     let vk = device.pointers();
     let device = device.local_device();
     
+    println!("Destroying CommandPool");
+    
     unsafe {
       vk.DestroyCommandPool(*device, self.pool, ptr::null());
     }

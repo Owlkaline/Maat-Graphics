@@ -287,6 +287,7 @@ impl Instance {
   }
   
   pub fn destroy(&self) {
+    println!("Destroying Instance");
     unsafe {
       self.vk.DestroyInstance(self.instance, ptr::null());
     }

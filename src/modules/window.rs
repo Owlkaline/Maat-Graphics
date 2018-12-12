@@ -332,7 +332,6 @@ impl VkWindow {
 
 impl Drop for VkWindow {
   fn drop(&mut self) {
-    self.device.wait();
     self.swapchain.destroy(&self.device);
     self.device.destroy();
     self.instance.destroy();

@@ -39,17 +39,13 @@ impl Shader {
     &self.module
   }
   
-  pub fn destroy(&mut self, vk: &vk::DevicePointers, device: &vk::Device) {
+  pub fn destroy(&mut self, device: &Device) {
+    let vk = device.pointers();
+    let device = device.local_device();
+    
+    println!("Destroying Shader");
     unsafe {
       vk.DestroyShaderModule(*device, self.module, ptr::null());
-    }
-  }
-}
-
-impl Drop for Shader {
-  fn drop(&mut self) {
-    unsafe {
-   //   self.vk.DestroyShaderModule(self.device, self.module, ptr::null());
     }
   }
 }

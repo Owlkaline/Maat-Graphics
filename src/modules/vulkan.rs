@@ -22,6 +22,7 @@ use modules::CommandPool;
 use modules::Instance;
 use modules::Device;
 use modules::DescriptorPool;
+use modules::DescriptorSet;
 use ownage::check_errors;
 
 use std::ptr;
@@ -81,9 +82,9 @@ pub struct Vulkan {
   framebuffers: Vec<vk::Framebuffer>,
   vertex_shader: Shader,
   fragment_shader: Shader,
-  descriptor_set_layout: vk::DescriptorSetLayout,
+ // descriptor_set_layout: vk::DescriptorSetLayout,
   descriptor_set_pool: DescriptorPool,
-  descriptor_sets: Vec<vk::DescriptorSet>,
+  descriptor_set: DescriptorSet,
   pipelines: Vec<vk::Pipeline>,
   pipeline_cache: vk::PipelineCache,
   pipeline_layout: vk::PipelineLayout,
@@ -112,9 +113,8 @@ impl Vulkan {
     let framebuffers: Vec<vk::Framebuffer>;
     let vertex_shader: Shader;
     let fragment_shader: Shader;
-    let descriptor_set_layout: vk::DescriptorSetLayout;
     let descriptor_set_pool: DescriptorPool;
-    let descriptor_sets: Vec<vk::DescriptorSet>;
+    let descriptor_set: DescriptorSet;
     let pipelines: Vec<vk::Pipeline>;
     let pipeline_cache: vk::PipelineCache;
     let pipeline_layout: vk::PipelineLayout;
@@ -152,11 +152,11 @@ impl Vulkan {
       command_pool = CommandPool::new(device, graphics_family);
       command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      descriptor_set_layout = Vulkan::create_descriptor_set_layout(device);
-      descriptor_set_pool = DescriptorPool::new(device, 1, 0);//Vulkan::create_descriptor_pool(device);
-      descriptor_sets = Vulkan::create_descriptor_sets(device, &descriptor_set_layout, &descriptor_set_pool);
+      //descriptor_set_layout = Vulkan::create_descriptor_set_layout(device);
+      descriptor_set_pool = DescriptorPool::new(device, 1, 0);
+      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool);//Vulkan::create_descriptor_sets(device, &descriptor_set_layout, &descriptor_set_pool);
       
-      let (pipeline, cache, layout) = Vulkan::create_pipelines(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set_layout);
+      let (pipeline, cache, layout) = Vulkan::create_pipelines(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set);
       pipelines = pipeline;
       pipeline_cache = cache;
       pipeline_layout = layout;
@@ -176,7 +176,7 @@ impl Vulkan {
       index_buffer = index;
       index_buffer_memory = index_memory;
       
-      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(instance, device, &current_extent, &descriptor_sets[0]);
+      let (uniform, uniform_memory) = Vulkan::create_uniform_buffer(instance, device, &current_extent, &descriptor_set);
       uniform_buffer = uniform;
       uniform_buffer_memory = uniform_memory;
     }
@@ -194,9 +194,8 @@ impl Vulkan {
       framebuffers: framebuffers,
       vertex_shader: vertex_shader,
       fragment_shader: fragment_shader,
-      descriptor_set_layout: descriptor_set_layout,
       descriptor_set_pool: descriptor_set_pool,
-      descriptor_sets: descriptor_sets,
+      descriptor_set: descriptor_set,
       pipelines: pipelines,
       pipeline_cache: pipeline_cache,
       pipeline_layout: pipeline_layout,
@@ -280,7 +279,7 @@ impl Vulkan {
         
         vk.CmdBeginRenderPass(self.command_buffers[i], &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
         
-        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, &self.descriptor_sets[0], 0, ptr::null());
+        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipeline_layout, 0, 1, self.descriptor_set.set(), 0, ptr::null());
         vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, self.pipelines[0]);
         vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
         vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
@@ -512,7 +511,7 @@ impl Vulkan {
     }
   }
   
-  fn create_uniform_buffer(instance: &Instance, device: &Device, swapchain_extent: &vk::Extent2D, descriptor_set: &vk::DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_uniform_buffer(instance: &Instance, device: &Device, swapchain_extent: &vk::Extent2D, descriptor_set: &DescriptorSet) -> (vk::Buffer, vk::DeviceMemory) {
     let buffer_size: vk::DeviceSize = (mem::size_of::<f32>()*2) as u64;
     
     let (uniform_buffer, uniform_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -529,7 +528,7 @@ impl Vulkan {
       vk::WriteDescriptorSet {
         sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         pNext: ptr::null(),
-        dstSet: *descriptor_set,
+        dstSet: *descriptor_set.set(),
         dstBinding: 0,
         dstArrayElement: 0,
         descriptorCount: 1,
@@ -934,7 +933,7 @@ impl Vulkan {
     }
   }
   
-  fn create_pipelines(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set_layout: &vk::DescriptorSetLayout) -> (Vec<vk::Pipeline>, vk::PipelineCache, vk::PipelineLayout) {
+  fn create_pipelines(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set: &DescriptorSet) -> (Vec<vk::Pipeline>, vk::PipelineCache, vk::PipelineLayout) {
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut pipeline_layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
     let mut pipeline_cache: vk::PipelineCache = unsafe { mem::uninitialized() };
@@ -1183,7 +1182,7 @@ impl Vulkan {
         pNext: ptr::null(),
         flags: 0,
         setLayoutCount: 1,
-        pSetLayouts: descriptor_set_layout,
+        pSetLayouts: descriptor_set.layout(),
         pushConstantRangeCount: 0,
         pPushConstantRanges: ptr::null(),//&push_constant_range,
       }
@@ -1237,75 +1236,6 @@ impl Vulkan {
     }
     
     (pipelines, pipeline_cache, pipeline_layout)
-  }
-  
-  fn create_descriptor_sets(device: &Device, descriptor_set_layout: &vk::DescriptorSetLayout, descriptor_set_pool: &DescriptorPool) -> Vec<vk::DescriptorSet> {
-    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(1);
-    
-    let descriptor_set_allocate_info = {
-      vk::DescriptorSetAllocateInfo {
-        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        pNext: ptr::null(),
-        descriptorPool: *descriptor_set_pool.local_pool(),
-        descriptorSetCount: 1,
-        pSetLayouts: descriptor_set_layout,
-      }
-    };
-    
-    let vk = device.pointers();
-    let device = device.local_device();
-    
-    unsafe {
-      check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, descriptor_sets.as_mut_ptr()));
-      descriptor_sets.set_len(1);
-    }
-    
-    descriptor_sets
-  }
-  
-  fn create_descriptor_set_layout(device: &Device) -> vk::DescriptorSetLayout {
-    let mut descriptor_set_layout: vk::DescriptorSetLayout = unsafe { mem::uninitialized() };
-    let mut descriptor_bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(1);
-    
-    descriptor_bindings.push(
-      vk::DescriptorSetLayoutBinding {
-        binding: 0,
-        descriptorType: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        descriptorCount: 1,
-        stageFlags: vk::SHADER_STAGE_VERTEX_BIT,
-        pImmutableSamplers: ptr::null(),
-      }
-    );
-    /*
-    descriptor_bindings.push(
-      vk::DescriptorSetLayoutBinding {
-        binding: 1,
-        descriptorType: vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        descriptorCount: 1,
-        stageFlags: vk::SHADER_STAGE_FRAGMENT_BIT,
-        pImmutableSamplers: ptr::null(),
-      }
-    );
-    */
-    
-    let descriptor_set_layout_create_info = {
-      vk::DescriptorSetLayoutCreateInfo {
-        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        bindingCount: 1,
-        pBindings: descriptor_bindings.as_ptr(),
-      }
-    };
-    
-    let vk = device.pointers();
-    let device = device.local_device();
-    
-    unsafe {
-      vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut descriptor_set_layout);
-    }
-    
-    descriptor_set_layout
   }
   
   fn create_frame_buffers(device: &Device, render_pass: &vk::RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
@@ -1475,18 +1405,19 @@ impl Vulkan {
 
 impl Drop for Vulkan {
   fn drop(&mut self) {
-    let device = self.window.device();
-    let device = device.local_device();
+    let the_device = self.window.device();
+    let device = the_device.local_device();
     let vk = self.window.device_pointers();
-    println!("Destroying Command pool, semaphores and fences");
     unsafe {
-      vk.DeviceWaitIdle(*device);
+      the_device.wait();
       
+      println!("Destroying Fences");
       for fence in &self.fences {
         check_errors(vk.WaitForFences(*device, 1, fence, vk::TRUE, u64::max_value()));
         vk.DestroyFence(*device, *fence, ptr::null());
       }
       
+      println!("Destroying buffers");
       vk.FreeMemory(*device, self.uniform_buffer_memory, ptr::null());
       vk.DestroyBuffer(*device, self.uniform_buffer, ptr::null());
       
@@ -1500,6 +1431,8 @@ impl Drop for Vulkan {
       vk.DestroyImageView(*device, self.texture_image_view, ptr::null());
       vk.FreeMemory(*device, self.texture_image_memory, ptr::null());
       vk.DestroyImage(*device, self.texture_image, ptr::null());*/
+      
+      println!("Destroying Pipeline");
       vk.DestroyPipelineLayout(*device, self.pipeline_layout, ptr::null());
       vk.DestroyPipelineCache(*device, self.pipeline_cache, ptr::null());
       
@@ -1507,12 +1440,11 @@ impl Drop for Vulkan {
         vk.DestroyPipeline(*device, *pipeline, ptr::null());
       }
       
-      //vk.DestroyDescriptorPool(*device, self.descriptor_set_pool, ptr::null());
-      self.descriptor_set_pool.destroy(self.window.device());
-      vk.DestroyDescriptorSetLayout(*device, self.descriptor_set_layout, ptr::null());
+      self.descriptor_set.destroy(the_device);
+      self.descriptor_set_pool.destroy(the_device);
       
-      self.vertex_shader.destroy(vk, device);
-      self.fragment_shader.destroy(vk, device);
+      self.vertex_shader.destroy(the_device);
+      self.fragment_shader.destroy(the_device);
       
       for framebuffer in &self.framebuffers {
         vk.DestroyFramebuffer(*device, *framebuffer, ptr::null());

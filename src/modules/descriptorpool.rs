@@ -63,6 +63,9 @@ impl DescriptorPool {
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
     let device = device.local_device();
+    
+    println!("Destroying Descriptor Pool");
+    
     unsafe {
       vk.DestroyDescriptorPool(*device, self.pool, ptr::null());
     }
