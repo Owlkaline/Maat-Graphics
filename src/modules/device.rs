@@ -1,7 +1,7 @@
 use vk;
 
-use modules::Instance;
-use modules::VkWindow;
+use crate::modules::Instance;
+use crate::modules::VkWindow;
 
 use std::mem;
 use std::ptr;

@@ -30,7 +30,9 @@ use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::path::Path;
 
-use ownage::SafeDeref;
+use lazy_static::lazy_static;
+
+use crate::ownage::SafeDeref;
 use vk;
 
 /// Implemented on objects that grant access to a Vulkan implementation.

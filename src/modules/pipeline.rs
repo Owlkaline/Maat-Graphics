@@ -1,9 +1,9 @@
 use vk;
 
-use modules::Device;
-use modules::DescriptorSet;
-use modules::RenderPass;
-use ownage::check_errors;
+use crate::modules::Device;
+use crate::modules::DescriptorSet;
+use crate::modules::RenderPass;
+use crate::ownage::check_errors;
 
 use std::mem;
 use std::ptr;

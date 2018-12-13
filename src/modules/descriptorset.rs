@@ -1,8 +1,8 @@
 use vk;
 
-use modules::Device;
-use modules::DescriptorPool;
-use ownage::check_errors;
+use crate::modules::Device;
+use crate::modules::DescriptorPool;
+use crate::ownage::check_errors;
 
 use std::mem;
 use std::ptr;

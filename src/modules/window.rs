@@ -1,11 +1,11 @@
 use vk;
 use winit;
-use loader;
-use loader::Loader;
-use loader::FunctionPointers;
-use modules::Swapchain;
-use modules::Instance;
-use modules::Device;
+use crate::loader;
+use crate::loader::Loader;
+use crate::loader::FunctionPointers;
+use crate::modules::Swapchain;
+use crate::modules::Instance;
+use crate::modules::Device;
 
 use std::ptr;
 use std::mem;
@@ -16,10 +16,10 @@ use std::borrow::Borrow;
 
 use winit::dpi::LogicalSize;
 
-use ownage::OwnedOrRef;
-use ownage::check_errors;
+use crate::ownage::OwnedOrRef;
+use crate::ownage::check_errors;
 
-use ENGINE_VERSION;
+use crate::ENGINE_VERSION;
 
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
 unsafe fn create_surface(

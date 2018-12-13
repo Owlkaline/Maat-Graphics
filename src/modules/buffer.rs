@@ -1,7 +1,7 @@
 use vk;
 
-use modules::BufferUsage;
-use modules::Device;
+use crate::modules::BufferUsage;
+use crate::modules::Device;
 
 use std::mem;
 use std::ptr;

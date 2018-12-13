@@ -1,6 +1,6 @@
 use vk;
 
-use modules::Device;
+use crate::modules::Device;
 
 use std::mem;
 use std::ptr;

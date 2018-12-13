@@ -16,16 +16,16 @@ use cgmath::prelude::SquareMatrix;
 
 use libc::memcpy;
 
-use modules::VkWindow;
-use modules::Shader;
-use modules::CommandPool;
-use modules::Instance;
-use modules::Device;
-use modules::DescriptorPool;
-use modules::DescriptorSet;
-use modules::Pipeline;
-use modules::RenderPass;
-use ownage::check_errors;
+use crate::modules::VkWindow;
+use crate::modules::Shader;
+use crate::modules::CommandPool;
+use crate::modules::Instance;
+use crate::modules::Device;
+use crate::modules::DescriptorPool;
+use crate::modules::DescriptorSet;
+use crate::modules::Pipeline;
+use crate::modules::RenderPass;
+use crate::ownage::check_errors;
 
 use std::ptr;
 use std::mem;

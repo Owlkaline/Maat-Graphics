@@ -1,13 +1,4 @@
-#[macro_use]
-extern crate lazy_static;
-extern crate winit;
-extern crate shared_library;
-extern crate vk;
-extern crate image;
-extern crate cgmath;
-extern crate libc;
-
-use modules::Vulkan;
+use crate::modules::Vulkan;
 
 mod loader;
 mod modules;

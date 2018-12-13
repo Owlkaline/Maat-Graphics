@@ -1,8 +1,8 @@
 use vk;
 
-use ownage::check_errors;
+use crate::ownage::check_errors;
 
-use modules::Device;
+use crate::modules::Device;
 
 use std::mem;
 use std::ptr;
