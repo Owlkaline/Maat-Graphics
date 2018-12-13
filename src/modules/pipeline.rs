@@ -283,7 +283,7 @@ impl Pipeline {
         pColorBlendState: &pipeline_colour_blend_state_create_info,
         pDynamicState: ptr::null(),//&dynamic_state_create_info,
         layout: layout,
-        renderPass: *render_pass.local_render_pass(),
+        renderPass: *render_pass.internal_object(),
         subpass: 0,
         basePipelineHandle: 0,
         basePipelineIndex: -1,

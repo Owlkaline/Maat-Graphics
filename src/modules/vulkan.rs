@@ -25,10 +25,13 @@ use crate::modules::DescriptorPool;
 use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::RenderPass;
+use crate::modules::CommandBuffer;
+use crate::modules::CommandBufferBuilder;
 use crate::ownage::check_errors;
 
 use std::ptr;
 use std::mem;
+use std::sync::Arc;
 use std::ffi::c_void;
 use std::ffi::CString;
 
@@ -79,14 +82,14 @@ pub struct Vulkan {
   semaphore_image_available: vk::Semaphore,
   semaphore_render_finished: vk::Semaphore,
   command_pool: CommandPool,
-  command_buffers: Vec<vk::CommandBuffer>,
+  command_buffers: Vec<Arc<CommandBuffer>>,
   render_pass: RenderPass,
   framebuffers: Vec<vk::Framebuffer>,
   vertex_shader: Shader,
   fragment_shader: Shader,
   descriptor_set_pool: DescriptorPool,
   descriptor_set: DescriptorSet,
-  pipelines: Pipeline,
+  pipeline: Pipeline,
   /*texture_image: vk::Image,
   texture_image_memory: vk::DeviceMemory,
   texture_image_view: vk::ImageView,
@@ -107,7 +110,7 @@ impl Vulkan {
     let semaphore_image_available: vk::Semaphore;
     let semaphore_render_finished: vk::Semaphore;
     let command_pool: CommandPool;
-    let command_buffers: Vec<vk::CommandBuffer>;
+    let command_buffers: Vec<Arc<CommandBuffer>>;
     let render_pass: RenderPass;
     let framebuffers: Vec<vk::Framebuffer>;
     let vertex_shader: Shader;
@@ -190,7 +193,7 @@ impl Vulkan {
       fragment_shader: fragment_shader,
       descriptor_set_pool: descriptor_set_pool,
       descriptor_set: descriptor_set,
-      pipelines: pipelines,
+      pipeline: pipelines,
      /* texture_image: texture_image,
       texture_image_memory: texture_image_memory,
       texture_image_view: texture_image_view,
@@ -235,6 +238,28 @@ impl Vulkan {
     //  return;
     }
     
+    let device = self.window.device();
+    let window_size = self.window.get_current_extent();
+    
+    let index_count = 3;
+    
+    let clear_values: Vec<vk::ClearValue> = {
+      vec!(
+        vk::ClearValue { 
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
+        }
+      )
+    };
+    
+    for i in 0..self.command_buffers.len() {
+      let mut cmd = CommandBufferBuilder::primary_one_time_submit(device, Arc::clone(&self.command_buffers[i]));
+      cmd = cmd.begin_command_buffer(device);
+      cmd = cmd.begin_render_pass(device, &clear_values, &self.render_pass, &self.framebuffers[i], &window_size);
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer, &self.index_buffer, index_count, &self.pipeline, &self.descriptor_set);
+      cmd = cmd.end_render_pass(device);
+      cmd = cmd.end_command_buffer(device);
+    }
+    /*
     let vk = self.window.device_pointers();
     let window_size = self.window.get_current_extent();
     
@@ -267,22 +292,22 @@ impl Vulkan {
       render_pass_begin_info.framebuffer = self.framebuffers[i];
       
       unsafe {
-        check_errors(vk.BeginCommandBuffer(self.command_buffers[i], &command_buffer_begin_info));
+        check_errors(vk.BeginCommandBuffer(*self.command_buffers[i].internal_object(), &command_buffer_begin_info));
         
-        vk.CmdBeginRenderPass(self.command_buffers[i], &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
+        vk.CmdBeginRenderPass(*self.command_buffers[i].internal_object(), &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
         
-        vk.CmdBindDescriptorSets(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.layout(), 0, 1, self.descriptor_set.set(), 0, ptr::null());
-        vk.CmdBindPipeline(self.command_buffers[i], vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.pipeline(0));
-        vk.CmdBindVertexBuffers(self.command_buffers[i], 0, 1, &self.vertex_buffer, &0);
-        vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
+        vk.CmdBindDescriptorSets(*self.command_buffers[i].internal_object(), vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.layout(), 0, 1, self.descriptor_set.set(), 0, ptr::null());
+        vk.CmdBindPipeline(*self.command_buffers[i].internal_object(), vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.pipeline(0));
+        vk.CmdBindVertexBuffers(*self.command_buffers[i].internal_object(), 0, 1, &self.vertex_buffer, &0);
+        vk.CmdBindIndexBuffer(*self.command_buffers[i].internal_object(), self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
         
         let indices_count = 3;
-        vk.CmdDrawIndexed(self.command_buffers[i], indices_count, 1, 0, 0, 0);
-        vk.CmdEndRenderPass(self.command_buffers[i]);
+        vk.CmdDrawIndexed(*self.command_buffers[i].internal_object(), indices_count, 1, 0, 0, 0);
+        vk.CmdEndRenderPass(*self.command_buffers[i].internal_object());
         
-        check_errors(vk.EndCommandBuffer(self.command_buffers[i]));
+        check_errors(vk.EndCommandBuffer(*self.command_buffers[i].internal_object()));
       }
-    }
+    }*/
   }
   
   pub fn draw(&mut self) {
@@ -316,7 +341,7 @@ impl Vulkan {
         pWaitSemaphores: &self.semaphore_image_available,
         pWaitDstStageMask: &pipeline_stage_flags,
         commandBufferCount: 1,
-        pCommandBuffers: &self.command_buffers[current_buffer],
+        pCommandBuffers: self.command_buffers[current_buffer].internal_object(),
         signalSemaphoreCount: 1,
         pSignalSemaphores: &self.semaphore_render_finished,
       }
@@ -935,7 +960,7 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        renderPass: *render_pass.local_render_pass(),
+        renderPass: *render_pass.internal_object(),
         attachmentCount: 1,
         pAttachments: &image_views[i],
         width: swapchain_extent.width,
@@ -1029,7 +1054,7 @@ impl Drop for Vulkan {
       vk.FreeMemory(*device, self.texture_image_memory, ptr::null());
       vk.DestroyImage(*device, self.texture_image, ptr::null());*/
       
-      self.pipelines.destroy(the_device);
+      self.pipeline.destroy(the_device);
       
       self.descriptor_set.destroy(the_device);
       self.descriptor_set_pool.destroy(the_device);
@@ -1041,7 +1066,7 @@ impl Drop for Vulkan {
         vk.DestroyFramebuffer(*device, *framebuffer, ptr::null());
       }
       self.render_pass.destroy(the_device);
-      vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
+      vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.iter().map(|x| *x.internal_object()).collect::<Vec<vk::CommandBuffer>>().as_mut_ptr());
       self.command_pool.destroy(self.window.device());
       vk.DestroySemaphore(*device, self.semaphore_image_available, ptr::null());
       vk.DestroySemaphore(*device, self.semaphore_render_finished, ptr::null());

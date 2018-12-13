@@ -101,7 +101,7 @@ impl RenderPass {
     }
   }
   
-  pub fn local_render_pass(&self) -> &vk::RenderPass {
+  pub fn internal_object(&self) -> &vk::RenderPass {
     &self.render_pass
   }
   

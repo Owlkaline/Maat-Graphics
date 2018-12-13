@@ -3,9 +3,11 @@ use vk;
 use crate::ownage::check_errors;
 
 use crate::modules::Device;
+use crate::modules::CommandBuffer;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct CommandPool {
   pool: vk::CommandPool,
@@ -60,7 +62,7 @@ impl CommandPool {
     &self.pool
   }
   
-  pub fn create_command_buffers(&self, device: &Device, num_command_command_buffers: u32) -> Vec<vk::CommandBuffer> {
+  pub fn create_command_buffers(&self, device: &Device, num_command_command_buffers: u32) -> Vec<Arc<CommandBuffer>> {
     let mut command_buffers: Vec<vk::CommandBuffer> = Vec::with_capacity(num_command_command_buffers as usize);
     
     let allocate_command_buffer_info = vk::CommandBufferAllocateInfo {
@@ -79,7 +81,7 @@ impl CommandPool {
       command_buffers.set_len(num_command_command_buffers as usize);
     }
     
-    command_buffers
+    command_buffers.iter().map(|x| Arc::new(CommandBuffer::from_buffer(*x))).collect::<Vec<Arc<CommandBuffer>>>()
   }
   
   pub fn destroy(&self, device: &Device) {
