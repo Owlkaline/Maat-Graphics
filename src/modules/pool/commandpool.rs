@@ -3,7 +3,7 @@ use vk;
 use crate::ownage::check_errors;
 
 use crate::modules::Device;
-use crate::modules::CommandBuffer;
+use crate::modules::buffer::CommandBuffer;
 
 use std::mem;
 use std::ptr;

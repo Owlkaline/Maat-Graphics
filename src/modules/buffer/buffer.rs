@@ -1,6 +1,6 @@
 use vk;
 
-use crate::modules::BufferUsage;
+use crate::modules::buffer::BufferUsage;
 use crate::modules::Device;
 
 use std::mem;

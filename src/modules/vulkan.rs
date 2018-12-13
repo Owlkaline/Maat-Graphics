@@ -18,15 +18,15 @@ use libc::memcpy;
 
 use crate::modules::VkWindow;
 use crate::modules::Shader;
-use crate::modules::CommandPool;
+use crate::modules::pool::CommandPool;
 use crate::modules::Instance;
 use crate::modules::Device;
-use crate::modules::DescriptorPool;
+use crate::modules::pool::DescriptorPool;
 use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::RenderPass;
-use crate::modules::CommandBuffer;
-use crate::modules::CommandBufferBuilder;
+use crate::modules::buffer::CommandBuffer;
+use crate::modules::buffer::CommandBufferBuilder;
 use crate::ownage::check_errors;
 
 use std::ptr;
@@ -259,55 +259,6 @@ impl Vulkan {
       cmd = cmd.end_render_pass(device);
       cmd = cmd.end_command_buffer(device);
     }
-    /*
-    let vk = self.window.device_pointers();
-    let window_size = self.window.get_current_extent();
-    
-    let command_buffer_begin_info = vk::CommandBufferBeginInfo {
-      sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      pNext: ptr::null(),
-      flags: vk::COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-      pInheritanceInfo: ptr::null(),
-    };
-    
-    let clear_values: vk::ClearValue = {
-      vk::ClearValue { 
-        color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
-      }
-    };
-    
-    let mut render_pass_begin_info = {
-      vk::RenderPassBeginInfo {
-        sType: vk::STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        pNext: ptr::null(),
-        renderPass: *self.render_pass.local_render_pass(),
-        framebuffer: self.framebuffers[0],
-        renderArea: vk::Rect2D { offset: vk::Offset2D {x: 0, y: 0 }, extent: vk::Extent2D { width: window_size.width, height: window_size.height, } },
-        clearValueCount: 1,
-        pClearValues: &clear_values,
-      }
-    };
-    
-    for i in 0..self.command_buffers.len() {
-      render_pass_begin_info.framebuffer = self.framebuffers[i];
-      
-      unsafe {
-        check_errors(vk.BeginCommandBuffer(*self.command_buffers[i].internal_object(), &command_buffer_begin_info));
-        
-        vk.CmdBeginRenderPass(*self.command_buffers[i].internal_object(), &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
-        
-        vk.CmdBindDescriptorSets(*self.command_buffers[i].internal_object(), vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.layout(), 0, 1, self.descriptor_set.set(), 0, ptr::null());
-        vk.CmdBindPipeline(*self.command_buffers[i].internal_object(), vk::PIPELINE_BIND_POINT_GRAPHICS, *self.pipelines.pipeline(0));
-        vk.CmdBindVertexBuffers(*self.command_buffers[i].internal_object(), 0, 1, &self.vertex_buffer, &0);
-        vk.CmdBindIndexBuffer(*self.command_buffers[i].internal_object(), self.index_buffer, 0, vk::INDEX_TYPE_UINT32);
-        
-        let indices_count = 3;
-        vk.CmdDrawIndexed(*self.command_buffers[i].internal_object(), indices_count, 1, 0, 0, 0);
-        vk.CmdEndRenderPass(*self.command_buffers[i].internal_object());
-        
-        check_errors(vk.EndCommandBuffer(*self.command_buffers[i].internal_object()));
-      }
-    }*/
   }
   
   pub fn draw(&mut self) {

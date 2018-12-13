@@ -1,7 +1,7 @@
 use vk;
 
 use crate::modules::Device;
-use crate::modules::DescriptorPool;
+use crate::modules::pool::DescriptorPool;
 use crate::ownage::check_errors;
 
 use std::mem;

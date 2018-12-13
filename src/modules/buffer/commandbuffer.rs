@@ -4,7 +4,7 @@ use crate::modules::Device;
 use crate::modules::RenderPass;
 use crate::modules::Pipeline;
 use crate::modules::DescriptorSet;
-use crate::modules::CommandPool;
+use crate::modules::pool::CommandPool;
 use crate::ownage::check_errors;
 
 use std::mem;
