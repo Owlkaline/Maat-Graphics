@@ -2,7 +2,7 @@
 extern crate lazy_static;
 extern crate winit;
 extern crate shared_library;
-extern crate vk_sys as vk;
+extern crate vk;
 extern crate image;
 extern crate cgmath;
 extern crate libc;
