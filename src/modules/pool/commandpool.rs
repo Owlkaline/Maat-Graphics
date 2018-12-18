@@ -16,7 +16,7 @@ pub struct CommandPool {
 impl CommandPool {
   pub fn new(device: &Device, graphics_family: u32) -> CommandPool {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     let mut command_pool: vk::CommandPool = unsafe { mem::uninitialized() };
     
@@ -38,7 +38,7 @@ impl CommandPool {
   
   pub fn new_transient(device: &Device, graphics_family: u32) -> CommandPool {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     let mut command_pool: vk::CommandPool = unsafe { mem::uninitialized() };
     
@@ -74,7 +74,7 @@ impl CommandPool {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       check_errors(vk.AllocateCommandBuffers(*device, &allocate_command_buffer_info, command_buffers.as_mut_ptr()));
@@ -86,7 +86,7 @@ impl CommandPool {
   
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     println!("Destroying CommandPool");
     

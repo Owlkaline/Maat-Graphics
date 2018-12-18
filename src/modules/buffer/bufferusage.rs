@@ -84,13 +84,6 @@ impl BufferUsage {
     }
   }
   
-  pub fn index_buffer() -> BufferUsage {
-    BufferUsage {
-      index_buffer: true,
-      .. BufferUsage::none()
-    }
-  }
-  
   pub fn vertex_transfer_src_buffer() -> BufferUsage {
     BufferUsage {
       vertex_buffer: true,
@@ -103,6 +96,21 @@ impl BufferUsage {
     BufferUsage {
       vertex_buffer: true,
       transfer_dst: true,
+      .. BufferUsage::none()
+    }
+  }
+  
+  pub fn index_buffer() -> BufferUsage {
+    BufferUsage {
+      index_buffer: true,
+      .. BufferUsage::none()
+    }
+  }
+  
+  pub fn index_transfer_src_buffer() -> BufferUsage {
+    BufferUsage {
+      index_buffer: true,
+      transfer_src: true,
       .. BufferUsage::none()
     }
   }

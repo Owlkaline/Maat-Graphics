@@ -1,6 +1,7 @@
 use vk;
 
 use crate::modules::Device;
+use crate::modules::buffer::Buffer;
 use crate::modules::pool::DescriptorPool;
 use crate::ownage::check_errors;
 
@@ -31,6 +32,38 @@ impl DescriptorSet {
     &self.layout
   }
   
+  pub fn update_sets<T: Clone>(&self, device: &Device, uniform_buffer: &Buffer<T>) {
+    let vk = device.pointers();
+    let device = device.internal_object();
+    
+    let descriptor_buffer_info = {
+      vk::DescriptorBufferInfo {
+        buffer: *uniform_buffer.internal_object(),
+        offset: 0,
+        range: uniform_buffer.size(),
+      }
+    };
+    
+    let write_descriptor_set = {
+      vk::WriteDescriptorSet {
+        sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        pNext: ptr::null(),
+        dstSet: self.set,
+        dstBinding: 0,
+        dstArrayElement: 0,
+        descriptorCount: 1,
+        descriptorType: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        pImageInfo: ptr::null(),
+        pBufferInfo: &descriptor_buffer_info,
+        pTexelBufferView: ptr::null(),
+      }
+    };
+    
+    unsafe {
+      vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
+    }
+  }
+  
   fn create_set(device: &Device, layout: &vk::DescriptorSetLayout, set_pool: &DescriptorPool) -> vk::DescriptorSet {
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(1);
     
@@ -45,7 +78,7 @@ impl DescriptorSet {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, descriptor_sets.as_mut_ptr()));
@@ -91,7 +124,7 @@ impl DescriptorSet {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
@@ -102,7 +135,7 @@ impl DescriptorSet {
   
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     println!("Destroying DescriptorSet Layout");
     

@@ -45,7 +45,7 @@ impl DescriptorPool {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       check_errors(vk.CreateDescriptorPool(*device, &descriptor_pool_create_info, ptr::null(), &mut descriptor_pool));
@@ -62,7 +62,7 @@ impl DescriptorPool {
   
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     println!("Destroying Descriptor Pool");
     

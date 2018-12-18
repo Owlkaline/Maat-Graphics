@@ -24,7 +24,7 @@ impl Shader {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       vk.CreateShaderModule(*device, &shader_module_create_info, ptr::null(), &mut shader_module);
@@ -41,7 +41,7 @@ impl Shader {
   
   pub fn destroy(&mut self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     println!("Destroying Shader");
     unsafe {

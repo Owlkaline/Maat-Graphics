@@ -32,7 +32,7 @@ impl Device {
     &self.vk
   }
   
-  pub fn local_device(&self) -> &vk::Device {
+  pub fn internal_object(&self) -> &vk::Device {
     &self.device
   }
   

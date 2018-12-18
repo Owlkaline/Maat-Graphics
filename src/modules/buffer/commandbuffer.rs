@@ -33,7 +33,7 @@ impl CommandBuffer {
     
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       check_errors(vk.AllocateCommandBuffers(*device, &command_buffer_allocate_info, &mut command_buffer));
     }
     
@@ -65,7 +65,7 @@ impl CommandBuffer {
     
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       check_errors(vk.AllocateCommandBuffers(*device, &command_buffer_allocate_info, &mut command_buffer));
     }
     
@@ -167,7 +167,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn copy_buffer<T, U>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>) 
+  pub fn copy_buffer<T: Clone, U: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>) 
 {
     let buffer_copy = {
         vk::BufferCopy {

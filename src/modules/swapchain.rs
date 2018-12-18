@@ -61,7 +61,7 @@ impl Swapchain {
   
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       println!("Destroying Swapchain image views");
@@ -76,7 +76,7 @@ impl Swapchain {
   
   fn create_image_views(device: &Device, images: &Vec<vk::Image>, format: &vk::Format) -> Vec<vk::ImageView> {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     let mut image_views = Vec::with_capacity(images.len());
     for image in images.iter() {
@@ -122,7 +122,7 @@ impl Swapchain {
     let mut images: Vec<vk::Image>;
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       check_errors(vk.GetSwapchainImagesKHR(*device, *swapchain, &mut image_count, ptr::null_mut()));
@@ -137,7 +137,7 @@ impl Swapchain {
   fn create_swapchain(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>) -> (vk::SwapchainKHR, vk::Format) {
     let vk = device.pointers();
     let phys_device = device.physical_device();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = instance.get_surface_capabilities(phys_device, surface);
     

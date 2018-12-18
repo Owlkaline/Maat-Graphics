@@ -19,3 +19,4 @@ mod device;
 mod descriptorset;
 mod pipeline;
 mod renderpass;
+mod traits;

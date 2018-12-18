@@ -260,7 +260,7 @@ impl Pipeline {
     };
     
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     unsafe {
       vk.CreatePipelineLayout(*device, &pipeline_layout_create_info, ptr::null(), &mut layout);
@@ -323,7 +323,7 @@ impl Pipeline {
   
   pub fn destroy(&self, device: &Device) {
     let vk = device.pointers();
-    let device = device.local_device();
+    let device = device.internal_object();
     
     println!("Destroying Pipeline");
     

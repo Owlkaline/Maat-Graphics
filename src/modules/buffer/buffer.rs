@@ -11,14 +11,14 @@ use std::mem;
 use std::ptr;
 use std::ffi::c_void;
 
-pub struct Buffer<T> {
+pub struct Buffer<T: Clone> {
   buffer: vk::Buffer,
   memory: vk::DeviceMemory,
   usage: BufferUsage,
   data: Vec<T>,
 }
 
-impl<T> Buffer<T> {
+impl<T: Clone> Buffer<T> {
   pub fn empty(instance: &Instance, device: &Device, usage: BufferUsage) -> Buffer<T> {
     let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &Vec::new() as &Vec<T>);
     
@@ -30,16 +30,20 @@ impl<T> Buffer<T> {
     }
   }
   
-  pub fn cpu_buffer(instance: &Instance, device: &Device, usage: BufferUsage, data: Vec<T>) -> Buffer<T> 
-  /*  where T: ?Sized */{
+  pub fn cpu_buffer(instance: &Instance, device: &Device, usage: BufferUsage, data: Vec<T>) -> Buffer<T> {
     let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &data);
     
-    Buffer {
+    let mut buffer = Buffer {
       buffer,
       memory,
       usage,
-      data,
-    }
+      data: data,
+    };
+    
+    let data = buffer.internal_data();
+    buffer.fill_buffer(device, data);
+    
+    buffer
   }
   
   pub fn device_local_buffer(instance: &Instance, device: &Device, usage: BufferUsage, data: Vec<T>) -> Buffer<T> {
@@ -53,13 +57,15 @@ impl<T> Buffer<T> {
     }
   }
   
-  pub fn fill_buffer(&self, device: &Device) {
+  pub fn fill_buffer(&mut self, device: &Device, data: Vec<T>) {
+    self.data = data;
+    
     let mut host_visible_data = unsafe { mem::uninitialized() };
     let buffer_size = (mem::size_of::<T>() * self.data.len());
     
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       check_errors(vk.MapMemory(*device, self.memory, 0, buffer_size as u64, 0, &mut host_visible_data));
       memcpy(host_visible_data, self.data.as_ptr() as *const _, buffer_size as usize);
       vk.UnmapMemory(*device, self.memory);
@@ -70,9 +76,12 @@ impl<T> Buffer<T> {
     &self.buffer
   }
   
-  
   pub fn internal_memory(&self) -> &vk::DeviceMemory {
     &self.memory
+  }
+  
+  pub fn internal_data(&self) -> Vec<T> {
+    self.data.to_vec()
   }
   
   pub fn size(&self) -> vk::DeviceSize {
@@ -101,7 +110,7 @@ impl<T> Buffer<T> {
     
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       check_errors(vk.CreateBuffer(*device, &buffer_create_info, ptr::null(), &mut buffer));
       vk.GetBufferMemoryRequirements(*device, buffer, &mut memory_requirements);
     }
@@ -140,7 +149,7 @@ impl<T> Buffer<T> {
     
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       check_errors(vk.AllocateMemory(*device, &memory_allocate_info, ptr::null(), &mut buffer_memory));
       vk.BindBufferMemory(*device, buffer, buffer_memory, 0);
     }
@@ -149,9 +158,10 @@ impl<T> Buffer<T> {
   }
   
   pub fn destroy(&self, device: &Device) {
+    println!("Destroying buffer");
     unsafe {
       let vk = device.pointers();
-      let device = device.local_device();
+      let device = device.internal_object();
       vk.FreeMemory(*device, self.memory, ptr::null());
       vk.DestroyBuffer(*device, self.buffer, ptr::null());
     }
