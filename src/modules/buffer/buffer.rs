@@ -1,70 +1,85 @@
 use vk;
 
 use crate::modules::buffer::BufferUsage;
+use crate::modules::Instance;
 use crate::modules::Device;
+use crate::ownage::check_errors;
+
+use libc::memcpy;
 
 use std::mem;
 use std::ptr;
 use std::ffi::c_void;
 
-pub struct Buffer {
+pub struct Buffer<T> {
   buffer: vk::Buffer,
   memory: vk::DeviceMemory,
   usage: BufferUsage,
+  data: Vec<T>,
 }
-/*
 
-impl Buffer {
-  pub fn with_usage(instance: &Instance, device: &Device, usage: BufferUsage, size: usize, data: *const c_void) -> Buffer {
-    
-    
-    let (staging_vertex_buffer, staging_vertex_buffer_memory) = Buffer::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    
-    let mut host_visible_data = unsafe { mem::uninitialized() };
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.local_device();
-      check_errors(vk.MapMemory(*device, staging_vertex_buffer_memory, 0, size, 0, &mut host_visible_data));
-      memcpy(host_visible_data, data, size);
-      vk.UnmapMemory(*device, staging_vertex_buffer_memory);
-    }
-    
-    let (vertex_buffer, vertex_buffer_memory) = Buffer::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_VERTEX_BUFFER_BIT | vk::BUFFER_USAGE_TRANSFER_DST_BIT, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    
-    let command_buffer = Vulkan::begin_single_time_command(device, command_pool);
-    
-    let buffer_copy = {
-      vk::BufferCopy {
-        srcOffset: 0,
-        dstOffset: 0,
-        size: buffer_size,
-      }
-    };
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.local_device();
-      vk.CmdCopyBuffer(command_buffer, staging_vertex_buffer, vertex_buffer, 1, &buffer_copy);
-    }
-    
-    Vulkan::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.local_device();
-      vk.FreeMemory(*device, staging_vertex_buffer_memory, ptr::null());
-      vk.DestroyBuffer(*device, staging_vertex_buffer, ptr::null());
-    }
+impl<T> Buffer<T> {
+  pub fn empty(instance: &Instance, device: &Device, usage: BufferUsage) -> Buffer<T> {
+    let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &Vec::new() as &Vec<T>);
     
     Buffer {
       buffer,
       memory,
       usage,
+      data: Vec::with_capacity(0),
     }
   }
   
-  fn create_buffer(instance: &Instance, device: &Device, buffer_size: vk::DeviceSize, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> (vk::Buffer, vk::DeviceMemory) {
+  pub fn cpu_buffer(instance: &Instance, device: &Device, usage: BufferUsage, data: Vec<T>) -> Buffer<T> 
+  /*  where T: ?Sized */{
+    let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &data);
+    
+    Buffer {
+      buffer,
+      memory,
+      usage,
+      data,
+    }
+  }
+  
+  pub fn device_local_buffer(instance: &Instance, device: &Device, usage: BufferUsage, data: Vec<T>) -> Buffer<T> {
+    let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &data);
+    
+    Buffer {
+      buffer,
+      memory,
+      usage,
+      data,
+    }
+  }
+  
+  pub fn fill_buffer(&self, device: &Device) {
+    let mut host_visible_data = unsafe { mem::uninitialized() };
+    let buffer_size = (mem::size_of::<T>() * self.data.len());
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
+      check_errors(vk.MapMemory(*device, self.memory, 0, buffer_size as u64, 0, &mut host_visible_data));
+      memcpy(host_visible_data, self.data.as_ptr() as *const _, buffer_size as usize);
+      vk.UnmapMemory(*device, self.memory);
+    }
+  }
+  
+  pub fn internal_object(&self) -> &vk::Buffer {
+    &self.buffer
+  }
+  
+  
+  pub fn internal_memory(&self) -> &vk::DeviceMemory {
+    &self.memory
+  }
+  
+  pub fn size(&self) -> vk::DeviceSize {
+    (mem::size_of::<T>() * self.data.len()) as vk::DeviceSize
+  }
+  
+  fn create_buffer(instance: &Instance, device: &Device, usage: &BufferUsage, properties: vk::MemoryPropertyFlags, data: &Vec<T>) -> (vk::Buffer, vk::DeviceMemory) {
     
     let mut buffer: vk::Buffer = unsafe { mem::uninitialized() };
     let mut buffer_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
@@ -74,8 +89,8 @@ impl Buffer {
         sType: vk::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        size: buffer_size,
-        usage: usage,
+        size: (mem::size_of::<T>() * data.len()) as vk::DeviceSize,
+        usage: usage.to_bits(),
         sharingMode: vk::SHARING_MODE_EXCLUSIVE,
         queueFamilyIndexCount: 0,
         pQueueFamilyIndices: ptr::null(),
@@ -133,7 +148,12 @@ impl Buffer {
     (buffer, buffer_memory)
   }
   
-  pub fn destroy(&self) {
-    
+  pub fn destroy(&self, device: &Device) {
+    unsafe {
+      let vk = device.pointers();
+      let device = device.local_device();
+      vk.FreeMemory(*device, self.memory, ptr::null());
+      vk.DestroyBuffer(*device, self.buffer, ptr::null());
+    }
   }
-}*/
+}

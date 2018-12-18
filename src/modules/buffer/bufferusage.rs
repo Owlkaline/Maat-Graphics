@@ -27,9 +27,44 @@ impl BufferUsage {
     }
   }
   
+  pub fn to_bits(&self) -> vk::BufferUsageFlags {
+    let mut flags = 0;
+    
+    if self.transfer_src {
+      flags = flags | vk::BUFFER_USAGE_TRANSFER_SRC_BIT;
+    }
+    if self.transfer_dst {
+      flags = flags | vk::BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
+    if self.uniform_texel {
+      flags = flags | vk::BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
+    }
+    if self.storage_texel {
+      flags = flags | vk::BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
+    }
+    if self.uniform_buffer {
+      flags = flags | vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    }
+    if self.storage_buffer {
+      flags = flags | vk::BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    }
+    if self.index_buffer {
+      flags = flags | vk::BUFFER_USAGE_INDEX_BUFFER_BIT;
+    }
+    if self.vertex_buffer {
+      flags = flags | vk::BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    }
+    if self.indirect_buffer {
+      flags = flags | vk::BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+    }
+    
+    flags
+  }
+  
   pub fn transfer_src_buffer() -> BufferUsage {
     BufferUsage {
       transfer_src: true,
+      vertex_buffer: true,
       .. BufferUsage::none()
     }
   }
@@ -37,6 +72,7 @@ impl BufferUsage {
   pub fn transfer_dst_buffer() -> BufferUsage {
     BufferUsage {
       transfer_dst: true,
+      vertex_buffer: true,
       .. BufferUsage::none()
     }
   }
@@ -51,6 +87,30 @@ impl BufferUsage {
   pub fn index_buffer() -> BufferUsage {
     BufferUsage {
       index_buffer: true,
+      .. BufferUsage::none()
+    }
+  }
+  
+  pub fn vertex_transfer_src_buffer() -> BufferUsage {
+    BufferUsage {
+      vertex_buffer: true,
+      transfer_src: true,
+      .. BufferUsage::none()
+    }
+  }
+  
+  pub fn vertex_transfer_dst_buffer() -> BufferUsage {
+    BufferUsage {
+      vertex_buffer: true,
+      transfer_dst: true,
+      .. BufferUsage::none()
+    }
+  }
+  
+  pub fn index_transfer_dst_buffer() -> BufferUsage {
+    BufferUsage {
+      index_buffer: true,
+      transfer_dst: true,
       .. BufferUsage::none()
     }
   }

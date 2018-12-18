@@ -25,6 +25,8 @@ use crate::modules::pool::DescriptorPool;
 use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::RenderPass;
+use crate::modules::buffer::Buffer;
+use crate::modules::buffer::BufferUsage;
 use crate::modules::buffer::CommandBuffer;
 use crate::modules::buffer::CommandBufferBuilder;
 use crate::ownage::check_errors;
@@ -35,6 +37,7 @@ use std::sync::Arc;
 use std::ffi::c_void;
 use std::ffi::CString;
 
+#[derive(Clone)]
 struct Vertex {
   pos: Vector2<f32>,
   colour: Vector3<f32>,
@@ -94,8 +97,7 @@ pub struct Vulkan {
   texture_image_memory: vk::DeviceMemory,
   texture_image_view: vk::ImageView,
   texture_sampler: vk::Sampler,*/
-  vertex_buffer: vk::Buffer,
-  vertex_buffer_memory: vk::DeviceMemory,
+  vertex_buffer: Buffer<Vertex>,
   index_buffer: vk::Buffer,
   index_buffer_memory: vk::DeviceMemory,
   uniform_buffer: vk::Buffer,
@@ -122,8 +124,7 @@ impl Vulkan {
     let texture_image_memory: vk::DeviceMemory;
     let texture_image_view: vk::ImageView;
     let texture_sampler: vk::Sampler;*/
-    let vertex_buffer: vk::Buffer;
-    let vertex_buffer_memory: vk::DeviceMemory;
+    let vertex_buffer: Buffer<Vertex>;
     let index_buffer: vk::Buffer;
     let index_buffer_memory: vk::DeviceMemory;
     let uniform_buffer: vk::Buffer;
@@ -165,9 +166,7 @@ impl Vulkan {
       
       texture_sampler = Vulkan::create_texture_sampler(vk, device);*/
       
-      let (vertex, vertex_memory) = Vulkan::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
-      vertex_buffer = vertex;
-      vertex_buffer_memory = vertex_memory;
+      vertex_buffer = Vulkan::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
       
       let (index, index_memory) = Vulkan::create_index_buffer(instance, device, &command_pool, graphics_queue);
       index_buffer = index;
@@ -199,7 +198,6 @@ impl Vulkan {
       texture_image_view: texture_image_view,
       texture_sampler: texture_sampler*/
       vertex_buffer: vertex_buffer,
-      vertex_buffer_memory: vertex_buffer_memory,
       index_buffer: index_buffer,
       index_buffer_memory: index_buffer_memory,
       uniform_buffer: uniform_buffer,
@@ -255,7 +253,7 @@ impl Vulkan {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(device, Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(device);
       cmd = cmd.begin_render_pass(device, &clear_values, &self.render_pass, &self.framebuffers[i], &window_size);
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer, &self.index_buffer, index_count, &self.pipeline, &self.descriptor_set);
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer, index_count, &self.pipeline, &self.descriptor_set);
       cmd = cmd.end_render_pass(device);
       cmd = cmd.end_command_buffer(device);
     }
@@ -419,8 +417,8 @@ impl Vulkan {
     self.window.get_events()
   }
   
-  fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> vk::CommandBuffer {
-    let command_pool = command_pool.local_command_pool();
+  fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
+   /* let command_pool = command_pool.local_command_pool();
     
     let command_buffer_allocate_info = {
       vk::CommandBufferAllocateInfo {
@@ -450,10 +448,14 @@ impl Vulkan {
       check_errors(vk.BeginCommandBuffer(command_buffer, &command_buffer_begin_info));
     }
     
+    command_buffer*/
+    
+    let mut command_buffer = CommandBuffer::primary(device, command_pool);
+    command_buffer.begin_command_buffer(device, vk::COMMAND_BUFFER_LEVEL_PRIMARY);
     command_buffer
   }
   
-  fn end_single_time_command(device: &Device, command_buffer: vk::CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  fn end_single_time_command(device: &Device, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     let submit_info = {
       vk::SubmitInfo {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
@@ -462,20 +464,22 @@ impl Vulkan {
         pWaitSemaphores: ptr::null(),
         pWaitDstStageMask: ptr::null(),
         commandBufferCount: 1,
-        pCommandBuffers: &command_buffer,
+        pCommandBuffers: command_buffer.internal_object(),
         signalSemaphoreCount: 0,
         pSignalSemaphores: ptr::null(),
       }
     };
     
+    command_buffer.end_command_buffer(device);
+    
     unsafe {
       let vk = device.pointers();
       let device = device.local_device();
       let command_pool = command_pool.local_command_pool();
-      vk.EndCommandBuffer(command_buffer);
+     // vk.EndCommandBuffer(command_buffer);
       vk.QueueSubmit(*graphics_queue, 1, &submit_info, 0);
       vk.QueueWaitIdle(*graphics_queue);
-      vk.FreeCommandBuffers(*device, *command_pool, 1, &command_buffer);
+      vk.FreeCommandBuffers(*device, *command_pool, 1, command_buffer.internal_object());
     }
   }
   
@@ -594,7 +598,7 @@ impl Vulkan {
     
     unsafe {
       let vk = device.pointers();
-      vk.CmdCopyBuffer(command_buffer, staging_index_buffer, index_buffer, 1, &buffer_copy);
+      vk.CmdCopyBuffer(*command_buffer.internal_object(), staging_index_buffer, index_buffer, 1, &buffer_copy);
     }
     
     Vulkan::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
@@ -609,7 +613,7 @@ impl Vulkan {
     (index_buffer, index_buffer_memory)
   }
   
-  fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
    /* let square = [
       [[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
       [[-1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
@@ -628,6 +632,19 @@ impl Vulkan {
       Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 0.0, 1.0) },
     );
     
+    let usage_src = BufferUsage::vertex_transfer_src_buffer();
+    let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
+    
+    let staging_buffer: Buffer<Vertex> = Buffer::cpu_buffer(instance, device, usage_src, triangle.clone());
+    staging_buffer.fill_buffer(device);
+    let buffer: Buffer<Vertex> = Buffer::device_local_buffer(instance, device, usage_dst, triangle);
+    
+    let mut command_buffer = Vulkan::begin_single_time_command(device, command_pool);
+    command_buffer.copy_buffer(device, &staging_buffer, &buffer);
+    Vulkan::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
+    
+    staging_buffer.destroy(device);
+    /*
     let mut buffer_size: vk::DeviceSize = (mem::size_of::<Vertex>()*triangle.len()) as u64;
     
     let (staging_vertex_buffer, staging_vertex_buffer_memory) = Vulkan::create_buffer(instance, device, buffer_size, vk::BUFFER_USAGE_TRANSFER_SRC_BIT, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -669,7 +686,9 @@ impl Vulkan {
       vk.DestroyBuffer(*device, staging_vertex_buffer, ptr::null());
     }
     
-    (vertex_buffer, vertex_buffer_memory)
+    (vertex_buffer, vertex_buffer_memory)*/
+    
+    buffer
   }
   
   fn create_buffer(instance: &Instance, device: &Device, buffer_size: vk::DeviceSize, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> (vk::Buffer, vk::DeviceMemory) {
@@ -997,8 +1016,9 @@ impl Drop for Vulkan {
       vk.FreeMemory(*device, self.index_buffer_memory, ptr::null());
       vk.DestroyBuffer(*device, self.index_buffer, ptr::null());
       
-      vk.FreeMemory(*device, self.vertex_buffer_memory, ptr::null());
-      vk.DestroyBuffer(*device, self.vertex_buffer, ptr::null());
+      self.vertex_buffer.destroy(the_device);
+     // vk.FreeMemory(*device, *self.vertex_buffer.internal_memory(), ptr::null());
+     // vk.DestroyBuffer(*device, *self.vertex_buffer.internal_object(), ptr::null());
       /*
       vk.DestroySampler(*device, self.texture_sampler, ptr::null());
       vk.DestroyImageView(*device, self.texture_image_view, ptr::null());

@@ -5,6 +5,7 @@ use crate::modules::RenderPass;
 use crate::modules::Pipeline;
 use crate::modules::DescriptorSet;
 use crate::modules::pool::CommandPool;
+use crate::modules::buffer::Buffer;
 use crate::ownage::check_errors;
 
 use std::mem;
@@ -163,6 +164,22 @@ impl CommandBuffer {
     
     unsafe {
       vk.CmdDrawIndexed(self.command_buffer, index_count, instance_count, 0, 0, 0);
+    }
+  }
+  
+  pub fn copy_buffer<T, U>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>) 
+{
+    let buffer_copy = {
+        vk::BufferCopy {
+          srcOffset: 0,
+          dstOffset: 0,
+          size: src_buffer.size(),
+        }
+      };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdCopyBuffer(self.command_buffer, *src_buffer.internal_object(), *dst_buffer.internal_object(), 1, &buffer_copy);
     }
   }
   
