@@ -270,12 +270,13 @@ impl Vulkan {
     let mut current_buffer = 0;
     unsafe {
       check_errors(vk.AcquireNextImageKHR(*device, *swapchain, 0, *self.semaphore_image_available.internal_object(), 0, &mut current_buffer));
-      self.fences[current_buffer as usize].wait(the_device);
-      self.fences[current_buffer as usize].reset(the_device);
     }
+    self.fences[current_buffer as usize].wait(the_device);
+    self.fences[current_buffer as usize].reset(the_device);
     
     let current_buffer = current_buffer as usize;
     
+    // update uniform variables
     let mut data = self.uniform_buffer[current_buffer].internal_data();
     data[0] = -0.4;
     data[1] = 0.1;
