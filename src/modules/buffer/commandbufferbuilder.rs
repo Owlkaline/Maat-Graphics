@@ -37,7 +37,7 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn draw_indexed(mut self, device: &Device, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: &DescriptorSet) -> CommandBufferBuilder {
+  pub fn draw_indexed(mut self, device: &Device, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) -> CommandBufferBuilder {
     self.command_buffer.bind_pipeline(device, pipeline);
     self.command_buffer.bind_descriptor_set(device, pipeline, descriptor_set);
     self.command_buffer.bind_vertex_buffer(device, vertex_buffer);

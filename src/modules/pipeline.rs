@@ -253,7 +253,7 @@ impl Pipeline {
         pNext: ptr::null(),
         flags: 0,
         setLayoutCount: 1,
-        pSetLayouts: descriptor_set.layout(),
+        pSetLayouts: descriptor_set.layouts().as_ptr(),
         pushConstantRangeCount: 0,
         pPushConstantRanges: ptr::null(),//&push_constant_range,
       }

@@ -9,27 +9,27 @@ use std::mem;
 use std::ptr;
 
 pub struct DescriptorSet {
-  set: vk::DescriptorSet,
-  layout: vk::DescriptorSetLayout,
+  sets: Vec<vk::DescriptorSet>,
+  layouts: Vec<vk::DescriptorSetLayout>,
 }
 
 impl DescriptorSet {
-  pub fn new(device: &Device, set_pool: &DescriptorPool) -> DescriptorSet {
-    let layout = DescriptorSet::create_layout(device);
-    let set = DescriptorSet::create_set(device, &layout, set_pool);
+  pub fn new(device: &Device, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
+    let layouts = DescriptorSet::create_layouts(device, num_sets);
+    let sets = DescriptorSet::create_sets(device, &layouts, set_pool, num_sets);
     
     DescriptorSet {
-      set,
-      layout,
+      sets,
+      layouts,
     }
   }
   
-  pub fn set(&self) -> &vk::DescriptorSet {
-    &self.set
+  pub fn sets(&self) -> &Vec<vk::DescriptorSet> {
+    &self.sets
   }
   
-  pub fn layout(&self) -> &vk::DescriptorSetLayout {
-    &self.layout
+  pub fn layouts(&self) -> &Vec<vk::DescriptorSetLayout> {
+    &self.layouts
   }
   
   pub fn update_sets<T: Clone>(&self, device: &Device, uniform_buffer: &Buffer<T>) {
@@ -44,53 +44,59 @@ impl DescriptorSet {
       }
     };
     
-    let write_descriptor_set = {
-      vk::WriteDescriptorSet {
-        sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        pNext: ptr::null(),
-        dstSet: self.set,
-        dstBinding: 0,
-        dstArrayElement: 0,
-        descriptorCount: 1,
-        descriptorType: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        pImageInfo: ptr::null(),
-        pBufferInfo: &descriptor_buffer_info,
-        pTexelBufferView: ptr::null(),
+    for i in 0..self.sets.len() {
+      let write_descriptor_set = {
+        vk::WriteDescriptorSet {
+          sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          pNext: ptr::null(),
+          dstSet: self.sets[i],
+          dstBinding: 0,
+          dstArrayElement: 0,
+          descriptorCount: 1,
+          descriptorType: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          pImageInfo: ptr::null(),
+          pBufferInfo: &descriptor_buffer_info,
+          pTexelBufferView: ptr::null(),
+        }
+      };
+      
+      unsafe {
+        vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
       }
-    };
-    
-    unsafe {
-      vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
     }
   }
   
-  fn create_set(device: &Device, layout: &vk::DescriptorSetLayout, set_pool: &DescriptorPool) -> vk::DescriptorSet {
-    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(1);
+  fn create_sets(device: &Device, layouts: &Vec<vk::DescriptorSetLayout>, set_pool: &DescriptorPool, num_sets: u32) -> Vec<vk::DescriptorSet> {
+    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
     
-    let descriptor_set_allocate_info = {
-      vk::DescriptorSetAllocateInfo {
-        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        pNext: ptr::null(),
-        descriptorPool: *set_pool.local_pool(),
-        descriptorSetCount: 1,
-        pSetLayouts: layout,
+    for i in 0..num_sets as usize {
+      let mut descriptor_set: vk::DescriptorSet = unsafe { mem::uninitialized() };
+      let descriptor_set_allocate_info = {
+        vk::DescriptorSetAllocateInfo {
+          sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+          pNext: ptr::null(),
+          descriptorPool: *set_pool.local_pool(),
+          descriptorSetCount: 1,//layouts.len() as u32,
+          pSetLayouts: &layouts[i],
+        }
+      };
+      
+      let vk = device.pointers();
+      let device = device.internal_object();
+      
+      unsafe {
+        check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, &mut descriptor_set));
       }
-    };
-    
-    let vk = device.pointers();
-    let device = device.internal_object();
-    
-    unsafe {
-      check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, descriptor_sets.as_mut_ptr()));
-      descriptor_sets.set_len(1);
+      
+      descriptor_sets.push(descriptor_set);
     }
     
-    descriptor_sets[0]
+    descriptor_sets
   }
   
-  fn create_layout(device: &Device) -> vk::DescriptorSetLayout {
-    let mut layout: vk::DescriptorSetLayout = unsafe { mem::uninitialized() };
-    let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(1);
+  fn create_layouts(device: &Device, num_sets: u32) -> Vec<vk::DescriptorSetLayout> {
+    let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
+    let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
     
     bindings.push(
       vk::DescriptorSetLayoutBinding {
@@ -101,6 +107,7 @@ impl DescriptorSet {
         pImmutableSamplers: ptr::null(),
       }
     );
+    
     /*
     descriptor_bindings.push(
       vk::DescriptorSetLayoutBinding {
@@ -126,11 +133,16 @@ impl DescriptorSet {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    unsafe {
-      vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
+    for i in 0..num_sets as usize {
+      let mut layout = unsafe { mem::uninitialized() };
+      unsafe {
+        vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
+      }
+      
+      layouts.push(layout);
     }
     
-    layout
+    layouts
   }
   
   pub fn destroy(&self, device: &Device) {
@@ -139,8 +151,10 @@ impl DescriptorSet {
     
     println!("Destroying DescriptorSet Layout");
     
-    unsafe {
-      vk.DestroyDescriptorSetLayout(*device, self.layout, ptr::null());
+    for layout in &self.layouts {
+      unsafe {
+        vk.DestroyDescriptorSetLayout(*device, *layout, ptr::null());
+      }
     }
   }
 }

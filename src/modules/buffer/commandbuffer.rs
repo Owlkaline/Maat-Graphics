@@ -127,11 +127,11 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_descriptor_set(&self, device: &Device, pipeline: &Pipeline, descriptor_set: &DescriptorSet) {
+  pub fn bind_descriptor_set(&self, device: &Device, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindDescriptorSets(self.command_buffer, vk::PIPELINE_BIND_POINT_GRAPHICS, *pipeline.layout(), 0, 1, descriptor_set.set(), 0, ptr::null());
+      vk.CmdBindDescriptorSets(self.command_buffer, vk::PIPELINE_BIND_POINT_GRAPHICS, *pipeline.layout(), 0, 1, descriptor_set, 0, ptr::null());
     }
   }
   

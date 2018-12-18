@@ -11,7 +11,7 @@ pub struct DescriptorPool {
 }
 
 impl DescriptorPool {
-  pub fn new(device: &Device, num_uniforms: u32, num_images: u32) -> DescriptorPool {
+  pub fn new(device: &Device, max_sets: u32, num_uniforms: u32, num_images: u32) -> DescriptorPool {
     let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
     let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity((num_uniforms + num_images) as usize);
     
@@ -19,7 +19,7 @@ impl DescriptorPool {
       descriptor_pool_size.push(
         vk::DescriptorPoolSize {
           ty: vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-          descriptorCount: num_uniforms,
+          descriptorCount: max_sets,
         }
       );
     }
@@ -28,7 +28,7 @@ impl DescriptorPool {
       descriptor_pool_size.push(
         vk::DescriptorPoolSize {
           ty: vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-          descriptorCount: num_images,
+          descriptorCount: max_sets,
         }
       );
     }
@@ -38,7 +38,7 @@ impl DescriptorPool {
         sType: vk::STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        maxSets: descriptor_pool_size.len() as u32 + 1,
+        maxSets: descriptor_pool_size.len() as u32*max_sets,
         poolSizeCount: descriptor_pool_size.len() as u32,
         pPoolSizes: descriptor_pool_size.as_ptr(),
       }

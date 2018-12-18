@@ -102,7 +102,7 @@ pub struct Vulkan {
   texture_sampler: vk::Sampler,*/
   vertex_buffer: Buffer<Vertex>,
   index_buffer: Buffer<u32>,
-  uniform_buffer: Buffer<f32>,
+  uniform_buffer: Vec<Buffer<f32>>,
 }
 
 impl Vulkan {
@@ -127,7 +127,7 @@ impl Vulkan {
     let texture_sampler: vk::Sampler;*/
     let vertex_buffer: Buffer<Vertex>;
     let index_buffer: Buffer<u32>;
-    let uniform_buffer: Buffer<f32>;
+    let mut uniform_buffer: Vec<Buffer<f32>> = Vec::new();
     
     let current_extent = window.get_current_extent();
     
@@ -151,8 +151,8 @@ impl Vulkan {
       command_pool = CommandPool::new(device, graphics_family);
       command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(device, 1, 0);
-      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool);
+      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 1, 0);
+      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool, image_views.len() as u32);
       
       pipelines = Pipeline::new(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &current_extent, &format, &descriptor_set, vec!(Vertex::vertex_input_binding()), Vertex::vertex_input_attributes());
       
@@ -166,7 +166,10 @@ impl Vulkan {
       
       vertex_buffer = Vulkan::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
       index_buffer = Vulkan::create_index_buffer(instance, device, &command_pool, graphics_queue);
-      uniform_buffer = Vulkan::create_uniform_buffer(instance, device, &current_extent, &descriptor_set);
+      
+      for i in 0..image_views.len() {
+        uniform_buffer.push(Vulkan::create_uniform_buffer(instance, device, &current_extent, &descriptor_set));
+      }
     }
     
     Vulkan {
@@ -239,15 +242,14 @@ impl Vulkan {
       )
     };
     
-    let mut data = self.uniform_buffer.internal_data();
-    data[0] -= 0.0001;
-    self.uniform_buffer.fill_buffer(device, data);
-    
     for i in 0..self.command_buffers.len() {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(device, Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(device);
       cmd = cmd.begin_render_pass(device, &clear_values, &self.render_pass, &self.framebuffers[i].internal_object(), &window_size);
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set);
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set.sets()[i]);
+      
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set.sets()[i]);
+      
       cmd = cmd.end_render_pass(device);
       cmd = cmd.end_command_buffer(device);
     }
@@ -273,6 +275,11 @@ impl Vulkan {
     }
     
     let current_buffer = current_buffer as usize;
+    
+    let mut data = self.uniform_buffer[current_buffer].internal_data();
+    data[0] = -0.4;
+    data[1] = 0.1;
+    self.uniform_buffer[current_buffer].fill_buffer(the_device, data);
     
     let pipeline_stage_flags = vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     
@@ -569,21 +576,22 @@ impl Vulkan {
 
 impl Drop for Vulkan {
   fn drop(&mut self) {
-    let the_device = self.window.device();
-    let device = the_device.internal_object();
-    let vk = self.window.device_pointers();
+    let device = self.window.device();
     unsafe {
-      the_device.wait();
+      device.wait();
       
       println!("Destroying Fences");
       for fence in &self.fences {
-        fence.wait(the_device);
-        fence.destroy(the_device);
+        fence.wait(device);
+        fence.destroy(device);
       }
       
-      self.uniform_buffer.destroy(the_device);
-      self.index_buffer.destroy(the_device);
-      self.vertex_buffer.destroy(the_device);
+      for uniform in &self.uniform_buffer {
+        uniform.destroy(device);
+      }
+      
+      self.index_buffer.destroy(device);
+      self.vertex_buffer.destroy(device);
       
       /*
       vk.DestroySampler(*device, self.texture_sampler, ptr::null());
@@ -591,23 +599,22 @@ impl Drop for Vulkan {
       vk.FreeMemory(*device, self.texture_image_memory, ptr::null());
       vk.DestroyImage(*device, self.texture_image, ptr::null());*/
       
-      self.pipeline.destroy(the_device);
+      self.pipeline.destroy(device);
       
-      self.descriptor_set.destroy(the_device);
-      self.descriptor_set_pool.destroy(the_device);
+      self.descriptor_set.destroy(device);
+      self.descriptor_set_pool.destroy(device);
       
-      self.vertex_shader.destroy(the_device);
-      self.fragment_shader.destroy(the_device);
+      self.vertex_shader.destroy(device);
+      self.fragment_shader.destroy(device);
       
       for framebuffer in &self.framebuffers {
-       framebuffer.destroy(the_device);
+       framebuffer.destroy(device);
       }
-      self.render_pass.destroy(the_device);
+      self.render_pass.destroy(device);
       
-      vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.iter().map(|x| *x.internal_object()).collect::<Vec<vk::CommandBuffer>>().as_mut_ptr());
-      self.command_pool.destroy(self.window.device());
-      self.semaphore_image_available.destroy(the_device);
-      self.semaphore_render_finished.destroy(the_device);
+      self.command_pool.destroy(device);
+      self.semaphore_image_available.destroy(device);
+      self.semaphore_render_finished.destroy(device);
     }
   }
 }
