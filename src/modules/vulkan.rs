@@ -25,6 +25,7 @@ use crate::modules::pool::DescriptorPool;
 use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::RenderPass;
+use crate::modules::sync::Fence;
 use crate::modules::buffer::Buffer;
 use crate::modules::buffer::BufferUsage;
 use crate::modules::buffer::Framebuffer;
@@ -60,7 +61,7 @@ impl Vertex {
       vk::VertexInputAttributeDescription {
         location: 0,
         binding: 0,
-        format: vk::FORMAT_R32G32_SFLOAT,//*swapchain_format,
+        format: vk::FORMAT_R32G32_SFLOAT,
         offset: 0,
       }
     );
@@ -69,7 +70,7 @@ impl Vertex {
       vk::VertexInputAttributeDescription {
         location: 1,
         binding: 0,
-        format: vk::FORMAT_R32G32B32_SFLOAT,//*swapchain_format,
+        format: vk::FORMAT_R32G32B32_SFLOAT,
         offset: (mem::size_of::<f32>()*2) as u32,
       }
     );
@@ -82,7 +83,7 @@ pub struct Vulkan {
   window: VkWindow,
   window_dimensions: vk::Extent2D,
   recreate_swapchain: bool,
-  fences: Vec<vk::Fence>,
+  fences: Vec<Fence>,
   semaphore_image_available: vk::Semaphore,
   semaphore_render_finished: vk::Semaphore,
   command_pool: CommandPool,
@@ -107,7 +108,7 @@ impl Vulkan {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> Vulkan {
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
     
-    let fences: Vec<vk::Fence>;
+    let fences: Vec<Fence>;
     let semaphore_image_available: vk::Semaphore;
     let semaphore_render_finished: vk::Semaphore;
     let command_pool: CommandPool;
@@ -258,8 +259,8 @@ impl Vulkan {
     }
     
     let vk = self.window.device_pointers();
-    let device = self.window.device();
-    let device = device.internal_object();
+    let the_device = self.window.device();
+    let device = the_device.internal_object();
     let swapchain = self.window.get_swapchain();
     let graphics_queue = self.window.get_graphics_queue();
     let present_queue = self.window.get_present_queue();
@@ -267,8 +268,8 @@ impl Vulkan {
     let mut current_buffer = 0;
     unsafe {
       check_errors(vk.AcquireNextImageKHR(*device, *swapchain, 0, self.semaphore_image_available, 0, &mut current_buffer));
-      check_errors(vk.WaitForFences(*device, 1, &self.fences[current_buffer as usize], vk::TRUE, u64::max_value()));
-      check_errors(vk.ResetFences(*device, 1, &self.fences[current_buffer as usize]));
+      self.fences[current_buffer as usize].wait(the_device);
+      self.fences[current_buffer as usize].reset(the_device);
     }
     
     let current_buffer = current_buffer as usize;
@@ -289,7 +290,7 @@ impl Vulkan {
       }
     };
     unsafe {
-      check_errors(vk.QueueSubmit(*graphics_queue, 1, &submit_info, self.fences[current_buffer]));
+      check_errors(vk.QueueSubmit(*graphics_queue, 1, &submit_info, *self.fences[current_buffer].internal_object()));
     }
     
     let present_info_khr = {
@@ -574,23 +575,11 @@ impl Vulkan {
     (semaphore_image_available, semaphore_render_finished)
   }
   
-  fn create_fences(device: &Device, num_fences: u32) -> Vec<vk::Fence> {
-    let mut fences: Vec<vk::Fence> = Vec::with_capacity(num_fences as usize);
-    
-    let fence_info = vk::FenceCreateInfo {
-      sType: vk::STRUCTURE_TYPE_FENCE_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: vk::FENCE_CREATE_SIGNALED_BIT,
-    };
-    
-    let vk = device.pointers();
-    let device = device.internal_object();
+  fn create_fences(device: &Device, num_fences: u32) -> Vec<Fence> {
+    let mut fences: Vec<Fence> = Vec::with_capacity(num_fences as usize);
     
     for i in 0..num_fences {
-      let mut fence: vk::Fence = unsafe { mem::uninitialized() };
-      unsafe {
-        check_errors(vk.CreateFence(*device, &fence_info, ptr::null(), &mut fence));
-      }
+      let mut fence: Fence = Fence::new(device);
       fences.push(fence);
     }
     
@@ -608,8 +597,8 @@ impl Drop for Vulkan {
       
       println!("Destroying Fences");
       for fence in &self.fences {
-        check_errors(vk.WaitForFences(*device, 1, fence, vk::TRUE, u64::max_value()));
-        vk.DestroyFence(*device, *fence, ptr::null());
+        fence.wait(the_device);
+        fence.destroy(the_device);
       }
       
       self.uniform_buffer.destroy(the_device);

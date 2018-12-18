@@ -10,6 +10,7 @@ pub use self::renderpass::RenderPass;
 
 pub mod pool;
 pub mod buffer;
+pub mod sync;
 mod vulkan;
 mod window;
 mod swapchain;
