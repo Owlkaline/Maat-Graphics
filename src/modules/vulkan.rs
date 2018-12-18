@@ -26,6 +26,7 @@ use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::RenderPass;
 use crate::modules::sync::Fence;
+use crate::modules::sync::Semaphore;
 use crate::modules::buffer::Buffer;
 use crate::modules::buffer::BufferUsage;
 use crate::modules::buffer::Framebuffer;
@@ -84,8 +85,8 @@ pub struct Vulkan {
   window_dimensions: vk::Extent2D,
   recreate_swapchain: bool,
   fences: Vec<Fence>,
-  semaphore_image_available: vk::Semaphore,
-  semaphore_render_finished: vk::Semaphore,
+  semaphore_image_available: Semaphore,
+  semaphore_render_finished: Semaphore,
   command_pool: CommandPool,
   command_buffers: Vec<Arc<CommandBuffer>>,
   render_pass: RenderPass,
@@ -109,8 +110,8 @@ impl Vulkan {
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
     
     let fences: Vec<Fence>;
-    let semaphore_image_available: vk::Semaphore;
-    let semaphore_render_finished: vk::Semaphore;
+    let semaphore_image_available: Semaphore;
+    let semaphore_render_finished: Semaphore;
     let command_pool: CommandPool;
     let command_buffers: Vec<Arc<CommandBuffer>>;
     let render_pass: RenderPass;
@@ -142,9 +143,8 @@ impl Vulkan {
       vertex_shader = Shader::new(device, include_bytes!("../shaders/test_vert.spv"));
       fragment_shader = Shader::new(device, include_bytes!("../shaders/test_frag.spv"));
       
-      let (semaphore1, semaphore2) = Vulkan::create_semaphores(device);
-      semaphore_image_available = semaphore1;
-      semaphore_render_finished = semaphore2;
+      semaphore_image_available = Semaphore::new(device);
+      semaphore_render_finished = Semaphore::new(device);
       render_pass = RenderPass::new(device, &format);
       framebuffers = Vulkan::create_frame_buffers(device, &render_pass, &current_extent, image_views);
       fences = Vulkan::create_fences(device, framebuffers.len() as u32);
@@ -267,7 +267,7 @@ impl Vulkan {
     
     let mut current_buffer = 0;
     unsafe {
-      check_errors(vk.AcquireNextImageKHR(*device, *swapchain, 0, self.semaphore_image_available, 0, &mut current_buffer));
+      check_errors(vk.AcquireNextImageKHR(*device, *swapchain, 0, *self.semaphore_image_available.internal_object(), 0, &mut current_buffer));
       self.fences[current_buffer as usize].wait(the_device);
       self.fences[current_buffer as usize].reset(the_device);
     }
@@ -281,12 +281,12 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
         pNext: ptr::null(),
         waitSemaphoreCount: 1,
-        pWaitSemaphores: &self.semaphore_image_available,
+        pWaitSemaphores: self.semaphore_image_available.internal_object(),
         pWaitDstStageMask: &pipeline_stage_flags,
         commandBufferCount: 1,
         pCommandBuffers: self.command_buffers[current_buffer].internal_object(),
         signalSemaphoreCount: 1,
-        pSignalSemaphores: &self.semaphore_render_finished,
+        pSignalSemaphores: self.semaphore_render_finished.internal_object(),
       }
     };
     unsafe {
@@ -298,7 +298,7 @@ impl Vulkan {
         sType: vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
         pNext: ptr::null(),
         waitSemaphoreCount: 1,
-        pWaitSemaphores: &self.semaphore_render_finished,
+        pWaitSemaphores: self.semaphore_render_finished.internal_object(),
         swapchainCount: 1,
         pSwapchains: swapchain,
         pImageIndices: &(current_buffer as u32),
@@ -555,26 +555,6 @@ impl Vulkan {
     framebuffers
   }
   
-  fn create_semaphores(device: &Device) -> (vk::Semaphore, vk::Semaphore) {
-    let mut semaphore_image_available: vk::Semaphore = unsafe { mem::uninitialized() };
-    let mut semaphore_render_finished: vk::Semaphore = unsafe { mem::uninitialized() };
-    
-    let semaphore_info = vk::SemaphoreCreateInfo {
-      sType: vk::STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-      pNext: ptr::null(),
-      flags: 0,
-    };
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.internal_object();
-      check_errors(vk.CreateSemaphore(*device, &semaphore_info, ptr::null(), &mut semaphore_image_available));
-      check_errors(vk.CreateSemaphore(*device, &semaphore_info, ptr::null(), &mut semaphore_render_finished));
-    }
-    
-    (semaphore_image_available, semaphore_render_finished)
-  }
-  
   fn create_fences(device: &Device, num_fences: u32) -> Vec<Fence> {
     let mut fences: Vec<Fence> = Vec::with_capacity(num_fences as usize);
     
@@ -626,8 +606,8 @@ impl Drop for Vulkan {
       
       vk.FreeCommandBuffers(*device, *self.command_pool.local_command_pool(), self.command_buffers.len() as u32, self.command_buffers.iter().map(|x| *x.internal_object()).collect::<Vec<vk::CommandBuffer>>().as_mut_ptr());
       self.command_pool.destroy(self.window.device());
-      vk.DestroySemaphore(*device, self.semaphore_image_available, ptr::null());
-      vk.DestroySemaphore(*device, self.semaphore_render_finished, ptr::null());
+      self.semaphore_image_available.destroy(the_device);
+      self.semaphore_render_finished.destroy(the_device);
     }
   }
 }
