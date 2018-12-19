@@ -19,7 +19,50 @@ use winit::dpi::LogicalSize;
 use crate::ownage::OwnedOrRef;
 use crate::ownage::check_errors;
 
+#[cfg(target_os = "macos")]
+use cocoa::appkit::{NSView, NSWindow};
+#[cfg(target_os = "macos")]
+use cocoa::base::id as cocoa_id;
+#[cfg(target_os = "macos")]
+use metal::CoreAnimationLayer;
+#[cfg(target_os = "macos")]
+use objc::runtime::YES;
+
 use crate::ENGINE_VERSION;
+
+#[cfg(target_os = "android")]
+unsafe fn create_surface(
+    instance: &Instance, window: &winit::Window,
+) -> vk::SurfaceKHR {
+  use winit::os::android::WindowExt;
+  
+  let vk = instance.pointers();
+  let win = window;
+  let extensions = instance.get_extensions();
+  let window = win.borrow().get_native_window();
+  
+  if !extensions.contains(&CString::new("VK_KHR_android_surface").unwrap()) {
+    panic!("Missing extension VK_KHR_android_surface");
+  }
+  
+  let surface = {
+    let infos = vk::AndroidSurfaceCreateInfoKHR {
+      sType: vk::STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+      pNext: ptr::null(),
+      flags: 0, // reserved
+      window: window as *mut _,
+    };
+    
+    let mut output = mem::uninitialized();
+    check_errors(vk.CreateAndroidSurfaceKHR(*instance.local_instance(),
+                                            &infos,
+                                            ptr::null(),
+                                            &mut output));
+    output
+  };
+  
+  surface
+}
 
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
 unsafe fn create_surface(
@@ -102,6 +145,87 @@ unsafe fn create_surface(
       }
     }
   }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn create_surface(
+    instance: &Instance, win: &winit::Window,
+) -> vk::SurfaceKHR {
+  use winit::os::windows::WindowExt;
+  
+  let vk = instance.pointers();
+  let extensions = instance.get_extensions();
+  let hwnd = win.borrow().get_hwnd();
+  
+  if !extensions.contains(&CString::new("VK_KHR_win32_surface").unwrap()) {
+    panic!("Missing extension VK_KHR_win32_surface");
+  }
+  
+  let surface = {
+    let infos = vk::Win32SurfaceCreateInfoKHR {
+      sType: vk::STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+      pNext: ptr::null(),
+      flags: 0, // reserved
+      hinstance: ptr::null() as *const () as *mut _,
+      hwnd: hwnd as *mut _,
+    };
+    
+    let mut output = mem::uninitialized();
+    check_errors(vk.CreateWin32SurfaceKHR(*instance.local_instance(),
+                                          &infos,
+                                          ptr::null(),
+                                          &mut output));
+    output
+  };
+  
+  surface
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn create_surface(
+    instance: &Instance, win: &winit::Window,
+) -> vk::SurfaceKHR {
+    use winit::os::macos::WindowExt;
+
+    let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
+
+    let layer = CoreAnimationLayer::new();
+
+    layer.set_edge_antialiasing_mask(0);
+    layer.set_presents_with_transaction(false);
+    layer.remove_all_animations();
+
+    let view = wnd.contentView();
+
+    layer.set_contents_scale(view.backingScaleFactor());
+    view.setLayer(mem::transmute(layer.as_ref())); // Bombs here with out of memory
+    view.setWantsLayer(YES);
+    
+    let view = win.borrow().get_nsview() as *const ();
+    
+    let vk = instance.pointers();
+    
+    if !extensions.contains(&CString::new("VK_MVK_ios_surface").unwrap()) {
+      panic!("Missing extension VK_MVK_ios_surface");
+    }
+    
+    let surface = {
+      let infos = vk::IOSSurfaceCreateInfoMVK {
+        sType: vk::STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK,
+        pNext: ptr::null(),
+        flags: 0, // reserved
+        pView: view as *const _,
+      };
+      
+      let mut output = mem::uninitialized();
+      check_errors(vk.CreateIOSSurfaceMVK(*instance.local_instance(),
+                                          &infos,
+                                          ptr::null(),
+                                          &mut output));
+    output
+  };
+  
+  surface
 }
 
 pub struct VkWindow {

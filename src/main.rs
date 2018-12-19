@@ -9,7 +9,6 @@ const ENGINE_VERSION: u32 = (0 as u32) << 22 | (5 as u32) << 12 | (0 as u32);
 fn main() {
   let app_name = "TestApplication".to_string();
   let mut vulkan = Vulkan::new(app_name, (0 as u32) << 22 | (0 as u32) << 12 | (0 as u32), 1280.0, 720.0, true);
-  vulkan.setup();
   
   loop {
     let mut resized = false;

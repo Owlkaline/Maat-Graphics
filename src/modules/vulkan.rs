@@ -198,32 +198,6 @@ impl Vulkan {
     }
   }
   
-  pub fn setup(&mut self) {
-    /*
-    (Success, Not ready, device lost)
-    VkResult vkGetFenceStatus(
-    VkDevice                                    device,
-    VkFence                                     fence);
-    */ 
-    
-    /*
-    Sets to unsignaled from host
-    VkResult vkResetFences(
-    VkDevice                                    device,
-    uint32_t                                    fenceCount,
-    const VkFence*                              pFences);
-    */
-    
-    /*
-    VkResult vkWaitForFences(
-    VkDevice                                    device,
-    uint32_t                                    fenceCount,
-    const VkFence*                              pFences,
-    VkBool32                                    waitAll,
-    uint64_t                                    timeout);
-    */
-  }
-  
   pub fn build(&mut self) {
     if self.recreate_swapchain {
       return;
@@ -300,6 +274,7 @@ impl Vulkan {
         pSignalSemaphores: self.semaphore_render_finished.internal_object(),
       }
     };
+    
     unsafe {
       check_errors(vk.QueueSubmit(*graphics_queue, 1, &submit_info, *self.fences[current_buffer].internal_object()));
     }
