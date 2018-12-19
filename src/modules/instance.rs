@@ -1,6 +1,5 @@
 use vk;
 
-use crate::ownage;
 use crate::ownage::OwnedOrRef;
 use crate::ownage::check_errors;
 

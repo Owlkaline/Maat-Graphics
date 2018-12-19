@@ -3,7 +3,9 @@ use vk;
 use crate::modules::Device;
 use crate::modules::RenderPass;
 use crate::modules::Pipeline;
-use crate::modules::DescriptorSet;
+use crate::modules::Swapchain;
+use crate::modules::sync::Semaphore;
+use crate::modules::sync::Fence;
 use crate::modules::pool::CommandPool;
 use crate::modules::buffer::Buffer;
 use crate::ownage::check_errors;
@@ -77,7 +79,7 @@ impl CommandBuffer {
   pub fn begin_render_pass(&self, device: &Device, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &Vec<vk::ClearValue>, width: u32, height: u32) {
     let vk = device.pointers();
     
-    let mut render_pass_begin_info = {
+    let render_pass_begin_info = {
       vk::RenderPassBeginInfo {
         sType: vk::STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         pNext: ptr::null(),
@@ -215,6 +217,53 @@ impl CommandBuffer {
   
   pub fn internal_object(&self) -> &vk::CommandBuffer {
     &self.command_buffer
+  }
+  
+  pub fn submit(&self, device: &Device, swapchain: &Swapchain, current_image: u32, image_available: &Semaphore, render_finished: &Semaphore, fence: &Fence, graphics_queue: &vk::Queue) -> vk::Result {
+    let pipeline_stage_flags = vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    let submit_info: vk::SubmitInfo = {
+      vk::SubmitInfo {
+        sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
+        pNext: ptr::null(),
+        waitSemaphoreCount: 1,
+        pWaitSemaphores: image_available.internal_object(),
+        pWaitDstStageMask: &pipeline_stage_flags,
+        commandBufferCount: 1,
+        pCommandBuffers: &self.command_buffer,
+        signalSemaphoreCount: 1,
+        pSignalSemaphores: render_finished.internal_object(),
+      }
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      check_errors(vk.QueueSubmit(*graphics_queue, 1, &submit_info, *fence.internal_object()));
+    }
+    
+    let present_info_khr = {
+      vk::PresentInfoKHR {
+        sType: vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        pNext: ptr::null(),
+        waitSemaphoreCount: 1,
+        pWaitSemaphores: render_finished.internal_object(),
+        swapchainCount: 1,
+        pSwapchains: swapchain.get_swapchain(),
+        pImageIndices: &current_image,
+        pResults: ptr::null_mut(),
+      }
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.QueuePresentKHR(*graphics_queue, &present_info_khr)
+    }
+  }
+  
+  pub fn finish(&self, device: &Device, graphics_queue: &vk::Queue) {
+    unsafe {
+      let vk = device.pointers();
+      vk.QueueWaitIdle(*graphics_queue);
+    }
   }
   
   pub fn free(&self, device: &Device, command_pool: &CommandPool) {

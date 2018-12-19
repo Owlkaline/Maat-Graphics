@@ -24,22 +24,21 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-  pub fn new(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, swapchain_format: &vk::Format, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
+  pub fn new(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &RenderPass, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
     let mut cache: vk::PipelineCache = unsafe { mem::uninitialized() };
     
     let mut graphics_pipeline_create_infos: Vec<vk::GraphicsPipelineCreateInfo> = Vec::with_capacity(2);
     let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::with_capacity(2);
-    let mut vertex_input_binding_descriptions: Vec<vk::VertexInputBindingDescription> = Vec::with_capacity(1);
     
     let topology = vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     let polygon_mode = vk::POLYGON_MODE_FILL;
     let enable_depth_clamp = vk::FALSE;
     let cull_mode =  vk::CULL_MODE_BACK_BIT;
     let front_face = vk::FRONT_FACE_CLOCKWISE;
-    let depth_test = vk::FALSE;
-    let depth_write = vk::FALSE;
+    let _depth_test = vk::FALSE;
+    let _depth_write = vk::FALSE;
     
     let blend_constants: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
     
@@ -107,24 +106,6 @@ impl Pipeline {
         patchControlPoints: 0,
       }
     };
-    /*
-    let viewport = {
-      vk::Viewport {
-        x: 0.0,
-        y: 0.0,
-        width: swapchain_extent.width as f32,
-        height: swapchain_extent.height as f32,
-        minDepth: 0.0,
-        maxDepth: 1.0,
-      }
-    };
-    
-    let scissor = {
-      vk::Rect2D {
-        offset: vk::Offset2D { x: 0, y: 0,},
-        extent: vk::Extent2D { width: swapchain_extent.width, height: swapchain_extent.height },
-      }
-    };*/
     
     let pipeline_viewport_state_create_info = {
       vk::PipelineViewportStateCreateInfo {
@@ -169,7 +150,7 @@ impl Pipeline {
         alphaToOneEnable: vk::FALSE,
       }
     };
-    
+    /*
     let front_stencil_op_state = {
       vk::StencilOpState {
         failOp: vk::STENCIL_OP_KEEP,
@@ -209,7 +190,7 @@ impl Pipeline {
         minDepthBounds: 0.0,
         maxDepthBounds: 1.0,
       }
-    };
+    };*/
     
     let pipeline_color_blend_attachments = {
       vk::PipelineColorBlendAttachmentState {
@@ -251,14 +232,14 @@ impl Pipeline {
         pDynamicStates: dynamic_states.as_ptr(),
       }
     };
-    
+    /*
     let push_constant_range = {
       vk::PushConstantRange {
         stageFlags: vk::SHADER_STAGE_VERTEX_BIT,
         offset: 0,
         size: 0,
       }
-    };
+    };*/
     
     let pipeline_layout_create_info = {
       vk::PipelineLayoutCreateInfo {

@@ -1,6 +1,5 @@
 use vk;
 use winit;
-use crate::loader;
 use crate::loader::Loader;
 use crate::loader::FunctionPointers;
 use crate::modules::Swapchain;
@@ -9,7 +8,6 @@ use crate::modules::Device;
 
 use std::ptr;
 use std::mem;
-use std::ffi::CStr;
 use std::ffi::CString;
 
 use std::borrow::Borrow;
@@ -242,9 +240,6 @@ pub struct VkWindow {
 
 impl VkWindow {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> VkWindow {
-    let function_pointers = OwnedOrRef::Ref(loader::auto_loader().unwrap());
-    let entry_points = function_pointers.entry_points();
-    
     let instance = Instance::new(app_name.to_string(), app_version, should_debug);
     
     let (window, events_loop, surface) = {
@@ -281,8 +276,8 @@ impl VkWindow {
     self.swapchain.recreate(&self.instance, &self.device, &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1);
   }
   
-  pub fn get_swapchain(&self) -> &vk::SurfaceKHR {
-    self.swapchain.get_swapchain()
+  pub fn get_swapchain(&self) -> &Swapchain {
+    &self.swapchain
   }
   
   pub fn swapchain_image_views(&self) -> &Vec<vk::ImageView> {
@@ -344,7 +339,6 @@ impl VkWindow {
   }
   
   fn find_queue_families(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
-    let vk = device.pointers();
     let phys_device = device.physical_device();
     
     let queue_family_properties: Vec<vk::QueueFamilyProperties> = instance.get_queue_family_properties(phys_device);
@@ -358,7 +352,7 @@ impl VkWindow {
         graphics_family = i as i32;
       }
       
-      let mut present_supported = instance.get_supported_display_queue_families(phys_device, surface, i as u32);
+      let present_supported = instance.get_supported_display_queue_families(phys_device, surface, i as u32);
       
       if queue_family.queueCount > 0 && present_supported != 0 {
          present_family = i as i32;

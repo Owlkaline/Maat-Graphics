@@ -31,8 +31,7 @@ impl Swapchain {
   
   pub fn recreate(&mut self, instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
     let old_swapchain = self.swapchain;
-    
-    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, Some(self.swapchain));
+    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, Some(old_swapchain));
     
     self.destroy(device);
     
@@ -137,15 +136,15 @@ impl Swapchain {
     let phys_device = device.physical_device();
     let device = device.internal_object();
     
-    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = instance.get_surface_capabilities(phys_device, surface);
+    let surface_capabilities: vk::SurfaceCapabilitiesKHR = instance.get_surface_capabilities(phys_device, surface);
     
     let current_extent = surface_capabilities.currentExtent;
     let supported_composite_alpha = surface_capabilities.supportedCompositeAlpha;
-    let supported_usage_flags: vk::ImageUsageFlagBits = surface_capabilities.supportedUsageFlags;
+    //let supported_usage_flags: vk::ImageUsageFlagBits = surface_capabilities.supportedUsageFlags;
     let current_transform: vk::SurfaceTransformFlagBitsKHR = surface_capabilities.currentTransform;
     
-    let mut surface_formats: Vec<vk::SurfaceFormatKHR> = instance.get_physical_device_formats(phys_device, surface);
-    let mut present_modes: Vec<vk::PresentModeKHR> = instance.get_present_modes(phys_device, surface);
+    let surface_formats: Vec<vk::SurfaceFormatKHR> = instance.get_physical_device_formats(phys_device, surface);
+    let present_modes: Vec<vk::PresentModeKHR> = instance.get_present_modes(phys_device, surface);
     
     let mut image_count = surface_capabilities.minImageCount + 1;
     if surface_capabilities.maxImageCount > 0 && image_count > surface_capabilities.maxImageCount {
@@ -165,7 +164,7 @@ impl Swapchain {
       (final_format.format, final_format.colorSpace)
     };
     
-    let mut present_mode = {
+    let present_mode = {
       if present_modes.contains(&vk::PRESENT_MODE_FIFO_KHR) {
         println!("Using Fifo present mode (vsync)");
         vk::PRESENT_MODE_FIFO_KHR
@@ -191,8 +190,8 @@ impl Swapchain {
       alpha = vk::COMPOSITE_ALPHA_INHERIT_BIT_KHR;
     }
     
-    let mut image_sharing_mode;
-    let mut queue_family_index_count;
+    let image_sharing_mode;
+    let queue_family_index_count;
     let mut queue_family_indices: Vec<u32> = Vec::new();
     
     if graphics_family != present_family {

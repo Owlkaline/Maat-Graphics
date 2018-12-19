@@ -1,7 +1,6 @@
 use vk;
 
 use crate::modules::Instance;
-use crate::modules::VkWindow;
 
 use std::mem;
 use std::ptr;
@@ -90,29 +89,27 @@ impl Device {
       
       let mut has_graphics_bit = false;
       let mut device_supports_surface: u32 = 0;
-      let mut supported_queue_fam_index = 0;
+      //let mut supported_queue_fam_index = 0;
       
-      let mut queue_index = 0;
+      //let mut queue_index = 0;
       for j in 0..family_properties.len() {
-        let queue_count = family_properties[j].queueCount;
-        let mut queue_flags = family_properties[j].queueFlags;
+        //let queue_count = family_properties[j].queueCount;
+        let queue_flags = family_properties[j].queueFlags;
         if Device::has_graphics_bit(&queue_flags) {
           has_graphics_bit = true;
         }
         
         if device_supports_surface == 0 {
-          
           device_supports_surface = instance.physical_device_supports_surface(&physical_devices[i], j as u32, surface);
           
-          if device_supports_surface != 0 {
-            supported_queue_fam_index = j;
-          }
+          //if device_supports_surface != 0 {
+          // supported_queue_fam_index = j;
+          //}
         }
       }
       
       if has_graphics_bit && device_supports_surface != 0 {
-        let mut property_count = 0;
-        let mut device_extensions = instance.enumerate_device_extension_properties(&physical_devices[i]);
+        let device_extensions = instance.enumerate_device_extension_properties(&physical_devices[i]);
         
         let mut available_extensions = instance.get_extensions();
         available_extensions.push(CString::new("VK_KHR_swapchain").unwrap());
@@ -138,8 +135,6 @@ impl Device {
         
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         for j in 0..family_properties.len() {
-          let queue_count = family_properties[j].queueCount;
-          let queue_flags = family_properties[j].queueFlags;
           device_queue_infos.push( 
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -224,7 +219,7 @@ impl Device {
         family_properties.set_len(family_count as usize);
       }
       
-      let mut queue_index = 0;
+      //let mut queue_index = 0;
       for j in 0..family_properties.len() {
         println!("  Queue: {}", j);
         let mut queue_flags = family_properties[j].queueFlags;

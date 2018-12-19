@@ -13,9 +13,9 @@ impl Shader {
   pub fn new(device: &Device, shader_code: &[u8]) -> Shader {
     let mut shader_module: vk::ShaderModule = unsafe { mem::uninitialized() };
     
-    let mut shader_code_size = mem::size_of::<u8>() * shader_code.len();
+    let shader_code_size = mem::size_of::<u8>() * shader_code.len();
     
-    let mut shader_module_create_info = vk::ShaderModuleCreateInfo {
+    let shader_module_create_info = vk::ShaderModuleCreateInfo {
       sType: vk::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       pNext: ptr::null(),
       flags: 0,

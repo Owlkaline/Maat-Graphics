@@ -9,7 +9,6 @@ use libc::memcpy;
 
 use std::mem;
 use std::ptr;
-use std::ffi::c_void;
 
 pub struct Buffer<T: Clone> {
   buffer: vk::Buffer,
@@ -61,7 +60,7 @@ impl<T: Clone> Buffer<T> {
     self.data = data;
     
     let mut host_visible_data = unsafe { mem::uninitialized() };
-    let buffer_size = (mem::size_of::<T>() * self.data.len());
+    let buffer_size = mem::size_of::<T>() * self.data.len();
     
     unsafe {
       let vk = device.pointers();
@@ -93,7 +92,7 @@ impl<T: Clone> Buffer<T> {
     let mut buffer: vk::Buffer = unsafe { mem::uninitialized() };
     let mut buffer_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
     
-    let mut buffer_create_info = {
+    let buffer_create_info = {
       vk::BufferCreateInfo {
         sType: vk::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         pNext: ptr::null(),

@@ -133,7 +133,7 @@ impl DescriptorSet {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    for i in 0..num_sets as usize {
+    for _ in 0..num_sets as usize {
       let mut layout = unsafe { mem::uninitialized() };
       unsafe {
         vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
