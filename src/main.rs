@@ -15,7 +15,7 @@ fn main() {
     let mut resized = false;
     let mut done = false;
     
-   // vulkan.resize_window();
+    vulkan.resize_window();
     vulkan.build();
     vulkan.draw();
     

@@ -9,7 +9,15 @@ use std::mem;
 use std::ptr;
 use std::ffi::CString;
 
+struct PipelineInfo {
+  vertex_shader: vk::ShaderModule,
+  fragment_shader: vk::ShaderModule,
+  vertex_binding: Vec<vk::VertexInputBindingDescription>,
+  vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>,
+}
+
 pub struct Pipeline {
+  info: PipelineInfo,
   pipelines: Vec<vk::Pipeline>,
   cache: vk::PipelineCache,
   layout: vk::PipelineLayout,
@@ -99,7 +107,7 @@ impl Pipeline {
         patchControlPoints: 0,
       }
     };
-    
+    /*
     let viewport = {
       vk::Viewport {
         x: 0.0,
@@ -116,7 +124,7 @@ impl Pipeline {
         offset: vk::Offset2D { x: 0, y: 0,},
         extent: vk::Extent2D { width: swapchain_extent.width, height: swapchain_extent.height },
       }
-    };
+    };*/
     
     let pipeline_viewport_state_create_info = {
       vk::PipelineViewportStateCreateInfo {
@@ -124,9 +132,9 @@ impl Pipeline {
         pNext: ptr::null(),
         flags: 0,
         viewportCount: 1,
-        pViewports: &viewport,
+        pViewports: ptr::null(),//&viewport,
         scissorCount: 1,
-        pScissors: &scissor,
+        pScissors: ptr::null(),//&scissor,
       }
     };
     
@@ -229,13 +237,18 @@ impl Pipeline {
       }
     };
     
+    let mut dynamic_states = Vec::with_capacity(3);
+    dynamic_states.push(vk::DYNAMIC_STATE_VIEWPORT);
+    dynamic_states.push(vk::DYNAMIC_STATE_SCISSOR);
+    dynamic_states.push(vk::DYNAMIC_STATE_LINE_WIDTH);
+    
     let dynamic_state_create_info = {
       vk::PipelineDynamicStateCreateInfo {
         sType: vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        dynamicStateCount: 2,
-        pDynamicStates: vec!(vk::DYNAMIC_STATE_VIEWPORT, vk::DYNAMIC_STATE_LINE_WIDTH).as_ptr(),
+        dynamicStateCount: dynamic_states.len() as u32,
+        pDynamicStates: dynamic_states.as_ptr(),
       }
     };
     
@@ -281,7 +294,7 @@ impl Pipeline {
         pMultisampleState: &pipeline_multisample_state_create_info,
         pDepthStencilState: ptr::null(),//&pipeline_depth_stencil_state_create_info,
         pColorBlendState: &pipeline_colour_blend_state_create_info,
-        pDynamicState: ptr::null(),//&dynamic_state_create_info,
+        pDynamicState: &dynamic_state_create_info,
         layout: layout,
         renderPass: *render_pass.internal_object(),
         subpass: 0,
@@ -306,7 +319,15 @@ impl Pipeline {
       pipelines.set_len(graphics_pipeline_create_infos.len());
     }
     
+    let pipeline_info = PipelineInfo {
+      vertex_shader: *vertex_shader,
+      fragment_shader: *fragment_shader,
+      vertex_binding,
+      vertex_input_attribute_descriptions,
+    };
+    
     Pipeline {
+      info: pipeline_info,
       pipelines,
       cache,
       layout,
@@ -317,8 +338,20 @@ impl Pipeline {
     &self.pipelines[index]
   }
   
+  pub fn pipelines(&self) -> &Vec<vk::Pipeline> {
+    &self.pipelines
+  }
+  
+  pub fn cache(&self) -> &vk::PipelineCache {
+    &self.cache
+  }
+  
   pub fn layout(&self) -> &vk::PipelineLayout {
     &self.layout
+  }
+  
+  pub fn shaders(&self) -> (&vk::ShaderModule, &vk::ShaderModule) {
+    (&self.info.vertex_shader, &self.info.fragment_shader)
   }
   
   pub fn destroy(&self, device: &Device) {

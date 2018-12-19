@@ -37,6 +37,16 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn set_viewport(mut self, device: &Device, x: f32, y: f32, width: f32, height: f32) -> CommandBufferBuilder {
+    self.command_buffer.set_viewport(device, x, y, width, height);
+    self
+  }
+  
+  pub fn set_scissor(mut self, device: &Device, x: i32, y: i32, width: u32, height: u32) -> CommandBufferBuilder {
+    self.command_buffer.set_scissor(device, x, y, width, height);
+    self
+  }
+  
   pub fn draw_indexed(mut self, device: &Device, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) -> CommandBufferBuilder {
     self.command_buffer.bind_pipeline(device, pipeline);
     self.command_buffer.bind_descriptor_set(device, pipeline, descriptor_set);

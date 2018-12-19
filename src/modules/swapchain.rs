@@ -18,7 +18,7 @@ impl Swapchain {
   pub fn new(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
     
     let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, None);
-    let images = Swapchain::create_swapchain_images(device, &swapchain);
+    let images = Swapchain::get_swapchain_images(device, &swapchain);
     let image_views = Swapchain::create_image_views(device, &images, &format);
     
     Swapchain {
@@ -28,24 +28,22 @@ impl Swapchain {
       format: format,
     }
   }
-  /*
-  pub fn recreate_swapchain_images(&mut self, instance: &Instance, vk: &vk::DevicePointers, device: &vk::Device, phys_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
-    unsafe {
-      for image_view in self.image_views.iter() {
-        vk.DestroyImageView(*device, *image_view, ptr::null());
-      }
-    }
+  
+  pub fn recreate(&mut self, instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
+    let old_swapchain = self.swapchain;
     
-    let (swapchain, format) = Swapchain::create_swapchain(instance, vk, phys_device, device, surface, graphics_family, present_family, Some(self.swapchain));
-    unsafe {
-      vk.DestroySwapchainKHR(*device, self.swapchain, ptr::null());
-    }
+    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, Some(self.swapchain));
+    
+    self.destroy(device);
+    
+    let images = Swapchain::get_swapchain_images(device, &swapchain);
+    let image_views = Swapchain::create_image_views(device, &images, &format);
     
     self.swapchain = swapchain;
     self.format = format;
-    self.images = Swapchain::create_swapchain_images(vk, device, &self.swapchain);
-    self.image_views = Swapchain::create_image_views(vk, device, &self.images, &self.format);
-  }*/
+    self.images = images;
+    self.image_views = image_views;
+  }
   
   pub fn get_format(&self) -> vk::Format {
     self.format
@@ -117,7 +115,7 @@ impl Swapchain {
     image_views
   }
   
-  fn create_swapchain_images(device: &Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
+  fn get_swapchain_images(device: &Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
     let mut image_count = 0;
     let mut images: Vec<vk::Image>;
     

@@ -226,11 +226,11 @@ impl Vulkan {
   
   pub fn build(&mut self) {
     if self.recreate_swapchain {
-    //  return;
+      return;
     }
     
     let device = self.window.device();
-    let window_size = self.window.get_current_extent();
+    let window_size = &self.window_dimensions;
     
     let index_count = 3;
     
@@ -246,6 +246,9 @@ impl Vulkan {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(device, Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(device);
       cmd = cmd.begin_render_pass(device, &clear_values, &self.render_pass, &self.framebuffers[i].internal_object(), &window_size);
+      
+      cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
+      cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
       cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set.sets()[i]);
       
       cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set.sets()[i]);
@@ -257,7 +260,7 @@ impl Vulkan {
   
   pub fn draw(&mut self) {
     if self.recreate_swapchain {
-    //  return;
+      return;
     }
     
     let vk = self.window.device_pointers();
@@ -317,99 +320,67 @@ impl Vulkan {
     unsafe {
       match vk.QueuePresentKHR(*graphics_queue, &present_info_khr) {
         vk::ERROR_OUT_OF_DATE_KHR => {
+          println!("Error out of date");
           self.recreate_swapchain = true;
         },
         e => { check_errors(e); },
+      }
+      
+      if self.recreate_swapchain {
+        return;
       }
     //  vk.DeviceWaitIdle(*device);
       vk.QueueWaitIdle(*graphics_queue);
     }
   }
   
-  /*
-  pub fn check_errors(result: vk::Result) -> bool {
-    match result {
-        vk::SUCCESS => true,
-        vk::NOT_READY => { println!("Success: A fence or query has not yet completed"); true },
-        vk::TIMEOUT => { println!("Success: A wait operation has not completed in the specified time"); true },
-        vk::EVENT_SET => { println!("Success: An event is signaled"); true },
-        vk::EVENT_RESET => { println!("Success: An event is unsignaled"); true },
-        vk::INCOMPLETE => {println!("Success: A return array was too small for the result"); true },
-        vk::ERROR_OUT_OF_HOST_MEMORY => panic!("Vulkan out of host memory"),
-        vk::ERROR_OUT_OF_DEVICE_MEMORY => panic!("Vulkan out of device memory"),
-        vk::ERROR_INITIALIZATION_FAILED => panic!("Vulkan initialization failed"),
-        vk::ERROR_DEVICE_LOST => panic!("Vulkan device lost"),
-        vk::ERROR_MEMORY_MAP_FAILED => panic!("Vulkan memorymap failed"),
-        vk::ERROR_LAYER_NOT_PRESENT => panic!("Vulkan layer not present"),
-        vk::ERROR_EXTENSION_NOT_PRESENT => panic!("Vulkan extension not present"),
-        vk::ERROR_FEATURE_NOT_PRESENT => panic!("Vulkan feature not present"),
-        vk::ERROR_INCOMPATIBLE_DRIVER => panic!("Vulkan incompatable driver"),
-        vk::ERROR_TOO_MANY_OBJECTS => panic!("Vulkan too many objects"),
-        vk::ERROR_FORMAT_NOT_SUPPORTED => panic!("Vulkan format not supported"),
-        vk::ERROR_SURFACE_LOST_KHR => panic!("Vulkan surface last khr"),
-        vk::ERROR_NATIVE_WINDOW_IN_USE_KHR => panic!("Vulkan window in use khr"),
-        vk::SUBOPTIMAL_KHR => panic!("Vulkan suboptimal khr"),
-        vk::ERROR_OUT_OF_DATE_KHR => panic!("Vulkan out of date khr"),
-        vk::ERROR_INCOMPATIBLE_DISPLAY_KHR => panic!("Vulkan incompatable display khr"),
-        vk::ERROR_VALIDATION_FAILED_EXT => panic!("Vulkan validation failed ext"),
-        vk::ERROR_OUT_OF_POOL_MEMORY_KHR => panic!("Vulkan of out pool memory khr"),
-        vk::ERROR_INVALID_SHADER_NV => panic!("Vulkan function returned \
-                                               VK_ERROR_INVALID_SHADER_NV"),
-        c => unreachable!("Unexpected error code returned by Vulkan: {}", c),
-    }
-  }
-  */
   
-  /*
   pub fn resize_window(&mut self) {
     if !self.recreate_swapchain {
       return;
     }
+    
     println!("Reszing window");
     self.recreate_swapchain = false;
     
+    self.window.device().wait();
+    
+    for fence in &self.fences {
+      let device = self.window.device();
+      fence.wait(device);
+    }
+    
+    self.window.recreate_swapchain();
     self.window_dimensions = self.window.get_current_extent();
     
-    self.window.recreate_swapchain_images(&self.window_dimensions);
-    
-    {
-      let vk = self.window.device_pointers();
+    for i in 0..self.framebuffers.len() {
       let device = self.window.device();
-      
-      unsafe {
-        for i in 0..self.fences.len() {
-          check_errors(vk.WaitForFences(*device, 1, &self.fences[i], vk::TRUE, u64::max_value()));
-          check_errors(vk.ResetFences(*device, 1, &self.fences[i]));
-        }
-        
-        vk.DeviceWaitIdle(*device);
-        
-        for i in 0..self.framebuffers.len() {
-          vk.DestroyFramebuffer(*device, self.framebuffers[i], ptr::null());
-        }
-        
-        vk.FreeCommandBuffers(*device, self.command_pool, self.command_buffers.len() as u32, self.command_buffers.as_mut_ptr());
-      }
+      self.framebuffers[i].destroy(device);
     }
+    self.framebuffers.clear();
     
-    self.window.recreate_swapchain_images(&self.window_dimensions);
     let image_views = self.window.swapchain_image_views();
-    
-    {
-      let vk = self.window.device_pointers();
+    for i in 0..image_views.len() {
       let device = self.window.device();
-      
-      
-      self.framebuffers = Vulkan::create_frame_buffers(vk, device, &self.render_pass, &self.window_dimensions, image_views);
-      self.command_buffers = Vulkan::create_command_buffers(vk, device, &self.command_pool, self.framebuffers.len() as u32);
-      
-      unsafe {
-        vk.DeviceWaitIdle(*device);
-      }
+      self.framebuffers.push(Framebuffer::new(device, &self.render_pass, &self.window_dimensions, &image_views[i]));
     }
     
+    for i in 0..self.command_buffers.len() {
+      let device = self.window.device();
+      self.command_buffers[i].free(device, &self.command_pool)
+    }
+    self.command_buffers.clear();
+    
+    {
+      let device = self.window.device();
+      self.command_buffers = self.command_pool.create_command_buffers(device, image_views.len() as u32);
+    }
+    
+    self.build();
+    
+    self.window.device().wait();
     println!("Finished resize");
-  }*/
+  }
   
   pub fn window_resized(&mut self) {
     self.recreate_swapchain = true;
@@ -577,16 +548,17 @@ impl Vulkan {
 
 impl Drop for Vulkan {
   fn drop(&mut self) {
-    let device = self.window.device();
     unsafe {
-      device.wait();
+      self.window.device().wait();
       
       println!("Destroying Fences");
       for fence in &self.fences {
+        let device = self.window.device();
         fence.wait(device);
         fence.destroy(device);
       }
       
+      let device = self.window.device();
       for uniform in &self.uniform_buffer {
         uniform.destroy(device);
       }

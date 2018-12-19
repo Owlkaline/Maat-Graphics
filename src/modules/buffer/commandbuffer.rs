@@ -159,6 +159,36 @@ impl CommandBuffer {
     }
   }
   
+  pub fn set_viewport(&self, device: &Device, x: f32, y: f32, width: f32, height: f32) {
+    let vk = device.pointers();
+    
+    let viewport = vk::Viewport {
+      x,
+      y,
+      width,
+      height,
+      minDepth: 0.0,
+      maxDepth: 1.0,
+    };
+    
+    unsafe {
+      vk.CmdSetViewport(self.command_buffer, 0, 1, &viewport);
+    }
+  }
+  
+  pub fn set_scissor(&self, device: &Device, x: i32, y: i32, width: u32, height: u32) {
+    let vk = device.pointers();
+    
+    let scissor = vk::Rect2D {
+      offset: vk::Offset2D { x, y },
+      extent: vk::Extent2D { width, height },
+    };
+    
+    unsafe {
+      vk.CmdSetScissor(self.command_buffer, 0, 1, &scissor);
+    }
+  }
+  
   pub fn draw_indexed(&self, device: &Device, index_count: u32, instance_count: u32) {
     let vk = device.pointers();
     
@@ -185,6 +215,14 @@ impl CommandBuffer {
   
   pub fn internal_object(&self) -> &vk::CommandBuffer {
     &self.command_buffer
+  }
+  
+  pub fn free(&self, device: &Device, command_pool: &CommandPool) {
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      vk.FreeCommandBuffers(*device, *command_pool.local_command_pool(), 1, &self.command_buffer);
+    }
   }
   
   pub fn destroy(&self) {

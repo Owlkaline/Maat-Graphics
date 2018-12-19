@@ -152,11 +152,10 @@ impl VkWindow {
   pub fn get_current_extent(&self) -> vk::Extent2D {
     self.get_capabilities().currentExtent
   }
-  /*
-  pub fn recreate_swapchain_images(&mut self, window_dimensions: &vk::Extent2D) {
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&self.instance, &self.vk_device, &self.device, &self.phys_device, &self.surface);
-    self.swapchain.recreate_swapchain_images(&self.instance, &self.vk_device, &self.device, &self.phys_device, &self.surface, graphics_family, present_family);
-  }*/
+  
+  pub fn recreate_swapchain(&mut self) {
+    self.swapchain.recreate(&self.instance, &self.device, &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1);
+  }
   
   pub fn get_swapchain(&self) -> &vk::SurfaceKHR {
     self.swapchain.get_swapchain()
