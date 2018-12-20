@@ -9,11 +9,11 @@ use std::mem;
 use std::ptr;
 use std::ffi::CString;
 
-struct PipelineInfo {
-  vertex_shader: vk::ShaderModule,
-  fragment_shader: vk::ShaderModule,
-  vertex_binding: Vec<vk::VertexInputBindingDescription>,
-  vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>,
+pub struct PipelineInfo {
+  pub vertex_shader: vk::ShaderModule,
+  pub fragment_shader: vk::ShaderModule,
+  pub vertex_binding: Vec<vk::VertexInputBindingDescription>,
+  pub vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>,
 }
 
 pub struct Pipeline {
@@ -307,6 +307,15 @@ impl Pipeline {
       vertex_input_attribute_descriptions,
     };
     
+    Pipeline {
+      info: pipeline_info,
+      pipelines,
+      cache,
+      layout,
+    }
+  }
+  
+  pub fn new_with_fields(pipeline_info: PipelineInfo, pipelines: Vec<vk::Pipeline>, cache: vk::PipelineCache, layout: vk::PipelineLayout) -> Pipeline {
     Pipeline {
       info: pipeline_info,
       pipelines,

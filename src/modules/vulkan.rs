@@ -21,13 +21,16 @@ use crate::modules::Device;
 use crate::modules::pool::DescriptorPool;
 use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
+use crate::modules::PipelineBuilder;
 use crate::modules::RenderPass;
 use crate::modules::sync::Fence;
 use crate::modules::sync::Semaphore;
 use crate::modules::buffer::Buffer;
 use crate::modules::buffer::BufferUsage;
 use crate::modules::buffer::Framebuffer;
+use crate::modules::buffer::UniformData;
 use crate::modules::buffer::CommandBuffer;
+use crate::modules::buffer::UniformBufferBuilder;
 use crate::modules::buffer::CommandBufferBuilder;
 use crate::ownage::check_errors;
 
@@ -148,7 +151,17 @@ impl Vulkan {
       descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 1, 0);
       descriptor_set = DescriptorSet::new(device, &descriptor_set_pool, image_views.len() as u32);
       
-      pipelines = Pipeline::new(device, vertex_shader.get_shader(), &fragment_shader.get_shader(), &render_pass, &descriptor_set, vec!(Vertex::vertex_input_binding()), Vertex::vertex_input_attributes());
+      pipelines = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader.get_shader())
+                  .fragment_shader(*fragment_shader.get_shader())
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .vertex_binding(vec!(Vertex::vertex_input_binding()))
+                  .vertex_attributes(Vertex::vertex_input_attributes())
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .cull_mode_back()
+                  .build(device);
       
       /*
       let (texture, texture_memory, texture_view) = Vulkan::create_texture_image(vk, vk_instance, device, phys_device, &format, "./src/shaders/statue.jpg".to_string());
@@ -231,29 +244,20 @@ impl Vulkan {
       return;
     }
     
-    let vk = self.window.device_pointers();
-    let the_device = self.window.device();
-    let device = the_device.internal_object();
+    let device = self.window.device();
     let swapchain = self.window.get_swapchain();
     let graphics_queue = self.window.get_graphics_queue();
     
-    let mut current_buffer = 0;
-    unsafe {
-      check_errors(vk.AcquireNextImageKHR(*device, *swapchain.get_swapchain(), 0, *self.semaphore_image_available.internal_object(), 0, &mut current_buffer));
-    }
+    let mut current_buffer = self.window.aquire_next_image(device, &self.semaphore_image_available);
     
-    self.fences[current_buffer as usize].wait(the_device);
-    self.fences[current_buffer as usize].reset(the_device);
-    
-    let current_buffer = current_buffer as usize;
+    self.fences[current_buffer].wait(device);
+    self.fences[current_buffer].reset(device);
     
     // update uniform variables
-    let mut data = self.uniform_buffer[current_buffer].internal_data();
-    data[0] = -0.4;
-    data[1] = 0.1;
-    self.uniform_buffer[current_buffer].fill_buffer(the_device, data);
+    let data = UniformData::new().add_vector2(Vector2::new(-0.4, 0.1));
+    self.uniform_buffer[current_buffer].fill_buffer(device, data.build());
     
-    match self.command_buffers[current_buffer].submit(the_device, swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
+    match self.command_buffers[current_buffer].submit(device, swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
       },
@@ -264,9 +268,8 @@ impl Vulkan {
       return;
     }
       
-    self.command_buffers[current_buffer].finish(the_device, &graphics_queue);
+    self.command_buffers[current_buffer].finish(device, &graphics_queue);
   }
-  
   
   pub fn resize_window(&mut self) {
     if !self.recreate_swapchain {
@@ -357,15 +360,15 @@ impl Vulkan {
   }
   
   fn create_uniform_buffer(instance: &Instance, device: &Device, descriptor_set: &DescriptorSet) -> Buffer<f32> {
+    let mut uniform_buffer = UniformBufferBuilder::new().add_vector2();
+    let mut buffer = uniform_buffer.build(instance, device);
     
-    let usage = BufferUsage::uniform_buffer();
-    let real_data: Vec<f32> = vec!(0.4, 0.4);
+    let data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
+    buffer.fill_buffer(device, data.build());
     
-    let uniform_buffer = Buffer::cpu_buffer(instance, device, usage, real_data);
+    descriptor_set.update_sets(device, &buffer);
     
-    descriptor_set.update_sets(device, &uniform_buffer);
-    
-    uniform_buffer
+    buffer
      /*
     let perspective = perspective(Deg(60.0), (swapchain_extent.width as f32 / swapchain_extent.height as f32), 0.1, 256.0);
     let view_matrix = Matrix4::identity();

@@ -3,7 +3,6 @@ pub use self::commandbuffer::CommandBuffer;
 pub use self::commandbufferbuilder::CommandBufferBuilder;
 pub use self::buffer::Buffer;
 pub use self::uniformbuffer::UniformData;
-pub use self::uniformbuffer::UniformBuffer;
 pub use self::uniformbuffer::UniformBufferBuilder;
 pub use self::framebuffer::Framebuffer;
 

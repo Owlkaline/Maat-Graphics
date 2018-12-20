@@ -32,6 +32,10 @@ impl DescriptorSet {
     &self.layouts
   }
   
+  pub fn layouts_clone(&self) -> Vec<vk::DescriptorSetLayout> {
+    (*self.layouts).to_vec()
+  } 
+  
   pub fn update_sets<T: Clone>(&self, device: &Device, uniform_buffer: &Buffer<T>) {
     let vk = device.pointers();
     let device = device.internal_object();

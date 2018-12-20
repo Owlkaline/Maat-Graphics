@@ -104,7 +104,7 @@ impl UniformData {
     self.data.clone()
   }
 }
-
+/*
 pub struct UniformBuffer {
   uniform_ty: Vec<Ty>,
   buffer: Buffer<f32>,
@@ -123,7 +123,7 @@ impl UniformBuffer {
       range: size,
     }
   }
-}
+}*/
 
 pub struct UniformBufferBuilder {
   uniform_ty: Vec<Ty>,

@@ -5,6 +5,7 @@ use crate::modules::Device;
 use std::mem;
 use std::ptr;
 
+#[derive(Clone)]
 pub struct RenderPass {
   render_pass: vk::RenderPass,
 }

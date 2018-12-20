@@ -2,6 +2,7 @@ use vk;
 use winit;
 use crate::loader::Loader;
 use crate::loader::FunctionPointers;
+use crate::modules::sync::Semaphore;
 use crate::modules::Swapchain;
 use crate::modules::Instance;
 use crate::modules::Device;
@@ -291,6 +292,18 @@ impl VkWindow {
   
   pub fn get_events(&mut self) -> &mut winit::EventsLoop {
     &mut self.events_loop
+  }
+  
+  pub fn aquire_next_image(&self, device: &Device, image_available: &Semaphore) -> usize {
+    let mut current_image = 0;
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      check_errors(vk.AcquireNextImageKHR(*device, *self.swapchain.get_swapchain(), 0, *image_available.internal_object(), 0, &mut current_image));
+    }
+    
+    current_image as usize
   }
   
   pub fn instance_pointers(&self) -> &vk::InstancePointers {

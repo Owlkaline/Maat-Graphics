@@ -6,6 +6,8 @@ pub use self::instance::Instance;
 pub use self::device::Device;
 pub use self::descriptorset::DescriptorSet;
 pub use self::pipeline::Pipeline;
+pub use self::pipeline::PipelineInfo;
+pub use self::pipelinebuilder::PipelineBuilder;
 pub use self::renderpass::RenderPass;
 
 pub mod pool;
@@ -19,4 +21,5 @@ mod instance;
 mod device;
 mod descriptorset;
 mod pipeline;
+mod pipelinebuilder;
 mod renderpass;
