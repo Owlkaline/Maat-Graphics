@@ -5,160 +5,11 @@ use crate::modules::Pipeline;
 use crate::modules::PipelineInfo;
 use crate::modules::RenderPass;
 use crate::ownage::check_errors;
+use crate::modules::vkenums::{Topology, PolygonMode, CullMode, FrontFace, Sample};
 
 use std::mem;
 use std::ptr;
 use std::ffi::CString;
-
-enum Sample {
-  Count1Bit,
-  Count2Bit,
-  Count4Bit,
-  Count8Bit,
-  Count16Bit,
-}
-
-enum FrontFace {
-  CounterClockwise,
-  Clockwise,
-}
-
-enum CullMode {
-  None,
-  Front,
-  Back,
-  FrontAndBack,
-}
-
-enum PolygonMode {
-  Fill,
-  Line,
-  Point,
-}
-
-enum Topology {
-  PointList,
-  LineList,
-  LineStrip,
-  TriangleList,
-  TriangleStrip,
-  TriangleFan,
-  LineListWithAdjacency,
-  LineStripWithAdjacency,
-  TriangleListWithAdjacency,
-  TriangleStripWithAjacency,
-  PatchList,
-}
-
-impl Sample {
-  pub fn to_bits(&self) -> vk::SampleCountFlagBits {
-    match self {
-      Sample::Count1Bit => {
-        vk::SAMPLE_COUNT_1_BIT
-      },
-      Sample::Count2Bit => {
-        vk::SAMPLE_COUNT_2_BIT
-      },
-      Sample::Count4Bit => {
-        vk::SAMPLE_COUNT_4_BIT
-      },
-      Sample::Count8Bit => {
-        vk::SAMPLE_COUNT_8_BIT
-      },
-      Sample::Count16Bit => {
-        vk::SAMPLE_COUNT_16_BIT
-      }
-    }
-  }
-}
-
-impl FrontFace {
-  pub fn to_bits(&self) -> vk::FrontFace {
-    match self {
-      FrontFace::CounterClockwise => {
-        vk::FRONT_FACE_COUNTER_CLOCKWISE
-      },
-      FrontFace::Clockwise => {
-        vk::FRONT_FACE_CLOCKWISE
-      }
-    }
-  }
-}
-
-impl CullMode {
-  pub fn to_bits(&self) -> vk::CullModeFlagBits {
-    match self {
-      CullMode::None => {
-        vk::CULL_MODE_NONE
-      },
-      CullMode::Front => {
-        vk::CULL_MODE_FRONT_BIT
-      },
-      CullMode::Back => {
-        vk::CULL_MODE_BACK_BIT
-      },
-      CullMode::FrontAndBack => {
-        vk::CULL_MODE_FRONT_AND_BACK
-      }
-    }
-  }
-}
-
-impl PolygonMode {
-  pub fn to_bits(&self) -> vk::PolygonMode {
-    match self {
-      PolygonMode::Fill => {
-        vk::POLYGON_MODE_FILL
-      },
-      PolygonMode::Line => {
-        vk::POLYGON_MODE_LINE
-      },
-      PolygonMode::Point => {
-        vk::POLYGON_MODE_POINT
-      }
-    }
-  }
-}
-
-impl Topology {
-  pub fn to_bits(&self) -> vk::PrimitiveTopology {
-    match self {
-      Topology::PointList => {
-        vk::PRIMITIVE_TOPOLOGY_POINT_LIST
-      },
-      Topology::LineList => {
-        vk::PRIMITIVE_TOPOLOGY_LINE_LIST
-      },
-      Topology::LineStrip => {
-        vk::PRIMITIVE_TOPOLOGY_LINE_STRIP
-      },
-      Topology::TriangleList => {
-        vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-      },
-      Topology::TriangleStrip => {
-        vk::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
-      },
-      Topology::TriangleFan => {
-        vk::PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
-      },
-      Topology::LineListWithAdjacency => {
-        vk::PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY
-      },
-      Topology::LineStripWithAdjacency => {
-        vk::PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
-      },
-      Topology::TriangleListWithAdjacency => {
-        vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY
-      },
-      Topology::TriangleStripWithAjacency => {
-        vk::PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY
-      },
-      Topology::PatchList => {
-        vk::PRIMITIVE_TOPOLOGY_PATCH_LIST
-      }
-    }
-  }
-}
 
 pub struct PipelineBuilder {
   vertex_shader: Option<vk::ShaderModule>,
@@ -276,7 +127,7 @@ impl PipelineBuilder {
     self
   }
   
-  pub fn topologyLine_strip_with_adjacency(mut self) -> PipelineBuilder {
+  pub fn topology_line_strip_with_adjacency(mut self) -> PipelineBuilder {
     self.topology = Topology::LineStripWithAdjacency;
     self
   }

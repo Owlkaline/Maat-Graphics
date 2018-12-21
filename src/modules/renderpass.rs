@@ -11,6 +11,12 @@ pub struct RenderPass {
 }
 
 impl RenderPass {
+  pub fn new_from_renderpass(render_pass: vk::RenderPass) -> RenderPass {
+    RenderPass {
+      render_pass
+    }
+  }
+  
   pub fn new(device: &Device, format: &vk::Format) -> RenderPass {
     let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
     

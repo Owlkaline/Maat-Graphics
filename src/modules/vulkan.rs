@@ -13,6 +13,8 @@ use winit;
 use image;
 use cgmath::{Vector2, Vector3};
 
+use crate::modules::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout};
+
 use crate::modules::VkWindow;
 use crate::modules::Shader;
 use crate::modules::pool::CommandPool;
@@ -23,6 +25,9 @@ use crate::modules::DescriptorSet;
 use crate::modules::Pipeline;
 use crate::modules::PipelineBuilder;
 use crate::modules::RenderPass;
+use crate::modules::RenderPassBuilder;
+use crate::modules::AttachmentInfo;
+use crate::modules::SubpassInfo;
 use crate::modules::sync::Fence;
 use crate::modules::sync::Semaphore;
 use crate::modules::buffer::Buffer;
@@ -142,7 +147,23 @@ impl Vulkan {
       
       semaphore_image_available = Semaphore::new(device);
       semaphore_render_finished = Semaphore::new(device);
-      render_pass = RenderPass::new(device, &format);
+      
+      let colour_attachment = AttachmentInfo::new()
+                                             .format(format)
+                                             .multisample(1)
+                                             .load(AttachmentLoadOp::Clear)
+                                             .store(AttachmentStoreOp::Store)
+                                             .stencil_load(AttachmentLoadOp::DontCare)
+                                             .stencil_store(AttachmentStoreOp::DontCare)
+                                             .initial_layout(ImageLayout::Undefined)
+                                             .final_layout(ImageLayout::PresentSrcKHR);
+      let subpass = SubpassInfo::new().add_colour_attachment(0);
+      render_pass = RenderPassBuilder::new()
+                      .add_attachment(colour_attachment)
+                      .add_subpass(subpass)
+                      .build(device);
+      //RenderPass::new(device, &format);
+      
       framebuffers = Vulkan::create_frame_buffers(device, &render_pass, &current_extent, image_views);
       fences = Vulkan::create_fences(device, framebuffers.len() as u32);
       command_pool = CommandPool::new(device, graphics_family);
