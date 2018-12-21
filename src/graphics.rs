@@ -1,8 +1,8 @@
-use drawcalls::DrawCall;
+use crate::drawcalls::DrawCall;
 use std::collections::HashMap;
-use font::GenericFont;
-use camera::Camera;
-use graphics;
+use crate::font::GenericFont;
+use crate::camera::Camera;
+use crate::graphics;
 
 use winit;
 use winit::dpi::LogicalSize;

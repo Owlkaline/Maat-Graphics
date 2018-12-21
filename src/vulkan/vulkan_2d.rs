@@ -11,11 +11,11 @@ use vulkano::buffer::{cpu_pool, BufferUsage,
                       ImmutableBuffer, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBuffer, CommandBufferExecFuture};
 
-use math;
-use graphics::Vertex2d;
-use drawcalls::DrawCall;
-use vulkan::rawvk::{Model,DynamicModel, vs_texture, fs_texture, vs_text, fs_text};
-use vulkan::renderpass::CustomRenderpass;
+use crate::math;
+use crate::graphics::Vertex2d;
+use crate::drawcalls::DrawCall;
+use crate::vulkan::rawvk::{Model,DynamicModel, vs_texture, fs_texture, vs_text, fs_text};
+use crate::vulkan::renderpass::CustomRenderpass;
 
 use cgmath::{ortho, Vector2, Vector4, Matrix4};
 

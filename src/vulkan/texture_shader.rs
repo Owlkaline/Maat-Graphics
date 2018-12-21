@@ -32,10 +32,10 @@ use vulkano::format::ClearValue;
 use vulkano::pipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
-use math;
-use graphics::Vertex2d;
-use drawcalls;
-use font::GenericFont;
+use crate::math;
+use crate::graphics::Vertex2d;
+use crate::drawcalls;
+use crate::font::GenericFont;
 
 use cgmath::Vector2;
 use cgmath::Vector3;

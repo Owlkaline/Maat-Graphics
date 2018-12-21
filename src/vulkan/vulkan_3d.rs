@@ -15,12 +15,12 @@ use vulkano::command_buffer::{AutoCommandBuffer, CommandBufferExecFuture};
 
 use image;
 
-use graphics::Vertex2d;
-use graphics::Vertex3d;
-use drawcalls::DrawCall;
+use crate::graphics::Vertex2d;
+use crate::graphics::Vertex3d;
+use crate::drawcalls::DrawCall;
 
-use vulkan::rawvk::{vs_forwardbuffer_3d, fs_forwardbuffer_3d, vs_plain, fs_post_bloom, vs_shadow, fs_shadow};
-use vulkan::renderpass::CustomRenderpass;
+use crate::vulkan::rawvk::{vs_forwardbuffer_3d, fs_forwardbuffer_3d, vs_plain, fs_post_bloom, vs_shadow, fs_shadow};
+use crate::vulkan::renderpass::CustomRenderpass;
 
 use gltf_interpreter::Sampler;
 use gltf::texture::MagFilter;

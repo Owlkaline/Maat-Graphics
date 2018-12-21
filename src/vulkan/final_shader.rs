@@ -26,9 +26,9 @@ use vulkano::format::ClearValue;
 use vulkano::pipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
-use graphics::Vertex2d;
-use vulkan::TextureShader;
-use math;
+use crate::graphics::Vertex2d;
+use crate::vulkan::TextureShader;
+use crate::math;
 
 use winit;
 

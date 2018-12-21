@@ -1,4 +1,4 @@
-use ThreadPool;
+use crate::ThreadPool;
 
 use vulkano::format;
 use vulkano::device::Queue;
@@ -15,8 +15,8 @@ use image;
 use vulkano::image as vkimage;
 use vulkano::image::ImmutableImage;
 
-use font::GenericFont;
-use graphics::Vertex2d;
+use crate::font::GenericFont;
+use crate::graphics::Vertex2d;
 
 use std::time;
 use std::sync::Arc;

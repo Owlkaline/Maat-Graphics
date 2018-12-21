@@ -21,10 +21,10 @@ use std::collections::HashMap;
 use cgmath::Vector3;
 use cgmath::Matrix4;
 
-use vulkan::rawvk::{Mesh, Model, DynamicModel, vs_shadow, vs_forwardbuffer_3d, vs_text, vs_texture, fs_lights};
-use drawcalls;
-use drawcalls::DrawCall;
-use font::GenericFont;
+use crate::vulkan::rawvk::{Mesh, Model, DynamicModel, vs_shadow, vs_forwardbuffer_3d, vs_text, vs_texture, fs_lights};
+use crate::drawcalls;
+use crate::drawcalls::DrawCall;
+use crate::font::GenericFont;
 
 pub fn draw_lightpass(tmp_cmd_buffer: AutoCommandBufferBuilder,
                pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,

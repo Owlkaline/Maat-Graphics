@@ -3,10 +3,10 @@ use winit::EventsLoop;
 use winit::dpi::LogicalSize;
 use winit::dpi::LogicalPosition;
 
-use settings::Settings;
+use crate::settings::Settings;
 
-use vulkano_win_updated::VkSurfaceBuild;
-use vulkano_win_updated::required_extensions;
+use crate::vulkano_win_updated::VkSurfaceBuild;
+use crate::vulkano_win_updated::required_extensions;
 
 use vulkano::device::Queue;
 use vulkano::device::Device;

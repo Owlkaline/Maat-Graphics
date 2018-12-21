@@ -1,18 +1,18 @@
-use graphics::CoreRender;
-use graphics::Vertex2d;
-use graphics::Vertex3d;
-use drawcalls::DrawCall;
-use drawcalls::DrawType;
+use crate::graphics::CoreRender;
+use crate::graphics::Vertex2d;
+use crate::graphics::Vertex3d;
+use crate::drawcalls::DrawCall;
+use crate::drawcalls::DrawType;
 
-use settings::Settings;
+use crate::settings::Settings;
 
-use vulkan::FinalShader;
-use vulkan::TextureShader;
-use vulkan::ResourceManager;
+use crate::vulkan::FinalShader;
+use crate::vulkan::TextureShader;
+use crate::vulkan::ResourceManager;
 
-use camera::Camera;
-use font::GenericFont;
-use window::VkWindow;
+use crate::camera::Camera;
+use crate::font::GenericFont;
+use crate::window::VkWindow;
 
 use vulkano::sync::now;
 use vulkano::sync::NowFuture;
@@ -352,7 +352,7 @@ impl VkMaat {
   pub fn draw_without_secondary_buffers(&mut self, draw_calls: &Vec<DrawCall>, image_num: usize) -> AutoCommandBuffer {
     // draw_calls
     let command_buffer: AutoCommandBuffer = {
-      let mut dimensions = {
+      let dimensions = {
         let dim = self.window.get_dimensions();
         [dim.width as u32, dim.height as u32]
       };

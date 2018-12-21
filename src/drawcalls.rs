@@ -1,7 +1,7 @@
-use font::GenericCharacter;
-use font::GenericFont;
+use crate::font::GenericCharacter;
+use crate::font::GenericFont;
 
-use graphics;
+use crate::graphics;
 
 use cgmath::Vector2;
 use cgmath::Vector3;
