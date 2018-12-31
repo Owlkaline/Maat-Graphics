@@ -98,23 +98,12 @@
 //! 
 //! 
 //! 
-extern crate gltf;
-//extern crate gltf_importer;
-extern crate base64;
 
-extern crate cgmath;
-extern crate image;
-
-#[macro_use]
-extern crate vulkano;
-
-extern crate vulkano_shaders;
-
-extern crate winit;
-extern crate vulkano_win;
+const ENGINE_VERSION: u32 = (0 as u32) << 22 | (5 as u32) << 12 | (0 as u32);
 
 use self::threadpool::ThreadPool;
 
+pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
 
 pub mod graphics;
@@ -123,11 +112,9 @@ pub mod camera;
 pub mod vulkan;
 pub mod math;
 mod drawcalls;
+mod core;
 //mod gltf_interpreter;
 mod font;
-mod window;
-//mod helperfunctions;
-mod vulkano_win_updated;
 mod threadpool;
 
 #[cfg(test)]

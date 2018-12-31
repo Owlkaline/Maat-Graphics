@@ -1,86 +1,33 @@
-pub use self::vkmaat::VkMaat;
-pub use self::final_shader::FinalShader;
-pub use self::texture_shader::TextureShader;
-pub use self::resource_manager::ResourceManager;
+//pub use self::vulkan::Vulkan;
+pub use self::window::VkWindow;
+pub use self::swapchain::Swapchain;
+pub use self::shader::Shader;
+pub use self::instance::Instance;
+pub use self::device::Device;
+pub use self::descriptorset::DescriptorSet;
+pub use self::pipeline::Pipeline;
+pub use self::pipeline::PipelineInfo;
+pub use self::pipelinebuilder::PipelineBuilder;
+pub use self::renderpass::RenderPass;
+pub use self::renderpassbuilder::RenderPassBuilder;
+pub use self::renderpassbuilder::AttachmentInfo;
+pub use self::renderpassbuilder::SubpassInfo;
+pub use self::ownage::check_errors;
 
-mod vkmaat;
-mod resource_manager;
-mod final_shader;
-mod texture_shader;
-/*
-pub mod vs_forwardbuffer_3d {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkForward3D.vert"]
-  struct _Dummy;
-}
-
-pub mod fs_forwardbuffer_3d {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkForward3D.frag"]
-  struct _Dummy;
-}
-
-pub mod vs_gbuffer_3d {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkGBuffer3D.vert"]
-  struct _Dummy;
-}
-
-pub mod fs_gbuffer_3d {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkGBuffer3D.frag"]
-  struct _Dummy;
-}
-
-pub mod vs_plain {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkPlain.vert"]
-  struct _Dummy;
-}
-
-pub mod fs_lights {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkLight.frag"]
-  struct _Dummy;
-}
-
-pub mod fs_post_bloom {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkPostBloom.frag"]
-  struct _Dummy;
-}
-
-pub mod vs_shadow {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkShadow.vert"]
-  struct _Dummy;
-}
-
-pub mod fs_shadow {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkShadow.frag"]
-  struct _Dummy;
-}
-
-mod vs_post_blur {
-  #[derive(VulkanoShader)]
-  #[ty = "vertex"]
-  #[path = "src/shaders/glsl/VkPostBlur.vert"]
-  struct _Dummy;
-}
-
-mod fs_post_blur {
-  #[derive(VulkanoShader)]
-  #[ty = "fragment"]
-  #[path = "src/shaders/glsl/VkPostBlur.frag"]
-  struct _Dummy;
-}*/
+pub mod pool;
+pub mod buffer;
+pub mod sync;
+pub mod vkenums;
+mod loader;
+mod ownage;
+//mod vulkan;
+mod window;
+mod swapchain;
+mod shader;
+mod instance;
+mod device;
+mod descriptorset;
+mod pipeline;
+mod pipelinebuilder;
+mod renderpass;
+mod renderpassbuilder;

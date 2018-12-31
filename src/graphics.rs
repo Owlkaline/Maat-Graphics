@@ -47,14 +47,10 @@ pub trait CoreRender {
   fn init(&mut self);
   
   // Standard draw calls that should be called in 98% of cases
-  fn clear_screen(&mut self);
   fn pre_draw(&mut self);
   fn draw(&mut self, draw_calls: &Vec<DrawCall>);
   fn post_draw(&self);
   fn screen_resized(&mut self);
-  
-  // Cleans up program
-  fn clean(&self);
   
   // Getters and setters
   fn get_dimensions(&self) -> LogicalSize;
