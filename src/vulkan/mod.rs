@@ -13,6 +13,9 @@ pub use self::renderpassbuilder::RenderPassBuilder;
 pub use self::renderpassbuilder::AttachmentInfo;
 pub use self::renderpassbuilder::SubpassInfo;
 pub use self::ownage::check_errors;
+pub use self::sampler::Sampler;
+pub use self::sampler::SamplerBuilder;
+pub use self::image::Image;
 
 pub mod pool;
 pub mod buffer;
@@ -31,3 +34,5 @@ mod pipeline;
 mod pipelinebuilder;
 mod renderpass;
 mod renderpassbuilder;
+mod sampler;
+mod image;

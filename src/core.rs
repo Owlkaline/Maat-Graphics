@@ -10,7 +10,8 @@ use crate::graphics::CoreRender;
 use crate::font::GenericFont;
 use crate::graphics;
 
-use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout};
+#[macro_use]
+use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageUsage, ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
 
 use crate::vulkan::VkWindow;
 use crate::vulkan::Shader;
@@ -25,6 +26,9 @@ use crate::vulkan::RenderPass;
 use crate::vulkan::RenderPassBuilder;
 use crate::vulkan::AttachmentInfo;
 use crate::vulkan::SubpassInfo;
+use crate::vulkan::Image;
+use crate::vulkan::Sampler;
+use crate::vulkan::SamplerBuilder;
 use crate::vulkan::sync::Fence;
 use crate::vulkan::sync::Semaphore;
 use crate::vulkan::buffer::Buffer;
@@ -41,10 +45,23 @@ use std::mem;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+// Simple offset_of macro akin to C++ offsetof
+#[macro_export]
+macro_rules! offset_of {
+    ($base:path, $field:ident) => {{
+        #[allow(unused_unsafe)]
+        unsafe {
+            let b: $base = mem::uninitialized();
+            (&b.$field as *const _ as isize) - (&b as *const _ as isize)
+        }
+    }};
+}
+
 #[derive(Clone)]
 struct Vertex {
   pos: Vector2<f32>,
   colour: Vector3<f32>,
+  uvs: Vector2<f32>,
 }
 
 impl Vertex {
@@ -64,7 +81,7 @@ impl Vertex {
         location: 0,
         binding: 0,
         format: vk::FORMAT_R32G32_SFLOAT,
-        offset: 0,
+        offset: offset_of!(Vertex, pos) as u32,//0,
       }
     );
     
@@ -73,7 +90,16 @@ impl Vertex {
         location: 1,
         binding: 0,
         format: vk::FORMAT_R32G32B32_SFLOAT,
-        offset: (mem::size_of::<f32>()*2) as u32,
+        offset: offset_of!(Vertex, colour) as u32,//(mem::size_of::<f32>()*2) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 2,
+        binding: 0,
+        format: vk::FORMAT_R32G32_SFLOAT,
+        offset: offset_of!(Vertex, uvs) as u32,
       }
     );
     
@@ -100,6 +126,8 @@ pub struct CoreMaat {
   vertex_buffer: Buffer<Vertex>,
   index_buffer: Buffer<u32>,
   uniform_buffer: Vec<Buffer<f32>>,
+  texture: Image,
+  sampler: Sampler,
 }
 
 impl CoreMaat {
@@ -121,6 +149,9 @@ impl CoreMaat {
     let vertex_buffer: Buffer<Vertex>;
     let index_buffer: Buffer<u32>;
     let mut uniform_buffer: Vec<Buffer<f32>> = Vec::new();
+    
+    let texture_image: Image;
+    let sampler: Sampler;
     
     let current_extent = window.get_current_extent();
     
@@ -177,6 +208,18 @@ impl CoreMaat {
       vertex_buffer = CoreMaat::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
       index_buffer = CoreMaat::create_index_buffer(instance, device, &command_pool, graphics_queue);
       
+      let image_usage = ImageUsage::transfer_dst_sampled();
+      
+      texture_image = Image::new(instance, &device, "./resources/Textures/Logo.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, image_usage, &format, Sample::Count1Bit, ImageLayout::Undefined, ImageTiling::Optimal);
+      sampler = SamplerBuilder::new()
+                       .min_filter(Filter::Linear)
+                       .mag_filter(Filter::Linear)
+                       .address_mode(AddressMode::Repeat)
+                       .mipmap_mode(MipmapMode::Linear)
+                       .anisotropy(VkBool::True)
+                       .max_anisotropy(8.0)
+                       .build(device);
+      
       for _ in 0..image_views.len() {
         uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_set));
       }
@@ -201,6 +244,8 @@ impl CoreMaat {
       vertex_buffer: vertex_buffer,
       index_buffer: index_buffer,
       uniform_buffer: uniform_buffer,
+      texture: texture_image,
+      sampler: sampler,
     }
   }
   
@@ -250,7 +295,6 @@ impl CoreMaat {
   }
   
   fn create_index_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
-   // let indices = vec!(0, 1, 2);
     let indices = vec!(0, 1, 2, 2, 3, 0);
     
     let usage_src = BufferUsage::index_transfer_src_buffer();
@@ -269,17 +313,11 @@ impl CoreMaat {
   }
   
   fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
-    /*let triangle = vec!(
-      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 0.0) },
-      Vertex { pos: Vector2::new(0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 0.0, 1.0) },
-    );*/
-    
     let triangle = vec!(
-      Vertex { pos: Vector2::new(0.0, 0.5), colour: Vector3::new(1.0, 0.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, -0.5), colour: Vector3::new(0.0, 0.0, 1.0) },
-      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 1.0) },
+      Vertex { pos: Vector2::new(0.0, 0.5), colour: Vector3::new(1.0, 0.0, 0.0), uvs: Vector2::new(0.0, 0.0) },
+      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0), uvs: Vector2::new(1.0, 0.0) },
+      Vertex { pos: Vector2::new(-0.5, -0.5), colour: Vector3::new(0.0, 0.0, 1.0), uvs: Vector2::new(0.0, 1.0) },
+      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 1.0), uvs: Vector2::new(1.0, 1.0) },
     );
     
     let usage_src = BufferUsage::vertex_transfer_src_buffer();
@@ -543,6 +581,10 @@ impl Drop for CoreMaat {
     }
     
     let device = self.window.device();
+    
+    self.texture.destroy(device);
+    self.sampler.destroy(device);
+    
     for uniform in &self.uniform_buffer {
       uniform.destroy(device);
     }

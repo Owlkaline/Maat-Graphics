@@ -2,16 +2,9 @@ use vk;
 
 use std::mem;
 
-// Simple offset_of macro akin to C++ offsetof
-#[macro_export]
-macro_rules! offset_of {
-    ($base:path, $field:ident) => {{
-        #[allow(unused_unsafe)]
-        unsafe {
-            let b: $base = mem::uninitialized();
-            (&b.$field as *const _ as isize) - (&b as *const _ as isize)
-        }
-    }};
+pub enum VkBool {
+  True,
+  False,
 }
 
 pub enum AttachmentLoadOp {
@@ -77,6 +70,95 @@ pub enum Topology {
   TriangleListWithAdjacency,
   TriangleStripWithAjacency,
   PatchList,
+}
+
+pub enum Filter {
+  Nearest,
+  Linear,
+}
+
+pub enum MipmapMode {
+  Nearest,
+  Linear,
+}
+
+#[derive(Clone)]
+pub enum AddressMode {
+  Repeat,
+  MirroredRepeat,
+  ClampToEdge,
+  ClampToBorder,
+  MirrorClampToEdge,
+}
+
+pub enum BorderColour {
+  FloatTransparentBlack,
+  FloatOpaqueBlack,
+  FloatOpaqueWhite,
+  IntTransparentBlack,
+  IntOpaqueBlack,
+  IntOpaqueWhite,
+}
+
+pub enum CompareOp {
+  Never,
+  Less,
+  Equal,
+  LessOrEqual,
+  Greater,
+  NotEqual,
+  GreaterOrEqual,
+  Always,
+}
+
+pub enum ImageType {
+  Type1D,
+  Type2D,
+  Type3D,
+}
+
+pub enum ImageTiling {
+  Optimal,
+  Linear,
+}
+
+pub struct ImageUsage {
+  pub transfer_src: bool,
+  pub transfer_dst: bool,
+  pub sampled: bool,
+  pub storage: bool,
+  pub colour_attachment: bool,
+  pub depth_stencil_attachment: bool,
+  pub transient_attachment: bool,
+  pub input_attachment: bool,
+}
+
+pub enum SharingMode {
+  Exclusive,
+  Concurrent,
+}
+
+pub enum ImageViewType {
+  Type1D,
+  Type2D,
+  Type3D,
+  TypeCube,
+  Type1DArray,
+  Type2DArray,
+  TypeCubeArray,
+}
+
+impl VkBool {
+  pub fn to_bits(&self) -> vk::Bool32 {
+    match self {
+      VkBool::True => {
+        vk::TRUE
+      },
+      VkBool::False => {
+        vk::FALSE
+      }
+    }
+  }
 }
 
 impl AttachmentLoadOp {
@@ -316,6 +398,272 @@ impl Topology {
       Topology::PatchList => {
         vk::PRIMITIVE_TOPOLOGY_PATCH_LIST
       }
+    }
+  }
+}
+
+impl Filter {
+  pub fn to_bits(&self) -> vk::Filter {
+    match self {
+      Filter::Nearest => {
+        vk::FILTER_NEAREST
+      },
+      Filter::Linear => {
+        vk::FILTER_LINEAR
+      },
+    }
+  }
+}
+
+impl MipmapMode {
+  pub fn to_bits(&self) -> vk::SamplerMipmapMode {
+    match self {
+      MipmapMode::Nearest => {
+        vk::SAMPLER_MIPMAP_MODE_NEAREST
+      },
+      MipmapMode::Linear => {
+        vk::SAMPLER_MIPMAP_MODE_LINEAR
+      },
+    }
+  }
+}
+
+impl AddressMode {
+  pub fn to_bits(&self) -> vk::SamplerAddressMode {
+    match self {
+      AddressMode::Repeat => {
+        vk::SAMPLER_ADDRESS_MODE_REPEAT
+      },
+      AddressMode::MirroredRepeat => {
+        vk::SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT
+      },
+      AddressMode::ClampToEdge => {
+        vk::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+      },
+      AddressMode::ClampToBorder => {
+        vk::SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
+      },
+      AddressMode::MirrorClampToEdge => {
+        vk::SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE
+      },
+    }
+  }
+}
+
+impl BorderColour {
+  pub fn to_bits(&self) -> vk::BorderColor {
+    match self {
+      BorderColour::FloatTransparentBlack => {
+        vk::BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+      },
+      BorderColour::FloatOpaqueBlack => {
+        vk::BORDER_COLOR_FLOAT_OPAQUE_BLACK
+      },
+      BorderColour::FloatOpaqueWhite => {
+        vk::BORDER_COLOR_FLOAT_OPAQUE_WHITE
+      },
+      BorderColour::IntTransparentBlack => {
+        vk::BORDER_COLOR_INT_TRANSPARENT_BLACK
+      },
+      BorderColour::IntOpaqueBlack => {
+        vk::BORDER_COLOR_INT_OPAQUE_BLACK
+      },
+      BorderColour::IntOpaqueWhite => {
+        vk::BORDER_COLOR_INT_OPAQUE_WHITE
+      },
+    }
+  }
+}
+
+impl CompareOp {
+  pub fn to_bits(&self) -> vk::CompareOp {
+    match self {
+      CompareOp::Never => {
+        vk::COMPARE_OP_NEVER
+      },
+      CompareOp::Less => {
+        vk::COMPARE_OP_LESS
+      },
+      CompareOp::Equal => {
+        vk::COMPARE_OP_EQUAL
+      },
+      CompareOp::LessOrEqual => {
+        vk::COMPARE_OP_LESS_OR_EQUAL
+      },
+      CompareOp::Greater => {
+        vk::COMPARE_OP_GREATER
+      },
+      CompareOp::NotEqual => {
+        vk::COMPARE_OP_NOT_EQUAL
+      },
+      CompareOp::GreaterOrEqual => {
+        vk::COMPARE_OP_GREATER_OR_EQUAL
+      },
+      CompareOp::Always => {
+        vk::COMPARE_OP_ALWAYS
+      },
+    }
+  }
+}
+
+impl ImageType {
+  pub fn to_bits(&self) -> vk::ImageType {
+    match self {
+      ImageType::Type1D => {
+        vk::IMAGE_TYPE_1D
+      },
+      ImageType::Type2D => {
+        vk::IMAGE_TYPE_2D
+      },
+      ImageType::Type3D => {
+        vk::IMAGE_TYPE_3D
+      },
+    }
+  }
+}
+
+impl ImageTiling {
+  pub fn to_bits(&self) -> vk::ImageTiling {
+    match self {
+      ImageTiling::Optimal => {
+        vk::IMAGE_TILING_OPTIMAL
+      },
+      ImageTiling::Linear => {
+        vk::IMAGE_TILING_LINEAR
+      },
+    }
+  }
+}
+
+impl ImageUsage {
+  pub fn none() -> ImageUsage {
+    ImageUsage {
+      transfer_src: false,
+      transfer_dst: false,
+      sampled: false,
+      storage: false,
+      colour_attachment: false,
+      depth_stencil_attachment: false,
+      transient_attachment: false,
+      input_attachment: false,
+    }
+  }
+  
+  pub fn to_bits(&self) -> vk::ImageUsageFlagBits {
+    let mut flags = 0;
+    
+    if self.transfer_src {
+      flags = flags | vk::IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+    if self.transfer_dst {
+      flags = flags | vk::IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
+    if self.sampled {
+      flags = flags | vk::IMAGE_USAGE_SAMPLED_BIT;
+    }
+    if self.storage {
+      flags = flags | vk::IMAGE_USAGE_STORAGE_BIT;
+    }
+    if self.colour_attachment {
+      flags = flags | vk::IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    }
+    if self.depth_stencil_attachment {
+      flags = flags | vk::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    }
+    if self.transient_attachment {
+      flags = flags | vk::IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    }
+    if self.input_attachment {
+      flags = flags | vk::IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    }
+    
+    flags
+  }
+  
+  pub fn transfer_src() -> ImageUsage {
+    ImageUsage {
+      transfer_src: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_dst() -> ImageUsage {
+    ImageUsage {
+      transfer_dst: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_src_sampled() -> ImageUsage {
+    ImageUsage {
+      transfer_src: true,
+      sampled: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_dst_sampled() -> ImageUsage {
+    ImageUsage {
+      transfer_dst: true,
+      sampled: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_src_storage() -> ImageUsage {
+    ImageUsage {
+      transfer_src: true,
+      storage: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_dst_storage() -> ImageUsage {
+    ImageUsage {
+      transfer_dst: true,
+      storage: true,
+      .. ImageUsage::none()
+    }
+  }
+}
+
+impl SharingMode {
+  pub fn to_bits(&self) -> vk::SharingMode {
+    match self {
+      SharingMode::Exclusive => {
+        vk::SHARING_MODE_EXCLUSIVE
+      },
+      SharingMode::Concurrent => {
+        vk::SHARING_MODE_CONCURRENT
+      },
+    }
+  }
+}
+
+impl ImageViewType {
+  pub fn to_bits(&self) -> vk::ImageViewType {
+    match self {
+      ImageViewType::Type1D => {
+        vk::IMAGE_VIEW_TYPE_1D
+      },
+      ImageViewType::Type2D => {
+        vk::IMAGE_VIEW_TYPE_2D
+      },
+      ImageViewType::Type3D => {
+        vk::IMAGE_VIEW_TYPE_3D
+      },
+      ImageViewType::TypeCube => {
+        vk::IMAGE_VIEW_TYPE_CUBE
+      },
+      ImageViewType::Type1DArray => {
+        vk::IMAGE_VIEW_TYPE_1D_ARRAY
+      },
+      ImageViewType::Type2DArray => {
+        vk::IMAGE_VIEW_TYPE_2D_ARRAY
+      },
+      ImageViewType::TypeCubeArray => {
+        vk::IMAGE_VIEW_TYPE_CUBE_ARRAY
+      },
     }
   }
 }
