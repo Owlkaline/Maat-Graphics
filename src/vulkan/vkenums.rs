@@ -18,7 +18,7 @@ pub enum AttachmentStoreOp {
   DontCare,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ImageLayout {
   Undefined,
   General,
@@ -146,6 +146,93 @@ pub enum ImageViewType {
   Type1DArray,
   Type2DArray,
   TypeCubeArray,
+}
+
+pub enum ShaderStageFlagBits {
+  Vertex,
+  TessellationControl,
+  Geometry,
+  Fragment,
+  Compute,
+  AllGraphics,
+  All,
+}
+
+pub enum DescriptorType {
+  Sampler,
+  CombinedImageSampler,
+  SampledImage,
+  StorageImage,
+  UniformTexelBuffer,
+  StorageTexelBuffer,
+  UniformBuffer,
+  StorageBuffer,
+  UniformBufferDynamic,
+  StorageBufferDynamic,
+  InputAttachment,
+}
+
+pub enum AccessFlagBits {
+  IndirectCommandRead,
+  IndexRead,
+  VertexAttributeRead,
+  UniformRead,
+  InputAttachmentRead,
+  ShaderRead,
+  ShaderWrite,
+  ColourAttachmentRead,
+  ColourAttachmentWrite,
+  DepthStencilAttachmentRead,
+  DepthStencilAttachmentWrite,
+  TransferRead,
+  TransferWrite,
+  HostRead,
+  HostWrite,
+  MemoryRead,
+  MemoryWrite,
+}
+
+pub enum ImageAspect {
+  Colour,
+  Depth,
+  Stencil,
+  MetaData,
+}
+
+pub enum PipelineStage {
+  TopOfPipe,
+  DrawIndirect,
+  VertexInput,
+  VertexShader,
+  TessellationControlShader,
+  TessellationEvaluationShader,
+  GeometryShader,
+  FragmentShader,
+  EarlyFragmentTests,
+  LateFragementTests,
+  ColorAttachmentOutput,
+  ComputShader,
+  Transfer,
+  BottomOfPipe,
+  Host,
+  AllGraphics,
+  AllCommands,
+}
+
+pub enum BlendFactor {
+  Zero,
+  One,
+  SrcColour,
+  OneMinusSrcColour,
+  DstColour,
+  OneMinusDstColour,
+  SrcAlpha,
+  OneMinusSrcAlpha,
+  DstAlpha,
+  OneMinusDstAlpha,
+  ConstantColour,
+  OneMinusConstantColour,
+  SrcAlphaSaturate,
 }
 
 impl VkBool {
@@ -663,6 +750,255 @@ impl ImageViewType {
       },
       ImageViewType::TypeCubeArray => {
         vk::IMAGE_VIEW_TYPE_CUBE_ARRAY
+      },
+    }
+  }
+}
+
+impl ShaderStageFlagBits {
+  pub fn to_bits(&self) -> vk::ShaderStageFlagBits {
+    match self {
+      ShaderStageFlagBits::Vertex => {
+        vk::SHADER_STAGE_VERTEX_BIT
+      },
+      ShaderStageFlagBits::TessellationControl => {
+        vk::SHADER_STAGE_TESSELLATION_CONTROL_BIT
+      },
+      ShaderStageFlagBits::Geometry => {
+        vk::SHADER_STAGE_GEOMETRY_BIT
+      },
+      ShaderStageFlagBits::Fragment => {
+        vk::SHADER_STAGE_FRAGMENT_BIT
+      },
+      ShaderStageFlagBits::Compute => {
+        vk::SHADER_STAGE_COMPUTE_BIT
+      },
+      ShaderStageFlagBits::AllGraphics => {
+        vk::SHADER_STAGE_ALL_GRAPHICS
+      },
+      ShaderStageFlagBits::All => {
+        vk::SHADER_STAGE_ALL
+      },
+    }
+  }
+}
+
+impl DescriptorType {
+  pub fn to_bits(&self) -> vk::DescriptorType {
+    match self {
+      DescriptorType::Sampler => {
+        vk::DESCRIPTOR_TYPE_SAMPLER
+      },
+      DescriptorType::CombinedImageSampler => {
+        vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+      },
+      DescriptorType::SampledImage => {
+        vk::DESCRIPTOR_TYPE_SAMPLED_IMAGE
+      },
+      DescriptorType::StorageImage => {
+        vk::DESCRIPTOR_TYPE_STORAGE_IMAGE
+      },
+      DescriptorType::UniformTexelBuffer => {
+        vk::DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
+      },
+      DescriptorType::StorageTexelBuffer => {
+        vk::DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER
+      },
+      DescriptorType::UniformBuffer => {
+        vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER
+      },
+      DescriptorType::StorageBuffer => {
+        vk::DESCRIPTOR_TYPE_STORAGE_BUFFER
+      },
+      DescriptorType::UniformBufferDynamic => {
+        vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
+      },
+      DescriptorType::StorageBufferDynamic => {
+        vk::DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC
+      },
+      DescriptorType::InputAttachment => {
+        vk::DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+      },
+    }
+  }
+}
+
+impl AccessFlagBits {
+  pub fn to_bits(&self) -> vk::AccessFlagBits {
+    match self {
+      AccessFlagBits::IndirectCommandRead => {
+        vk::ACCESS_INDIRECT_COMMAND_READ_BIT
+      },
+      AccessFlagBits::IndexRead => {
+        vk::ACCESS_INDEX_READ_BIT
+      },
+      AccessFlagBits::VertexAttributeRead => {
+        vk::ACCESS_VERTEX_ATTRIBUTE_READ_BIT
+      },
+      AccessFlagBits::UniformRead => {
+        vk::ACCESS_UNIFORM_READ_BIT
+      },
+      AccessFlagBits::InputAttachmentRead => {
+        vk::ACCESS_INPUT_ATTACHMENT_READ_BIT
+      },
+      AccessFlagBits::ShaderRead => {
+        vk::ACCESS_SHADER_READ_BIT
+      },
+      AccessFlagBits::ShaderWrite => {
+        vk::ACCESS_SHADER_WRITE_BIT
+      },
+      AccessFlagBits::ColourAttachmentRead => {
+        vk::ACCESS_COLOR_ATTACHMENT_READ_BIT
+      },
+      AccessFlagBits::ColourAttachmentWrite => {
+        vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+      },
+      AccessFlagBits::DepthStencilAttachmentRead => {
+        vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+      },
+      AccessFlagBits::DepthStencilAttachmentWrite => {
+        vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+      },
+      AccessFlagBits::TransferRead => {
+        vk::ACCESS_TRANSFER_READ_BIT
+      },
+      AccessFlagBits::TransferWrite => {
+        vk::ACCESS_TRANSFER_WRITE_BIT
+      },
+      AccessFlagBits::HostRead => {
+        vk::ACCESS_HOST_READ_BIT
+      },
+      AccessFlagBits::HostWrite => {
+        vk::ACCESS_HOST_WRITE_BIT
+      },
+      AccessFlagBits::MemoryRead => {
+        vk::ACCESS_MEMORY_READ_BIT
+      },
+      AccessFlagBits::MemoryWrite => {
+        vk::ACCESS_MEMORY_WRITE_BIT
+      },
+    }
+  }
+}
+
+impl ImageAspect {
+  pub fn to_bits(&self) -> vk::ImageAspectFlagBits {
+    match self {
+      ImageAspect::Colour => {
+        vk::IMAGE_ASPECT_COLOR_BIT
+      },
+      ImageAspect::Depth => {
+        vk::IMAGE_ASPECT_DEPTH_BIT
+      },
+      ImageAspect::Stencil => {
+        vk::IMAGE_ASPECT_STENCIL_BIT
+      },
+      ImageAspect::MetaData => {
+        vk::IMAGE_ASPECT_METADATA_BIT
+      },
+    }
+  }
+}
+
+impl PipelineStage {
+  pub fn to_bits(&self) -> vk::PipelineStageFlagBits {
+    match self {
+      PipelineStage::TopOfPipe => {
+        vk::PIPELINE_STAGE_TOP_OF_PIPE_BIT
+      },
+      PipelineStage::DrawIndirect => {
+        vk::PIPELINE_STAGE_DRAW_INDIRECT_BIT
+      },
+      PipelineStage::VertexInput => {
+        vk::PIPELINE_STAGE_VERTEX_INPUT_BIT
+      },
+      PipelineStage::VertexShader => {
+        vk::PIPELINE_STAGE_VERTEX_SHADER_BIT
+      },
+      PipelineStage::TessellationControlShader => {
+        vk::PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT
+      },
+      PipelineStage::TessellationEvaluationShader => {
+        vk::PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT
+      },
+      PipelineStage::GeometryShader => {
+        vk::PIPELINE_STAGE_GEOMETRY_SHADER_BIT
+      },
+      PipelineStage::FragmentShader => {
+        vk::PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+      },
+      PipelineStage::EarlyFragmentTests => {
+        vk::PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+      },
+      PipelineStage::LateFragementTests => {
+        vk::PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+      },
+      PipelineStage::ColorAttachmentOutput => {
+        vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+      },
+      PipelineStage::ComputShader => {
+        vk::PIPELINE_STAGE_COMPUTE_SHADER_BIT
+      },
+      PipelineStage::Transfer => {
+        vk::PIPELINE_STAGE_TRANSFER_BIT
+      },
+      PipelineStage::BottomOfPipe => {
+        vk::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+      },
+      PipelineStage::Host => {
+        vk::PIPELINE_STAGE_HOST_BIT
+      },
+      PipelineStage::AllGraphics => {
+        vk::PIPELINE_STAGE_ALL_GRAPHICS_BIT
+      },
+      PipelineStage::AllCommands => {
+        vk::PIPELINE_STAGE_ALL_COMMANDS_BIT
+      },
+    }
+  }
+}
+
+impl BlendFactor {
+  pub fn to_bits(&self) -> vk::BlendFactor {
+    match self {
+      BlendFactor::Zero => {
+        vk::BLEND_FACTOR_ZERO
+      },
+      BlendFactor::One => {
+        vk::BLEND_FACTOR_ONE
+      },
+      BlendFactor::SrcColour => {
+        vk::BLEND_FACTOR_SRC_COLOR
+      },
+      BlendFactor::OneMinusSrcColour => {
+        vk::BLEND_FACTOR_ONE_MINUS_SRC_COLOR
+      },
+      BlendFactor::DstColour => {
+        vk::BLEND_FACTOR_DST_COLOR
+      },
+      BlendFactor::OneMinusDstColour => {
+        vk::BLEND_FACTOR_ONE_MINUS_DST_COLOR
+      },
+      BlendFactor::SrcAlpha => {
+        vk::BLEND_FACTOR_SRC_ALPHA
+      },
+      BlendFactor::OneMinusSrcAlpha => {
+        vk::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+      },
+      BlendFactor::DstAlpha => {
+        vk::BLEND_FACTOR_DST_ALPHA
+      },
+      BlendFactor::OneMinusDstAlpha => {
+        vk::BLEND_FACTOR_ONE_MINUS_DST_ALPHA
+      },
+      BlendFactor::ConstantColour => {
+        vk::BLEND_FACTOR_CONSTANT_COLOR
+      },
+      BlendFactor::OneMinusConstantColour => {
+        vk::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR
+      },
+      BlendFactor::SrcAlphaSaturate => {
+        vk::BLEND_FACTOR_SRC_ALPHA_SATURATE
       },
     }
   }

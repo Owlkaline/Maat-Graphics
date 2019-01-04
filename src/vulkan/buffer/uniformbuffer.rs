@@ -127,6 +127,7 @@ impl UniformBuffer {
 
 pub struct UniformBufferBuilder {
   uniform_ty: Vec<Ty>,
+  binding: u32,
   float: Vec<f32>,
   vector2: Vec<Vector2<f32>>,
   vector3: Vec<Vector3<f32>>,
@@ -138,12 +139,22 @@ impl UniformBufferBuilder {
   pub fn new() -> UniformBufferBuilder {
     UniformBufferBuilder {
       uniform_ty: Vec::new(),
+      binding: 0,
       float: Vec::new(),
       vector2: Vec::new(),
       vector3: Vec::new(),
       vector4: Vec::new(),
       mat4: Vec::new(),
     }
+  }
+  
+  pub fn get_binding(&self) -> u32 {
+    self.binding
+  }
+  
+  pub fn set_binding(mut self, binding: u32) -> UniformBufferBuilder {
+    self.binding = binding;
+    self
   }
   
   pub fn add_float(mut self) -> UniformBufferBuilder {
@@ -171,7 +182,7 @@ impl UniformBufferBuilder {
     self
   }
   
-  pub fn build(&self, instance: &Instance, device: &Device) -> Buffer<f32> {
+  pub fn build(&self, instance: &Instance, device: &Device, num_sets: u32) -> Buffer<f32> {
     let usage = BufferUsage::uniform_buffer();
     let mut data: Vec<f32> = Vec::new();
     for ty in &self.uniform_ty {
@@ -215,7 +226,7 @@ impl UniformBufferBuilder {
       }
     }
     
-    let uniform_buffer: Buffer<f32> = Buffer::cpu_buffer(instance, device, usage, data);
+    let uniform_buffer: Buffer<f32> = Buffer::cpu_buffer(instance, device, usage, num_sets, data);
     uniform_buffer
   }
 }

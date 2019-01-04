@@ -8,7 +8,9 @@ use crate::vulkan::sync::Semaphore;
 use crate::vulkan::sync::Fence;
 use crate::vulkan::pool::CommandPool;
 use crate::vulkan::buffer::Buffer;
-use crate::vulkan::ownage::check_errors;
+use crate::vulkan::check_errors;
+
+use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout};
 
 use std::mem;
 use std::ptr;
@@ -199,7 +201,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn copy_buffer<T: Clone, U: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>) 
+  pub fn copy_buffer<T: Clone, U: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) 
 {
     let buffer_copy = {
         vk::BufferCopy {
@@ -211,8 +213,40 @@ impl CommandBuffer {
     
     unsafe {
       let vk = device.pointers();
-      vk.CmdCopyBuffer(self.command_buffer, *src_buffer.internal_object(), *dst_buffer.internal_object(), 1, &buffer_copy);
+      vk.CmdCopyBuffer(self.command_buffer, *src_buffer.internal_object(current_buffer), *dst_buffer.internal_object(current_buffer), 1, &buffer_copy);
     }
+  }
+  
+  pub fn copy_buffer_to_image<T: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_image: vk::Image, image_aspect: ImageAspect, width: u32, height: u32, current_buffer: usize) {
+    
+    let image_subresource_layers = vk::ImageSubresourceLayers {
+      aspectMask: image_aspect.to_bits(),
+      mipLevel: 0,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let region = vk::BufferImageCopy {
+      bufferOffset: 0,
+      bufferRowLength: 0,
+      bufferImageHeight: 0,
+      imageSubresource: image_subresource_layers,
+      imageOffset: vk::Offset3D { x: 0, y: 0, z: 0 },
+      imageExtent: vk::Extent3D { width, height, depth: 1 },
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdCopyBufferToImage(self.command_buffer, *src_buffer.internal_object(current_buffer), dst_image, ImageLayout::TransferDstOptimal.to_bits(), 1, &region);
+    }
+  }
+  
+  pub fn pipeline_barrier(&self, device: &Device, src_stage: PipelineStage, dst_stage: PipelineStage, barrier: vk::ImageMemoryBarrier) {
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdPipelineBarrier(self.command_buffer, src_stage.to_bits(), dst_stage.to_bits(), 0, 0, ptr::null(), 0, ptr::null(), 1, &barrier);
+    }
+    
   }
   
   pub fn internal_object(&self) -> &vk::CommandBuffer {

@@ -10,7 +10,6 @@ use crate::graphics::CoreRender;
 use crate::font::GenericFont;
 use crate::graphics;
 
-#[macro_use]
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageUsage, ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
 
 use crate::vulkan::VkWindow;
@@ -20,6 +19,8 @@ use crate::vulkan::Instance;
 use crate::vulkan::Device;
 use crate::vulkan::pool::DescriptorPool;
 use crate::vulkan::DescriptorSet;
+use crate::vulkan::UpdateDescriptorSets;
+use crate::vulkan::DescriptorSetBuilder;
 use crate::vulkan::Pipeline;
 use crate::vulkan::PipelineBuilder;
 use crate::vulkan::RenderPass;
@@ -121,7 +122,7 @@ pub struct CoreMaat {
   vertex_shader: Shader,
   fragment_shader: Shader,
   descriptor_set_pool: DescriptorPool,
-  descriptor_set: DescriptorSet,
+  descriptor_sets: Vec<DescriptorSet>,
   pipeline: Pipeline,
   vertex_buffer: Buffer<Vertex>,
   index_buffer: Buffer<u32>,
@@ -144,7 +145,7 @@ impl CoreMaat {
     let vertex_shader: Shader;
     let fragment_shader: Shader;
     let descriptor_set_pool: DescriptorPool;
-    let descriptor_set: DescriptorSet;
+    let mut descriptor_sets: Vec<DescriptorSet> = Vec::with_capacity(2);
     let pipelines: Pipeline;
     let vertex_buffer: Buffer<Vertex>;
     let index_buffer: Buffer<u32>;
@@ -163,8 +164,8 @@ impl CoreMaat {
       let graphics_queue = window.get_graphics_queue();
       let image_views = window.swapchain_image_views();
       
-      vertex_shader = Shader::new(device, include_bytes!("./shaders/test_vert.spv"));
-      fragment_shader = Shader::new(device, include_bytes!("./shaders/test_frag.spv"));
+      vertex_shader = Shader::new(device, include_bytes!("./shaders/texture_vert.spv"));
+      fragment_shader = Shader::new(device, include_bytes!("./shaders/texture_frag.spv"));
       
       semaphore_image_available = Semaphore::new(device);
       semaphore_render_finished = Semaphore::new(device);
@@ -190,14 +191,21 @@ impl CoreMaat {
       command_pool = CommandPool::new(device, graphics_family);
       command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 1, 0);
-      descriptor_set = DescriptorSet::new(device, &descriptor_set_pool, image_views.len() as u32);
-      
+      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 40, 40);
+      descriptor_sets.push(DescriptorSetBuilder::new()
+                                  .vertex_uniform_buffer(0)
+                                  .fragment_combined_image_sampler(1)
+                                  .build(device, &descriptor_set_pool, image_views.len() as u32));
+      descriptor_sets.push(DescriptorSetBuilder::new()
+                                  .vertex_uniform_buffer(0)
+                                  .fragment_combined_image_sampler(1)
+                                  .build(device, &descriptor_set_pool, image_views.len() as u32));
+                                  
       pipelines = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
                   .render_pass(render_pass.clone())
-                  .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .descriptor_set_layout(descriptor_sets[0].layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding()))
                   .vertex_attributes(Vertex::vertex_input_attributes())
                   .topology_triangle_list()
@@ -208,23 +216,34 @@ impl CoreMaat {
       vertex_buffer = CoreMaat::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
       index_buffer = CoreMaat::create_index_buffer(instance, device, &command_pool, graphics_queue);
       
-      let image_usage = ImageUsage::transfer_dst_sampled();
+      texture_image = Image::device_local(instance, &device, "./resources/Textures/statue.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &command_pool, graphics_queue);
       
-      texture_image = Image::new(instance, &device, "./resources/Textures/Logo.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, image_usage, &format, Sample::Count1Bit, ImageLayout::Undefined, ImageTiling::Optimal);
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
                        .mag_filter(Filter::Linear)
-                       .address_mode(AddressMode::Repeat)
-                       .mipmap_mode(MipmapMode::Linear)
+                       .address_mode(AddressMode::ClampToEdge)
+                       .mipmap_mode(MipmapMode::Nearest)
                        .anisotropy(VkBool::True)
                        .max_anisotropy(8.0)
                        .build(device);
       
-      for _ in 0..image_views.len() {
-        uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_set));
-      }
+      uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[0], image_views.len() as u32));
+      uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[1], image_views.len() as u32));
+      
+      let data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
+      
+      UpdateDescriptorSets::new()
+        .add_uniformbuffer(device, 0, &mut uniform_buffer[0], data)
+        .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+        .finish_update(instance, device, &descriptor_sets[0]);
+      
+      let data = UniformData::new().add_vector2(Vector2::new(0.0, 0.0));
+      
+      UpdateDescriptorSets::new()
+        .add_uniformbuffer(device, 0, &mut uniform_buffer[1], data)
+        .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+        .finish_update(instance, device, &descriptor_sets[1]);
     }
-    
     CoreMaat {
       window: window,
       window_dimensions: current_extent,
@@ -239,7 +258,7 @@ impl CoreMaat {
       vertex_shader: vertex_shader,
       fragment_shader: fragment_shader,
       descriptor_set_pool: descriptor_set_pool,
-      descriptor_set: descriptor_set,
+      descriptor_sets: descriptor_sets,
       pipeline: pipelines,
       vertex_buffer: vertex_buffer,
       index_buffer: index_buffer,
@@ -282,14 +301,9 @@ impl CoreMaat {
     }
   }
   
-  fn create_uniform_buffer(instance: &Instance, device: &Device, descriptor_set: &DescriptorSet) -> Buffer<f32> {
+  fn create_uniform_buffer(instance: &Instance, device: &Device, descriptor_set: &DescriptorSet, num_sets: u32) -> Buffer<f32> {
     let mut uniform_buffer = UniformBufferBuilder::new().add_vector2();
-    let mut buffer = uniform_buffer.build(instance, device);
-    
-    let data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
-    buffer.fill_buffer(device, data.build());
-    
-    descriptor_set.update_sets(device, &buffer);
+    let mut buffer = uniform_buffer.build(instance, device, num_sets);
     
     buffer
   }
@@ -300,11 +314,11 @@ impl CoreMaat {
     let usage_src = BufferUsage::index_transfer_src_buffer();
     let usage_dst = BufferUsage::index_transfer_dst_buffer();
     
-    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(instance, device, usage_src, indices.clone());
-    let buffer: Buffer<u32> = Buffer::device_local_buffer(instance, device, usage_dst, indices);
+    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(instance, device, usage_src, 1, indices.clone());
+    let buffer: Buffer<u32> = Buffer::device_local_buffer(instance, device, usage_dst, 1, indices);
     
     let command_buffer = CoreMaat::begin_single_time_command(device, command_pool);
-    command_buffer.copy_buffer(device, &staging_buffer, &buffer);
+    command_buffer.copy_buffer(device, &staging_buffer, &buffer, 0);
     CoreMaat::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
     
     staging_buffer.destroy(device);
@@ -314,20 +328,20 @@ impl CoreMaat {
   
   fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
     let triangle = vec!(
-      Vertex { pos: Vector2::new(0.0, 0.5), colour: Vector3::new(1.0, 0.0, 0.0), uvs: Vector2::new(0.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0), uvs: Vector2::new(1.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, -0.5), colour: Vector3::new(0.0, 0.0, 1.0), uvs: Vector2::new(0.0, 1.0) },
-      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 1.0), uvs: Vector2::new(1.0, 1.0) },
+      Vertex { pos: Vector2::new(0.0, 0.5), colour: Vector3::new(1.0, 0.0, 0.0), uvs: Vector2::new(1.0, 1.0) },
+      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0), uvs: Vector2::new(0.0, 1.0) },
+      Vertex { pos: Vector2::new(-0.5, -0.5), colour: Vector3::new(0.0, 0.0, 1.0), uvs: Vector2::new(0.0, 0.0) },
+      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 1.0), uvs: Vector2::new(1.0, 0.0) },
     );
     
     let usage_src = BufferUsage::vertex_transfer_src_buffer();
     let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
     
-    let staging_buffer: Buffer<Vertex> = Buffer::cpu_buffer(instance, device, usage_src, triangle.clone());
-    let buffer: Buffer<Vertex> = Buffer::device_local_buffer(instance, device, usage_dst, triangle);
+    let staging_buffer: Buffer<Vertex> = Buffer::cpu_buffer(instance, device, usage_src, 1, triangle.clone());
+    let buffer: Buffer<Vertex> = Buffer::device_local_buffer(instance, device, usage_dst, 1, triangle);
     
     let command_buffer = CoreMaat::begin_single_time_command(device, command_pool);
-    command_buffer.copy_buffer(device, &staging_buffer, &buffer);
+    command_buffer.copy_buffer(device, &staging_buffer, &buffer, 0);
     CoreMaat::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
     
     staging_buffer.destroy(device);
@@ -456,6 +470,7 @@ impl CoreRender for CoreMaat {
     }
     
     let device = self.window.device();
+    let instance = self.window.instance();
     let window_size = &self.window_dimensions;
     
     let index_count = 6;
@@ -468,6 +483,8 @@ impl CoreRender for CoreMaat {
       )
     };
     
+    
+    
     for i in 0..self.command_buffers.len() {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(device);
@@ -475,7 +492,9 @@ impl CoreRender for CoreMaat {
       
       cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(), &self.index_buffer.internal_object(), index_count, &self.pipeline, &self.descriptor_set.sets()[i]);
+
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[1].set(i));
       
       cmd = cmd.end_render_pass(device);
       cmd.end_command_buffer(device);
@@ -492,10 +511,6 @@ impl CoreRender for CoreMaat {
     
     self.fences[current_buffer].wait(device);
     self.fences[current_buffer].reset(device);
-    
-    // update uniform variables
-    let data = UniformData::new().add_vector2(Vector2::new(-0.4, 0.1));
-    self.uniform_buffer[current_buffer].fill_buffer(device, data.build());
     
     match self.command_buffers[current_buffer].submit(device, swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
@@ -594,7 +609,10 @@ impl Drop for CoreMaat {
     
     self.pipeline.destroy(device);
     
-    self.descriptor_set.destroy(device);
+    for descriptor_set in &self.descriptor_sets {
+      descriptor_set.destroy(device);
+    }
+    
     self.descriptor_set_pool.destroy(device);
     
     self.vertex_shader.destroy(device);

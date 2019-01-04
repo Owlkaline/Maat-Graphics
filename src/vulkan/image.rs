@@ -1,7 +1,9 @@
 use vk;
 
 use crate::vulkan::{Instance, Device};
-use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageLayout, ImageTiling, Sample, ImageUsage, SharingMode};
+use crate::vulkan::buffer::{Buffer, BufferUsage, CommandBuffer};
+use crate::vulkan::pool::{CommandPool};
+use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageLayout, ImageTiling, ImageAspect, Sample, ImageUsage, SharingMode, PipelineStage, AccessFlagBits};
 use crate::vulkan::check_errors;
 
 use image;
@@ -16,7 +18,7 @@ pub struct Image {
 }
 
 impl Image {
-  pub fn new(instance: &Instance, device: &Device, location: String, image_type: ImageType, image_view_type: ImageViewType, usage: ImageUsage, format: &vk::Format, samples: Sample, initial_layout: ImageLayout, tiling: ImageTiling) -> Image {
+  pub fn device_local(instance: &Instance, device: &Device, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
     let (width, height) = image.dimensions();
     let image_data = image.into_raw().clone();
@@ -29,7 +31,24 @@ impl Image {
     let mut texture_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
     let mut texture_image_view: vk::ImageView = unsafe { mem::uninitialized() };
     
-    Image::create_image(instance, device, image_type, usage, format, &image_extent, samples, initial_layout, tiling, &mut texture_image, &mut texture_memory);
+    let staging_usage = BufferUsage::transfer_src_buffer();
+    let image_usage = ImageUsage::transfer_dst_sampled();
+    
+    let staging_buffer = Buffer::cpu_buffer(instance, device, staging_usage, 1, image_data);
+    
+    Image::create_image(instance, device, image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, tiling, &mut texture_image, &mut texture_memory);
+    
+    Image::transition_layout(device, &texture_image, format, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, command_pool, graphics_queue);
+    
+    let mut command_buffer = Image::begin_single_time_command(device, command_pool);
+    command_buffer.copy_buffer_to_image(device, &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
+    Image::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
+    
+    
+    Image::transition_layout(device, &texture_image, format, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, command_pool, graphics_queue);
+    
+    
+    staging_buffer.destroy(device);
     
     texture_image_view = Image::create_image_view(device, &texture_image, format, image_view_type);
     
@@ -38,6 +57,99 @@ impl Image {
       image_view: texture_image_view,
       memory: texture_memory,
     }
+  }
+  
+  pub fn get_image(&self) -> vk::Image {
+    self.image
+  }
+  
+  pub fn get_image_view(&self) -> vk::ImageView {
+    self.image_view
+  }
+  
+  pub fn get_image_memory(&self) -> vk::DeviceMemory {
+    self.memory
+  }
+  
+  fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
+    let command_buffer = CommandBuffer::primary(device, command_pool);
+    command_buffer.begin_command_buffer(device, vk::COMMAND_BUFFER_LEVEL_PRIMARY);
+    command_buffer
+  }
+  
+  fn end_single_time_command(device: &Device, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+    let submit_info = {
+      vk::SubmitInfo {
+        sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
+        pNext: ptr::null(),
+        waitSemaphoreCount: 0,
+        pWaitSemaphores: ptr::null(),
+        pWaitDstStageMask: ptr::null(),
+        commandBufferCount: 1,
+        pCommandBuffers: command_buffer.internal_object(),
+        signalSemaphoreCount: 0,
+        pSignalSemaphores: ptr::null(),
+      }
+    };
+    
+    command_buffer.end_command_buffer(device);
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      let command_pool = command_pool.local_command_pool();
+      vk.QueueSubmit(*graphics_queue, 1, &submit_info, 0);
+      vk.QueueWaitIdle(*graphics_queue);
+      vk.FreeCommandBuffers(*device, *command_pool, 1, command_buffer.internal_object());
+    }
+  }
+  
+  fn transition_layout(device: &Device, image: &vk::Image, format: &vk::Format, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+    
+    let subresource_range = vk::ImageSubresourceRange {
+      aspectMask: ImageAspect::Colour.to_bits(),
+      baseMipLevel: 0,
+      levelCount: 1,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let mut src_stage: PipelineStage;
+    let mut dst_stage: PipelineStage;
+    let mut src_access: Option<AccessFlagBits> = None;
+    let mut dst_access: AccessFlagBits;
+    
+    if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::TransferDstOptimal {
+      dst_access = AccessFlagBits::TransferWrite;
+      
+      src_stage = PipelineStage::TopOfPipe;
+      dst_stage = PipelineStage::Transfer;
+    } else if old_layout == ImageLayout::TransferDstOptimal && new_layout == ImageLayout::ShaderReadOnlyOptimal {
+      src_access = Some(AccessFlagBits::TransferWrite);
+      dst_access = AccessFlagBits::ShaderRead;
+      
+      src_stage = PipelineStage::Transfer;
+      dst_stage = PipelineStage::FragmentShader;
+    } else {
+      panic!("Error image transition not supported!");
+    }
+    
+    let barrier = vk::ImageMemoryBarrier {
+      sType: vk::STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      pNext: ptr::null(),
+      srcAccessMask: if src_access.is_some() { src_access.unwrap().to_bits() } else { 0 },
+      dstAccessMask: dst_access.to_bits(),
+      oldLayout: old_layout.to_bits(),
+      newLayout: new_layout.to_bits(),
+      srcQueueFamilyIndex: vk::QUEUE_FAMILY_IGNORED,
+      dstQueueFamilyIndex: vk::QUEUE_FAMILY_IGNORED,
+      image: *image,
+      subresourceRange: subresource_range,
+    };
+    
+    let mut command_buffer = Image::begin_single_time_command(device, command_pool);
+    command_buffer.pipeline_barrier(device, src_stage, dst_stage, barrier);
+    Image::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
   }
   
   fn create_image(instance: &Instance, device: &Device, image_type: ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: Sample, initial_layout: ImageLayout, tiling: ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {

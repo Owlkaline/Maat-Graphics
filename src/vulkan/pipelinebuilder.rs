@@ -5,7 +5,7 @@ use crate::vulkan::Pipeline;
 use crate::vulkan::PipelineInfo;
 use crate::vulkan::RenderPass;
 use crate::vulkan::ownage::check_errors;
-use crate::vulkan::vkenums::{Topology, PolygonMode, CullMode, FrontFace, Sample};
+use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, Sample, VkBool};
 
 use std::mem;
 use std::ptr;
@@ -448,12 +448,12 @@ impl PipelineBuilder {
     
     let pipeline_color_blend_attachments = {
       vk::PipelineColorBlendAttachmentState {
-        blendEnable: vk::FALSE,
-        srcColorBlendFactor: vk::BLEND_FACTOR_ONE,
-        dstColorBlendFactor: vk::BLEND_FACTOR_ZERO,
+        blendEnable: VkBool::True.to_bits(),
+        srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
+        dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
         colorBlendOp: vk::BLEND_OP_ADD,
-        srcAlphaBlendFactor: vk::BLEND_FACTOR_ONE,
-        dstAlphaBlendFactor: vk::BLEND_FACTOR_ZERO,
+        srcAlphaBlendFactor: BlendFactor::One.to_bits(),
+        dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
         alphaBlendOp: vk::BLEND_OP_ADD,
         colorWriteMask: vk::COLOR_COMPONENT_R_BIT | vk::COLOR_COMPONENT_G_BIT | vk::COLOR_COMPONENT_B_BIT | vk::COLOR_COMPONENT_A_BIT,
       }

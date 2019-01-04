@@ -5,6 +5,8 @@ pub use self::shader::Shader;
 pub use self::instance::Instance;
 pub use self::device::Device;
 pub use self::descriptorset::DescriptorSet;
+pub use self::descriptorset::UpdateDescriptorSets;
+pub use self::descriptorset::DescriptorSetBuilder;
 pub use self::pipeline::Pipeline;
 pub use self::pipeline::PipelineInfo;
 pub use self::pipelinebuilder::PipelineBuilder;
