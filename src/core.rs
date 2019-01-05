@@ -1,9 +1,10 @@
 use vk;
 use winit;
 use image;
-use cgmath::{Vector2, Vector3};
-use winit::dpi::LogicalSize; 
+use cgmath::{Vector2, Vector3, Vector4, Matrix4, ortho, SquareMatrix};
+use winit::dpi::LogicalSize;
 
+use crate::math;
 use crate::camera::Camera;
 use crate::drawcalls::DrawCall; 
 use crate::graphics::CoreRender;
@@ -61,7 +62,6 @@ macro_rules! offset_of {
 #[derive(Clone)]
 struct Vertex {
   pos: Vector2<f32>,
-  colour: Vector3<f32>,
   uvs: Vector2<f32>,
 }
 
@@ -82,22 +82,13 @@ impl Vertex {
         location: 0,
         binding: 0,
         format: vk::FORMAT_R32G32_SFLOAT,
-        offset: offset_of!(Vertex, pos) as u32,//0,
+        offset: offset_of!(Vertex, pos) as u32,
       }
     );
     
     vertex_input_attribute_descriptions.push(
       vk::VertexInputAttributeDescription {
         location: 1,
-        binding: 0,
-        format: vk::FORMAT_R32G32B32_SFLOAT,
-        offset: offset_of!(Vertex, colour) as u32,//(mem::size_of::<f32>()*2) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 2,
         binding: 0,
         format: vk::FORMAT_R32G32_SFLOAT,
         offset: offset_of!(Vertex, uvs) as u32,
@@ -164,8 +155,8 @@ impl CoreMaat {
       let graphics_queue = window.get_graphics_queue();
       let image_views = window.swapchain_image_views();
       
-      vertex_shader = Shader::new(device, include_bytes!("./shaders/texture_vert.spv"));
-      fragment_shader = Shader::new(device, include_bytes!("./shaders/texture_frag.spv"));
+      vertex_shader = Shader::new(device, include_bytes!("./shaders/texture/VkTextureVert.spv"));
+      fragment_shader = Shader::new(device, include_bytes!("./shaders/texture/VkTextureFrag.spv"));
       
       semaphore_image_available = Semaphore::new(device);
       semaphore_render_finished = Semaphore::new(device);
@@ -201,7 +192,13 @@ impl CoreMaat {
                                   .fragment_combined_image_sampler(1)
                                   .build(device, &descriptor_set_pool, image_views.len() as u32));
       
-      let push_constant_size = UniformData::new().add_vector2(Vector2::new(0.0, 0.0)).size();
+      let push_constant_size = UniformData::new()
+                                 .add_matrix4(Matrix4::identity())
+                                 .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                                 .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                                 .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                                 .size();
+      
       pipelines = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
@@ -229,23 +226,19 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(device);
       
-      uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[0], image_views.len() as u32));
-      uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[1], image_views.len() as u32));
+      let mut uniform_buffer_description = UniformBufferBuilder::new().add_matrix4().add_matrix4();
+      uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[0], image_views.len() as u32, uniform_buffer_description));
       
-      let data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
+      let data = UniformData::new()
+                   .add_matrix4(ortho(0.0, current_extent.width as f32, current_extent.height as f32, 0.0, -1.0, 1.0))
+                   .add_matrix4(Matrix4::from_scale(0.5));
       
       UpdateDescriptorSets::new()
         .add_uniformbuffer(device, 0, &mut uniform_buffer[0], data)
         .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
         .finish_update(instance, device, &descriptor_sets[0]);
-      
-      let data = UniformData::new().add_vector2(Vector2::new(0.0, 0.0));
-      
-      UpdateDescriptorSets::new()
-        .add_uniformbuffer(device, 0, &mut uniform_buffer[1], data)
-        .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-        .finish_update(instance, device, &descriptor_sets[1]);
     }
+    
     CoreMaat {
       window: window,
       window_dimensions: current_extent,
@@ -303,8 +296,7 @@ impl CoreMaat {
     }
   }
   
-  fn create_uniform_buffer(instance: &Instance, device: &Device, descriptor_set: &DescriptorSet, num_sets: u32) -> Buffer<f32> {
-    let mut uniform_buffer = UniformBufferBuilder::new().add_vector2();
+  fn create_uniform_buffer(instance: &Instance, device: &Device, descriptor_set: &DescriptorSet, num_sets: u32, uniform_buffer: UniformBufferBuilder) -> Buffer<f32> {
     let mut buffer = uniform_buffer.build(instance, device, num_sets);
     
     buffer
@@ -330,10 +322,10 @@ impl CoreMaat {
   
   fn create_vertex_buffer(instance: &Instance, device: &Device, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
     let triangle = vec!(
-      Vertex { pos: Vector2::new(0.0, 0.5), colour: Vector3::new(1.0, 0.0, 0.0), uvs: Vector2::new(1.0, 1.0) },
-      Vertex { pos: Vector2::new(-0.5, 0.5), colour: Vector3::new(0.0, 1.0, 0.0), uvs: Vector2::new(0.0, 1.0) },
-      Vertex { pos: Vector2::new(-0.5, -0.5), colour: Vector3::new(0.0, 0.0, 1.0), uvs: Vector2::new(0.0, 0.0) },
-      Vertex { pos: Vector2::new(0.0, -0.5), colour: Vector3::new(1.0, 0.0, 1.0), uvs: Vector2::new(1.0, 0.0) },
+      Vertex { pos: Vector2::new(0.5, 0.5), uvs: Vector2::new(1.0, 0.0) },
+      Vertex { pos: Vector2::new(-0.5, 0.5), uvs: Vector2::new(0.0, 0.0) },
+      Vertex { pos: Vector2::new(-0.5, -0.5), uvs: Vector2::new(0.0, 1.0) },
+      Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(1.0, 1.0) },
     );
     
     let usage_src = BufferUsage::vertex_transfer_src_buffer();
@@ -454,7 +446,18 @@ impl CoreRender for CoreMaat {
     
     {
       let device = self.window.device();
+      let instance = self.window.instance();
+      
       self.command_buffers = self.command_pool.create_command_buffers(device, image_views.len() as u32);
+      
+      let data = UniformData::new()
+                     .add_matrix4(ortho(0.0, self.window_dimensions.width as f32, 0.0, self.window_dimensions.height as f32, -1.0, 1.0))
+                     .add_matrix4(Matrix4::from_scale(0.5));
+      
+      UpdateDescriptorSets::new()
+        .add_uniformbuffer(device, 0, &mut self.uniform_buffer[0], data)
+        .add_sampled_image(1, &self.texture, ImageLayout::ShaderReadOnlyOptimal, &self.sampler)
+        .finish_update(instance, device, &self.descriptor_sets[0]);
     }
     
     self.draw(&Vec::new());
@@ -495,14 +498,29 @@ impl CoreRender for CoreMaat {
       cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
       
-      let push_constant_data = UniformData::new().add_vector2(Vector2::new(-0.2, -0.2));
+      let rotation = -90.0;
+      let model = math::calculate_texture_model(Vector3::new(300.0, 300.0, 0.0), Vector2::new(600.0, 600.0), rotation -180.0);
+      let tex_view = Vector4::new(0.0, 0.0, 1.0, 0.0);
+      let draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
+      let texture_blackwhite = Vector4::new(1.0, 0.0, 0.0, 0.0);
+      
+      let push_constant_data = UniformData::new()
+                                 .add_matrix4(model)
+                                 .add_vector4(draw_colour)
+                                 .add_vector4(tex_view)
+                                 .add_vector4(texture_blackwhite);
       cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
       
       cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));
-      
-      let push_constant_data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
+      /*
+      let model = math::calculate_texture_model(Vector3::new(200.0, 200.0, 0.0), Vector2::new(100.0, 100.0), rotation -180.0);
+      let push_constant_data = UniformData::new()
+                                 .add_matrix4(model)
+                                 .add_vector4(draw_colour)
+                                 .add_vector4(tex_view)
+                                 .add_vector4(texture_blackwhite);
       cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[1].set(i));
+      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));*/
       
       cmd = cmd.end_render_pass(device);
       cmd.end_command_buffer(device);

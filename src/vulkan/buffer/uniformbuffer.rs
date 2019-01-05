@@ -80,7 +80,7 @@ impl UniformData {
     self
   }
   
-  pub fn add_mat4(mut self, values: Matrix4<f32>) -> UniformData {
+  pub fn add_matrix4(mut self, values: Matrix4<f32>) -> UniformData {
     self.data.push(values.x.x);
     self.data.push(values.x.y);
     self.data.push(values.x.z);
@@ -190,7 +190,7 @@ impl UniformBufferBuilder {
     self
   }
   
-  pub fn add_mat4(mut self) -> UniformBufferBuilder {
+  pub fn add_matrix4(mut self) -> UniformBufferBuilder {
     self.uniform_ty.push(Ty::Mat4);
     self
   }

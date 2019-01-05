@@ -174,7 +174,7 @@ impl TextureShader {
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    sampler::SamplerAddressMode::ClampToEdge,
                                                    0.0, 1.0, 0.0, 0.0).unwrap();
-    let scale_matrix = Matrix4::from_scale(0.5);
+    let scale_matrix = Matrix4::from_scale(1.0);
     let uniform_data = vs_texture::ty::Data {
       projection: texture_projection.into(),
       scale: scale_matrix.into(),
@@ -382,7 +382,7 @@ impl TextureShader {
   
   pub fn draw_text(&mut self, cb: AutoCommandBufferBuilder, dynamic_state: &DynamicState, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) -> AutoCommandBufferBuilder {
     let mut cb = cb;
-    let scale = scale *2.0;
+    let scale = scale;
     let (fonts, texture) = font_info;
     let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, fonts.clone());
     let size = scale.x;
