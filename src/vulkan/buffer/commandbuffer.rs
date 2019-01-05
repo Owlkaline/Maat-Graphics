@@ -195,6 +195,7 @@ impl CommandBuffer {
   }
   
   pub fn push_constants(&self, device: &Device, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) {
+    let mut push_constant_data = push_constant_data;
     let size = push_constant_data.size();
     let data = push_constant_data.build();
     

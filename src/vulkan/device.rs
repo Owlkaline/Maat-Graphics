@@ -182,6 +182,7 @@ impl Device {
         vk_instance.GetPhysicalDeviceProperties(physical_devices[i], &mut device_prop);
       }
       
+      println!("min alignment: {}", device_prop.limits.minUniformBufferOffsetAlignment);
       let device_name = device_prop.deviceName.iter().map(|a| { 
         let mut b = (*a as u8 as char).to_string();
         if b == "\u{0}".to_string() {

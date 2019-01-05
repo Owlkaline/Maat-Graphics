@@ -109,7 +109,9 @@ impl<T: Clone> Buffer<T> {
   }
   
   pub fn size(&self) -> vk::DeviceSize {
-    (mem::size_of::<T>() * self.data.len()) as vk::DeviceSize
+    let mut size = (mem::size_of::<T>() * self.data.len());
+    print!("");
+    size as vk::DeviceSize
   }
   
   fn create_buffer(instance: &Instance, device: &Device, usage: &BufferUsage, properties: vk::MemoryPropertyFlags, data: &Vec<T>) -> (vk::Buffer, vk::DeviceMemory) {

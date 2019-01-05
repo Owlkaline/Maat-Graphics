@@ -101,10 +101,19 @@ impl UniformData {
   }
   
   pub fn size(&self) -> vk::DeviceSize {
-    (mem::size_of::<f32>() * self.data.len()) as vk::DeviceSize
+    let mut size = self.data.len();
+    if size%4 != 0 {
+      size += 1;
+    }
+    
+    (mem::size_of::<f32>() * size) as vk::DeviceSize
   }
   
-  pub fn build(&self) -> Vec<f32> {
+  pub fn build(&mut self) -> Vec<f32> {
+    while self.data.len()%4 != 0 {
+      self.data.push(0.0);
+    }
+    
     self.data.clone()
   }
 }
@@ -228,6 +237,10 @@ impl UniformBufferBuilder {
           data.push(1.0);
         }
       }
+    }
+    
+    while data.len() % 4 != 0 {
+      data.push(0.0);
     }
     
     let uniform_buffer: Buffer<f32> = Buffer::cpu_buffer(instance, device, usage, num_sets, data);

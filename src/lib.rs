@@ -99,7 +99,7 @@
 //! 
 //! 
 
-const ENGINE_VERSION: u32 = (0 as u32) << 22 | (5 as u32) << 12 | (0 as u32);
+const ENGINE_VERSION: u32 = (0 as u32) << 22 | (6 as u32) << 12 | (0 as u32);
 
 use self::threadpool::ThreadPool;
 
