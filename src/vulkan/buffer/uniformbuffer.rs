@@ -100,6 +100,10 @@ impl UniformData {
     self
   }
   
+  pub fn size(&self) -> vk::DeviceSize {
+    (mem::size_of::<f32>() * self.data.len()) as vk::DeviceSize
+  }
+  
   pub fn build(&self) -> Vec<f32> {
     self.data.clone()
   }

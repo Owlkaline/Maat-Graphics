@@ -11,8 +11,12 @@ layout (binding = 0) uniform Uniform {
   vec2 translation;
 } uniforms;
 
+layout (push_constant) uniform PushConstants {
+  vec2 translation;
+} push_constants;
+
 void main() {
   colours = colour;
   uvs = uv;
-  gl_Position = vec4(positions + uniforms.translation, 0.0, 1.0);
+  gl_Position = vec4(positions + push_constants.translation, 0.0, 1.0);
 }

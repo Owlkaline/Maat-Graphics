@@ -3,7 +3,8 @@ use vk;
 use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
 use crate::vulkan::Pipeline;
-use crate::vulkan::buffer::CommandBuffer;
+use crate::vulkan::buffer::{CommandBuffer, UniformData};
+use crate::vulkan::vkenums::{ShaderStageFlagBits};
 
 use std::sync::Arc;
 
@@ -38,6 +39,12 @@ impl CommandBufferBuilder {
   
   pub fn set_scissor(self, device: &Device, x: i32, y: i32, width: u32, height: u32) -> CommandBufferBuilder {
     self.command_buffer.set_scissor(device, x, y, width, height);
+    self
+  }
+  
+  pub fn push_constants(mut self, device: &Device, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) -> CommandBufferBuilder {
+    self.command_buffer.push_constants(device, pipeline, shader_stage, push_constant_data);
+    
     self
   }
   

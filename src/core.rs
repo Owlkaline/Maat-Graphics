@@ -10,7 +10,7 @@ use crate::graphics::CoreRender;
 use crate::font::GenericFont;
 use crate::graphics;
 
-use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageUsage, ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
+use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageUsage, ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool, ShaderStageFlagBits};
 
 use crate::vulkan::VkWindow;
 use crate::vulkan::Shader;
@@ -191,7 +191,7 @@ impl CoreMaat {
       command_pool = CommandPool::new(device, graphics_family);
       command_buffers = command_pool.create_command_buffers(device, framebuffers.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 40, 40);
+      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 2, 2);
       descriptor_sets.push(DescriptorSetBuilder::new()
                                   .vertex_uniform_buffer(0)
                                   .fragment_combined_image_sampler(1)
@@ -200,10 +200,12 @@ impl CoreMaat {
                                   .vertex_uniform_buffer(0)
                                   .fragment_combined_image_sampler(1)
                                   .build(device, &descriptor_set_pool, image_views.len() as u32));
-                                  
+      
+      let push_constant_size = UniformData::new().add_vector2(Vector2::new(0.0, 0.0)).size();
       pipelines = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
+                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_sets[0].layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding()))
@@ -492,8 +494,14 @@ impl CoreRender for CoreMaat {
       
       cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
-
+      
+      let push_constant_data = UniformData::new().add_vector2(Vector2::new(-0.2, -0.2));
+      cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+      
       cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));
+      
+      let push_constant_data = UniformData::new().add_vector2(Vector2::new(0.4, 0.4));
+      cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
       cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[1].set(i));
       
       cmd = cmd.end_render_pass(device);

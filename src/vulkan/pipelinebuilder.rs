@@ -5,7 +5,7 @@ use crate::vulkan::Pipeline;
 use crate::vulkan::PipelineInfo;
 use crate::vulkan::RenderPass;
 use crate::vulkan::ownage::check_errors;
-use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, Sample, VkBool};
+use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, Sample, VkBool, ShaderStageFlagBits};
 
 use std::mem;
 use std::ptr;
@@ -30,6 +30,9 @@ pub struct PipelineBuilder {
   sample_shader: u32,
   alpha_to_coverage: u32,
   alpha_to_one: u32,
+  has_push_constant: bool,
+  push_constant_size: u32,
+  push_constant_shader_stage: ShaderStageFlagBits,
   descriptor_set_layouts: Option<Vec<vk::DescriptorSetLayout>>,
   vertex_binding: Option<Vec<vk::VertexInputBindingDescription>>,
   vertex_attributes: Option<Vec<vk::VertexInputAttributeDescription>>,
@@ -56,10 +59,21 @@ impl PipelineBuilder {
       sample_shader: vk::FALSE,
       alpha_to_coverage: vk::FALSE,
       alpha_to_one: vk::FALSE,
+      has_push_constant: false,
+      push_constant_size: 0,
+      push_constant_shader_stage: ShaderStageFlagBits::Vertex,
       descriptor_set_layouts: None,
       vertex_binding: None,
       vertex_attributes: None,
     }
+  }
+  
+  pub fn push_constants(mut self, shader_stage: ShaderStageFlagBits, size: u32) -> PipelineBuilder {
+    self.has_push_constant = true;
+    self.push_constant_size = size;
+    self.push_constant_shader_stage = shader_stage;
+    
+    self
   }
   
   pub fn vertex_shader(mut self, shader: vk::ShaderModule) -> PipelineBuilder {
@@ -486,14 +500,14 @@ impl PipelineBuilder {
         pDynamicStates: dynamic_states.as_ptr(),
       }
     };
-    /*
+    
     let push_constant_range = {
       vk::PushConstantRange {
-        stageFlags: vk::SHADER_STAGE_VERTEX_BIT,
+        stageFlags: self.push_constant_shader_stage.to_bits(),
         offset: 0,
-        size: 0,
+        size: self.push_constant_size,
       }
-    };*/
+    };
     
     let layouts = self.descriptor_set_layouts.unwrap();
     let pipeline_layout_create_info = {
@@ -503,8 +517,8 @@ impl PipelineBuilder {
         flags: 0,
         setLayoutCount: 1,
         pSetLayouts: layouts.as_ptr(),
-        pushConstantRangeCount: 0,
-        pPushConstantRanges: ptr::null(),//&push_constant_range,
+        pushConstantRangeCount: 1,
+        pPushConstantRanges: &push_constant_range,
       }
     };
     

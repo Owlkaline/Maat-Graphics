@@ -9,8 +9,9 @@ use crate::vulkan::sync::Fence;
 use crate::vulkan::pool::CommandPool;
 use crate::vulkan::buffer::Buffer;
 use crate::vulkan::check_errors;
+use crate::vulkan::buffer::UniformData;
 
-use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout};
+use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStageFlagBits};
 
 use std::mem;
 use std::ptr;
@@ -190,6 +191,16 @@ impl CommandBuffer {
     
     unsafe {
       vk.CmdSetScissor(self.command_buffer, 0, 1, &scissor);
+    }
+  }
+  
+  pub fn push_constants(&self, device: &Device, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) {
+    let size = push_constant_data.size();
+    let data = push_constant_data.build();
+    
+    let vk = device.pointers();
+    unsafe {
+      vk.CmdPushConstants(self.command_buffer, *pipeline.layout(), shader_stage.to_bits(), 0, size as u32, data.as_ptr() as *const _);
     }
   }
   

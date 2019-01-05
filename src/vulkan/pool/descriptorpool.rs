@@ -12,6 +12,8 @@ pub struct DescriptorPool {
 
 impl DescriptorPool {
   pub fn new(device: &Device, max_sets: u32, num_uniforms: u32, num_images: u32) -> DescriptorPool {
+    let max_sets = max_sets * num_uniforms.max(num_images);
+    
     let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
     let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity((num_uniforms + num_images) as usize);
     
