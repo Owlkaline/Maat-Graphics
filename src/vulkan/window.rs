@@ -9,6 +9,7 @@ use crate::vulkan::Device;
 
 use std::ptr;
 use std::mem;
+use std::u64::MAX;
 use std::ffi::CString;
 
 use std::borrow::Borrow;
@@ -300,7 +301,7 @@ impl VkWindow {
     unsafe {
       let vk = device.pointers();
       let device = device.internal_object();
-      check_errors(vk.AcquireNextImageKHR(*device, *self.swapchain.get_swapchain(), 0, *image_available.internal_object(), 0, &mut current_image));
+      check_errors(vk.AcquireNextImageKHR(*device, *self.swapchain.get_swapchain(), MAX, *image_available.internal_object(), 0, &mut current_image));
     }
     
     current_image as usize

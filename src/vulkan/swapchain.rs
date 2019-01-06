@@ -195,10 +195,12 @@ impl Swapchain {
     let mut queue_family_indices: Vec<u32> = Vec::new();
     
     if graphics_family != present_family {
+      println!("Concurrent sharing enabled");
       image_sharing_mode = vk::SHARING_MODE_CONCURRENT;
       queue_family_index_count = 2;
       queue_family_indices = vec!(graphics_family, present_family);
     } else {
+      println!("Exclusive sharing enabled");
       image_sharing_mode = vk::SHARING_MODE_EXCLUSIVE;
       queue_family_index_count = 0;
     }

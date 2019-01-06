@@ -141,7 +141,7 @@ impl Device {
               pNext: ptr::null(),
               flags: 0,//Default::default(),//queue_flags,
               queueFamilyIndex: j as u32,
-              queueCount: family_properties.len() as u32-1,
+              queueCount: family_properties.len() as u32,
               pQueuePriorities: &1.0,
             }
           );
@@ -149,7 +149,14 @@ impl Device {
         
         let mut features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
         
-        features.robustBufferAccess = vk::TRUE;
+        match features.shaderSampledImageArrayDynamicIndexing {
+          vk::TRUE => {
+            println!("Dynamic indexing supported!");
+          },
+          _ => {println!("Dynamic indexing not supported :(");}
+        }
+        
+        //features.robustBufferAccess = vk::TRUE;
         
         let device_info = vk::DeviceCreateInfo {
           sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
