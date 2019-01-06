@@ -7,6 +7,7 @@ use winit::dpi::LogicalSize;
 use crate::math;
 use crate::camera::Camera;
 use crate::drawcalls::DrawCall; 
+use crate::drawcalls::DrawType;
 use crate::graphics::CoreRender;
 use crate::font::GenericFont;
 use crate::graphics;
@@ -210,6 +211,7 @@ impl CoreMaat {
                   .topology_triangle_list()
                   .polygon_mode_fill()
                   .cull_mode_back()
+                  .front_face_counter_clockwise()
                   .build(device);
       
       vertex_buffer = CoreMaat::create_vertex_buffer(instance, device, &command_pool, graphics_queue);
@@ -229,14 +231,7 @@ impl CoreMaat {
       let mut uniform_buffer_description = UniformBufferBuilder::new().add_matrix4().add_matrix4();
       uniform_buffer.push(CoreMaat::create_uniform_buffer(instance, device, &descriptor_sets[0], image_views.len() as u32, uniform_buffer_description));
       
-      let data = UniformData::new()
-                   .add_matrix4(ortho(0.0, current_extent.width as f32, current_extent.height as f32, 0.0, -1.0, 1.0))
-                   .add_matrix4(Matrix4::from_scale(0.5));
-      
-      UpdateDescriptorSets::new()
-        .add_uniformbuffer(device, 0, &mut uniform_buffer[0], data)
-        .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-        .finish_update(instance, device, &descriptor_sets[0]);
+      CoreMaat::update_uniform_buffers(instance, device, &mut uniform_buffer, &texture_image, &sampler, &descriptor_sets, current_extent.width as f32, current_extent.height as f32);
     }
     
     CoreMaat {
@@ -261,6 +256,17 @@ impl CoreMaat {
       texture: texture_image,
       sampler: sampler,
     }
+  }
+  
+  fn update_uniform_buffers(instance: &Instance, device: &Device, uniform_buffer: &mut Vec<Buffer<f32>>, texture: &Image, sampler: &Sampler, descriptor_sets: &Vec<DescriptorSet>, width: f32, height: f32) {
+    let data = UniformData::new()
+                 .add_matrix4(ortho(0.0, width, height, 0.0, -1.0, 1.0))
+                 .add_matrix4(Matrix4::from_scale(1.0));
+    
+     UpdateDescriptorSets::new()
+        .add_uniformbuffer(device, 0, &mut uniform_buffer[0], data)
+        .add_sampled_image(1, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+        .finish_update(instance, device, &descriptor_sets[0]);
   }
   
   fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
@@ -450,14 +456,7 @@ impl CoreRender for CoreMaat {
       
       self.command_buffers = self.command_pool.create_command_buffers(device, image_views.len() as u32);
       
-      let data = UniformData::new()
-                     .add_matrix4(ortho(0.0, self.window_dimensions.width as f32, 0.0, self.window_dimensions.height as f32, -1.0, 1.0))
-                     .add_matrix4(Matrix4::from_scale(0.5));
-      
-      UpdateDescriptorSets::new()
-        .add_uniformbuffer(device, 0, &mut self.uniform_buffer[0], data)
-        .add_sampled_image(1, &self.texture, ImageLayout::ShaderReadOnlyOptimal, &self.sampler)
-        .finish_update(instance, device, &self.descriptor_sets[0]);
+      CoreMaat::update_uniform_buffers(instance, device, &mut self.uniform_buffer, &self.texture, &self.sampler, &self.descriptor_sets, self.window_dimensions.width as f32, self.window_dimensions.height as f32);
     }
     
     self.draw(&Vec::new());
@@ -498,29 +497,117 @@ impl CoreRender for CoreMaat {
       cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
       
-      let rotation = -90.0;
-      let model = math::calculate_texture_model(Vector3::new(300.0, 300.0, 0.0), Vector2::new(600.0, 600.0), rotation -180.0);
-      let tex_view = Vector4::new(0.0, 0.0, 1.0, 0.0);
-      let draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
-      let texture_blackwhite = Vector4::new(1.0, 0.0, 0.0, 0.0);
-      
-      let push_constant_data = UniformData::new()
-                                 .add_matrix4(model)
-                                 .add_vector4(draw_colour)
-                                 .add_vector4(tex_view)
-                                 .add_vector4(texture_blackwhite);
-      cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
-      
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));
-      /*
-      let model = math::calculate_texture_model(Vector3::new(200.0, 200.0, 0.0), Vector2::new(100.0, 100.0), rotation -180.0);
-      let push_constant_data = UniformData::new()
-                                 .add_matrix4(model)
-                                 .add_vector4(draw_colour)
-                                 .add_vector4(tex_view)
-                                 .add_vector4(texture_blackwhite);
-      cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
-      cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0), &self.index_buffer.internal_object(0), index_count, &self.pipeline, &self.descriptor_sets[0].set(i));*/
+      for draw in draw_calls {
+        let black_and_white = draw.is_black_and_white();
+        match draw.get_type() {
+          DrawType::DrawTextured(ref info) => {
+            let (reference, position, scale, rotation, alpha) = info.clone();
+            let use_texture = true;
+            
+            let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
+            
+            let has_texture  = {
+              if use_texture {
+                1.0
+              } else {
+                0.0
+              }
+            };
+          
+            let mut bw: f32 = 0.0;
+            if black_and_white {
+              bw = 1.0;
+            }
+            let tex_view = Vector4::new(0.0, 0.0, 1.0, 0.0);
+            let draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
+            let texture_blackwhite = Vector4::new(has_texture, bw, 0.0, 0.0);
+            
+            let push_constant_data = UniformData::new()
+                                       .add_matrix4(model)
+                                       .add_vector4(draw_colour)
+                                       .add_vector4(tex_view)
+                                       .add_vector4(texture_blackwhite);
+            cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+            
+            cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0),
+                                           &self.index_buffer.internal_object(0),
+                                           index_count, &self.pipeline,
+                                           &self.descriptor_sets[0].set(i));
+          },
+          DrawType::DrawSpriteSheet(ref info) => {
+            let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+            
+            let use_texture = true;
+            
+            let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
+            
+            let has_texture  = {
+              if use_texture {
+                1.0
+              } else {
+                0.0
+              }
+            };
+          
+            let mut bw: f32 = 0.0;
+            if black_and_white {
+              bw = 1.0;
+            }
+            let tex_view = Vector4::new(sprite_details.x as f32, sprite_details.y as f32, sprite_details.z as f32, 0.0);
+            let draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
+            let texture_blackwhite = Vector4::new(has_texture, bw, 0.0, 0.0);
+            
+            let push_constant_data = UniformData::new()
+                                       .add_matrix4(model)
+                                       .add_vector4(draw_colour)
+                                       .add_vector4(tex_view)
+                                       .add_vector4(texture_blackwhite);
+            cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+            
+            cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0),
+                                           &self.index_buffer.internal_object(0),
+                                           index_count, &self.pipeline,
+                                           &self.descriptor_sets[0].set(i));
+          },
+          DrawType::DrawColoured(ref info) => {
+            let (position, scale, colour, rotation) = info.clone();
+            let use_texture = false;
+            
+            let model = math::calculate_texture_model(Vector3::new(position.x , position.y, 0.0), scale, -rotation -180.0);
+            
+            let has_texture  = {
+              if use_texture {
+                1.0
+              } else {
+                0.0
+              }
+            };
+          
+            let mut bw: f32 = 0.0;
+            if black_and_white {
+              bw = 1.0;
+            }
+            let tex_view = Vector4::new(0.0, 0.0, 1.0, 0.0);
+            let draw_colour = colour;
+            let texture_blackwhite = Vector4::new(has_texture, bw, 0.0, 0.0);
+            
+            let push_constant_data = UniformData::new()
+                                       .add_matrix4(model)
+                                       .add_vector4(draw_colour)
+                                       .add_vector4(tex_view)
+                                       .add_vector4(texture_blackwhite);
+            cmd = cmd.push_constants(device, &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+            
+            cmd = cmd.draw_indexed(device, &self.vertex_buffer.internal_object(0),
+                                           &self.index_buffer.internal_object(0),
+                                           index_count, &self.pipeline,
+                                           &self.descriptor_sets[0].set(i));
+          },
+          _ => {
+            
+          }
+        }
+      }
       
       cmd = cmd.end_render_pass(device);
       cmd.end_command_buffer(device);
