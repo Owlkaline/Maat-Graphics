@@ -48,9 +48,11 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn draw_indexed(self, device: &Device, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) -> CommandBufferBuilder {
+  pub fn draw_indexed(self, device: &Device, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: Vec<&vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_pipeline(device, pipeline);
-    self.command_buffer.bind_descriptor_set(device, pipeline, descriptor_set);
+    for i in 0..descriptor_set.len() {
+      self.command_buffer.bind_descriptor_set(device, pipeline, descriptor_set[i]);
+    }
     self.command_buffer.bind_vertex_buffer(device, vertex_buffer);
     self.command_buffer.bind_index_buffer(device, index_buffer);
     self.command_buffer.draw_indexed(device, index_count, 1);

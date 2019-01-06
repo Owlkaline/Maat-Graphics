@@ -102,6 +102,7 @@
 const ENGINE_VERSION: u32 = (0 as u32) << 22 | (6 as u32) << 12 | (0 as u32);
 
 use self::threadpool::ThreadPool;
+use self::texture_shader::TextureShader;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
@@ -113,6 +114,7 @@ pub mod vulkan;
 pub mod math;
 mod drawcalls;
 mod core;
+mod texture_shader;
 //mod gltf_interpreter;
 mod font;
 mod threadpool;

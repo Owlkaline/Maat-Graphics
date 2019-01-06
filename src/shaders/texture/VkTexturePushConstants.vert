@@ -7,7 +7,7 @@ layout(location = 0) out vec2 uvs;
 layout(location = 1) out vec4 new_colour;
 layout(location = 2) out vec2 textured_blackwhite;
 
-layout(binding = 0) uniform Data {
+layout(set = 0, binding = 0) uniform Data {
   mat4 projection;
   mat4 scale;
 } uniforms;

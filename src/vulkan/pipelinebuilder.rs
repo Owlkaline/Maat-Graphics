@@ -515,7 +515,7 @@ impl PipelineBuilder {
         sType: vk::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        setLayoutCount: 1,
+        setLayoutCount: layouts.len() as u32,
         pSetLayouts: layouts.as_ptr(),
         pushConstantRangeCount: 1,
         pPushConstantRanges: &push_constant_range,

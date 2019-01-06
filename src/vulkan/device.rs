@@ -114,10 +114,10 @@ impl Device {
         let mut available_extensions = instance.get_extensions();
         available_extensions.push(CString::new("VK_KHR_swapchain").unwrap());
         available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
-//        available_extensions.push(CString::new("VK_KHR_sampler_mirror_clamp_to_edge").unwrap());
-        available_extensions.push(CString::new("VK_KHR_get_memory_requirements2").unwrap());
-        available_extensions.push(CString::new("VK_KHR_dedicated_allocation").unwrap());
-        available_extensions.push(CString::new("VK_KHR_incremental_present").unwrap());
+        //available_extensions.push(CString::new("VK_KHR_sampler_mirror_clamp_to_edge").unwrap());
+        // available_extensions.push(CString::new("VK_KHR_get_memory_requirements2").unwrap());
+        //available_extensions.push(CString::new("VK_KHR_dedicated_allocation").unwrap());
+        //available_extensions.push(CString::new("VK_KHR_incremental_present").unwrap());
         available_extensions.push(CString::new("VK_EXT_debug_markers").unwrap());
         
         let supported_device_extensions: Vec<CString>
@@ -153,7 +153,7 @@ impl Device {
           vk::TRUE => {
             println!("Dynamic indexing supported!");
           },
-          _ => {println!("Dynamic indexing not supported :(");}
+          _ => {panic!("Dynamic indexing not supported :(");}
         }
         
         //features.robustBufferAccess = vk::TRUE;

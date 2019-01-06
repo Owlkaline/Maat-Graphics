@@ -20,6 +20,7 @@ pub struct DescriptorSet {
 }
 
 struct DescriptorSetLayoutInfo {
+  set: u32,
   binding: u32,
   descriptor_type: DescriptorType,
   shader_stage: ShaderStageFlagBits,
@@ -42,7 +43,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     }
   }
   
-  pub fn add_uniformbuffer(mut self, device: &Device, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
+  pub fn add_uniformbuffer(mut self, device: &Device, set: u32, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_buffer(device, data.build());
     self.uniform_buffers.push((binding, uniform_buffer));
@@ -131,9 +132,10 @@ impl DescriptorSetBuilder {
     }
   }
   
-  pub fn vertex_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn vertex_uniform_buffer(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
+        set,
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
         shader_stage: ShaderStageFlagBits::Vertex,
@@ -142,9 +144,10 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn fragment_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn fragment_uniform_buffer(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
+        set,
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
         shader_stage: ShaderStageFlagBits::Fragment,
@@ -153,9 +156,10 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn vertex_combined_image_sampler(mut self, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn vertex_combined_image_sampler(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
+        set,
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStageFlagBits::Vertex,
@@ -164,9 +168,10 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn fragment_combined_image_sampler(mut self, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn fragment_combined_image_sampler(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
+        set,
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStageFlagBits::Fragment,
@@ -176,6 +181,73 @@ impl DescriptorSetBuilder {
   }
   
   pub fn build(&self, device: &Device, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
+   /* let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
+    let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
+    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
+    
+    let mut num_set_bindings = 0;
+    for i in 0..self.descriptor_set_layout_info.len() {
+      num_set_bindings = num_set_bindings.max(self.descriptor_set_layout_info[i].set);
+    }
+    
+    for j in 0..num_set_bindings {
+      for i in 0..self.descriptor_set_layout_info.len() {
+        if self.descriptor_set_layout_info[i].set != num_set_bindings {
+          continue;
+        }
+        
+        bindings.push(
+          vk::DescriptorSetLayoutBinding {
+            binding: self.descriptor_set_layout_info[i].binding,
+            descriptorType: self.descriptor_set_layout_info[i].descriptor_type.to_bits(),
+            descriptorCount: 1,//binding_counts[i],
+            stageFlags: self.descriptor_set_layout_info[i].shader_stage.to_bits(),
+            pImmutableSamplers: ptr::null(),
+          }
+        );
+      }
+      
+      let descriptor_set_layout_create_info = {
+        vk::DescriptorSetLayoutCreateInfo {
+          sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+          pNext: ptr::null(),
+          flags: 0,
+          bindingCount: bindings.len() as u32,
+          pBindings: bindings.as_ptr(),
+        }
+      };
+      
+      let vk = device.pointers();
+      let device = device.internal_object();
+      
+      let mut layout = unsafe { mem::uninitialized() };
+      unsafe {
+        vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
+      }
+      
+      layouts.push(layout);
+    }
+    
+    let mut descriptor_set: vk::DescriptorSet = unsafe { mem::uninitialized() };
+    let descriptor_set_allocate_info = {
+      vk::DescriptorSetAllocateInfo {
+        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        pNext: ptr::null(),
+        descriptorPool: *set_pool.local_pool(),
+        descriptorSetCount: layouts.len() as u32,
+        pSetLayouts: layouts.as_ptr(),
+      }
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, &mut descriptor_set));
+    }
+    
+    descriptor_sets.push(descriptor_set);
+    
+    DescriptorSet::new_with_internals(descriptor_sets, layouts)*/
     let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
     let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
@@ -196,7 +268,7 @@ impl DescriptorSetBuilder {
         vk::DescriptorSetLayoutBinding {
           binding: self.descriptor_set_layout_info[i].binding,
           descriptorType: self.descriptor_set_layout_info[i].descriptor_type.to_bits(),
-          descriptorCount: binding_counts[i],
+          descriptorCount: 1,//binding_counts[i],
           stageFlags: self.descriptor_set_layout_info[i].shader_stage.to_bits(),
           pImmutableSamplers: ptr::null(),
         }
