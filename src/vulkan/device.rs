@@ -141,7 +141,7 @@ impl Device {
               pNext: ptr::null(),
               flags: 0,//Default::default(),//queue_flags,
               queueFamilyIndex: j as u32,
-              queueCount: family_properties.len() as u32,
+              queueCount: family_properties.len().min(j.max(1)) as u32,
               pQueuePriorities: &1.0,
             }
           );
