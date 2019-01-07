@@ -4,6 +4,7 @@ use crate::vulkan::vkenums::{Sample, AttachmentLoadOp, AttachmentStoreOp, ImageL
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct AttachmentInfo {
   format: vk::Format,
@@ -245,7 +246,7 @@ impl RenderPassBuilder {
     self
   }
   
-  pub fn build(mut self, device: &Device) -> RenderPass {
+  pub fn build(mut self, device: Arc<Device>) -> RenderPass {
     let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
     
     let mut attachment_descriptions = Vec::with_capacity(self.attachments.len());

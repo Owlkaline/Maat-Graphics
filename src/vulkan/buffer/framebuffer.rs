@@ -6,13 +6,14 @@ use crate::vulkan::ownage::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct Framebuffer {
   framebuffer: vk::Framebuffer,
 }
 
 impl Framebuffer {
-  pub fn new(device: &Device, render_pass: &RenderPass, extent: &vk::Extent2D, image_view: &vk::ImageView) -> Framebuffer {
+  pub fn new(device: Arc<Device>, render_pass: &RenderPass, extent: &vk::Extent2D, image_view: &vk::ImageView) -> Framebuffer {
     let mut framebuffer: vk::Framebuffer = unsafe { mem::uninitialized() };
     
     let framebuffer_create_info = vk::FramebufferCreateInfo {
@@ -43,7 +44,7 @@ impl Framebuffer {
     &self.framebuffer
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     println!("Destroying Framebuffer");
     
     let vk = device.pointers();

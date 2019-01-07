@@ -15,13 +15,14 @@ use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStag
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct CommandBuffer {
   command_buffer: vk::CommandBuffer,
 }
 
 impl CommandBuffer {
-  pub fn primary(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
+  pub fn primary(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
     let command_pool = command_pool.local_command_pool();
     
     let command_buffer_allocate_info = {
@@ -53,7 +54,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn secondary(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
+  pub fn secondary(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
     let command_pool = command_pool.local_command_pool();
     
     let command_buffer_allocate_info = {
@@ -79,7 +80,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn begin_render_pass(&self, device: &Device, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &Vec<vk::ClearValue>, width: u32, height: u32) {
+  pub fn begin_render_pass(&self, device: Arc<Device>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &Vec<vk::ClearValue>, width: u32, height: u32) {
     let vk = device.pointers();
     
     let render_pass_begin_info = {
@@ -99,7 +100,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn end_render_pass(&self, device: &Device) {
+  pub fn end_render_pass(&self, device: Arc<Device>) {
     let vk = device.pointers();
     
     unsafe {
@@ -107,7 +108,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn begin_command_buffer(&self, device: &Device, flags: u32) {
+  pub fn begin_command_buffer(&self, device: Arc<Device>, flags: u32) {
     let vk = device.pointers();
     
     let command_buffer_begin_info = {
@@ -124,7 +125,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn end_command_buffer(&self, device: &Device) {
+  pub fn end_command_buffer(&self, device: Arc<Device>) {
     let vk = device.pointers();
     
     unsafe {
@@ -132,7 +133,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_descriptor_set(&self, device: &Device, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) {
+  pub fn bind_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: &vk::DescriptorSet) {
     let vk = device.pointers();
     
     unsafe {
@@ -140,7 +141,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_pipeline(&self, device: &Device, pipeline: &Pipeline) {
+  pub fn bind_pipeline(&self, device: Arc<Device>, pipeline: &Pipeline) {
     let vk = device.pointers();
     
     unsafe {
@@ -148,7 +149,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_vertex_buffer(&self, device: &Device, vertex_buffer: &vk::Buffer) {
+  pub fn bind_vertex_buffer(&self, device: Arc<Device>, vertex_buffer: &vk::Buffer) {
     let vk = device.pointers();
     
     unsafe {
@@ -156,7 +157,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_index_buffer(&self, device: &Device, index_buffer: &vk::Buffer) {
+  pub fn bind_index_buffer(&self, device: Arc<Device>, index_buffer: &vk::Buffer) {
     let vk = device.pointers();
     
     unsafe {
@@ -164,7 +165,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn set_viewport(&self, device: &Device, x: f32, y: f32, width: f32, height: f32) {
+  pub fn set_viewport(&self, device: Arc<Device>, x: f32, y: f32, width: f32, height: f32) {
     let vk = device.pointers();
     
     let viewport = vk::Viewport {
@@ -181,7 +182,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn set_scissor(&self, device: &Device, x: i32, y: i32, width: u32, height: u32) {
+  pub fn set_scissor(&self, device: Arc<Device>, x: i32, y: i32, width: u32, height: u32) {
     let vk = device.pointers();
     
     let scissor = vk::Rect2D {
@@ -194,7 +195,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn push_constants(&self, device: &Device, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) {
+  pub fn push_constants(&self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) {
     let mut push_constant_data = push_constant_data;
     let size = push_constant_data.size();
     let data = push_constant_data.build();
@@ -205,7 +206,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn draw_indexed(&self, device: &Device, index_count: u32, instance_count: u32) {
+  pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, instance_count: u32) {
     let vk = device.pointers();
     
     unsafe {
@@ -213,7 +214,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn copy_buffer<T: Clone, U: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) 
+  pub fn copy_buffer<T: Clone, U: Clone>(&self, device: Arc<Device>, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) 
 {
     let buffer_copy = {
         vk::BufferCopy {
@@ -229,7 +230,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn copy_buffer_to_image<T: Clone>(&self, device: &Device, src_buffer: &Buffer<T>, dst_image: vk::Image, image_aspect: ImageAspect, width: u32, height: u32, current_buffer: usize) {
+  pub fn copy_buffer_to_image<T: Clone>(&self, device: Arc<Device>, src_buffer: &Buffer<T>, dst_image: vk::Image, image_aspect: ImageAspect, width: u32, height: u32, current_buffer: usize) {
     
     let image_subresource_layers = vk::ImageSubresourceLayers {
       aspectMask: image_aspect.to_bits(),
@@ -253,7 +254,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn pipeline_barrier(&self, device: &Device, src_stage: PipelineStage, dst_stage: PipelineStage, barrier: vk::ImageMemoryBarrier) {
+  pub fn pipeline_barrier(&self, device: Arc<Device>, src_stage: PipelineStage, dst_stage: PipelineStage, barrier: vk::ImageMemoryBarrier) {
     unsafe {
       let vk = device.pointers();
       vk.CmdPipelineBarrier(self.command_buffer, src_stage.to_bits(), dst_stage.to_bits(), 0, 0, ptr::null(), 0, ptr::null(), 1, &barrier);
@@ -265,7 +266,7 @@ impl CommandBuffer {
     &self.command_buffer
   }
   
-  pub fn submit(&self, device: &Device, swapchain: &Swapchain, current_image: u32, image_available: &Semaphore, render_finished: &Semaphore, fence: &Fence, graphics_queue: &vk::Queue) -> vk::Result {
+  pub fn submit(&self, device: Arc<Device>, swapchain: &Swapchain, current_image: u32, image_available: &Semaphore, render_finished: &Semaphore, fence: &Fence, graphics_queue: &vk::Queue) -> vk::Result {
     let pipeline_stage_flags = vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     let submit_info: vk::SubmitInfo = {
       vk::SubmitInfo {
@@ -305,14 +306,14 @@ impl CommandBuffer {
     }
   }
   
-  pub fn finish(&self, device: &Device, graphics_queue: &vk::Queue) {
+  pub fn finish(&self, device: Arc<Device>, graphics_queue: &vk::Queue) {
     unsafe {
       let vk = device.pointers();
       vk.QueueWaitIdle(*graphics_queue);
     }
   }
   
-  pub fn free(&self, device: &Device, command_pool: &CommandPool) {
+  pub fn free(&self, device: Arc<Device>, command_pool: &CommandPool) {
     unsafe {
       let vk = device.pointers();
       let device = device.internal_object();

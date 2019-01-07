@@ -1,17 +1,18 @@
 use vk;
 
 use crate::vulkan::Device;
-use crate::vulkan::ownage::check_errors;
+use crate::vulkan::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct Fence {
   fence: vk::Fence
 }
 
 impl Fence {
-  pub fn new(device: &Device) -> Fence {
+  pub fn new(device: Arc<Device>) -> Fence {
     let fence_info = vk::FenceCreateInfo {
       sType: vk::STRUCTURE_TYPE_FENCE_CREATE_INFO,
       pNext: ptr::null(),
@@ -35,7 +36,7 @@ impl Fence {
     &self.fence
   }
   
-  pub fn reset(&self, device: &Device) {
+  pub fn reset(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     unsafe {
@@ -43,7 +44,7 @@ impl Fence {
     }
   }
   
-  pub fn wait(&self, device: &Device) {
+  pub fn wait(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     unsafe {
@@ -51,7 +52,7 @@ impl Fence {
     }
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     unsafe {

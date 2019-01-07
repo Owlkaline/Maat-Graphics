@@ -4,6 +4,7 @@ use crate::vulkan::Instance;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 use std::ffi::CStr;
 use std::ffi::CString;
 
@@ -15,16 +16,16 @@ pub struct Device {
 }
 
 impl Device {
-  pub fn new(instance: &Instance, surface: &vk::SurfaceKHR) -> Device {
-    let (device, phys_device, extensions) = Device::create_suitable_device(instance, surface);
-    let vk = Device::create_device_instance(instance, &device);
+  pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> Arc<Device> {
+    let (device, phys_device, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
+    let vk = Device::create_device_instance(Arc::clone(&instance), &device);
     
-    Device {
+    Arc::new(Device {
       vk: vk,
       device: device,
       phys_device: phys_device,
       extensions: extensions,
-    }
+    })
   }
   
   pub fn pointers(&self) -> &vk::DevicePointers {
@@ -62,7 +63,7 @@ impl Device {
     }
   }
   
-  fn create_device_instance(instance: &Instance, device: &vk::Device) -> vk::DevicePointers {
+  fn create_device_instance(instance: Arc<Instance>, device: &vk::Device) -> vk::DevicePointers {
     let vk = instance.pointers();
     
     let vk_device = vk::DevicePointers::load(|name| unsafe {
@@ -72,7 +73,7 @@ impl Device {
     vk_device
   }
   
-  fn create_suitable_device(instance: &Instance, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, Vec<CString>) {
+  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, Vec<CString>) {
     let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     

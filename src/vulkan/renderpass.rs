@@ -4,6 +4,7 @@ use crate::vulkan::Device;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RenderPass {
@@ -17,7 +18,7 @@ impl RenderPass {
     }
   }
   
-  pub fn new(device: &Device, format: &vk::Format) -> RenderPass {
+  pub fn new(device: Arc<Device>, format: &vk::Format) -> RenderPass {
     let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
     
     let mut attachment_description = Vec::with_capacity(1);
@@ -112,7 +113,7 @@ impl RenderPass {
     &self.render_pass
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

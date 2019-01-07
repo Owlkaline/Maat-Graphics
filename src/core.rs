@@ -5,6 +5,7 @@ use cgmath::{Vector2, Vector3, Vector4, Matrix4, ortho, SquareMatrix};
 use winit::dpi::LogicalSize;
 
 use crate::math;
+use crate::ResourceManager;
 use crate::camera::Camera;
 use crate::drawcalls::DrawCall; 
 use crate::drawcalls::DrawType;
@@ -59,15 +60,21 @@ pub struct CoreMaat {
   command_pool: CommandPool,
   command_buffers: Vec<Arc<CommandBuffer>>,
   descriptor_set_pool: DescriptorPool,
-
+  
+  clear_colour: Vector4<f32>,
+  
   texture: Image,
   sampler: Sampler,
   texture_shader: TextureShader,
+  
+  resource_manager: ResourceManager,
 }
 
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
+    
+    let mut resource_manager = ResourceManager::new();
     
     let fences: Vec<Fence>;
     let semaphore_image_available: Semaphore;
@@ -91,16 +98,16 @@ impl CoreMaat {
       let graphics_queue = window.get_graphics_queue();
       let image_views = window.swapchain_image_views();
       
-      semaphore_image_available = Semaphore::new(device);
-      semaphore_render_finished = Semaphore::new(device);
+      semaphore_image_available = Semaphore::new(Arc::clone(&device));
+      semaphore_render_finished = Semaphore::new(Arc::clone(&device));
       
-      fences = CoreMaat::create_fences(device, image_views.len() as u32);
-      command_pool = CommandPool::new(device, graphics_family);
-      command_buffers = command_pool.create_command_buffers(device, image_views.len() as u32);
+      fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
+      command_pool = CommandPool::new(Arc::clone(&device), graphics_family);
+      command_buffers = command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(device, image_views.len() as u32, 2, 2);
+      descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 2, 2);
       
-      texture_image = Image::device_local(instance, &device, "./resources/Textures/statue.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &command_pool, graphics_queue);
+      texture_image = Image::device_local(Arc::clone(&instance), Arc::clone(&device), "./resources/Textures/statue.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &command_pool, graphics_queue);
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -109,9 +116,9 @@ impl CoreMaat {
                        .mipmap_mode(MipmapMode::Nearest)
                        .anisotropy(VkBool::True)
                        .max_anisotropy(8.0)
-                       .build(device);
+                       .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(instance, device, &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
       
     }
     
@@ -125,19 +132,24 @@ impl CoreMaat {
       command_pool: command_pool,
       command_buffers: command_buffers,
       descriptor_set_pool: descriptor_set_pool,
+      
+      clear_colour: Vector4::new(0.0, 0.0, 0.2, 1.0),
+      
       texture: texture_image,
       sampler: sampler,
+      
       texture_shader,
+      resource_manager,
     }
   }
   
-  pub fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
-    let command_buffer = CommandBuffer::primary(device, command_pool);
-    command_buffer.begin_command_buffer(device, vk::COMMAND_BUFFER_LEVEL_PRIMARY);
+  pub fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
+    let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
+    command_buffer.begin_command_buffer(Arc::clone(&device), vk::COMMAND_BUFFER_LEVEL_PRIMARY);
     command_buffer
   }
   
-  pub fn end_single_time_command(device: &Device, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  pub fn end_single_time_command(device: Arc<Device>, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     let submit_info = {
       vk::SubmitInfo {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
@@ -152,7 +164,7 @@ impl CoreMaat {
       }
     };
     
-    command_buffer.end_command_buffer(device);
+    command_buffer.end_command_buffer(Arc::clone(&device));
     
     unsafe {
       let vk = device.pointers();
@@ -164,11 +176,11 @@ impl CoreMaat {
     }
   }
   
-  fn create_fences(device: &Device, num_fences: u32) -> Vec<Fence> {
+  fn create_fences(device: Arc<Device>, num_fences: u32) -> Vec<Fence> {
     let mut fences: Vec<Fence> = Vec::with_capacity(num_fences as usize);
     
     for _ in 0..num_fences {
-      let fence: Fence = Fence::new(device);
+      let fence: Fence = Fence::new(Arc::clone(&device));
       fences.push(fence);
     }
     
@@ -186,11 +198,17 @@ impl CoreRender for CoreMaat {
   }
   
   fn preload_texture(&mut self, reference: String, location: String) {
-    
+    let graphics_queue = self.window.get_graphics_queue();
+    let device = self.window.device();
+    let instance = self.window.instance();
+    self.resource_manager.sync_load_texture(reference, location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-    
+    let graphics_queue = self.window.get_graphics_queue();
+    let device = self.window.device();
+    let instance = self.window.instance();
+    self.resource_manager.sync_load_texture(reference, location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
@@ -229,7 +247,7 @@ impl CoreRender for CoreMaat {
     
     for fence in &self.fences {
       let device = self.window.device();
-      fence.wait(device);
+      fence.wait(Arc::clone(&device));
     }
     
     self.window.recreate_swapchain();
@@ -237,7 +255,7 @@ impl CoreRender for CoreMaat {
     
     for i in 0..self.command_buffers.len() {
       let device = self.window.device();
-      self.command_buffers[i].free(device, &self.command_pool)
+      self.command_buffers[i].free(Arc::clone(&device), &self.command_pool)
     }
     self.command_buffers.clear();
     
@@ -246,9 +264,9 @@ impl CoreRender for CoreMaat {
       let instance = self.window.instance();
       let image_views = self.window.swapchain_image_views();
       
-      self.command_buffers = self.command_pool.create_command_buffers(device, image_views.len() as u32);
+      self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      self.texture_shader.recreate(instance, device, image_views, &self.window_dimensions, &self.texture, &self.sampler);
+      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), image_views, &self.window_dimensions, &self.texture, &self.sampler);
     }
     
     self.draw(&Vec::new());
@@ -274,18 +292,18 @@ impl CoreRender for CoreMaat {
     let clear_values: Vec<vk::ClearValue> = {
       vec!(
         vk::ClearValue { 
-          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
+          color: vk::ClearColorValue { float32: [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w] }
         }
       )
     };
     
     for i in 0..self.command_buffers.len() {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
-      cmd = cmd.begin_command_buffer(device);
-      cmd = self.texture_shader.begin_renderpass(device, cmd, &clear_values, &window_size, i);
+      cmd = cmd.begin_command_buffer(Arc::clone(&device));
+      cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
       
-      cmd = cmd.set_viewport(device, 0.0, 0.0, window_size.width as f32, window_size.height as f32);
-      cmd = cmd.set_scissor(device, 0, 0, window_size.width, window_size.height);
+      cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
+      cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
       
       for draw in draw_calls {
         let black_and_white = draw.is_black_and_white();
@@ -293,17 +311,17 @@ impl CoreRender for CoreMaat {
           DrawType::DrawTextured(ref info) => {
             let (reference, position, scale, rotation, alpha) = info.clone(); 
             
-            cmd = self.texture_shader.draw_texture(device, cmd, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, &self.texture);
+            cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, &self.texture);
           },
           DrawType::DrawSpriteSheet(ref info) => {
             let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
             
-            cmd = self.texture_shader.draw_texture(device, cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, &self.texture);
+            cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, &self.texture);
           },
           DrawType::DrawColoured(ref info) => {
             let (position, scale, colour, rotation) = info.clone(); 
             
-            cmd = self.texture_shader.draw_texture(device, cmd, position, scale, rotation, None, Some(colour), black_and_white, false, &self.texture);
+            cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(colour), black_and_white, false, &self.texture);
           },
           _ => {
             
@@ -311,8 +329,8 @@ impl CoreRender for CoreMaat {
         }
       }
       
-      cmd = cmd.end_render_pass(device);
-      cmd.end_command_buffer(device);
+      cmd = cmd.end_render_pass(Arc::clone(&device));
+      cmd.end_command_buffer(Arc::clone(&device));
     }
     
     //
@@ -322,12 +340,12 @@ impl CoreRender for CoreMaat {
     let swapchain = self.window.get_swapchain();
     let graphics_queue = self.window.get_graphics_queue();
     
-    let mut current_buffer = self.window.aquire_next_image(device, &self.semaphore_image_available);
+    let mut current_buffer = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available);
     
-    self.fences[current_buffer].wait(device);
-    self.fences[current_buffer].reset(device);
+    self.fences[current_buffer].wait(Arc::clone(&device));
+    self.fences[current_buffer].reset(Arc::clone(&device));
     
-    match self.command_buffers[current_buffer].submit(device, swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
+    match self.command_buffers[current_buffer].submit(Arc::clone(&device), swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
       },
@@ -338,7 +356,7 @@ impl CoreRender for CoreMaat {
       return;
     }
       
-    self.command_buffers[current_buffer].finish(device, &graphics_queue);
+    self.command_buffers[current_buffer].finish(Arc::clone(&device), &graphics_queue);
   }
   
   fn post_draw(&self) {
@@ -382,7 +400,7 @@ impl CoreRender for CoreMaat {
   }
   
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
-    
+    self.clear_colour = Vector4::new(r,g,b,a);
   }
   
   fn set_camera(&mut self, camera: Camera) {
@@ -406,21 +424,22 @@ impl Drop for CoreMaat {
     println!("Destroying Fences");
     for fence in &self.fences {
       let device = self.window.device();
-      fence.wait(device);
-      fence.destroy(device);
+      fence.wait(Arc::clone(&device));
+      fence.destroy(Arc::clone(&device));
     }
     
     let device = self.window.device();
     
-    self.texture.destroy(device);
-    self.sampler.destroy(device);
+    self.resource_manager.destroy(Arc::clone(&device));
+    self.texture.destroy(Arc::clone(&device));
+    self.sampler.destroy(Arc::clone(&device));
     
-    self.texture_shader.destroy(device);
+    self.texture_shader.destroy(Arc::clone(&device));
     
-    self.descriptor_set_pool.destroy(device);
+    self.descriptor_set_pool.destroy(Arc::clone(&device));
     
-    self.command_pool.destroy(device);
-    self.semaphore_image_available.destroy(device);
-    self.semaphore_render_finished.destroy(device);
+    self.command_pool.destroy(Arc::clone(&device));
+    self.semaphore_image_available.destroy(Arc::clone(&device));
+    self.semaphore_render_finished.destroy(Arc::clone(&device));
   }
 }

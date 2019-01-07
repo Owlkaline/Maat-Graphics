@@ -9,6 +9,7 @@ use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, Front
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 use std::ffi::CString;
 
 pub struct PipelineBuilder {
@@ -276,7 +277,7 @@ impl PipelineBuilder {
     self
   }
   
-  pub fn build(mut self, device: &Device) -> Pipeline {
+  pub fn build(mut self, device: Arc<Device>) -> Pipeline {
     if !self.vertex_shader.is_some() {
       panic!("PipelineBuilder Error: vertex shader missing!");
     }

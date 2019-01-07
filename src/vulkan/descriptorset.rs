@@ -13,6 +13,7 @@ use crate::vulkan::vkenums::{ShaderStageFlagBits, DescriptorType, ImageLayout};
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct DescriptorSet {
   sets: Vec<vk::DescriptorSet>,
@@ -43,7 +44,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     }
   }
   
-  pub fn add_uniformbuffer(mut self, device: &Device, set: u32, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
+  pub fn add_uniformbuffer(mut self, device: Arc<Device>, set: u32, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_buffer(device, data.build());
     self.uniform_buffers.push((binding, uniform_buffer));
@@ -55,7 +56,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     self
   }
   
-  pub fn finish_update(mut self, instance: &Instance, device: &Device, descriptor_set: &DescriptorSet) {
+  pub fn finish_update(mut self, instance: Arc<Instance>, device: Arc<Device>, descriptor_set: &DescriptorSet) {
     let mut write_descriptor_sets: Vec<vk::WriteDescriptorSet> = Vec::new();
     let sets = descriptor_set.all_sets();
     
@@ -180,7 +181,7 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn build(&self, device: &Device, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
+  pub fn build(&self, device: Arc<Device>, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
    /* let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
     let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
@@ -321,9 +322,9 @@ impl DescriptorSetBuilder {
 }
 
 impl DescriptorSet {
-  pub fn new(device: &Device, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
-    let layouts = DescriptorSet::create_layouts(device, num_sets);
-    let sets = DescriptorSet::create_sets(device, &layouts, set_pool, num_sets);
+  pub fn new(device: Arc<Device>, set_pool: Arc<DescriptorPool>, num_sets: u32) -> DescriptorSet {
+    let layouts = DescriptorSet::create_layouts(Arc::clone(&device), num_sets);
+    let sets = DescriptorSet::create_sets(Arc::clone(&device), &layouts, set_pool, num_sets);
     
     DescriptorSet {
       sets,
@@ -354,7 +355,7 @@ impl DescriptorSet {
     (*self.layouts).to_vec()
   } 
   
-  pub fn update_sets<T: Clone>(&self, device: &Device, uniform_buffer: &Buffer<T>) {
+  pub fn update_sets<T: Clone>(&self, device: Arc<Device>, uniform_buffer: &Buffer<T>) {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -388,7 +389,7 @@ impl DescriptorSet {
     }
   }
   
-  fn create_sets(device: &Device, layouts: &Vec<vk::DescriptorSetLayout>, set_pool: &DescriptorPool, num_sets: u32) -> Vec<vk::DescriptorSet> {
+  fn create_sets(device: Arc<Device>, layouts: &Vec<vk::DescriptorSetLayout>, set_pool: Arc<DescriptorPool>, num_sets: u32) -> Vec<vk::DescriptorSet> {
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
     
     for i in 0..num_sets as usize {
@@ -416,7 +417,7 @@ impl DescriptorSet {
     descriptor_sets
   }
   
-  fn create_layouts(device: &Device, num_sets: u32) -> Vec<vk::DescriptorSetLayout> {
+  fn create_layouts(device: Arc<Device>, num_sets: u32) -> Vec<vk::DescriptorSetLayout> {
     let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
     let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
     
@@ -467,7 +468,7 @@ impl DescriptorSet {
     layouts
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

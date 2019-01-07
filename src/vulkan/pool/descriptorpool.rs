@@ -5,13 +5,14 @@ use crate::vulkan::ownage::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct DescriptorPool {
   pool: vk::DescriptorPool
 }
 
 impl DescriptorPool {
-  pub fn new(device: &Device, max_sets: u32, num_uniforms: u32, num_images: u32) -> DescriptorPool {
+  pub fn new(device: Arc<Device>, max_sets: u32, num_uniforms: u32, num_images: u32) -> DescriptorPool {
     let max_sets = max_sets * num_uniforms.max(num_images);
     
     let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
@@ -62,7 +63,7 @@ impl DescriptorPool {
     &self.pool
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

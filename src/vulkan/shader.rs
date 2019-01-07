@@ -4,13 +4,14 @@ use crate::vulkan::Device;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct Shader {
   module: vk::ShaderModule,
 }
 
 impl Shader {
-  pub fn new(device: &Device, shader_code: &[u8]) -> Shader {
+  pub fn new(device: Arc<Device>, shader_code: &[u8]) -> Shader {
     let mut shader_module: vk::ShaderModule = unsafe { mem::uninitialized() };
     
     let shader_code_size = mem::size_of::<u8>() * shader_code.len();
@@ -39,7 +40,7 @@ impl Shader {
     &self.module
   }
   
-  pub fn destroy(&mut self, device: &Device) {
+  pub fn destroy(&mut self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

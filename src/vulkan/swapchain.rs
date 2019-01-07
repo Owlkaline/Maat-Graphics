@@ -6,6 +6,7 @@ use crate::vulkan::Device;
 
 use std::ptr;
 use std::mem;
+use std::sync::Arc; 
 
 pub struct Swapchain {
   swapchain: vk::SwapchainKHR,
@@ -15,11 +16,11 @@ pub struct Swapchain {
 }
 
 impl Swapchain {
-  pub fn new(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
     
-    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, None);
-    let images = Swapchain::get_swapchain_images(device, &swapchain);
-    let image_views = Swapchain::create_image_views(device, &images, &format);
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, None);
+    let images = Swapchain::get_swapchain_images(Arc::clone(&device), &swapchain);
+    let image_views = Swapchain::create_image_views(Arc::clone(&device), &images, &format);
     
     Swapchain {
       swapchain: swapchain,
@@ -29,14 +30,14 @@ impl Swapchain {
     }
   }
   
-  pub fn recreate(&mut self, instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
     let old_swapchain = self.swapchain;
-    let (swapchain, format) = Swapchain::create_swapchain(instance, device, surface, graphics_family, present_family, Some(old_swapchain));
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, Some(old_swapchain));
     
-    self.destroy(device);
+    self.destroy(Arc::clone(&device));
     
-    let images = Swapchain::get_swapchain_images(device, &swapchain);
-    let image_views = Swapchain::create_image_views(device, &images, &format);
+    let images = Swapchain::get_swapchain_images(Arc::clone(&device), &swapchain);
+    let image_views = Swapchain::create_image_views(Arc::clone(&device), &images, &format);
     
     self.swapchain = swapchain;
     self.format = format;
@@ -56,7 +57,7 @@ impl Swapchain {
     &self.swapchain
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -71,7 +72,7 @@ impl Swapchain {
     }
   }
   
-  fn create_image_views(device: &Device, images: &Vec<vk::Image>, format: &vk::Format) -> Vec<vk::ImageView> {
+  fn create_image_views(device: Arc<Device>, images: &Vec<vk::Image>, format: &vk::Format) -> Vec<vk::ImageView> {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -114,7 +115,7 @@ impl Swapchain {
     image_views
   }
   
-  fn get_swapchain_images(device: &Device, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
+  fn get_swapchain_images(device: Arc<Device>, swapchain: &vk::SwapchainKHR) -> Vec<vk::Image> {
     let mut image_count = 0;
     let mut images: Vec<vk::Image>;
     
@@ -131,7 +132,7 @@ impl Swapchain {
     images
   }
   
-  fn create_swapchain(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>) -> (vk::SwapchainKHR, vk::Format) {
+  fn create_swapchain(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>) -> (vk::SwapchainKHR, vk::Format) {
     let vk = device.pointers();
     let phys_device = device.physical_device();
     let device = device.internal_object();

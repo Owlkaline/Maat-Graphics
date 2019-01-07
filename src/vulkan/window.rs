@@ -12,6 +12,8 @@ use std::mem;
 use std::u64::MAX;
 use std::ffi::CString;
 
+use std::sync::Arc;
+
 use std::borrow::Borrow;
 
 use winit::dpi::LogicalSize;
@@ -230,8 +232,8 @@ unsafe fn create_surface(
 }
 
 pub struct VkWindow {
-  instance: Instance,
-  device: Device,
+  instance: Arc<Instance>,
+  device: Arc<Device>,
   surface: vk::SurfaceKHR,
   swapchain: Swapchain,
   graphics_queue: vk::Queue,
@@ -246,17 +248,17 @@ impl VkWindow {
     let instance = Instance::new(app_name.to_string(), app_version, should_debug);
     
     let (window, events_loop, surface) = {
-      VkWindow::create_window(&instance,
+      VkWindow::create_window(Arc::clone(&instance),
                               app_name, 
                               width, 
                               height)
     };
     
-    let device = Device::new(&instance, &surface);
+    let device = Device::new(Arc::clone(&instance), &surface);
     
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(&instance, &device, &surface);
+    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface);
     
-    let swapchain = Swapchain::new(&instance, &device, &surface, graphics_family, present_family);
+    let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, graphics_family, present_family);
     
     VkWindow {
       instance: instance,
@@ -276,7 +278,7 @@ impl VkWindow {
   }
   
   pub fn recreate_swapchain(&mut self) {
-    self.swapchain.recreate(&self.instance, &self.device, &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1);
+    self.swapchain.recreate(Arc::clone(&self.instance), Arc::clone(&self.device), &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1);
   }
   
   pub fn get_swapchain(&self) -> &Swapchain {
@@ -295,7 +297,7 @@ impl VkWindow {
     &mut self.events_loop
   }
   
-  pub fn aquire_next_image(&self, device: &Device, image_available: &Semaphore) -> usize {
+  pub fn aquire_next_image(&self, device: Arc<Device>, image_available: &Semaphore) -> usize {
     let mut current_image = 0;
     
     unsafe {
@@ -315,12 +317,12 @@ impl VkWindow {
     &self.device.pointers()
   }
   
-  pub fn instance(&self) -> &Instance {
-    &self.instance
+  pub fn instance(&self) -> Arc<Instance> {
+    Arc::clone(&self.instance)
   }
   
-  pub fn device(&self) -> &Device {
-    &self.device
+  pub fn device(&self) -> Arc<Device> {
+    Arc::clone(&self.device)
   }
   
   pub fn physical_device(&self) -> &vk::PhysicalDevice {
@@ -344,7 +346,7 @@ impl VkWindow {
     self.instance.get_surface_capabilities(phys_device, &self.surface)
   }
   
-  fn create_window(instance: &Instance, app_name: String, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
+  fn create_window(instance: Arc<Instance>, app_name: String, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
     let events_loop = winit::EventsLoop::new();
     let window = winit::WindowBuilder::new().with_title(app_name).with_dimensions(LogicalSize::new(width as f64, height as f64)).build(&events_loop).unwrap();
     
@@ -353,7 +355,7 @@ impl VkWindow {
     (window, events_loop, surface)
   }
   
-  fn find_queue_families(instance: &Instance, device: &Device, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
+  fn find_queue_families(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
     let phys_device = device.physical_device();
     
     let queue_family_properties: Vec<vk::QueueFamilyProperties> = instance.get_queue_family_properties(phys_device);
@@ -464,7 +466,7 @@ impl VkWindow {
 
 impl Drop for VkWindow {
   fn drop(&mut self) {
-    self.swapchain.destroy(&self.device);
+    self.swapchain.destroy(Arc::clone(&self.device));
     self.device.destroy();
     self.instance.destroy();
   }

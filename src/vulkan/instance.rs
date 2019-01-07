@@ -9,6 +9,7 @@ use crate::vulkan::loader::FunctionPointers;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 use std::ffi::CString;
 use std::ffi::CStr;
 
@@ -41,19 +42,19 @@ pub struct Instance {
 }
 
 impl Instance {
-  pub fn new(app_name: String, app_version: u32, should_debug: bool) -> Instance {
+  pub fn new(app_name: String, app_version: u32, should_debug: bool) -> Arc<Instance> {
     let function_pointers = OwnedOrRef::Ref(loader::auto_loader().unwrap());
     let entry_points = function_pointers.entry_points();
     let supported_extensions = supported_extensions(entry_points);
     
     let (vk, instance, extensions, layers) = Instance::create_instance(&entry_points, &function_pointers, app_name, app_version, should_debug, supported_extensions);
     
-    Instance {
+    Arc::new(Instance {
       vk: vk,
       instance: instance,
       extensions: extensions,
       layers: layers,
-    }
+    })
   }
   
   pub fn pointers(&self) -> &vk::InstancePointers {

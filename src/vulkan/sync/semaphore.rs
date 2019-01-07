@@ -5,13 +5,14 @@ use crate::vulkan::ownage::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct Semaphore {
   semaphore: vk::Semaphore,
 }
 
 impl Semaphore {
-  pub fn new(device: &Device) -> Semaphore {
+  pub fn new(device: Arc<Device>) -> Semaphore {
     let mut semaphore: vk::Semaphore = unsafe { mem::uninitialized() };
     
     let semaphore_info = vk::SemaphoreCreateInfo {
@@ -35,7 +36,7 @@ impl Semaphore {
     &self.semaphore
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     unsafe {

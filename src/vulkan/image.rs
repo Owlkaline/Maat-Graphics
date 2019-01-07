@@ -10,7 +10,9 @@ use image;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Image {
   image: vk::Image,
   image_view: vk::ImageView,
@@ -18,7 +20,7 @@ pub struct Image {
 }
 
 impl Image {
-  pub fn device_local(instance: &Instance, device: &Device, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+  pub fn device_local(instance: Arc<Instance>, device: Arc<Device>, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
     let (width, height) = image.dimensions();
     let image_data = image.into_raw().clone();
@@ -34,23 +36,23 @@ impl Image {
     let staging_usage = BufferUsage::transfer_src_buffer();
     let image_usage = ImageUsage::transfer_dst_sampled();
     
-    let staging_buffer = Buffer::cpu_buffer(instance, device, staging_usage, 1, image_data);
+    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
     
-    Image::create_image(instance, device, image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, tiling, &mut texture_image, &mut texture_memory);
+    Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, tiling, &mut texture_image, &mut texture_memory);
     
-    Image::transition_layout(device, &texture_image, format, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, command_pool, graphics_queue);
+    Image::transition_layout(Arc::clone(&device), &texture_image, format, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
     
-    let mut command_buffer = Image::begin_single_time_command(device, command_pool);
-    command_buffer.copy_buffer_to_image(device, &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
-    Image::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
-    
-    
-    Image::transition_layout(device, &texture_image, format, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, command_pool, graphics_queue);
+    let mut command_buffer = Image::begin_single_time_command(Arc::clone(&device), &command_pool);
+    command_buffer.copy_buffer_to_image(Arc::clone(&device), &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
+    Image::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
     
     
-    staging_buffer.destroy(device);
+    Image::transition_layout(Arc::clone(&device), &texture_image, format, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
     
-    texture_image_view = Image::create_image_view(device, &texture_image, format, image_view_type);
+    
+    staging_buffer.destroy(Arc::clone(&device));
+    
+    texture_image_view = Image::create_image_view(Arc::clone(&device), &texture_image, format, image_view_type);
     
     Image {
       image: texture_image,
@@ -71,13 +73,13 @@ impl Image {
     self.memory
   }
   
-  fn begin_single_time_command(device: &Device, command_pool: &CommandPool) -> CommandBuffer {
-    let command_buffer = CommandBuffer::primary(device, command_pool);
-    command_buffer.begin_command_buffer(device, vk::COMMAND_BUFFER_LEVEL_PRIMARY);
+  fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
+    let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
+    command_buffer.begin_command_buffer(Arc::clone(&device), vk::COMMAND_BUFFER_LEVEL_PRIMARY);
     command_buffer
   }
   
-  fn end_single_time_command(device: &Device, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  fn end_single_time_command(device: Arc<Device>, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     let submit_info = {
       vk::SubmitInfo {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
@@ -92,7 +94,7 @@ impl Image {
       }
     };
     
-    command_buffer.end_command_buffer(device);
+    command_buffer.end_command_buffer(Arc::clone(&device));
     
     unsafe {
       let vk = device.pointers();
@@ -104,7 +106,7 @@ impl Image {
     }
   }
   
-  fn transition_layout(device: &Device, image: &vk::Image, format: &vk::Format, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  fn transition_layout(device: Arc<Device>, image: &vk::Image, format: &vk::Format, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     
     let subresource_range = vk::ImageSubresourceRange {
       aspectMask: ImageAspect::Colour.to_bits(),
@@ -147,12 +149,12 @@ impl Image {
       subresourceRange: subresource_range,
     };
     
-    let mut command_buffer = Image::begin_single_time_command(device, command_pool);
-    command_buffer.pipeline_barrier(device, src_stage, dst_stage, barrier);
-    Image::end_single_time_command(device, command_buffer, command_pool, graphics_queue);
+    let mut command_buffer = Image::begin_single_time_command(Arc::clone(&device), command_pool);
+    command_buffer.pipeline_barrier(Arc::clone(&device), src_stage, dst_stage, barrier);
+    Image::end_single_time_command(Arc::clone(&device), command_buffer, command_pool, graphics_queue);
   }
   
-  fn create_image(instance: &Instance, device: &Device, image_type: ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: Sample, initial_layout: ImageLayout, tiling: ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
+  fn create_image(instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: Sample, initial_layout: ImageLayout, tiling: ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
     
     let vk = device.pointers();
     let vk_instance = instance.pointers();
@@ -224,7 +226,7 @@ impl Image {
     }
   }
   
-  fn create_image_view(device: &Device, image: &vk::Image, format: &vk::Format, image_view_type: ImageViewType) -> vk::ImageView {
+  fn create_image_view(device: Arc<Device>, image: &vk::Image, format: &vk::Format, image_view_type: ImageViewType) -> vk::ImageView {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -263,7 +265,7 @@ impl Image {
     image_view
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     unsafe {
       let vk = device.pointers();
       let device = device.internal_object();

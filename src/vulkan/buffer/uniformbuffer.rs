@@ -4,6 +4,7 @@ use crate::vulkan::buffer::Buffer;
 use crate::vulkan::buffer::BufferUsage;
 
 use std::mem;
+use std::sync::Arc;
 
 use cgmath::Vector2;
 use cgmath::Vector3;
@@ -195,7 +196,7 @@ impl UniformBufferBuilder {
     self
   }
   
-  pub fn build(&self, instance: &Instance, device: &Device, num_sets: u32) -> Buffer<f32> {
+  pub fn build(&self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) -> Buffer<f32> {
     let usage = BufferUsage::uniform_buffer();
     let mut data: Vec<f32> = Vec::new();
     for ty in &self.uniform_ty {

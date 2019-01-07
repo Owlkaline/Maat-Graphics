@@ -3,10 +3,11 @@ use vk;
 use crate::vulkan::Device;
 use crate::vulkan::DescriptorSet;
 use crate::vulkan::RenderPass;
-use crate::vulkan::ownage::check_errors;
+use crate::vulkan::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 use std::ffi::CString;
 
 pub struct PipelineInfo {
@@ -24,7 +25,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-  pub fn new(device: &Device, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &RenderPass, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
+  pub fn new(device: Arc<Device>, vertex_shader: &vk::ShaderModule, fragment_shader: &vk::ShaderModule, render_pass: &RenderPass, descriptor_set: &DescriptorSet, vertex_binding: Vec<vk::VertexInputBindingDescription>, vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription>) -> Pipeline {
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
     let mut cache: vk::PipelineCache = unsafe { mem::uninitialized() };
@@ -344,7 +345,7 @@ impl Pipeline {
     (&self.info.vertex_shader, &self.info.fragment_shader)
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

@@ -14,7 +14,7 @@ pub struct CommandPool {
 }
 
 impl CommandPool {
-  pub fn new(device: &Device, graphics_family: u32) -> CommandPool {
+  pub fn new(device: Arc<Device>, graphics_family: u32) -> CommandPool {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -36,7 +36,7 @@ impl CommandPool {
     }
   }
   
-  pub fn new_transient(device: &Device, graphics_family: u32) -> CommandPool {
+  pub fn new_transient(device: Arc<Device>, graphics_family: u32) -> CommandPool {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -62,7 +62,7 @@ impl CommandPool {
     &self.pool
   }
   
-  pub fn create_command_buffers(&self, device: &Device, num_command_command_buffers: u32) -> Vec<Arc<CommandBuffer>> {
+  pub fn create_command_buffers(&self, device: Arc<Device>, num_command_command_buffers: u32) -> Vec<Arc<CommandBuffer>> {
     let mut command_buffers: Vec<vk::CommandBuffer> = Vec::with_capacity(num_command_command_buffers as usize);
     
     let allocate_command_buffer_info = vk::CommandBufferAllocateInfo {
@@ -84,7 +84,7 @@ impl CommandPool {
     command_buffers.iter().map(|x| Arc::new(CommandBuffer::from_buffer(*x))).collect::<Vec<Arc<CommandBuffer>>>()
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

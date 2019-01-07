@@ -6,6 +6,7 @@ use crate::vulkan::check_errors;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 pub struct Sampler {
   sampler: vk::Sampler,
@@ -16,7 +17,7 @@ impl Sampler {
     self.sampler
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     unsafe {
       let vk = device.pointers();
       let device = device.internal_object();
@@ -96,7 +97,7 @@ impl SamplerBuilder {
     self
   }
   
-  pub fn build(&self, device: &Device) -> Sampler {
+  pub fn build(&self, device: Arc<Device>) -> Sampler {
     let vk = device.pointers();
     let device = device.internal_object();
     
@@ -140,7 +141,7 @@ impl Sampler {
     }
   }
   
-  pub fn new_texture_sampler(device: &Device) -> Sampler {
+  pub fn new_texture_sampler(device: Arc<Device>) -> Sampler {
     let vk = device.pointers();
     let device = device.internal_object();
     

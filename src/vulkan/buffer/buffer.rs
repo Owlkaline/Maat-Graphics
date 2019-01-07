@@ -9,7 +9,9 @@ use libc::memcpy;
 
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Buffer<T: Clone> {
   buffer: Vec<vk::Buffer>,
   memory: Vec<vk::DeviceMemory>,
@@ -18,12 +20,12 @@ pub struct Buffer<T: Clone> {
 }
 
 impl<T: Clone> Buffer<T> {
-  pub fn empty(instance: &Instance, device: &Device, usage: BufferUsage, num_sets: u32) -> Buffer<T> {
+  pub fn empty(instance: Arc<Instance>, device: Arc<Device>, usage: BufferUsage, num_sets: u32) -> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
     for i in 0..num_sets {
-      let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &Vec::new() as &Vec<T>);
+      let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &Vec::new() as &Vec<T>);
       buffers.push(buffer);
       memorys.push(memory);
     }
@@ -36,12 +38,12 @@ impl<T: Clone> Buffer<T> {
     }
   }
   
-  pub fn cpu_buffer(instance: &Instance, device: &Device, usage: BufferUsage, num_sets: u32, data: Vec<T>) -> Buffer<T> {
+  pub fn cpu_buffer(instance: Arc<Instance>, device: Arc<Device>, usage: BufferUsage, num_sets: u32, data: Vec<T>) -> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
     for i in 0..num_sets {
-      let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &data);
+      let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &data);
       buffers.push(buffer);
       memorys.push(memory);
     }
@@ -55,17 +57,17 @@ impl<T: Clone> Buffer<T> {
     };
     
     let data = buffer.internal_data();
-    buffer.fill_buffer(device, data);
+    buffer.fill_buffer(Arc::clone(&device), data);
     
     buffer
   }
   
-  pub fn device_local_buffer(instance: &Instance, device: &Device, usage: BufferUsage, num_sets: u32, data: Vec<T>) -> Buffer<T> {
+  pub fn device_local_buffer(instance: Arc<Instance>, device: Arc<Device>, usage: BufferUsage, num_sets: u32, data: Vec<T>) -> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
     for i in 0..num_sets {
-      let (buffer, memory) = Buffer::create_buffer(instance, device, &usage, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &data);
+      let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &data);
       buffers.push(buffer);
       memorys.push(memory);
     }
@@ -78,7 +80,7 @@ impl<T: Clone> Buffer<T> {
     }
   }
   
-  pub fn fill_buffer(&mut self, device: &Device, data: Vec<T>) {
+  pub fn fill_buffer(&mut self, device: Arc<Device>, data: Vec<T>) {
     self.data = data;
     
     let mut host_visible_data = unsafe { mem::uninitialized() };
@@ -114,7 +116,7 @@ impl<T: Clone> Buffer<T> {
     size as vk::DeviceSize
   }
   
-  fn create_buffer(instance: &Instance, device: &Device, usage: &BufferUsage, properties: vk::MemoryPropertyFlags, data: &Vec<T>) -> (vk::Buffer, vk::DeviceMemory) {
+  fn create_buffer(instance: Arc<Instance>, device: Arc<Device>, usage: &BufferUsage, properties: vk::MemoryPropertyFlags, data: &Vec<T>) -> (vk::Buffer, vk::DeviceMemory) {
     
     let mut buffer: vk::Buffer = unsafe { mem::uninitialized() };
     let mut buffer_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
@@ -183,7 +185,7 @@ impl<T: Clone> Buffer<T> {
     (buffer, buffer_memory)
   }
   
-  pub fn destroy(&self, device: &Device) {
+  pub fn destroy(&self, device: Arc<Device>) {
     println!("Destroying buffer");
     for i in 0..self.memory.len() {
       unsafe {

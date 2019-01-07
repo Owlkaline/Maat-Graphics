@@ -1,5 +1,5 @@
 
-
+#[derive(Clone)]
 pub struct BufferUsage {
   transfer_src: bool,
   transfer_dst: bool,
