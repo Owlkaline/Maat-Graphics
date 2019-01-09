@@ -215,7 +215,7 @@ unsafe fn create_surface(
     }
     
     let surface = {
-      let infos = vk::IOSSurfaceCreateInfoMVK {
+      let infos = vk::MACOSSurfaceCreateInfoMVK {
         sType: vk::STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK,
         pNext: ptr::null(),
         flags: 0, // reserved
