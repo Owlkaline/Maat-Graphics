@@ -208,8 +208,8 @@ unsafe fn create_surface(
     let vk = instance.pointers();
     let extensions = instance.get_extensions();
     
-    if !extensions.contains(&CString::new("VK_MVK_ios_surface").unwrap()) {
-      panic!("Missing extension VK_MVK_ios_surface");
+    if !extensions.contains(&CString::new("VK_MVK_macos_surface").unwrap()) {
+      panic!("Missing extension VK_MVK_macos_surface");
     }
     
     let surface = {
