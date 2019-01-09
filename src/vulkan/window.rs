@@ -183,7 +183,58 @@ unsafe fn create_surface(
   surface
 }
 
+
+
 #[cfg(target_os = "macos")]
+unsafe fn create_surface(
+    instance: &Instance, win: &winit::Window,
+) -> vk::SurfaceKHR {
+    use winit::os::macos::WindowExt;
+    
+    let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
+    
+    let layer = CoreAnimationLayer::new();
+    
+    layer.set_edge_antialiasing_mask(0);
+    layer.set_presents_with_transaction(false);
+    layer.remove_all_animations();
+    
+    let view = wnd.contentView();
+    
+    layer.set_contents_scale(view.backingScaleFactor());
+    view.setLayer(mem::transmute(layer.as_ref())); // Bombs here with out of memory
+    view.setWantsLayer(YES);
+    
+    let view = win.borrow().get_nsview() as *const ();
+    
+    let vk = instance.pointers();
+    let extensions = instance.get_extensions();
+    
+    if !extensions.contains(&CString::new("VK_MVK_macos_surface").unwrap()) {
+      panic!("Missing extension VK_MVK_macos_surface");
+    }
+    
+    let surface = {
+      let infos = vk::IOSSurfaceCreateInfoMVK {
+        sType: vk::STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK,
+        pNext: ptr::null(),
+        flags: 0, // reserved
+        pView: view as *const _,
+      };
+      
+      let mut output = mem::uninitialized();
+      check_errors(vk.CreateMacOSSurfaceMVK(*instance.local_instance(),
+                                          &infos,
+                                          ptr::null(),
+                                          &mut output));
+    output
+  };
+  
+  surface
+}
+
+
+#[cfg(target_os = "ios")]
 unsafe fn create_surface(
     instance: &Instance, win: &winit::Window,
 ) -> vk::SurfaceKHR {
