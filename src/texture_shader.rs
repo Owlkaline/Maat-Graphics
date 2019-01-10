@@ -286,7 +286,7 @@ impl TextureShader {
     
     let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
-    let model = math::calculate_texture_model(Vector3::new(position.x/self.scale, position.y/self.scale, 0.0), scale/self.scale, -rotation -180.0);
+    let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale/self.scale, -rotation -180.0);
     
     let has_texture  = {
       if use_texture {

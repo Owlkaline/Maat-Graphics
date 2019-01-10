@@ -273,6 +273,11 @@ impl CoreRender for CoreMaat {
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), image_views, &self.window_dimensions, &self.texture, &self.sampler);
+      let graphics_queue = self.window.get_graphics_queue();
+    
+      for (reference, texture) in &self.resources.get_all_textures() {
+        self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
+      }
     }
     
     self.draw(&Vec::new());
