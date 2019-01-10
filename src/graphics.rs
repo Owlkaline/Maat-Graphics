@@ -56,6 +56,7 @@ pub trait CoreRender {
   fn get_dimensions(&self) -> LogicalSize;
   fn get_events(&mut self) -> &mut winit::EventsLoop;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
+  fn set_dpi(&mut self, new_dpi: f32);
   fn get_dpi_scale(&self) -> f64;
   fn is_ready(&self) -> bool;
   fn set_cursor_position(&mut self, x: f32, y: f32);

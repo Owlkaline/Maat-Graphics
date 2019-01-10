@@ -324,6 +324,12 @@ impl VkWindow {
     }
   }
   
+  pub fn get_hidpi_factor(&self) -> f32 {
+    let dpi = self.window.get_hidpi_factor();
+    
+    dpi as f32
+  }
+  
   pub fn get_current_extent(&self) -> vk::Extent2D {
     self.get_capabilities().currentExtent
   }

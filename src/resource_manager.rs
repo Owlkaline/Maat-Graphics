@@ -159,6 +159,24 @@ impl ResourceManager {
     result
   }
   
+  pub fn get_all_textures(&self) -> Vec<(String, Image)> {
+    let mut result = Vec::with_capacity(self.objects.len());
+    
+    for object in &self.objects {
+      let reference = object.reference.to_string();
+      match object.object_type {
+        ObjectType::Texture(ref image) => {
+          if image.is_some() {
+            result.push((reference, image.clone().unwrap()));
+          }
+        },
+        _ => {}
+      }
+    }
+    
+    result
+  }
+  
   /**
   ** Inserts details for a texture, does not load the image into memory.
   ** Must call Load_texture as a DrawCall in order to use

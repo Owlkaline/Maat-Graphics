@@ -74,6 +74,8 @@ impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
     
+    let dpi = window.get_hidpi_factor();
+    
     let mut resource_manager = ResourceManager::new();
     
     let fences: Vec<Fence>;
@@ -118,7 +120,7 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, dpi, graphics_queue);
       
     }
     
@@ -387,6 +389,18 @@ impl CoreRender for CoreMaat {
   
   fn get_fonts(&self) -> HashMap<String, GenericFont> {
     HashMap::new()
+  }
+  
+  fn set_dpi(&mut self, new_dpi: f32) {
+    self.texture_shader.set_scale(new_dpi);
+    
+    let device = self.window.device();
+    let instance = self.window.instance();
+    let graphics_queue = self.window.get_graphics_queue();
+    
+    for (reference, texture) in &self.resources.get_all_textures() {
+      self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
+    }
   }
   
   fn get_dpi_scale(&self) -> f64 {
