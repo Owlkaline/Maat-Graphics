@@ -22,8 +22,12 @@ pub struct Image {
 impl Image {
   pub fn device_local(instance: Arc<Instance>, device: Arc<Device>, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
+    Image::device_local_with_image_data(instance, device, &image, &image_type, &image_view_type, format, &samples, &tiling, command_pool, graphics_queue)
+  }
+  
+  pub fn device_local_with_image_data(instance: Arc<Instance>, device: Arc<Device>, image: &image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let (width, height) = image.dimensions();
-    let image_data = image.into_raw().clone();
+    let image_data = image.clone().into_raw().clone();
     
     let image_extent = vk::Extent3D { width: width, height: height, depth: 1 };
     
@@ -38,7 +42,7 @@ impl Image {
     
     let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
     
-    Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, tiling, &mut texture_image, &mut texture_memory);
+    Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, &tiling, &mut texture_image, &mut texture_memory);
     
     Image::transition_layout(Arc::clone(&device), &texture_image, format, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
     
@@ -154,7 +158,7 @@ impl Image {
     Image::end_single_time_command(Arc::clone(&device), command_buffer, command_pool, graphics_queue);
   }
   
-  fn create_image(instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: Sample, initial_layout: ImageLayout, tiling: ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
+  fn create_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
     
     let vk = device.pointers();
     let vk_instance = instance.pointers();
@@ -226,7 +230,7 @@ impl Image {
     }
   }
   
-  fn create_image_view(device: Arc<Device>, image: &vk::Image, format: &vk::Format, image_view_type: ImageViewType) -> vk::ImageView {
+  fn create_image_view(device: Arc<Device>, image: &vk::Image, format: &vk::Format, image_view_type: &ImageViewType) -> vk::ImageView {
     let vk = device.pointers();
     let device = device.internal_object();
     

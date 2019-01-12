@@ -74,8 +74,6 @@ impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
     
-    let dpi = window.get_hidpi_factor();
-    
     let mut resource_manager = ResourceManager::new();
     
     let fences: Vec<Fence>;
@@ -120,7 +118,7 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, dpi, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
       
     }
     
@@ -208,11 +206,12 @@ impl CoreRender for CoreMaat {
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-    let graphics_queue = self.window.get_graphics_queue();
+    self.resources.insert_unloaded_texture(reference, location);
+    /*let graphics_queue = self.window.get_graphics_queue();
     let device = self.window.device();
     let instance = self.window.instance();
     self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
-    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);
+    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);*/
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
@@ -240,7 +239,13 @@ impl CoreRender for CoreMaat {
   }
   
   fn pre_draw(&mut self) {
-    self.resources.recieve_objects();
+    {
+      let graphics_queue = self.window.get_graphics_queue();
+      let device = self.window.device();
+      let instance = self.window.instance();
+      
+      self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+    }
     
     if !self.recreate_swapchain {
       return;
@@ -269,12 +274,14 @@ impl CoreRender for CoreMaat {
       let device = self.window.device();
       let instance = self.window.instance();
       let image_views = self.window.swapchain_image_views();
-      
+      let textures = self.resources.get_all_textures();
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), image_views, &self.window_dimensions, &self.texture, &self.sampler);
+      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       let graphics_queue = self.window.get_graphics_queue();
-    
+      
+      
+      // TO REMOVE
       for (reference, texture) in &self.resources.get_all_textures() {
         self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
       }
@@ -340,6 +347,13 @@ impl CoreRender for CoreMaat {
             
             cmd = self.texture_shader.draw_texture(Arc::clone(&instance), Arc::clone(&device), cmd, position, scale, rotation, None, Some(colour), black_and_white, false, "".to_string(), &self.texture, &self.sampler, &self.window_dimensions, &self.descriptor_set_pool);
           },
+          DrawType::LoadTexture(ref info) => {
+            let reference = info.clone();
+            self.resources.load_texture_from_reference(reference);
+          },
+          DrawType::SetTextureScale(ref scale) => {
+            self.texture_shader.set_scale(scale.clone());
+          },
           _ => {
             
           }
@@ -396,24 +410,12 @@ impl CoreRender for CoreMaat {
     HashMap::new()
   }
   
-  fn set_dpi(&mut self, new_dpi: f32) {
-    self.texture_shader.set_scale(new_dpi);
-    
-    let device = self.window.device();
-    let instance = self.window.instance();
-    let graphics_queue = self.window.get_graphics_queue();
-    
-    for (reference, texture) in &self.resources.get_all_textures() {
-      self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
-    }
-  }
-  
   fn get_dpi_scale(&self) -> f64 {
     1.0
   }
   
   fn is_ready(&self) -> bool {
-    true
+    self.resources.pending_objects_loaded()
   }
   
   fn set_cursor_position(&mut self, x: f32, y: f32) {

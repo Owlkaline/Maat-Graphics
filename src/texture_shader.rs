@@ -72,7 +72,7 @@ pub struct TextureShader {
   renderpass: RenderPass,
   framebuffers: Vec<Framebuffer>,
   
-  descriptor_sets: HashMap<String, DescriptorSet>,//Vec<DescriptorSet>,
+  descriptor_sets: HashMap<String, DescriptorSet>,
   vertex_buffer: Buffer<Vertex>,
   index_buffer: Buffer<u32>,
   uniform_buffers: Vec<Buffer<f32>>,
@@ -86,7 +86,7 @@ pub struct TextureShader {
 }
 
 impl TextureShader {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, dpi: f32, graphics_queue: &vk::Queue) -> TextureShader {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> TextureShader {
     let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("./shaders/texture/VkTextureVert.spv"));
     let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("./shaders/texture/VkTextureFrag.spv"));
     
@@ -143,7 +143,7 @@ impl TextureShader {
     
     uniform_buffers.push(TextureShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), descriptor_sets.get("").unwrap(), image_views.len() as u32, uniform_buffer_description));
       
-    TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut uniform_buffers, &texture_image, sampler, descriptor_sets.get("").unwrap(), 1.0/dpi, current_extent.width as f32, current_extent.height as f32);
+    TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut uniform_buffers[0], &texture_image, sampler, descriptor_sets.get("").unwrap(), current_extent.width as f32, current_extent.height as f32);
     
     TextureShader {
       renderpass: render_pass,
@@ -159,19 +159,20 @@ impl TextureShader {
       vertex_shader,
       fragment_shader,
       
-      scale: 1.0/dpi,
+      scale: 1.0,
     }
-  }
-  
-  pub fn set_scale(&mut self, new_dpi: f32) {
-    self.scale = (1.0/new_dpi);
   }
   
   pub fn create_projection(width: f32, height: f32) -> Matrix4<f32> {
     ortho(0.0, width, height, 0.0, -1.0, 1.0)
   }
   
-  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, texture: &Image, sampler: &Sampler) {
+  pub fn set_scale(&mut self, new_scale: f32) {
+    self.scale = new_scale;
+    
+  }
+  
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, texture: Vec<(String, Image)>, sampler: &Sampler) {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));
     }
@@ -181,11 +182,18 @@ impl TextureShader {
     for i in 0..image_views.len() {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
     }
-    /*
-    TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut self.uniform_buffers, texture, sampler, &self.descriptor_sets.get(&"".to_string()).unwrap(), new_extent.width as f32, new_extent.height as f32);*/
-    /*for (reference, descriptor) in &self.descriptor_sets {
-      TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut self.uniform_buffers, descriptor.texture, sampler, &self.descriptor_sets.get(&"".to_string()).unwrap(), new_extent.width as f32, new_extent.height as f32);
-    }*/
+    
+    let mut index = 0;
+    for (key, descriptor) in &self.descriptor_sets {
+      println!("descriptor: {}", key);
+      for i in 0..texture.len() {
+        if key.to_string() == texture[i].0 {
+          TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut self.uniform_buffers[index], &texture[i].1, sampler, descriptor, new_extent.width as f32, new_extent.height as f32);
+          break;
+        }
+      }
+      index += 1;
+    }
   }
   
   pub fn add_texture(&mut self, instance: Arc<Instance>, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler, current_extent: &vk::Extent2D) {
@@ -201,7 +209,8 @@ impl TextureShader {
         
         self.uniform_buffers.push(TextureShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), &descriptor_set, self.framebuffers.len() as u32, uniform_buffer_description));
         
-        TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut self.uniform_buffers, &texture_image, sampler, &descriptor_set, self.scale, current_extent.width as f32, current_extent.height as f32);
+        let len = self.uniform_buffers.len()-1;
+        TextureShader::update_uniform_buffers(Arc::clone(&instance), Arc::clone(&device), &mut self.uniform_buffers[len], &texture_image, sampler, &descriptor_set, current_extent.width as f32, current_extent.height as f32);
       }
     }
   }
@@ -265,14 +274,13 @@ impl TextureShader {
     framebuffers
   }
   
-  fn update_uniform_buffers(instance: Arc<Instance>, device: Arc<Device>, uniform_buffer: &mut Vec<Buffer<f32>>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, scale: f32, width: f32, height: f32) {
+  fn update_uniform_buffers(instance: Arc<Instance>, device: Arc<Device>, uniform_buffer: &mut Buffer<f32>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, width: f32, height: f32) {
     let data = UniformData::new()
                  .add_matrix4(TextureShader::create_projection(width, height))
-                 .add_matrix4(Matrix4::from_scale(scale));
+                 .add_matrix4(Matrix4::from_scale(1.0));
     
-    let len = uniform_buffer.len()-1;
     UpdateDescriptorSets::new()
-       .add_uniformbuffer(Arc::clone(&device), 0, 0, &mut uniform_buffer[len], data)
+       .add_uniformbuffer(Arc::clone(&device), 0, 0, uniform_buffer, data)
        .add_sampled_image(1, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&instance), Arc::clone(&device), &descriptor_sets);
   }
@@ -284,9 +292,13 @@ impl TextureShader {
   pub fn draw_texture(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String, texture_image: &Image, sampler: &Sampler, current_extent: &vk::Extent2D, descriptor_set_pool: &DescriptorPool) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
+    if !self.descriptor_sets.contains_key(&texture_reference) {
+      return cmd
+    }
+    
     let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
-    let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale/self.scale, -rotation -180.0);
+    let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
     let has_texture  = {
       if use_texture {

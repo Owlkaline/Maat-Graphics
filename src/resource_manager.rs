@@ -20,7 +20,7 @@ use std::sync::Mutex;
 #[derive(Clone)]
 enum ObjectType {
   Font(Option<(GenericFont, Image)>),
-  Texture(Option<Image>),
+  Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<Image>),
   _Model(String),
   Shape(Option<(Buffer<f32>, Image)>),
 }
@@ -31,6 +31,24 @@ struct LoadableObject {
   pub location: String,
   pub reference: String,
   pub object_type: ObjectType,
+}
+
+impl LoadableObject {
+  pub fn load_object(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+    let mut buffer_image = None;
+    
+    match &self.object_type {
+      ObjectType::Texture(Some(image_data), ..) => { 
+        let image = Some(Image::device_local_with_image_data(instance, device, image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
+        
+        buffer_image = image;
+      },
+      _ => { println!("No implemented to load yet"); },
+    }
+    
+    self.loaded = true;
+    self.object_type = ObjectType::Texture(None, buffer_image);
+  }
 }
 
 pub struct ResourceManager {
@@ -67,7 +85,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self) {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     if self.num_recv_objects <= 0 {
       if self.data.len() > 0 {
         self.data.clear();
@@ -80,7 +98,10 @@ impl ResourceManager {
       match self.rx.try_recv() {
         Ok(i) => {
           let mut data = self.data[i].lock().unwrap();
-          let object = data.take().unwrap();
+          let mut object = data.take().unwrap();
+          
+          object.load_object(Arc::clone(&instance), Arc::clone(&device), &image_type, &image_view_type, &format, &samples, &tiling, &command_pool, &graphics_queue);
+          println!("Object recieved: {}", object.reference);
           self.objects.push(object);
           self.num_recv_objects -= 1;
         },
@@ -94,7 +115,7 @@ impl ResourceManager {
       match object {
         LoadableObject { loaded: true, location: _, reference, object_type } => {
           match object_type {
-            ObjectType::Texture(some_image) => {
+            ObjectType::Texture(data, some_image) => {
               if let Some(image) = some_image {
                 image.destroy(Arc::clone(&device));
               }
@@ -148,7 +169,7 @@ impl ResourceManager {
     for object in &self.objects {
       if object.reference == reference {
         match object.object_type {
-          ObjectType::Texture(ref image) => {
+          ObjectType::Texture(ref data, ref image) => {
             result = image.clone()
           },
           _ => {}
@@ -163,9 +184,10 @@ impl ResourceManager {
     let mut result = Vec::with_capacity(self.objects.len());
     
     for object in &self.objects {
+      if !object.loaded { continue; }
       let reference = object.reference.to_string();
       match object.object_type {
-        ObjectType::Texture(ref image) => {
+        ObjectType::Texture(ref data, ref image) => {
           if image.is_some() {
             result.push((reference, image.clone().unwrap()));
           }
@@ -182,15 +204,14 @@ impl ResourceManager {
   ** Must call Load_texture as a DrawCall in order to use
   **/
   pub fn insert_unloaded_texture(&mut self, reference: String, location: String) {
-    
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
+    println!("Inserting object: {}", reference);
     self.objects.push(
       LoadableObject {
         loaded: false,
         location: location,
         reference: reference.clone(),
-        object_type: ObjectType::Texture(None),
+        object_type: ObjectType::Texture(None, None),
       }
     );
   }
@@ -199,7 +220,7 @@ impl ResourceManager {
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
   pub fn insert_texture(&mut self, reference: String, new_image: Image) {
-        println!("inserting texture");
+    println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
     self.objects.push(
@@ -207,7 +228,7 @@ impl ResourceManager {
         loaded: true,
         location: "".to_string(),
         reference: reference.clone(),
-        object_type: ObjectType::Texture(Some(new_image)),
+        object_type: ObjectType::Texture(None, Some(new_image)),
       }
     );
   }
@@ -226,15 +247,15 @@ impl ResourceManager {
         loaded: true,
         location: location.clone(),
         reference: reference.clone(),
-        object_type: ObjectType::Texture(Some(texture)),
+        object_type: ObjectType::Texture(None, Some(texture)),
       }
     );
   }
-  /*
-    /**
+  
+  /**
   ** Loads textures from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_texture_from_reference(&mut self, reference: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, queue: vk::Queue) {
+  pub fn load_texture_from_reference(&mut self, reference: String) {
     debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
     
     let unloaded_object = self.get_unloaded_object(reference.clone());
@@ -242,7 +263,7 @@ impl ResourceManager {
       let location = object.location;
       let reference = object.reference;
       
-      self.load_texture(reference, location, instance, device, command_pool, queue);
+      self.load_texture(reference, location);
     } else {
       println!("Object {} already loaded", reference);
     }
@@ -251,7 +272,7 @@ impl ResourceManager {
   /**
   ** Loads textures in seperate threads, non bloacking.
   **/
-  pub fn load_texture(&mut self, reference: String, location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, queue: vk::Queue) {
+  pub fn load_texture(&mut self, reference: String, location: String) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     println!("loading texture");
@@ -263,19 +284,23 @@ impl ResourceManager {
     let (data, tx) = (self.data[index].clone(), self.tx.clone());
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
-      let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue);
+      let texture_start_time = time::Instant::now();
+      let texture = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba();
       
       let object = LoadableObject {
         loaded: true,
-        location: location,
+        location: location.to_string(),
         reference: reference,
-        object_type: ObjectType::Texture(Some(texture)),
+        object_type: ObjectType::Texture(Some(texture), None),
       };
+      
+      let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+      println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
       
       *data = Some((object));
       tx.send(index.clone()).unwrap();
     });
-  }*/
+  }
   
   fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> (Image) {
     let texture_start_time = time::Instant::now();
@@ -291,10 +316,14 @@ impl ResourceManager {
   fn check_object(&self, reference: String) -> bool {
     let mut result = true;
     for object in &self.objects {
+   //   println!("Object: {}", object.reference);
+    //  println!("Checking reference: {} against: {}", reference, object.reference);
       if object.reference == reference {
         result = false;
+    //   println!("Mathes reference: {} against: {}", reference, object.reference);
       }
     }
+    //println!("\n");
     result
   }
   /*
