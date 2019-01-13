@@ -114,7 +114,7 @@ impl CoreMaat {
                        .mag_filter(Filter::Linear)
                        .address_mode(AddressMode::ClampToEdge)
                        .mipmap_mode(MipmapMode::Nearest)
-                       .anisotropy(VkBool::True)
+                       .anisotropy(VkBool::False)
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
@@ -206,12 +206,12 @@ impl CoreRender for CoreMaat {
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-    self.resources.insert_unloaded_texture(reference, location);
-    /*let graphics_queue = self.window.get_graphics_queue();
+   // self.resources.insert_unloaded_texture(reference, location);
+    let graphics_queue = self.window.get_graphics_queue();
     let device = self.window.device();
     let instance = self.window.instance();
     self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
-    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);*/
+    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
@@ -353,6 +353,12 @@ impl CoreRender for CoreMaat {
           },
           DrawType::SetTextureScale(ref scale) => {
             self.texture_shader.set_scale(scale.clone());
+          },
+          DrawType::ScissorRender(ref dim) => {
+            cmd = cmd.set_scissor(Arc::clone(&device), dim.x as i32, (window_size.height as f32-dim.y) as i32 , dim.z as u32, dim.w as u32);
+          },
+          DrawType::ResetScissorRender => {
+            cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
           },
           _ => {
             
