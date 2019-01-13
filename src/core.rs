@@ -206,12 +206,12 @@ impl CoreRender for CoreMaat {
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-   // self.resources.insert_unloaded_texture(reference, location);
-    let graphics_queue = self.window.get_graphics_queue();
+    self.resources.insert_unloaded_texture(reference, location);
+    /*let graphics_queue = self.window.get_graphics_queue();
     let device = self.window.device();
     let instance = self.window.instance();
     self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
-    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);
+    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);*/
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
