@@ -191,6 +191,7 @@ impl Device {
       }
       
       println!("min alignment: {}", device_prop.limits.minUniformBufferOffsetAlignment);
+      println!("max push constant size: {}", device_prop.limits.maxPushConstantsSize);
       let device_name = device_prop.deviceName.iter().map(|a| { 
         let mut b = (*a as u8 as char).to_string();
         if b == "\u{0}".to_string() {
