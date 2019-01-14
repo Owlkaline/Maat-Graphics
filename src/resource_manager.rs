@@ -85,12 +85,14 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<String> {
+    let mut references = Vec::new();
+    
     if self.num_recv_objects <= 0 {
       if self.data.len() > 0 {
         self.data.clear();
       }
-      return;
+      return references;
     }
     
     let num = self.num_recv_objects;
@@ -99,15 +101,19 @@ impl ResourceManager {
         Ok(i) => {
           let mut data = self.data[i].lock().unwrap();
           let mut object = data.take().unwrap();
+          let reference = object.reference.to_string();
           
           object.load_object(Arc::clone(&instance), Arc::clone(&device), &image_type, &image_view_type, &format, &samples, &tiling, &command_pool, &graphics_queue);
           println!("Object recieved: {}", object.reference);
           self.objects.push(object);
+          references.push(reference);
           self.num_recv_objects -= 1;
         },
         Err(_e) => { },
       }
     }
+    
+    references
   }
   
   pub fn destroy(&self, device: Arc<Device>) {

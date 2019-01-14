@@ -182,73 +182,6 @@ impl DescriptorSetBuilder {
   }
   
   pub fn build(&self, device: Arc<Device>, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
-   /* let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
-    let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
-    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
-    
-    let mut num_set_bindings = 0;
-    for i in 0..self.descriptor_set_layout_info.len() {
-      num_set_bindings = num_set_bindings.max(self.descriptor_set_layout_info[i].set);
-    }
-    
-    for j in 0..num_set_bindings {
-      for i in 0..self.descriptor_set_layout_info.len() {
-        if self.descriptor_set_layout_info[i].set != num_set_bindings {
-          continue;
-        }
-        
-        bindings.push(
-          vk::DescriptorSetLayoutBinding {
-            binding: self.descriptor_set_layout_info[i].binding,
-            descriptorType: self.descriptor_set_layout_info[i].descriptor_type.to_bits(),
-            descriptorCount: 1,//binding_counts[i],
-            stageFlags: self.descriptor_set_layout_info[i].shader_stage.to_bits(),
-            pImmutableSamplers: ptr::null(),
-          }
-        );
-      }
-      
-      let descriptor_set_layout_create_info = {
-        vk::DescriptorSetLayoutCreateInfo {
-          sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-          pNext: ptr::null(),
-          flags: 0,
-          bindingCount: bindings.len() as u32,
-          pBindings: bindings.as_ptr(),
-        }
-      };
-      
-      let vk = device.pointers();
-      let device = device.internal_object();
-      
-      let mut layout = unsafe { mem::uninitialized() };
-      unsafe {
-        vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
-      }
-      
-      layouts.push(layout);
-    }
-    
-    let mut descriptor_set: vk::DescriptorSet = unsafe { mem::uninitialized() };
-    let descriptor_set_allocate_info = {
-      vk::DescriptorSetAllocateInfo {
-        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        pNext: ptr::null(),
-        descriptorPool: *set_pool.local_pool(),
-        descriptorSetCount: layouts.len() as u32,
-        pSetLayouts: layouts.as_ptr(),
-      }
-    };
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.internal_object();
-      check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, &mut descriptor_set));
-    }
-    
-    descriptor_sets.push(descriptor_set);
-    
-    DescriptorSet::new_with_internals(descriptor_sets, layouts)*/
     let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
     let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
     let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
@@ -431,8 +364,8 @@ impl DescriptorSet {
       }
     );
     
-    /*
-    descriptor_bindings.push(
+    // WAS COMMENTED OUT BUT STILL WORKED SO IDK IF THIS SAHOULD BE IN HERE
+    bindings.push(
       vk::DescriptorSetLayoutBinding {
         binding: 1,
         descriptorType: DescriptorType::CombinedImageSampler.to_bits(),
@@ -441,7 +374,7 @@ impl DescriptorSet {
         pImmutableSamplers: ptr::null(),
       }
     );
-    */
+    
     
     let descriptor_set_layout_create_info = {
       vk::DescriptorSetLayoutCreateInfo {

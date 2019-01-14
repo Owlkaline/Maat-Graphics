@@ -331,7 +331,7 @@ impl VkWindow {
   }
   
   pub fn get_current_extent(&self) -> vk::Extent2D {
-    self.get_capabilities().currentExtent
+    vk::Extent2D { width: self.get_capabilities().currentExtent.width * self.get_hidpi_factor() as u32, height: self.get_capabilities().currentExtent.height * self.get_hidpi_factor() as u32 }
   }
   
   pub fn recreate_swapchain(&mut self) {
