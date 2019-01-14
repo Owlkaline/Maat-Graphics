@@ -356,6 +356,7 @@ impl CoreRender for CoreMaat {
             self.resources.load_texture_from_reference(reference);
           },
           DrawType::SetTextureScale(ref scale) => {
+            let textures = self.resources.get_all_textures();
             self.texture_shader.set_scale(scale.clone());
           },
           DrawType::ScissorRender(ref dim) => {
