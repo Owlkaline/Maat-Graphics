@@ -395,7 +395,7 @@ impl TextureShader {
       };
       
       let c = font_details.get_character(char_letter as i32);
-      println!("scale {}, text scale {}, size mod: {}, finish {}", self.scale, size, size/(size/2.0), scale);
+      
       let model = drawcalls::calculate_text_model(Vector3::new(position.x, position.y, 0.0), scale, &c.clone(), char_letter);
       let letter_uv = drawcalls::calculate_text_uv(&c.clone());
       let colour = colour;
