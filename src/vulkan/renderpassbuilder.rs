@@ -251,7 +251,7 @@ impl RenderPassBuilder {
     
     let mut attachment_descriptions = Vec::with_capacity(self.attachments.len());
     let mut subpass_descriptions = Vec::with_capacity(self.subpasses.len());
-    let mut subpass_dependency: Vec<vk::SubpassDependency> = Vec::with_capacity(2);
+    //let mut subpass_dependency: Vec<vk::SubpassDependency> = Vec::with_capacity(2);
     let mut input_attachments: Vec<vk::AttachmentReference> = Vec::new();
     let mut colour_attachments: Vec<vk::AttachmentReference> = Vec::new();
     let mut resolve_attachments: Vec<vk::AttachmentReference> = Vec::new();

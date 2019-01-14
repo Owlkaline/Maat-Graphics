@@ -24,7 +24,7 @@ impl<T: Clone> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
-    for i in 0..num_sets {
+    for _ in 0..num_sets {
       let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &Vec::new() as &Vec<T>);
       buffers.push(buffer);
       memorys.push(memory);
@@ -42,7 +42,7 @@ impl<T: Clone> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
-    for i in 0..num_sets {
+    for _ in 0..num_sets {
       let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk::MEMORY_PROPERTY_HOST_COHERENT_BIT, &data);
       buffers.push(buffer);
       memorys.push(memory);
@@ -66,7 +66,7 @@ impl<T: Clone> Buffer<T> {
     let mut buffers: Vec<vk::Buffer> = Vec::new();
     let mut memorys: Vec<vk::DeviceMemory> = Vec::new();
     
-    for i in 0..num_sets {
+    for _ in 0..num_sets {
       let (buffer, memory) = Buffer::create_buffer(Arc::clone(&instance), Arc::clone(&device), &usage, vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &data);
       buffers.push(buffer);
       memorys.push(memory);
@@ -111,7 +111,7 @@ impl<T: Clone> Buffer<T> {
   }
   
   pub fn size(&self) -> vk::DeviceSize {
-    let mut size = (mem::size_of::<T>() * self.data.len());
+    let size = mem::size_of::<T>() * self.data.len();
     print!("");
     size as vk::DeviceSize
   }

@@ -4,17 +4,15 @@ use crate::Vertex;
 
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, DescriptorSetBuilder, UpdateDescriptorSets, Image, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
-use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, DescriptorSetBuilder, AttachmentInfo, SubpassInfo, RenderPassBuilder};
+use crate::vulkan::buffer::{Buffer, UniformBufferBuilder, UniformData, Framebuffer};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 
-use cgmath::{Vector2, Vector3, Vector4, Matrix4, ortho, SquareMatrix};
+use cgmath::{Matrix4, SquareMatrix};
 
-use std::mem;
-use std::ptr;
 use std::sync::Arc;
 
-pub struct FinalShader {
+pub struct _FinalShader {
   vertex_shader: Shader,
   fragment_shader: Shader,
   
@@ -29,8 +27,8 @@ pub struct FinalShader {
   pipeline: Pipeline,
 }
 
-impl FinalShader {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> FinalShader {
+impl _FinalShader {
+  pub fn _new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, image_views: &Vec<vk::ImageView>, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> _FinalShader {
     let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("./shaders/sprv/VkFinalVert.spv"));
     let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("./shaders/sprv/VkFinalFrag.spv"));
     
@@ -51,11 +49,11 @@ impl FinalShader {
                       .add_subpass(subpass)
                       .build(Arc::clone(&device));
     
-    let framebuffers = FinalShader::create_frame_buffers(Arc::clone(&device), &renderpass, current_extent, image_views);
+    let framebuffers = _FinalShader::_create_frame_buffers(Arc::clone(&device), &renderpass, current_extent, image_views);
     
-    let mut descriptor_set: DescriptorSet = DescriptorSetBuilder::new()
-                                             .vertex_uniform_buffer(0, 0)
-                                             .fragment_combined_image_sampler(0, 1)
+    let descriptor_set: DescriptorSet = DescriptorSetBuilder::new()
+                                             .vertex_uniform_buffer(0)
+                                             .fragment_combined_image_sampler(1)
                                              .build(Arc::clone(&device), &descriptor_set_pool, 1);
     
     let push_constant_size = UniformData::new()
@@ -79,12 +77,12 @@ impl FinalShader {
     let vertex_buffer = TextureShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = TextureShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
-    let mut uniform_buffer: Buffer<f32>; 
-    let mut uniform_buffer_description = UniformBufferBuilder::new().add_matrix4();
+    let uniform_buffer: Buffer<f32>; 
+    let uniform_buffer_description = UniformBufferBuilder::new().add_matrix4();
     
-    uniform_buffer = FinalShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), uniform_buffer_description);
+    uniform_buffer = _FinalShader::_create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), uniform_buffer_description);
     
-    FinalShader {
+    _FinalShader {
       vertex_shader,
       fragment_shader,
       
@@ -100,7 +98,7 @@ impl FinalShader {
     }
   }
   
-  fn create_frame_buffers(device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<Framebuffer> {
+  fn _create_frame_buffers(device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<Framebuffer> {
     let mut framebuffers: Vec<Framebuffer> = Vec::with_capacity(image_views.len());
     
     for i in 0..image_views.len() {
@@ -112,8 +110,8 @@ impl FinalShader {
     framebuffers
   }
   
-  fn create_uniform_buffer(instance: Arc<Instance>, device: Arc<Device>, uniform_buffer: UniformBufferBuilder) -> Buffer<f32> {
-    let mut buffer = uniform_buffer.build(Arc::clone(&instance), Arc::clone(&device), 1);
+  fn _create_uniform_buffer(instance: Arc<Instance>, device: Arc<Device>, uniform_buffer: UniformBufferBuilder) -> Buffer<f32> {
+    let buffer = uniform_buffer.build(Arc::clone(&instance), Arc::clone(&device), 1);
     
     buffer
   }

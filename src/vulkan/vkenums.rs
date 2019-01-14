@@ -1,7 +1,5 @@
 use vk;
 
-use std::mem;
-
 pub enum VkBool {
   True,
   False,

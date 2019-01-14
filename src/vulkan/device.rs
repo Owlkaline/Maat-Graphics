@@ -12,7 +12,7 @@ pub struct Device {
   vk: vk::DevicePointers,
   device: vk::Device,
   phys_device: vk::PhysicalDevice,
-  extensions: Vec<CString>,
+  _extensions: Vec<CString>,
 }
 
 impl Device {
@@ -24,7 +24,7 @@ impl Device {
       vk: vk,
       device: device,
       phys_device: phys_device,
-      extensions: extensions,
+      _extensions: extensions,
     })
   }
   
@@ -148,7 +148,7 @@ impl Device {
           );
         }
         
-        let mut features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
+        let features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
         
         match features.shaderSampledImageArrayDynamicIndexing {
           vk::TRUE => {

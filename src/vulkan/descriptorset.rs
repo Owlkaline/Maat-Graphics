@@ -1,12 +1,10 @@
 use vk;
 
-use crate::vulkan::Instance;
 use crate::vulkan::Device;
 use crate::vulkan::Image;
 use crate::vulkan::Sampler;
 use crate::vulkan::buffer::Buffer;
 use crate::vulkan::buffer::UniformData;
-use crate::vulkan::buffer::UniformBufferBuilder;
 use crate::vulkan::pool::DescriptorPool;
 use crate::vulkan::check_errors;
 use crate::vulkan::vkenums::{ShaderStageFlagBits, DescriptorType, ImageLayout};
@@ -21,7 +19,6 @@ pub struct DescriptorSet {
 }
 
 struct DescriptorSetLayoutInfo {
-  set: u32,
   binding: u32,
   descriptor_type: DescriptorType,
   shader_stage: ShaderStageFlagBits,
@@ -44,7 +41,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     }
   }
   
-  pub fn add_uniformbuffer(mut self, device: Arc<Device>, set: u32, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
+  pub fn add_uniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_buffer(device, data.build());
     self.uniform_buffers.push((binding, uniform_buffer));
@@ -56,7 +53,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     self
   }
   
-  pub fn finish_update(mut self, instance: Arc<Instance>, device: Arc<Device>, descriptor_set: &DescriptorSet) {
+  pub fn finish_update(self, device: Arc<Device>, descriptor_set: &DescriptorSet) {
     let mut write_descriptor_sets: Vec<vk::WriteDescriptorSet> = Vec::new();
     let sets = descriptor_set.all_sets();
     
@@ -133,10 +130,9 @@ impl DescriptorSetBuilder {
     }
   }
   
-  pub fn vertex_uniform_buffer(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn vertex_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
-        set,
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
         shader_stage: ShaderStageFlagBits::Vertex,
@@ -145,10 +141,9 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn fragment_uniform_buffer(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn fragment_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
-        set,
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
         shader_stage: ShaderStageFlagBits::Fragment,
@@ -157,10 +152,9 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn vertex_combined_image_sampler(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn vertex_combined_image_sampler(mut self, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
-        set,
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStageFlagBits::Vertex,
@@ -169,10 +163,9 @@ impl DescriptorSetBuilder {
     self
   }
   
-  pub fn fragment_combined_image_sampler(mut self, set: u32, binding_location: u32) -> DescriptorSetBuilder {
+  pub fn fragment_combined_image_sampler(mut self, binding_location: u32) -> DescriptorSetBuilder {
     self.descriptor_set_layout_info.push(
       DescriptorSetLayoutInfo {
-        set,
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStageFlagBits::Fragment,

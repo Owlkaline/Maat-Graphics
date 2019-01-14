@@ -12,7 +12,7 @@ unsafe impl<T: ?Sized> SafeDeref for Box<T> {
 }
 
 pub enum OwnedOrRef<T: 'static> {
-    Owned(T),
+    _Owned(T),
     Ref(&'static T),
 }
 
@@ -21,7 +21,7 @@ impl<T> Deref for OwnedOrRef<T> {
     #[inline]
     fn deref(&self) -> &T {
         match *self {
-            OwnedOrRef::Owned(ref v) => v,
+            OwnedOrRef::_Owned(ref v) => v,
             OwnedOrRef::Ref(v) => v,
         }
     }

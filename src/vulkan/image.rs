@@ -31,11 +31,11 @@ impl Image {
     
     let image_extent = vk::Extent3D { width: width, height: height, depth: 1 };
     
-    let image_size: vk::DeviceSize = (width * height * 4).into();
+    //let image_size: vk::DeviceSize = (width * height * 4).into();
     
     let mut texture_image: vk::Image = unsafe { mem::uninitialized() };
     let mut texture_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
-    let mut texture_image_view: vk::ImageView = unsafe { mem::uninitialized() };
+    let texture_image_view: vk::ImageView;
     
     let staging_usage = BufferUsage::transfer_src_buffer();
     let image_usage = ImageUsage::transfer_dst_sampled();
@@ -44,14 +44,14 @@ impl Image {
     
     Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, &tiling, &mut texture_image, &mut texture_memory);
     
-    Image::transition_layout(Arc::clone(&device), &texture_image, format, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
+    Image::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
     
-    let mut command_buffer = Image::begin_single_time_command(Arc::clone(&device), &command_pool);
+    let command_buffer = Image::begin_single_time_command(Arc::clone(&device), &command_pool);
     command_buffer.copy_buffer_to_image(Arc::clone(&device), &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
     Image::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
     
     
-    Image::transition_layout(Arc::clone(&device), &texture_image, format, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
+    Image::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
     
     
     staging_buffer.destroy(Arc::clone(&device));
@@ -110,7 +110,7 @@ impl Image {
     }
   }
   
-  fn transition_layout(device: Arc<Device>, image: &vk::Image, format: &vk::Format, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  fn transition_layout(device: Arc<Device>, image: &vk::Image, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     
     let subresource_range = vk::ImageSubresourceRange {
       aspectMask: ImageAspect::Colour.to_bits(),
@@ -120,10 +120,10 @@ impl Image {
       layerCount: 1,
     };
     
-    let mut src_stage: PipelineStage;
-    let mut dst_stage: PipelineStage;
+    let src_stage: PipelineStage;
+    let dst_stage: PipelineStage;
     let mut src_access: Option<AccessFlagBits> = None;
-    let mut dst_access: AccessFlagBits;
+    let dst_access: AccessFlagBits;
     
     if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::TransferDstOptimal {
       dst_access = AccessFlagBits::TransferWrite;
@@ -153,7 +153,7 @@ impl Image {
       subresourceRange: subresource_range,
     };
     
-    let mut command_buffer = Image::begin_single_time_command(Arc::clone(&device), command_pool);
+    let command_buffer = Image::begin_single_time_command(Arc::clone(&device), command_pool);
     command_buffer.pipeline_barrier(Arc::clone(&device), src_stage, dst_stage, barrier);
     Image::end_single_time_command(Arc::clone(&device), command_buffer, command_pool, graphics_queue);
   }

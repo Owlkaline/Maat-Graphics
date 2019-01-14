@@ -277,7 +277,7 @@ impl PipelineBuilder {
     self
   }
   
-  pub fn build(mut self, device: Arc<Device>) -> Pipeline {
+  pub fn build(self, device: Arc<Device>) -> Pipeline {
     if !self.vertex_shader.is_some() {
       panic!("PipelineBuilder Error: vertex shader missing!");
     }

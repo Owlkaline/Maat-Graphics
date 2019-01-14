@@ -21,7 +21,7 @@ enum Ty {
 }
 
 impl Ty {
-  pub fn size(&self) -> vk::DeviceSize {
+  pub fn _size(&self) -> vk::DeviceSize {
     let mut size = mem::size_of::<f32>();
     match self {
       Ty::Float => {
@@ -142,11 +142,6 @@ impl UniformBuffer {
 pub struct UniformBufferBuilder {
   uniform_ty: Vec<Ty>,
   binding: u32,
-  float: Vec<f32>,
-  vector2: Vec<Vector2<f32>>,
-  vector3: Vec<Vector3<f32>>,
-  vector4: Vec<Vector4<f32>>,
-  mat4: Vec<Matrix4<f32>>,
 }
 
 impl UniformBufferBuilder {
@@ -154,11 +149,6 @@ impl UniformBufferBuilder {
     UniformBufferBuilder {
       uniform_ty: Vec::new(),
       binding: 0,
-      float: Vec::new(),
-      vector2: Vec::new(),
-      vector3: Vec::new(),
-      vector4: Vec::new(),
-      mat4: Vec::new(),
     }
   }
   

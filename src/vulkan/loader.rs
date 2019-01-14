@@ -57,7 +57,7 @@ unsafe impl<T> Loader for T
 
 /// Implementation of `Loader` that loads Vulkan from a dynamic library.
 pub struct DynamicLibraryLoader {
-    vk_lib: shared_library::dynamic_library::DynamicLibrary,
+    _vk_lib: shared_library::dynamic_library::DynamicLibrary,
     get_proc_addr: extern "system" fn(instance: vk::Instance, pName: *const c_char)
                                       -> extern "system" fn() -> (),
 }
@@ -73,12 +73,12 @@ impl DynamicLibraryLoader {
     pub unsafe fn new<P>(path: P) -> Result<DynamicLibraryLoader, LoadingError>
         where P: AsRef<Path>
     {
-        let vk_lib = shared_library::dynamic_library::DynamicLibrary::open(Some(path.as_ref()))
+        let _vk_lib = shared_library::dynamic_library::DynamicLibrary::open(Some(path.as_ref()))
             .map_err(LoadingError::LibraryLoadFailure)?;
 
         let get_proc_addr = {
             let ptr: *mut c_void =
-                vk_lib
+                _vk_lib
                     .symbol("vkGetInstanceProcAddr")
                     .map_err(|_| {
                                  LoadingError::MissingEntryPoint("vkGetInstanceProcAddr".to_owned())
@@ -87,7 +87,7 @@ impl DynamicLibraryLoader {
         };
 
         Ok(DynamicLibraryLoader {
-               vk_lib,
+               _vk_lib,
                get_proc_addr,
            })
     }

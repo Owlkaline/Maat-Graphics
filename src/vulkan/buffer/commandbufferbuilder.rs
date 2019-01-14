@@ -42,7 +42,7 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn push_constants(mut self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) -> CommandBufferBuilder {
+  pub fn push_constants(self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) -> CommandBufferBuilder {
     self.command_buffer.push_constants(Arc::clone(&device), pipeline, shader_stage, push_constant_data);
     
     self
@@ -55,7 +55,7 @@ impl CommandBufferBuilder {
     }
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), vertex_buffer);
     self.command_buffer.bind_index_buffer(Arc::clone(&device), index_buffer);
-    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 1);
+    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 2);
     
     self
   }

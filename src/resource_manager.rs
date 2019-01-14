@@ -10,7 +10,6 @@ use crate::vulkan::buffer::{Buffer};
 use crate::vulkan::pool::{CommandPool};
 
 use crate::font::GenericFont;
-use crate::graphics::Vertex2d;
 
 use std::time;
 use std::sync::Arc;
@@ -22,7 +21,7 @@ enum ObjectType {
   Font(Option<(GenericFont, Image)>),
   Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<Image>),
   _Model(String),
-  Shape(Option<(Buffer<f32>, Image)>),
+  _Shape(Option<(Buffer<f32>, Image)>),
 }
 
 #[derive(Clone)]
@@ -119,20 +118,20 @@ impl ResourceManager {
   pub fn destroy(&self, device: Arc<Device>) {
     for object in &self.objects {
       match object {
-        LoadableObject { loaded: true, location: _, reference, object_type } => {
+        LoadableObject { loaded: true, location: _, reference: _, object_type } => {
           match object_type {
-            ObjectType::Texture(data, some_image) => {
+            ObjectType::Texture(_data, some_image) => {
               if let Some(image) = some_image {
                 image.destroy(Arc::clone(&device));
               }
             },
             ObjectType::Font(some_image) => {
-              if let Some((font, image)) = some_image {
+              if let Some((_font, image)) = some_image {
                 image.destroy(Arc::clone(&device));
               }
             },
-            ObjectType::Shape(some_image) => {
-              if let Some((buffer, image)) = some_image {
+            ObjectType::_Shape(some_image) => {
+              if let Some((_buffer, image)) = some_image {
                 image.destroy(Arc::clone(&device));
               }
             },
@@ -158,7 +157,7 @@ impl ResourceManager {
     object
   }
   
-  pub fn remove_object(&mut self, reference: String) {
+  pub fn _remove_object(&mut self, reference: String) {
     for i in 0..self.objects.len() {
       if self.objects[i].reference == reference {
         self.objects.remove(i);
@@ -175,7 +174,7 @@ impl ResourceManager {
     for object in &self.objects {
       if object.reference == reference {
         match object.object_type {
-          ObjectType::Texture(ref data, ref image) => {
+          ObjectType::Texture(ref _data, ref image) => {
             result = image.clone()
           },
           _ => {}
@@ -215,7 +214,7 @@ impl ResourceManager {
       if !object.loaded { continue; }
       let reference = object.reference.to_string();
       match object.object_type {
-        ObjectType::Texture(ref data, ref image) => {
+        ObjectType::Texture(ref _data, ref image) => {
           if image.is_some() {
             result.push((reference, image.clone().unwrap()));
           }
@@ -247,7 +246,7 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn insert_texture(&mut self, reference: String, new_image: Image) {
+  pub fn _insert_texture(&mut self, reference: String, new_image: Image) {
     println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -358,7 +357,7 @@ impl ResourceManager {
       let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
       println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
       
-      *data = Some((object));
+      *data = Some(object);
       tx.send(index.clone()).unwrap();
     });
   }

@@ -105,7 +105,6 @@ use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;
 use self::texture_shader::Vertex;
-use self::final_shader::FinalShader;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;

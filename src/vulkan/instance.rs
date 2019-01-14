@@ -282,7 +282,7 @@ impl Instance {
     (vk_instance, instance, available_extensions, layer_names.to_vec())
   }
   
-  fn has_graphics_bit(queue_flags: &u32) -> bool {
+  fn _has_graphics_bit(queue_flags: &u32) -> bool {
     queue_flags % 2 != 0 
   }
   
