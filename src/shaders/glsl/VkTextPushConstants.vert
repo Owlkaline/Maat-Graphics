@@ -17,13 +17,12 @@ layout(push_constant) uniform PushConstants {
   vec4 letter_uv;
   vec4 edge_width; 
   vec4 colour;
-  vec4 outline_colour; // vec4(vec3(outline colour), scale)
+  vec4 outline_colour;
 } push_constants;
 
 void main() {
   vec2 new_uv = uv;
   vec2 new_pos = position;
-  
   float scale = push_constants.outline_colour.w;
   
   if(uv.x == 0) {
@@ -49,7 +48,7 @@ void main() {
                            vec4(0.0, 0.0, scale, 0.0), 
                            vec4(0.0, 0.0, 0.0, 1.0));
   
-  gl_Position = uniforms.projection * scale_matrix * push_constants.model * vec4(new_pos, 0.0, 1.0);
+  gl_Position = uniforms.projection * push_constants.model * scale_matrix * vec4(new_pos, 0.0, 1.0);
   
   v_uvs = new_uv;
   v_outlineColour = push_constants.outline_colour.rgb;

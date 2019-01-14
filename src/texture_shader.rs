@@ -1,6 +1,8 @@
 use vk;
 
 use crate::math;
+use crate::drawcalls;
+use crate::font::GenericFont; 
 
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits};
 
@@ -78,17 +80,23 @@ pub struct TextureShader {
   uniform_buffer: Buffer<f32>,
   
   texture_pipeline: Pipeline,
+  text_pipeline: Pipeline,
   
-  vertex_shader: Shader,
-  fragment_shader: Shader,
+  vertex_shader_texture: Shader,
+  fragment_shader_texture: Shader,
+  
+  vertex_shader_text: Shader,
+  fragment_shader_text: Shader,
   
   scale: f32,
 }
 
 impl TextureShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> TextureShader {
-    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureVert.spv"));
-    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureFrag.spv"));
+    let vertex_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureVert.spv"));
+    let fragment_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureFrag.spv"));
+    let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextVert.spv"));
+    let fragment_shader_text = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
@@ -122,9 +130,9 @@ impl TextureShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size();
     
-    let pipeline = PipelineBuilder::new()
-                  .vertex_shader(*vertex_shader.get_shader())
-                  .fragment_shader(*fragment_shader.get_shader())
+    let texture_pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader_texture.get_shader())
+                  .fragment_shader(*fragment_shader_texture.get_shader())
                   .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
@@ -134,6 +142,28 @@ impl TextureShader {
                   .polygon_mode_fill()
                   .cull_mode_back()
                   .front_face_counter_clockwise()
+                  .build(Arc::clone(&device));
+    
+    let push_constant_size = UniformData::new()
+                               .add_matrix4(Matrix4::identity())
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .size();
+    
+    let text_pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader_text.get_shader())
+                  .fragment_shader(*fragment_shader_text.get_shader())
+                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
+                  .vertex_binding(vec!(Vertex::vertex_input_binding()))
+                  .vertex_attributes(Vertex::vertex_input_attributes())
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .cull_mode_back()
+                  .front_face_clockwise()
                   .build(Arc::clone(&device));
     
     let vertex_buffer = TextureShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
@@ -154,12 +184,16 @@ impl TextureShader {
       index_buffer,
       uniform_buffer,
       
-      texture_pipeline: pipeline,
+      texture_pipeline,
+      text_pipeline,
       
-      vertex_shader,
-      fragment_shader,
+      vertex_shader_texture,
+      fragment_shader_texture,
       
-      scale: 0.5,
+      vertex_shader_text,
+      fragment_shader_text,
+      
+      scale: 1.0,
     }
   }
   
@@ -284,7 +318,7 @@ impl TextureShader {
     cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_texture(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String, texture_image: &Image, sampler: &Sampler, current_extent: &vk::Extent2D, descriptor_set_pool: &DescriptorPool) -> CommandBufferBuilder {
+  pub fn draw_texture(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String, current_extent: &vk::Extent2D, descriptor_set_pool: &DescriptorPool) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&texture_reference) {
@@ -341,6 +375,53 @@ impl TextureShader {
                              vec!(&descriptor.set(0)))
   }
   
+  pub fn draw_text(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_details: GenericFont) -> CommandBufferBuilder {
+    let mut cmd = cmd;
+    
+    if !self.descriptor_sets.contains_key(&font) {
+      return cmd
+    }
+    
+    let descriptor: &DescriptorSet = self.descriptor_sets.get(&font).unwrap();
+    
+    
+    let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale*2.0, colour, outline_colour, edge_width, wrap_length, centered, font_details.clone());
+    let size = scale.x;
+    let scale = scale.x;
+    for letter in wrapped_draw {
+      let (_font, display_text, position, _scale, colour, outline_colour, edge_width, _wrapped, _wrap_length, _centered) = letter.draw_font_details().unwrap();
+      let char_letter = {
+        display_text.as_bytes()[0] 
+      };
+      
+      let c = font_details.get_character(char_letter as i32);
+      println!("scale {}, text scale {}, size mod: {}, finish {}", self.scale, size, size/(size/2.0), scale);
+      let model = drawcalls::calculate_text_model(Vector3::new(position.x, position.y, 0.0), scale, &c.clone(), char_letter);
+      let letter_uv = drawcalls::calculate_text_uv(&c.clone());
+      let colour = colour;
+      let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, (scale/(scale/2.0)));
+      let edge_width = edge_width; 
+      
+      let push_constant_data = UniformData::new()
+                                .add_matrix4(model)
+                                .add_vector4(letter_uv)
+                                .add_vector4(edge_width)
+                                .add_vector4(colour)
+                                .add_vector4(outline);
+      
+      cmd = cmd.push_constants(Arc::clone(&device), &self.text_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+      
+      let index_count = 6;
+      
+      cmd = cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
+                               &self.index_buffer.internal_object(0),
+                               index_count, &self.text_pipeline,
+                               vec!(&descriptor.set(0)))
+    }
+    
+    cmd
+  }
+  
   pub fn destroy(&mut self, device: Arc<Device>) {
     self.uniform_buffer.destroy(Arc::clone(&device));
     
@@ -348,17 +429,21 @@ impl TextureShader {
     self.vertex_buffer.destroy(Arc::clone(&device));
     
     self.texture_pipeline.destroy(Arc::clone(&device));
+    self.text_pipeline.destroy(Arc::clone(&device));
     
     for (reference, descriptor_set) in &self.descriptor_sets {
       descriptor_set.destroy(Arc::clone(&device));
     }
     
-    self.vertex_shader.destroy(Arc::clone(&device));
-    self.fragment_shader.destroy(Arc::clone(&device));
+    self.vertex_shader_texture.destroy(Arc::clone(&device));
+    self.fragment_shader_texture.destroy(Arc::clone(&device));
+    self.vertex_shader_text.destroy(Arc::clone(&device));
+    self.fragment_shader_text.destroy(Arc::clone(&device));
     
     for framebuffer in &self.framebuffers {
      framebuffer.destroy(Arc::clone(&device));
     }
+    
     self.renderpass.destroy(Arc::clone(&device));
   }
 }

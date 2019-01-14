@@ -186,6 +186,28 @@ impl ResourceManager {
     result
   }
   
+  /**
+  ** Returns None when resource isnt loaded yet otherwise returns font thats already in memory.
+  **/
+  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, Image)> {
+    let mut result: Option<(GenericFont, Image)> = None;
+    
+    for object in &self.objects {
+      if object.reference == reference {
+        match object.object_type {
+          ObjectType::Font(ref some_font_object) => {
+            if let Some(font_object) = some_font_object {
+              result = Some(font_object.clone());
+            }
+          },
+          _ => {}
+        }
+      }
+    }
+    
+    result
+  }
+  
   pub fn get_all_textures(&self) -> Vec<(String, Image)> {
     let mut result = Vec::with_capacity(self.objects.len());
     
@@ -275,6 +297,39 @@ impl ResourceManager {
     }
   }
   
+  
+  /**
+  ** Only way to laod new font, Forces thread to wait until resource is loaded into memory.
+  **/
+  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8], device: Arc<Device>, instance: Arc<Instance>, command_pool: &CommandPool, queue: vk::Queue) {
+    
+    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    
+    let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue);
+    let font = ResourceManager::load_font_into_memory(reference.clone(), font);
+    
+    self.objects.push(
+      LoadableObject {
+        loaded: true,
+        location: location.clone(),
+        reference: reference.clone(),
+        object_type: ObjectType::Font(Some((font, texture))),
+      }
+    );
+  }
+  
+  fn load_font_into_memory(reference: String, font: &[u8]) -> GenericFont {
+    let font_start_time = time::Instant::now();
+    
+    let mut new_font = GenericFont::new();
+    new_font.load_font(font);
+    
+    let font_time = font_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+    println!("{} ms, Font: {:?}", (font_time*1000f64) as f32, reference);
+    
+    new_font
+  }
+  
   /**
   ** Loads textures in seperate threads, non bloacking.
   **/
@@ -322,16 +377,13 @@ impl ResourceManager {
   fn check_object(&self, reference: String) -> bool {
     let mut result = true;
     for object in &self.objects {
-   //   println!("Object: {}", object.reference);
-    //  println!("Checking reference: {} against: {}", reference, object.reference);
       if object.reference == reference {
         result = false;
-    //   println!("Mathes reference: {} against: {}", reference, object.reference);
       }
     }
-    //println!("\n");
     result
   }
+  
   /*
   /**
   ** Returns None when resource isnt loaded yet otherwise returns Vertex and Index buffers thats already in memory.
@@ -444,26 +496,6 @@ impl ResourceManager {
 
   /*
   /**
-  ** Returns None when resource isnt loaded yet otherwise returns font thats already in memory.
-  **/
-  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)> {
-    let mut result = None;
-    
-    for object in &self.objects {
-      if object.reference == reference {
-        match object.object_type {
-          ObjectType::Font(ref font) => {
-            result = font.clone()
-          },
-          _ => {}
-        }
-      }
-    }
-    
-    result
-  }
-  
-  /**
   ** Inserts the font details, and the location of the font texture, the texture is not loaded into memory until a load_font Drawcall is made.
   **
   ** Note: The font details will be in memory, even if it is unloaded, remove_font is recommended if space is required.
@@ -497,40 +529,6 @@ impl ResourceManager {
         object_type: ObjectType::Font(Some(font_info)),
       }
     );
-  }
-  
-  /**
-  ** Only way to laod new font, Forces thread to wait until resource is loaded into memory.
-  **/
-  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8], queue: Arc<Queue>) -> CommandBufferExecFuture<NowFuture, AutoCommandBuffer> {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    let (texture, futures) = ResourceManager::load_texture_into_memory(location.clone(), Arc::clone(&queue));
-    let font = ResourceManager::load_font_into_memory(reference.clone(), font);
-    
-    self.objects.push(
-      LoadableObject {
-        loaded: true,
-        location: location.clone(),
-        reference: reference.clone(),
-        object_type: ObjectType::Font(Some((font, texture))),
-      }
-    );
-    
-    futures
-  }
-  
-  fn load_font_into_memory(reference: String, font: &[u8]) -> GenericFont {
-    let font_start_time = time::Instant::now();
-    
-    let mut new_font = GenericFont::new();
-    new_font.load_font(font);
-    
-    let font_time = font_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms, Font: {:?}", (font_time*1000f64) as f32, reference);
-    
-    new_font
   }
   
   fn load_shape_into_memory(reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
