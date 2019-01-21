@@ -3,6 +3,7 @@ use vk;
 use crate::math;
 use crate::drawcalls;
 use crate::font::GenericFont; 
+use crate::OrthoCamera;
 
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate};
 
@@ -177,6 +178,7 @@ pub struct TextureShader {
   fragment_shader_text: Shader,
   
   scale: f32,
+  camera: OrthoCamera,
   
   vertex_shader_instanced: Shader,
   fragment_shader_instanced: Shader,
@@ -297,8 +299,9 @@ impl TextureShader {
     let uniform_buffer_description = UniformBufferBuilder::new().add_matrix4();
     
     let mut uniform_buffer = TextureShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), image_views.len() as u32, uniform_buffer_description);
-      
-    TextureShader::update_uniform_buffers(Arc::clone(&device), &mut uniform_buffer, &texture_image, sampler, descriptor_sets.get("").unwrap(), current_extent.width as f32, current_extent.height as f32);
+    
+    let camera = OrthoCamera::new(current_extent.width as f32, current_extent.height as f32);
+    TextureShader::update_uniform_buffers(Arc::clone(&device), &mut uniform_buffer, &texture_image, sampler, descriptor_sets.get("").unwrap(), &camera);
     
     let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*32);
     for _ in 0..(MAX_INSTANCES*32) {
@@ -329,6 +332,7 @@ impl TextureShader {
       fragment_shader_text,
       
       scale: 1.0,
+      camera,
       
       vertex_shader_instanced,
       fragment_shader_instanced,
@@ -339,10 +343,6 @@ impl TextureShader {
       instanced_descriptor_sets,
       instanced_pipeline,
     }
-  }
-  
-  pub fn create_projection(width: f32, height: f32) -> Matrix4<f32> {
-    ortho(0.0, width, height, 0.0, -1.0, 1.0)
   }
   
   pub fn set_scale(&mut self, new_scale: f32) {
@@ -360,14 +360,17 @@ impl TextureShader {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
     }
     
-    self.update_uniform(device, textures, sampler, new_extent.width as f32, new_extent.height as f32);
+    self.camera.window_resized(new_extent.width as f32, new_extent.height as f32);
+    
+    let camera = self.camera.clone();
+    self.update_uniform(device, textures, sampler, &camera);
   }
   
-  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, Image)>, sampler: &Sampler, width: f32, height: f32) {
+  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, Image)>, sampler: &Sampler, camera: &OrthoCamera) {
     for (key, descriptor) in &self.descriptor_sets {
       for i in 0..textures.len() {
         if key.to_string() == textures[i].0 {
-          TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &textures[i].1, sampler, descriptor, width, height);
+          TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &textures[i].1, sampler, descriptor, camera);
         }
       }
     }
@@ -392,7 +395,7 @@ impl TextureShader {
       self.descriptor_sets.insert(texture_reference.to_string(), descriptor);
       
       if let Some(descriptor_set) = self.descriptor_sets.get(&texture_reference) {
-        TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &texture_image, sampler, &descriptor_set, current_extent.width as f32, current_extent.height as f32);
+        TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &texture_image, sampler, &descriptor_set, &self.camera);
       }
     }
     
@@ -469,9 +472,9 @@ impl TextureShader {
     framebuffers
   }
   
-  fn update_uniform_buffers(device: Arc<Device>, uniform_buffer: &mut Buffer<f32>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, width: f32, height: f32) {
+  fn update_uniform_buffers(device: Arc<Device>, uniform_buffer: &mut Buffer<f32>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, camera: &OrthoCamera) {
     let data = UniformData::new()
-                 .add_matrix4(TextureShader::create_projection(width, height));
+                 .add_matrix4(camera.get_view_matrix());
     
     UpdateDescriptorSets::new()
        .add_uniformbuffer(Arc::clone(&device), 0, uniform_buffer, data)
@@ -651,7 +654,7 @@ impl TextureShader {
     let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&"SpriteSheet".to_string()).unwrap();
     
     let push_constant_data = UniformData::new()
-                              .add_matrix4(TextureShader::create_projection(width, height));
+                              .add_matrix4(self.camera.get_view_matrix());
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
     

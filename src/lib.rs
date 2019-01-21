@@ -105,6 +105,7 @@ use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;
 use self::texture_shader::Vertex;
+use self::ortho_camera::OrthoCamera;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
@@ -122,6 +123,7 @@ mod final_shader;
 mod font;
 mod threadpool;
 mod resource_manager;
+mod ortho_camera;
 
 #[cfg(test)]
 mod tests {
