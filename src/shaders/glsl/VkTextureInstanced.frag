@@ -6,7 +6,7 @@ layout(location = 2) in vec2 textured_blackwhite;
 
 layout(location = 0) out vec4 outColour;
 
-layout(set = 0, binding = 1) uniform sampler2D tex;
+layout(set = 0, binding = 0) uniform sampler2D tex;
 
 void main() {
   vec4 drawTexture = new_colour;
@@ -22,5 +22,5 @@ void main() {
     drawTexture = vec4(vec3(brightness), drawTexture.a);
   }
   
-  outColour = drawTexture*vec4(new_colour.xyz, 1.0);
+  outColour = drawTexture;
 }

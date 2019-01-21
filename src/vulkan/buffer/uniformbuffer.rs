@@ -44,6 +44,7 @@ impl Ty {
   }
 }
 
+#[derive(Clone)]
 pub struct UniformData {
   data: Vec<f32>,
 }
@@ -53,6 +54,16 @@ impl UniformData {
     UniformData {
       data: Vec::new(),
     }
+  }
+  
+  pub fn with_capacity(capacity: usize) -> UniformData {
+    UniformData {
+      data: Vec::with_capacity(capacity),
+    }
+  }
+  
+  pub fn empty(&mut self) {
+    self.data.clear();
   }
   
   pub fn add_float(mut self, value: f32) -> UniformData {

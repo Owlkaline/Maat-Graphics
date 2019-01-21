@@ -37,8 +37,8 @@ pub struct CoreMaat {
   window_dimensions: vk::Extent2D,
   recreate_swapchain: bool,
   fences: Vec<Fence>,
-  semaphore_image_available: Semaphore,
-  semaphore_render_finished: Semaphore,
+  semaphore_image_available: Vec<Semaphore>,
+  semaphore_render_finished: Vec<Semaphore>,
   command_pool: CommandPool,
   command_buffers: Vec<Arc<CommandBuffer>>,
   descriptor_set_pool: DescriptorPool,
@@ -50,6 +50,9 @@ pub struct CoreMaat {
   texture_shader: TextureShader,
   
   resources: ResourceManager,
+  
+  current_frame: usize,
+  max_frames: usize,
 }
 
 impl CoreMaat {
@@ -59,8 +62,8 @@ impl CoreMaat {
     let resource_manager = ResourceManager::new();
     
     let fences: Vec<Fence>;
-    let semaphore_image_available: Semaphore;
-    let semaphore_render_finished: Semaphore;
+    let mut semaphore_image_available: Vec<Semaphore> = Vec::new();
+    let mut semaphore_render_finished: Vec<Semaphore> = Vec::new();
     let command_pool: CommandPool;
     let command_buffers: Vec<Arc<CommandBuffer>>;
     let descriptor_set_pool: DescriptorPool;
@@ -80,8 +83,10 @@ impl CoreMaat {
       let graphics_queue = window.get_graphics_queue();
       let image_views = window.swapchain_image_views();
       
-      semaphore_image_available = Semaphore::new(Arc::clone(&device));
-      semaphore_render_finished = Semaphore::new(Arc::clone(&device));
+      for _ in 0..image_views.len() {
+        semaphore_image_available.push(Semaphore::new(Arc::clone(&device)));
+        semaphore_render_finished.push(Semaphore::new(Arc::clone(&device)));
+      }
       
       fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
       command_pool = CommandPool::new(Arc::clone(&device), graphics_family);
@@ -104,24 +109,29 @@ impl CoreMaat {
       
     }
     
+    let max_frames = fences.len();
+    
     CoreMaat {
       window: window,
       window_dimensions: current_extent,
       recreate_swapchain: false,
-      fences: fences,
-      semaphore_image_available: semaphore_image_available,
-      semaphore_render_finished: semaphore_render_finished,
-      command_pool: command_pool,
-      command_buffers: command_buffers,
-      descriptor_set_pool: descriptor_set_pool,
+      fences,
+      semaphore_image_available,
+      semaphore_render_finished,
+      command_pool,
+      command_buffers,
+      descriptor_set_pool,
       
       clear_colour: Vector4::new(0.0, 0.0, 0.2, 1.0),
       
       texture: texture_image,
-      sampler: sampler,
+      sampler,
       
       texture_shader,
       resources: resource_manager,
+      
+      current_frame: 0,
+      max_frames,
     }
   }
   
@@ -274,6 +284,9 @@ impl CoreRender for CoreMaat {
       for (reference, texture) in &self.resources.get_all_textures() {
         self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
       }
+      
+      self.max_frames = image_views.len();
+      self.current_frame = 0;
     }
     
     self.draw(&Vec::new());
@@ -291,7 +304,12 @@ impl CoreRender for CoreMaat {
     }
     
     let device = self.window.device();
-    let window_size = &self.window_dimensions;
+    let instance = self.window.instance();
+    let swapchain = self.window.get_swapchain();
+    let graphics_queue = self.window.get_graphics_queue();
+    let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
+    self.fences[self.current_frame].wait(Arc::clone(&device));
+    self.fences[self.current_frame].reset(Arc::clone(&device));
     
     let clear_values: Vec<vk::ClearValue> = {
       vec!(
@@ -301,9 +319,16 @@ impl CoreRender for CoreMaat {
       )
     };
     
-    for i in 0..self.command_buffers.len() {
+    //
+    // Actually Draw stuff
+    //
+    let image_index = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available[self.current_frame]);
+    
+    let i = self.current_frame;
+    //for i in 0..self.command_buffers.len() {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(Arc::clone(&device));
+      cmd = self.texture_shader.fill_buffers(Arc::clone(&instance), Arc::clone(&device), cmd, i);
       cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
@@ -312,6 +337,19 @@ impl CoreRender for CoreMaat {
       for draw in draw_calls {
         let black_and_white = draw.is_black_and_white();
         match draw.get_type() {
+          DrawType::DrawInstanced => {
+            println!("Here");
+            cmd = self.texture_shader.draw_instanced(Arc::clone(&instance), Arc::clone(&device), cmd, i, window_size.width as f32, window_size.height as f32);
+          },
+          DrawType::AddInstancedSpriteSheet(ref info) => {
+            let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+            
+            let texture_resource = self.resources.get_texture(reference.clone());
+            if let Some(_texture) = texture_resource {
+              self.texture_shader.add_instanced_draw
+(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, reference.to_string());
+            }
+          },
           DrawType::DrawFont(ref info) => {
             let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
             
@@ -329,12 +367,12 @@ impl CoreRender for CoreMaat {
             }
           },
           DrawType::DrawSpriteSheet(ref info) => {
-            let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+            let (reference, position, scale, rotation, alpha, sprite_details, colour) = info.clone(); 
             
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(_texture) = texture_resource {
               cmd = self.texture_shader.draw_texture
-(Arc::clone(&device), cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, reference.to_string());
+(Arc::clone(&device), cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(colour.x, colour.y, colour.z, alpha)), black_and_white, true, reference.to_string());
             }
           },
           DrawType::DrawColoured(ref info) => {
@@ -363,21 +401,11 @@ impl CoreRender for CoreMaat {
       
       cmd = cmd.end_render_pass(Arc::clone(&device));
       cmd.end_command_buffer(Arc::clone(&device));
-    }
+    //}
     
-    //
-    // Actually Draw stuff
-    //
-    let device = self.window.device();
-    let swapchain = self.window.get_swapchain();
-    let graphics_queue = self.window.get_graphics_queue();
     
-    let current_buffer = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available);
     
-    self.fences[current_buffer].wait(Arc::clone(&device));
-    self.fences[current_buffer].reset(Arc::clone(&device));
-    
-    match self.command_buffers[current_buffer].submit(Arc::clone(&device), swapchain, current_buffer as u32, &self.semaphore_image_available, &self.semaphore_render_finished, &self.fences[current_buffer], &graphics_queue) {
+    match self.command_buffers[self.current_frame].submit(Arc::clone(&device), swapchain, image_index as u32, &self.semaphore_image_available[self.current_frame], &self.semaphore_render_finished[self.current_frame], &self.fences[self.current_frame], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
       },
@@ -388,7 +416,9 @@ impl CoreRender for CoreMaat {
       return;
     }
       
-    self.command_buffers[current_buffer].finish(Arc::clone(&device), &graphics_queue);
+    //self.command_buffers[self.current_frame].finish(Arc::clone(&device), &graphics_queue);
+    
+    self.current_frame = (self.current_frame+1)%self.max_frames;
   }
   
   fn post_draw(&self) {
@@ -471,7 +501,11 @@ impl Drop for CoreMaat {
     self.descriptor_set_pool.destroy(Arc::clone(&device));
     
     self.command_pool.destroy(Arc::clone(&device));
-    self.semaphore_image_available.destroy(Arc::clone(&device));
-    self.semaphore_render_finished.destroy(Arc::clone(&device));
+    for semaphore in &self.semaphore_image_available {
+      semaphore.destroy(Arc::clone(&device));
+    }
+    for semaphore in &self.semaphore_render_finished {
+      semaphore.destroy(Arc::clone(&device));
+    }
   }
 }

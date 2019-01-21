@@ -149,11 +149,11 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_vertex_buffer(&self, device: Arc<Device>, vertex_buffer: &vk::Buffer) {
+  pub fn bind_vertex_buffer(&self, device: Arc<Device>, set_id: u32, vertex_buffer: &vk::Buffer) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindVertexBuffers(self.command_buffer, 0, 1, vertex_buffer, &0);
+      vk.CmdBindVertexBuffers(self.command_buffer, set_id, 1, vertex_buffer, &0);
     }
   }
   

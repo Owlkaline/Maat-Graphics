@@ -3,7 +3,7 @@ use vk;
 use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
 use crate::vulkan::Pipeline;
-use crate::vulkan::buffer::{CommandBuffer, UniformData};
+use crate::vulkan::buffer::{CommandBuffer, UniformData, Buffer};
 use crate::vulkan::vkenums::{ShaderStageFlagBits};
 
 use std::sync::Arc;
@@ -32,6 +32,11 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn copy_buffer_to_buffer<T: Clone, U: Clone>(self, device: Arc<Device>, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) -> CommandBufferBuilder {
+    self.command_buffer.copy_buffer(Arc::clone(&device), src_buffer, dst_buffer, current_buffer);
+    self
+  }
+  
   pub fn set_viewport(self, device: Arc<Device>, x: f32, y: f32, width: f32, height: f32) -> CommandBufferBuilder {
     self.command_buffer.set_viewport(Arc::clone(&device), x, y, width, height);
     self
@@ -53,9 +58,25 @@ impl CommandBufferBuilder {
     for i in 0..descriptor_set.len() {
       self.command_buffer.bind_descriptor_set(Arc::clone(&device), pipeline, descriptor_set[i]);
     }
-    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), vertex_buffer);
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, vertex_buffer);
     self.command_buffer.bind_index_buffer(Arc::clone(&device), index_buffer);
-    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 2);
+    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 1);
+    
+    self
+  }
+  
+    pub fn draw_instanced_indexed(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, instance_buffer: &vk::Buffer, index_count: u32, instance_count: u32, pipeline: &Pipeline, descriptor_set: Vec<&vk::DescriptorSet>) -> CommandBufferBuilder {
+    self.command_buffer.bind_pipeline(Arc::clone(&device), pipeline);
+    
+    for i in 0..descriptor_set.len() {
+      self.command_buffer.bind_descriptor_set(Arc::clone(&device), pipeline, descriptor_set[i]);
+    }
+    
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, vertex_buffer);
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 1, instance_buffer);
+    self.command_buffer.bind_index_buffer(Arc::clone(&device), index_buffer);
+    println!("num instances: {}", instance_count);
+    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, instance_count);
     
     self
   }

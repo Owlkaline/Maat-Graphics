@@ -57,7 +57,7 @@ impl<T: Clone> Buffer<T> {
     };
     
     let data = buffer.internal_data();
-    buffer.fill_buffer(Arc::clone(&device), data);
+    buffer.fill_entire_buffer(Arc::clone(&device), data);
     
     buffer
   }
@@ -80,7 +80,23 @@ impl<T: Clone> Buffer<T> {
     }
   }
   
-  pub fn fill_buffer(&mut self, device: Arc<Device>, data: Vec<T>) {
+  pub fn fill_buffer(&mut self, device: Arc<Device>, current_buffer: usize, data: Vec<T>) {
+    self.data = data;
+    
+    let mut host_visible_data = unsafe { mem::uninitialized() };
+    let buffer_size = mem::size_of::<T>() * self.data.len();
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      
+      check_errors(vk.MapMemory(*device, self.memory[current_buffer], 0, buffer_size as u64, 0, &mut host_visible_data));
+      memcpy(host_visible_data, self.data.as_ptr() as *const _, buffer_size as usize);
+      vk.UnmapMemory(*device, self.memory[current_buffer]);
+    }
+  }
+  
+  pub fn fill_entire_buffer(&mut self, device: Arc<Device>, data: Vec<T>) {
     self.data = data;
     
     let mut host_visible_data = unsafe { mem::uninitialized() };

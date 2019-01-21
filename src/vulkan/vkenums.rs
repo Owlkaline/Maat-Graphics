@@ -233,6 +233,11 @@ pub enum BlendFactor {
   SrcAlphaSaturate,
 }
 
+pub enum VertexInputRate {
+  Vertex,
+  Instance,
+}
+
 impl VkBool {
   pub fn to_bits(&self) -> vk::Bool32 {
     match self {
@@ -1001,3 +1006,17 @@ impl BlendFactor {
     }
   }
 }
+
+impl VertexInputRate {
+  pub fn to_bits(&self) -> vk::VertexInputRate {
+    match self {
+      VertexInputRate::Vertex => {
+        vk::VERTEX_INPUT_RATE_VERTEX
+      },
+      VertexInputRate::Instance => {
+        vk::VERTEX_INPUT_RATE_INSTANCE
+      },
+    }
+  }
+}
+
