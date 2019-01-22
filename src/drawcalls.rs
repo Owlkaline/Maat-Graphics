@@ -63,6 +63,8 @@ pub enum DrawType {
   ScissorRender(Vector4<f32>),
   ResetScissorRender,
   
+  Camera((Option<Vector2<f32>>, Vector2<f32>)),
+  
   None,
 }
 
@@ -216,6 +218,20 @@ impl DrawCall {
     DrawCall {
       draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, outline_colour, edge_width, true, wrap_length, centered)),
       coloured: true,
+    }
+  }
+  
+  pub fn reset_camera() -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::Camera((None, Vector2::new(0.0, 0.0))),
+      coloured: false,
+    }
+  }
+  
+  pub fn lerp_camera_to_pos(position: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::Camera((Some(position), vel)),
+      coloured: false,
     }
   }
   

@@ -7,7 +7,7 @@ layout(location = 3) in vec4 v_edge_width;
 
 layout(location = 0) out vec4 colour;
 
-layout(set = 0, binding = 1) uniform sampler2D tex;
+layout(set = 0, binding = 0) uniform sampler2D tex;
 
 void main() {
   float distance = 1.0 - texture(tex, v_uvs).a;

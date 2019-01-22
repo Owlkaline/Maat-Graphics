@@ -8,10 +8,6 @@ layout(location = 1) out vec4 v_new_colour;
 layout(location = 2) out vec3 v_outlineColour;
 layout(location = 3) out vec4 v_edge_width;
 
-layout(set = 0, binding = 0) uniform Data {
-  mat4 projection;
-} uniforms;
-
 layout(push_constant) uniform PushConstants {
   mat4 model;
   vec4 letter_uv;
@@ -48,7 +44,18 @@ void main() {
                            vec4(0.0, 0.0, scale, 0.0), 
                            vec4(0.0, 0.0, 0.0, 1.0));
   
-  gl_Position = uniforms.projection * push_constants.model * scale_matrix * vec4(new_pos, 0.0, 1.0);
+  float near = 1.0;
+  float far = -1.0;
+  float right = 1280.0;
+  float left = 0.0;
+  float bottom = 720.0;
+  float top = 0.0;
+  mat4 projection = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
+                          vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
+                          vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
+                          vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
+  
+  gl_Position = projection * push_constants.model * scale_matrix * vec4(new_pos, 0.0, 1.0);
   
   v_uvs = new_uv;
   v_outlineColour = push_constants.outline_colour.rgb;

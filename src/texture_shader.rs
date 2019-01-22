@@ -220,8 +220,7 @@ impl TextureShader {
     
     let mut descriptor_sets: HashMap<String, DescriptorSet> = HashMap::new();
     descriptor_sets.insert("".to_string(), DescriptorSetBuilder::new()
-                           .vertex_uniform_buffer(0)
-                           .fragment_combined_image_sampler(1)
+                           .fragment_combined_image_sampler(0)
                            .build(Arc::clone(&device), &descriptor_set_pool, 1));
     
     let mut instanced_descriptor_sets: HashMap<String, DescriptorSet> = HashMap::new();
@@ -389,8 +388,7 @@ impl TextureShader {
   pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler, current_extent: &vk::Extent2D) {
    if !self.descriptor_sets.contains_key(&texture_reference) {
       let descriptor = DescriptorSetBuilder::new()
-                           .vertex_uniform_buffer(0)
-                           .fragment_combined_image_sampler(1)
+                           .fragment_combined_image_sampler(0)
                            .build(Arc::clone(&device), &descriptor_set_pool, 1);
       self.descriptor_sets.insert(texture_reference.to_string(), descriptor);
       
@@ -473,12 +471,8 @@ impl TextureShader {
   }
   
   fn update_uniform_buffers(device: Arc<Device>, uniform_buffer: &mut Buffer<f32>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, camera: &OrthoCamera) {
-    let data = UniformData::new()
-                 .add_matrix4(camera.get_view_matrix());
-    
     UpdateDescriptorSets::new()
-       .add_uniformbuffer(Arc::clone(&device), 0, uniform_buffer, data)
-       .add_sampled_image(1, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+       .add_sampled_image(0, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets);
   }
   
@@ -525,7 +519,9 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let texture_blackwhite = Vector4::new(has_texture, bw, 0.0, 0.0);
+    let top = self.camera.get_top();
+    let right = self.camera.get_right();
+    let texture_blackwhite = Vector4::new(has_texture, bw, right, top);
     
     let push_constant_data = UniformData::new()
                                .add_matrix4(model)
@@ -627,7 +623,9 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let texture_blackwhite = Vector4::new(has_texture, bw, 0.0, 0.0);
+    let top = self.camera.get_top();
+    let right = self.camera.get_right();
+    let texture_blackwhite = Vector4::new(has_texture, bw, right, top);
     
     let data = self.instanced_data.clone();
     self.instanced_data = data
