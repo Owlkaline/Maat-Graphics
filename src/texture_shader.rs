@@ -522,7 +522,6 @@ impl TextureShader {
     let top = self.camera.get_top();
     let right = self.camera.get_right();
     let pos = self.camera.get_position();
-    println!("top: {}, right: {}", top, right);
     let texture_blackwhite = Vector4::new(pos.x, pos.y, right, top);
     
     let push_constant_data = UniformData::new()
