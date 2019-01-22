@@ -348,6 +348,14 @@ impl TextureShader {
     self.scale = new_scale;
   }
   
+  pub fn lerp_camera(&mut self, position: Vector2<f32>, vel: Vector2<f32>) {
+    self.camera.lerp_to_position(position, vel);
+  }
+  
+  pub fn reset_camera(&mut self) {
+    self.camera.reset();
+  }
+  
   pub fn recreate(&mut self, device: Arc<Device>, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, textures: Vec<(String, Image)>, sampler: &Sampler) {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));
@@ -487,30 +495,22 @@ impl TextureShader {
       return cmd
     }
     
-    let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
+    let mut descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
     let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
-    let has_texture  = {
-      if use_texture {
-        1.0
-      } else {
-        0.0
-      }
-    };
-  
-    let mut bw: f32 = 0.0;
-    if black_and_white {
-      bw = 1.0;
-    }
     
-    let sprite = {
+    let mut sprite = {
       let mut tex_view = Vector4::new(0.0, 0.0, 1.0, self.scale);
       if let Some(details) = sprite_details {
         tex_view = Vector4::new(details.x as f32, details.y as f32, details.z as f32, self.scale);
       }
       tex_view
     };
+    
+    if use_texture {
+      sprite.z *= -1.0;
+    }
     
     let draw_colour;
     if let Some(colour) = colour {
@@ -521,7 +521,9 @@ impl TextureShader {
     
     let top = self.camera.get_top();
     let right = self.camera.get_right();
-    let texture_blackwhite = Vector4::new(has_texture, bw, right, top);
+    let pos = self.camera.get_position();
+    println!("top: {}, right: {}", top, right);
+    let texture_blackwhite = Vector4::new(pos.x, pos.y, right, top);
     
     let push_constant_data = UniformData::new()
                                .add_matrix4(model)
@@ -652,7 +654,7 @@ impl TextureShader {
     let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&"SpriteSheet".to_string()).unwrap();
     
     let push_constant_data = UniformData::new()
-                              .add_matrix4(self.camera.get_view_matrix());
+                              .add_matrix4(self.camera.get_raw_view_matrix());
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
     

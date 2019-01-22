@@ -393,6 +393,15 @@ impl CoreRender for CoreMaat {
           DrawType::ResetScissorRender => {
             cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
           },
+          DrawType::Camera(ref info) => {
+            let (position, vel) = info.clone();
+            
+            if let Some(goal_pos) = position {
+              self.texture_shader.lerp_camera(goal_pos, vel);
+            } else {
+              self.texture_shader.reset_camera();
+            }
+          },
           _ => {
             
           }
