@@ -12,7 +12,7 @@ use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformDa
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
 
-use cgmath::{Vector2, Vector3, Vector4, Matrix4, ortho, SquareMatrix};
+use cgmath::{Vector2, Vector3, Vector4, Matrix4, SquareMatrix};
 
 use std::mem;
 use std::sync::Arc;
@@ -297,10 +297,10 @@ impl TextureShader {
     
     let uniform_buffer_description = UniformBufferBuilder::new().add_matrix4();
     
-    let mut uniform_buffer = TextureShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), image_views.len() as u32, uniform_buffer_description);
+    let uniform_buffer = TextureShader::create_uniform_buffer(Arc::clone(&instance), Arc::clone(&device), image_views.len() as u32, uniform_buffer_description);
     
     let camera = OrthoCamera::new(current_extent.width as f32, current_extent.height as f32);
-    TextureShader::update_uniform_buffers(Arc::clone(&device), &mut uniform_buffer, &texture_image, sampler, descriptor_sets.get("").unwrap(), &camera);
+    TextureShader::update_uniform_buffers(Arc::clone(&device), &texture_image, sampler, descriptor_sets.get("").unwrap());
     
     let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*32);
     for _ in 0..(MAX_INSTANCES*32) {
@@ -369,15 +369,14 @@ impl TextureShader {
     
     self.camera.window_resized(new_extent.width as f32, new_extent.height as f32);
     
-    let camera = self.camera.clone();
-    self.update_uniform(device, textures, sampler, &camera);
+    self.update_uniform(device, textures, sampler);
   }
   
-  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, Image)>, sampler: &Sampler, camera: &OrthoCamera) {
+  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, Image)>, sampler: &Sampler) {
     for (key, descriptor) in &self.descriptor_sets {
       for i in 0..textures.len() {
         if key.to_string() == textures[i].0 {
-          TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &textures[i].1, sampler, descriptor, camera);
+          TextureShader::update_uniform_buffers(Arc::clone(&device), &textures[i].1, sampler, descriptor);
         }
       }
     }
@@ -393,7 +392,7 @@ impl TextureShader {
     }
   }
   
-  pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler, current_extent: &vk::Extent2D) {
+  pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler) {
    if !self.descriptor_sets.contains_key(&texture_reference) {
       let descriptor = DescriptorSetBuilder::new()
                            .fragment_combined_image_sampler(0)
@@ -401,7 +400,7 @@ impl TextureShader {
       self.descriptor_sets.insert(texture_reference.to_string(), descriptor);
       
       if let Some(descriptor_set) = self.descriptor_sets.get(&texture_reference) {
-        TextureShader::update_uniform_buffers(Arc::clone(&device), &mut self.uniform_buffer, &texture_image, sampler, &descriptor_set, &self.camera);
+        TextureShader::update_uniform_buffers(Arc::clone(&device), &texture_image, sampler, &descriptor_set);
       }
     }
     
@@ -478,7 +477,7 @@ impl TextureShader {
     framebuffers
   }
   
-  fn update_uniform_buffers(device: Arc<Device>, uniform_buffer: &mut Buffer<f32>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet, camera: &OrthoCamera) {
+  fn update_uniform_buffers(device: Arc<Device>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet) {
     UpdateDescriptorSets::new()
        .add_sampled_image(0, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets);
@@ -488,14 +487,14 @@ impl TextureShader {
     cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
+  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&texture_reference) {
       return cmd
     }
     
-    let mut descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
+    let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
     let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
@@ -636,7 +635,7 @@ impl TextureShader {
                           .add_vector4(texture_blackwhite);
   }
   
-  pub fn draw_instanced(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, width: f32, height: f32) -> CommandBufferBuilder {
+  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     let data = self.instanced_data.build();
@@ -674,9 +673,10 @@ impl TextureShader {
     cmd
   }
   
-  pub fn fill_buffers(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize) -> CommandBufferBuilder {
-    let mut cmd = cmd;
+  pub fn fill_buffers(&mut self, _instance: Arc<Instance>, _device: Arc<Device>, cmd: CommandBufferBuilder, _current_buffer: usize) -> CommandBufferBuilder {
     /*
+    let mut cmd = cmd;
+    
     let data = self.instanced_data.build();
     let num_instances = data.len() as u32;
     

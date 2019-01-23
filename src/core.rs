@@ -1,6 +1,5 @@
 use vk;
 use winit;
-use image;
 use cgmath::{Vector4};
 use winit::dpi::LogicalSize;
 
@@ -101,7 +100,7 @@ impl CoreMaat {
                        .mag_filter(Filter::Linear)
                        .address_mode(AddressMode::ClampToEdge)
                        .mipmap_mode(MipmapMode::Nearest)
-                       .anisotropy(VkBool::False)
+                       .anisotropy(VkBool::True)
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
@@ -194,7 +193,7 @@ impl CoreRender for CoreMaat {
     let device = self.window.device();
     let instance = self.window.instance();
     self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
-    self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);
+    self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler);
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
@@ -213,7 +212,7 @@ impl CoreRender for CoreMaat {
     
     self.resources.sync_load_font(reference.to_string(), font_texture.to_string(), font, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
     
-    self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_font(reference).unwrap().1, &self.sampler, &self.window_dimensions);
+    self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_font(reference).unwrap().1, &self.sampler);
   }
   
   fn add_font(&mut self, _reference: String, _font_texture: String, _font: &[u8]) {
@@ -245,7 +244,7 @@ impl CoreRender for CoreMaat {
       let references: Vec<String> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
       for reference in references {
-        self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);
+        self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler);
       }
     }
     
@@ -282,7 +281,7 @@ impl CoreRender for CoreMaat {
       
       // TO REMOVE
       for (reference, texture) in &self.resources.get_all_textures() {
-        self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler, &self.window_dimensions);
+        self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), texture, &self.sampler);
       }
       
       self.max_frames = image_views.len();
@@ -339,7 +338,7 @@ impl CoreRender for CoreMaat {
         match draw.get_type() {
           DrawType::DrawInstanced => {
             println!("Here");
-            cmd = self.texture_shader.draw_instanced(Arc::clone(&instance), Arc::clone(&device), cmd, i, window_size.width as f32, window_size.height as f32);
+            cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i);
           },
           DrawType::AddInstancedSpriteSheet(ref info) => {
             let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
@@ -363,22 +362,22 @@ impl CoreRender for CoreMaat {
             
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(_texture) = texture_resource {
-              cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, reference.to_string());
+              cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, reference.to_string());
             }
           },
           DrawType::DrawSpriteSheet(ref info) => {
-            let (reference, position, scale, rotation, alpha, sprite_details, colour) = info.clone(); 
+            let (reference, position, scale, rotation, sprite_details, colour) = info.clone(); 
             
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(_texture) = texture_resource {
               cmd = self.texture_shader.draw_texture
-(Arc::clone(&device), cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(colour.x, colour.y, colour.z, alpha)), black_and_white, true, reference.to_string());
+(Arc::clone(&device), cmd, position, scale, rotation, Some(sprite_details), Some(Vector4::new(colour.x, colour.y, colour.z, colour.w)), true, reference.to_string());
             }
           },
           DrawType::DrawColoured(ref info) => {
             let (position, scale, colour, rotation) = info.clone(); 
             
-            cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(colour), black_and_white, false, "".to_string());
+            cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(colour), false, "".to_string());
           },
           DrawType::LoadTexture(ref info) => {
             let reference = info.clone();

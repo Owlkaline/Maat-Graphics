@@ -5,6 +5,8 @@ use cgmath::Vector4;
 use cgmath::Matrix4;
 use cgmath::InnerSpace;
 
+use std::f64::consts::PI;
+
 pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32> {
   let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
   let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(450.0-rotation));
@@ -50,6 +52,32 @@ pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
   }
   
   (x_rot, z_rot)
+}
+
+pub fn to_radians(degree: f32) -> f32 {
+  degree * (PI as f32/180.0)
+}
+
+pub fn squared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
+  unsquared_distance(origin, point).sqrt()
+}
+
+pub fn unsquared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
+  (origin.x-point.x)*(origin.x-point.x) + (origin.y-point.y)*(origin.y-point.y)
+}
+
+pub fn aabb_circle_collision(circle: Vector3<f32>, square: Vector4<f32>, inner_radius: f32, outer_radius: f32) -> bool {
+  let dist_between_centers = squared_distance(Vector2::new(square.x, square.y), Vector2::new(circle.x, circle.y));
+  if dist_between_centers > (outer_radius+circle.z)*(outer_radius+circle.z) {
+    return false;
+  }
+  if dist_between_centers > (inner_radius+circle.z)*(inner_radius+circle.z) {
+    return true;
+  }
+  
+  let dist = squared_distance(Vector2::new(circle.x, circle.y), Vector2::new(square.x, square.y));
+  let c1c2vec = Vector2::new((circle.x-square.x)/dist,  (circle.y-square.y)/dist);
+  box_collision(Vector4::new(c1c2vec.x, c1c2vec.y, 1.0, 1.0), square)
 }
 
 pub fn intersection(center: Vector2<f32>, radius: f32, p1: Vector2<f32>, p2: Vector2<f32>) -> ((f32, f32), (f32, f32)) {
@@ -162,15 +190,9 @@ pub fn box_collision(a: Vector4<f32>, b: Vector4<f32>) -> bool {
 }
 
 pub fn min(a: f32, b: f32) -> f32 {
-  if a > b {
-    return b;
-  }
-  a
+  a.min(b)
 }
 
 pub fn max(a: f32, b: f32) -> f32 {
-  if a < b {
-    return b;
-  }
-  a
+  a.max(b)
 }

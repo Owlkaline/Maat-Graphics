@@ -1,11 +1,9 @@
 use cgmath;
 use cgmath::Vector2;
-use cgmath::EuclideanSpace;
-use cgmath::prelude::InnerSpace;
 use cgmath::Matrix4;
 use cgmath::ortho;
 
-pub enum Direction {
+pub enum _Direction {
   Left,
   Right,
   Up,
@@ -43,24 +41,24 @@ impl OrthoCamera {
     self.right = width;
   }
   
-  pub fn process_movement(&mut self, direction: Direction, delta_time: f32) {
+  pub fn _process_movement(&mut self, direction: _Direction, delta_time: f32) {
     match direction {
-      Direction::Right => {
+      _Direction::Right => {
         self.position.x += self.move_speed*delta_time;
       },
-      Direction::Left => {
+      _Direction::Left => {
         self.position.x -= self.move_speed*delta_time;
       },
-      Direction::Up => {
+      _Direction::Up => {
         self.position.y += self.move_speed*delta_time;
       },
-      Direction::Down => {
+      _Direction::Down => {
         self.position.y -= self.move_speed*delta_time;
       },
     }
   }
   
-  pub fn get_view_matrix(&self) -> Matrix4<f32> {
+  pub fn _get_view_matrix(&self) -> Matrix4<f32> {
     ortho(self.position.x, self.right+self.position.x, self.top+self.position.y, self.position.y, -1.0, 1.0)
   }
   

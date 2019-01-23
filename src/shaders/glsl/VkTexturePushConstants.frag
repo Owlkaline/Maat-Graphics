@@ -11,11 +11,8 @@ layout(set = 0, binding = 0) uniform sampler2D tex;
 void main() {
   vec4 drawTexture = new_colour;
   if (use_texture < 0.0) {
-    drawTexture = texture(tex, uvs);
-    if (new_colour.w != -1.0) {
-      drawTexture.w *= new_colour.w;
-    }
+    drawTexture *= texture(tex, uvs);
   }
   
-  outColour = drawTexture*vec4(new_colour.xyz, 1.0);
+  outColour = drawTexture;
 }

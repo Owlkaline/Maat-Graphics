@@ -15,7 +15,7 @@ pub enum DrawType {
   // Ref, Position, Scale, Rotation
   DrawTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
   // Ref, Position, Scale, Rotation, SpriteDetails(x,y,rows), colour
-  DrawSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>, Vector4<f32>)),
+  DrawSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, Vector3<i32>, Vector4<f32>)),
   // Position, Scale, Colour, Rotation
   DrawColoured((Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   DrawModel,
@@ -88,25 +88,23 @@ impl DrawCall {
   }
   
   pub fn draw_sprite_sheet(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
-    let alpha = 1.0;
     debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
     debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
     debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
     debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
     DrawCall {
-      draw_type: DrawType::DrawSpriteSheet((texture, position, scale, rotation, alpha, sprite_details, Vector4::new(1.0, 1.0, 1.0, 1.0))),
+      draw_type: DrawType::DrawSpriteSheet((texture, position, scale, rotation, sprite_details, Vector4::new(1.0, 1.0, 1.0, 1.0))),
       coloured: true,
     }
   }
   
   pub fn draw_sprite_sheet_coloured(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>, colour: Vector4<f32>) -> DrawCall {
-    let alpha = 1.0;
     debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
     debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
     debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
     debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
     DrawCall {
-      draw_type: DrawType::DrawSpriteSheet((texture, position, scale, rotation, alpha, sprite_details, colour)),
+      draw_type: DrawType::DrawSpriteSheet((texture, position, scale, rotation, sprite_details, colour)),
       coloured: true,
     }
   }
@@ -345,7 +343,7 @@ impl DrawCall {
     result
   }
   
-  pub fn draw_sprite_sheet_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>, Vector4<f32>)> {
+  pub fn draw_sprite_sheet_details(&self) -> Option<(String, Vector2<f32>, Vector2<f32>, f32, Vector3<i32>, Vector4<f32>)> {
     let mut result = None;
     match self.draw_type {
       DrawType::DrawSpriteSheet(ref info) => {
