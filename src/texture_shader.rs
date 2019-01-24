@@ -34,10 +34,9 @@ macro_rules! offset_of {
 
 #[derive(Clone)]
 pub struct TextureInstanceData {
-  model: Matrix4<f32>,
+  model: Vector4<f32>,
   colour: Vector4<f32>,
   sprite_sheet: Vector4<f32>,
-  has_texture_blackwhite: Vector4<f32>
 }
 
 #[derive(Clone)]
@@ -97,7 +96,7 @@ impl TextureInstanceData {
         location: 2,
         binding: 1,
         format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, model) as u32 + offset_of!(Vertex, uvs) as u32,
+        offset: offset_of!(TextureInstanceData, model) as u32,
       }
     );
     
@@ -106,7 +105,7 @@ impl TextureInstanceData {
         location: 3,
         binding: 1,
         format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, model) as u32 + offset_of!(Vertex, uvs) as u32 * 2,
+        offset: offset_of!(TextureInstanceData, colour) as u32,
       }
     );
     
@@ -115,43 +114,7 @@ impl TextureInstanceData {
         location: 4,
         binding: 1,
         format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, model) as u32 + offset_of!(Vertex, uvs) as u32 * 3,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 5,
-        binding: 1,
-        format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, model) as u32 + offset_of!(Vertex, uvs) as u32 * 4,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 6,
-        binding: 1,
-        format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, colour) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 7,
-        binding: 1,
-        format: vk::FORMAT_R32G32B32A32_SFLOAT,
         offset: offset_of!(TextureInstanceData, sprite_sheet) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 8,
-        binding: 1,
-        format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(TextureInstanceData, has_texture_blackwhite) as u32,
       }
     );
     
@@ -252,7 +215,7 @@ impl TextureShader {
     let text_pipeline = TextureShader::create_text_pipline(Arc::clone(&device), &vertex_shader_text, &fragment_shader_text, &render_pass, &descriptor_sets);
     
     let push_constant_size = UniformData::new()
-                               .add_matrix4(Matrix4::identity())
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size();
     
     let mut attributes: Vec<vk::VertexInputAttributeDescription> = Vertex::vertex_input_attributes();
@@ -282,8 +245,8 @@ impl TextureShader {
     let camera = OrthoCamera::new(current_extent.width as f32, current_extent.height as f32);
     TextureShader::update_uniform_buffers(Arc::clone(&device), &texture_image, sampler, descriptor_sets.get("").unwrap());
     
-    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*32);
-    for _ in 0..(MAX_INSTANCES*32) {
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
+    for _ in 0..(MAX_INSTANCES*12) {
       instanced_data.push(0.0);
     }
     
@@ -316,7 +279,7 @@ impl TextureShader {
       vertex_shader_instanced,
       fragment_shader_instanced,
       instanced_texture: "".to_string(),
-      instanced_data: UniformData::with_capacity(MAX_INSTANCES*32),
+      instanced_data: UniformData::with_capacity(MAX_INSTANCES*12),
       instanced_cpu_buffer,
       instanced_buffer,
       instanced_descriptor_sets,
@@ -529,13 +492,13 @@ impl TextureShader {
     let top = self.camera.get_top();
     let right = self.camera.get_right();
     let pos = self.camera.get_position();
-    let texture_blackwhite = Vector4::new(pos.x, pos.y, right, top);
+    let projection_details = Vector4::new(pos.x, pos.y, right, top);
     
     let push_constant_data = UniformData::new()
                                .add_matrix4(model)
                                .add_vector4(draw_colour)
                                .add_vector4(sprite)
-                               .add_vector4(texture_blackwhite);
+                               .add_vector4(projection_details);
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.texture_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
     
@@ -597,34 +560,20 @@ impl TextureShader {
   }
   
   pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String) {
-    if !self.descriptor_sets.contains_key(&texture_reference) {
-      return;
-    }
+    let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);//math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
-    self.instanced_texture = texture_reference.to_string();
     
-    let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
-    
-    let has_texture  = {
-      if use_texture {
-        1.0
-      } else {
-        0.0
-      }
-    };
-  
-    let mut bw: f32 = 0.0;
-    if black_and_white {
-      bw = 1.0;
-    }
-    
-    let sprite = {
+    let mut sprite = {
       let mut tex_view = Vector4::new(0.0, 0.0, 1.0, self.scale);
       if let Some(details) = sprite_details {
         tex_view = Vector4::new(details.x as f32, details.y as f32, details.z as f32, self.scale);
       }
       tex_view
     };
+    
+    if use_texture {
+      sprite.z *= -1.0;
+    }
     
     let draw_colour;
     if let Some(colour) = colour {
@@ -633,23 +582,18 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let top = self.camera.get_top();
-    let right = self.camera.get_right();
-    let texture_blackwhite = Vector4::new(has_texture, bw, right, top);
-    
     let data = self.instanced_data.clone();
     self.instanced_data = data
-                          .add_matrix4(model)
+                          .add_vector4(model)
                           .add_vector4(draw_colour)
-                          .add_vector4(sprite)
-                          .add_vector4(texture_blackwhite);
+                          .add_vector4(sprite);
   }
   
   pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     let data = self.instanced_data.build();
-    let num_instances = data.len() as u32 / 32;
+    let num_instances = data.len() as u32 / 12;
     println!("Before cancel");
     if num_instances == 0 {
       return cmd;
@@ -661,8 +605,13 @@ impl TextureShader {
     
     let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&"SpriteSheet".to_string()).unwrap();
     
+    let top = self.camera.get_top();
+    let right = self.camera.get_right();
+    let pos = self.camera.get_position();
+    let projection = Vector4::new(pos.x, pos.y, right, top);
+    
     let push_constant_data = UniformData::new()
-                              .add_matrix4(self.camera.get_raw_view_matrix());
+                              .add_vector4(projection);
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
     
