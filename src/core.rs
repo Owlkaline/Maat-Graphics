@@ -260,7 +260,9 @@ impl CoreRender for CoreMaat {
     for fence in &self.fences {
       let device = self.window.device();
       fence.wait(Arc::clone(&device));
+      fence.destroy(Arc::clone(&device));
     }
+    
     
     self.window.recreate_swapchain();
     self.window_dimensions = self.window.get_current_extent();
@@ -275,6 +277,9 @@ impl CoreRender for CoreMaat {
       let device = self.window.device();
       let image_views = self.window.swapchain_image_views();
       let textures = self.resources.get_all_textures();
+      
+      self.fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
+      
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       self.texture_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
@@ -321,7 +326,18 @@ impl CoreRender for CoreMaat {
     //
     // Actually Draw stuff
     //
-    let image_index = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available[self.current_frame]);
+    let (result, image_index) = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available[self.current_frame]);
+    
+    match result {
+      vk::ERROR_OUT_OF_DATE_KHR => {
+        self.recreate_swapchain = true;
+        println!("so liek this happened");
+        return;
+      },
+      e => {
+        check_errors(e);
+      }
+    }
     
     let i = self.current_frame;
     //for i in 0..self.command_buffers.len() {

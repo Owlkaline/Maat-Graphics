@@ -166,12 +166,12 @@ impl Swapchain {
     };
     
     let present_mode = {
-      if present_modes.contains(&vk::PRESENT_MODE_FIFO_KHR) {
-        println!("Using Fifo present mode (vsync)");
-        vk::PRESENT_MODE_FIFO_KHR
-      } else if present_modes.contains(&vk::PRESENT_MODE_MAILBOX_KHR) {
+      if present_modes.contains(&vk::PRESENT_MODE_MAILBOX_KHR) {
         println!("Using Mailbox present mode (triple buffering)");
         vk::PRESENT_MODE_MAILBOX_KHR
+      } else if present_modes.contains(&vk::PRESENT_MODE_FIFO_KHR) {
+        println!("Using Fifo present mode (vsync)");
+        vk::PRESENT_MODE_FIFO_KHR
       } else if present_modes.contains(&vk::PRESENT_MODE_IMMEDIATE_KHR) {
         println!("Using immediate present mode");
         vk::PRESENT_MODE_IMMEDIATE_KHR

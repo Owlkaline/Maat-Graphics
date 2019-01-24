@@ -354,6 +354,19 @@ impl VkWindow {
     &mut self.events_loop
   }
   
+  pub fn aquire_next_image(&self, device: Arc<Device>, image_available: &Semaphore) -> (vk::Result, usize) {
+    let mut current_image = 0;
+    let result;
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      result = vk.AcquireNextImageKHR(*device, *self.swapchain.get_swapchain(), MAX, *image_available.internal_object(), 0, &mut current_image);
+    }
+    
+    (result, current_image as usize)
+  }
+  /*
   pub fn aquire_next_image(&self, device: Arc<Device>, image_available: &Semaphore) -> usize {
     let mut current_image = 0;
     
@@ -364,7 +377,7 @@ impl VkWindow {
     }
     
     current_image as usize
-  }
+  }*/
   
   pub fn instance_pointers(&self) -> &vk::InstancePointers {
     &self.instance.pointers()

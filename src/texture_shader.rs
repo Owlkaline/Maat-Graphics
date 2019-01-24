@@ -249,7 +249,7 @@ impl TextureShader {
                   .front_face_counter_clockwise()
                   .build(Arc::clone(&device));
     
-    let text_pipeline = TextureShader::create_text_pipline(Arc::clone(&device), &vertex_shader_text, &fragment_shader_text, &render_pass, &descriptor_sets, current_extent.width as f32, current_extent.height as f32);
+    let text_pipeline = TextureShader::create_text_pipline(Arc::clone(&device), &vertex_shader_text, &fragment_shader_text, &render_pass, &descriptor_sets);
     
     let push_constant_size = UniformData::new()
                                .add_matrix4(Matrix4::identity())
@@ -402,7 +402,7 @@ impl TextureShader {
     }
   }
   
-  fn create_text_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_sets: &HashMap<String, DescriptorSet>, width: f32, height: f32) -> Pipeline {
+  fn create_text_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_sets: &HashMap<String, DescriptorSet>) -> Pipeline {
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))

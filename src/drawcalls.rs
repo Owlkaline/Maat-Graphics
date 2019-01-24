@@ -524,14 +524,14 @@ pub fn calculate_text_info(translation: Vector3<f32>, size: f32, c: &GenericChar
     temp
   };
   
-  let mut model = Vector4::new(translation.x + x_offset, 
+  let model = Vector4::new(translation.x + x_offset, 
                                translation.y - y_offset, 
                                size,
                                1.0);
   model
 }
 
-pub fn calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCharacter, letter: u8) -> Matrix4<f32> {
+pub fn _calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCharacter, letter: u8) -> Matrix4<f32> {
   let x_offset: f32 = c.get_offset_x()*size;
   let y_offset: f32 = {
     let mut temp = 0.0;
