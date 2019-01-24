@@ -9,23 +9,33 @@ layout(location = 2) out vec3 v_outlineColour;
 layout(location = 3) out vec4 v_edge_width;
 
 layout(push_constant) uniform PushConstants {
-  mat4 model;
-  vec4 letter_uv;
+  vec4 model; // vec4(x, y, scale, window_width)
+  vec4 letter_uv; 
   vec4 edge_width; 
-  vec4 colour;
-  vec4 outline_colour;
+  vec4 colour; //vec4(r,g,b, a)
+  vec4 outline_colour; //vec4(r,g,b, window_height)
 } push_constants;
 
 void main() {
   vec2 new_uv = uv;
   vec2 new_pos = position;
-  float scale = push_constants.outline_colour.w;
+  
+  float text_scale = push_constants.model.z;
+  vec2 text_pos = push_constants.model.xy;
+  float window_width = push_constants.model.w;
+  float window_height = push_constants.outline_colour.w;
+  
+  float near = 1.0;
+  float far = -1.0;
+  float right = window_width;
+  float left = 0.0;
+  float bottom = window_height;
+  float top = 0.0;
   
   if(uv.x == 0) {
     new_uv.x += push_constants.letter_uv.x;
     new_pos.x = 0;
-  } else
-  if(uv.x == 1) {
+  } else {//if(uv.x == 1) {
     new_uv.x = push_constants.letter_uv.z;
     new_pos.x = push_constants.letter_uv.z - push_constants.letter_uv.x;
   }
@@ -33,29 +43,22 @@ void main() {
   if(uv.y == 0) {
     new_uv.y = push_constants.letter_uv.w;
     new_pos.y = 0;
-  } else
-  if(uv.y == 1) {
+  } else { //if(uv.y == 1) {
     new_uv.y = push_constants.letter_uv.y;
     new_pos.y = push_constants.letter_uv.w - push_constants.letter_uv.y;
   }
   
-  mat4 scale_matrix = mat4(vec4(scale, 0.0, 0.0, 0.0), 
-                           vec4(0.0, scale, 0.0, 0.0), 
-                           vec4(0.0, 0.0, scale, 0.0), 
-                           vec4(0.0, 0.0, 0.0, 1.0));
+  mat4 model_matrix = mat4(vec4(text_scale,  0.0,        0.0, 0.0), 
+                              vec4(0.0,      text_scale, 0.0, 0.0), 
+                              vec4(0.0,      0.0,        1.0, 0.0), 
+                              vec4(text_pos,             0.0, 1.0));
   
-  float near = 1.0;
-  float far = -1.0;
-  float right = 1280.0;
-  float left = 0.0;
-  float bottom = 720.0;
-  float top = 0.0;
   mat4 projection = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
                           vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
                           vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
                           vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
   
-  gl_Position = projection * push_constants.model * scale_matrix * vec4(new_pos, 0.0, 1.0);
+  gl_Position = projection * model_matrix * vec4(new_pos, 0.0, 1.0);
   
   v_uvs = new_uv;
   v_outlineColour = push_constants.outline_colour.rgb;

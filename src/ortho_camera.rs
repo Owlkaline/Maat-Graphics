@@ -78,8 +78,10 @@ impl OrthoCamera {
     self.right
   }
   
-  pub fn reset(&mut self) {
+  pub fn reset(&mut self, width: f32, height: f32) {
     self.position = Vector2::new(0.0, 0.0);
+    self.right = width;
+    self.top = height;
   }
   
   pub fn lerp_to_position(&mut self, goal_pos: Vector2<f32>, vel: Vector2<f32>) {

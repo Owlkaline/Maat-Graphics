@@ -354,7 +354,7 @@ impl CoreRender for CoreMaat {
             
             let texture_resource = self.resources.get_font(font.clone());
             if let Some((font_details, _texture)) = texture_resource {
-              cmd = self.texture_shader.draw_text(Arc::clone(&device), cmd, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_details);
+              cmd = self.texture_shader.draw_text(Arc::clone(&device), cmd, display_text, font, position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_details, window_size.width as f32, window_size.height as f32);
             }
           },
           DrawType::DrawTextured(ref info) => {
@@ -400,7 +400,7 @@ impl CoreRender for CoreMaat {
             } else if let Some(goal_size) = size {
               self.texture_shader.lerp_camera_to_size(goal_size, vel);
             } else {
-              self.texture_shader.reset_camera();
+              self.texture_shader.reset_camera(window_size.width as f32, window_size.height as f32);
             }
           },
           _ => {
@@ -413,20 +413,12 @@ impl CoreRender for CoreMaat {
       cmd.end_command_buffer(Arc::clone(&device));
     //}
     
-    
-    
     match self.command_buffers[self.current_frame].submit(Arc::clone(&device), swapchain, image_index as u32, &self.semaphore_image_available[self.current_frame], &self.semaphore_render_finished[self.current_frame], &self.fences[self.current_frame], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
       },
       e => { check_errors(e); },
     }
-    
-    if self.recreate_swapchain {
-      return;
-    }
-      
-    //self.command_buffers[self.current_frame].finish(Arc::clone(&device), &graphics_queue);
     
     self.current_frame = (self.current_frame+1)%self.max_frames;
   }

@@ -4,6 +4,7 @@ use crate::vulkan::Device;
 use crate::vulkan::Pipeline;
 use crate::vulkan::PipelineInfo;
 use crate::vulkan::RenderPass;
+use crate::vulkan::buffer::{UniformData};
 use crate::vulkan::ownage::check_errors;
 use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, Sample, VkBool, ShaderStageFlagBits};
 
@@ -34,6 +35,7 @@ pub struct PipelineBuilder {
   has_push_constant: bool,
   push_constant_size: u32,
   push_constant_shader_stage: ShaderStageFlagBits,
+  specialisation_constants: Vec<(u32, UniformData, u32, ShaderStageFlagBits)>, //Vec<(id, data, offset, shader stage)>
   descriptor_set_layouts: Option<Vec<vk::DescriptorSetLayout>>,
   vertex_binding: Option<Vec<vk::VertexInputBindingDescription>>,
   vertex_attributes: Option<Vec<vk::VertexInputAttributeDescription>>,
@@ -63,6 +65,7 @@ impl PipelineBuilder {
       has_push_constant: false,
       push_constant_size: 0,
       push_constant_shader_stage: ShaderStageFlagBits::Vertex,
+      specialisation_constants: Vec::new(),
       descriptor_set_layouts: None,
       vertex_binding: None,
       vertex_attributes: None,
@@ -84,6 +87,16 @@ impl PipelineBuilder {
   
   pub fn fragment_shader(mut self, shader: vk::ShaderModule) -> PipelineBuilder {
     self.fragment_shader = Some(shader);
+    self
+  }
+  
+  pub fn add_vertex_specialisation_constant(mut self, id: u32, data: UniformData, offset: u32) -> PipelineBuilder {
+    self.specialisation_constants.push((id, data, offset, ShaderStageFlagBits::Vertex));
+    self
+  }
+  
+  pub fn add_fragment_specialisation_constant(mut self, id: u32, data: UniformData, offset: u32) -> PipelineBuilder {
+    self.specialisation_constants.push((id, data, offset, ShaderStageFlagBits::Fragment));
     self
   }
   
@@ -277,7 +290,7 @@ impl PipelineBuilder {
     self
   }
   
-  pub fn build(self, device: Arc<Device>) -> Pipeline {
+  pub fn build(mut self, device: Arc<Device>) -> Pipeline {
     if !self.vertex_shader.is_some() {
       panic!("PipelineBuilder Error: vertex shader missing!");
     }
@@ -309,6 +322,60 @@ impl PipelineBuilder {
     let mut graphics_pipeline_create_infos: Vec<vk::GraphicsPipelineCreateInfo> = Vec::with_capacity(2);
     let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::with_capacity(2);
     
+    let vertex_specialisation_constants: vk::SpecializationInfo;
+    let fragment_specialisation_constants: vk::SpecializationInfo;
+    
+    let mut vertex_specialisation_map_entry: Vec<vk::SpecializationMapEntry> = Vec::new();
+    let mut fragment_specialisation_map_entry: Vec<vk::SpecializationMapEntry> = Vec::new();
+    let mut vertex_specialisation_data: UniformData = UniformData::new();
+    let mut fragment_specialisation_data: UniformData = UniformData::new();
+    
+    for (id, data, offset, shader_stage) in &mut self.specialisation_constants {
+      match shader_stage {
+        ShaderStageFlagBits::Vertex => {
+          vertex_specialisation_map_entry.push(
+            vk::SpecializationMapEntry {
+              constantID: *id,
+              offset: *offset,
+              size: data.size_non_aligned() as usize,
+            }
+          );
+          let raw_data = data.build_non_aligned();
+          for float in raw_data.iter() {
+            vertex_specialisation_data = vertex_specialisation_data.add_float(*float);
+          }
+        },
+        ShaderStageFlagBits::Fragment => {
+          fragment_specialisation_map_entry.push(
+            vk::SpecializationMapEntry {
+              constantID: *id,
+              offset: *offset,
+              size: data.size_non_aligned() as usize,
+            }
+          );
+          let raw_data = data.build_non_aligned();
+          for float in raw_data.iter() {
+            fragment_specialisation_data = fragment_specialisation_data.add_float(*float);
+          }
+        },
+        _ => {}
+      }
+    }
+    
+    vertex_specialisation_constants = vk::SpecializationInfo {
+                                        mapEntryCount: vertex_specialisation_map_entry.len() as u32,
+                                        pMapEntries: vertex_specialisation_map_entry.as_ptr(),
+                                        dataSize: vertex_specialisation_data.size_non_aligned() as usize,
+                                        pData: vertex_specialisation_data.build_non_aligned().as_ptr() as *const _,
+                                      };
+                                      
+    fragment_specialisation_constants = vk::SpecializationInfo {
+                                        mapEntryCount: fragment_specialisation_map_entry.len() as u32,
+                                        pMapEntries: fragment_specialisation_map_entry.as_ptr(),
+                                        dataSize: fragment_specialisation_data.size_non_aligned() as usize,
+                                        pData: fragment_specialisation_data.build_non_aligned().as_ptr() as *const _,
+                                      };
+    
     shader_stages.push(
       vk::PipelineShaderStageCreateInfo {
         sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -317,7 +384,7 @@ impl PipelineBuilder {
         stage: vk::SHADER_STAGE_VERTEX_BIT,
         module: self.vertex_shader.unwrap(),
         pName: CString::new("main").unwrap().into_raw(),
-        pSpecializationInfo: ptr::null(),
+        pSpecializationInfo: if vertex_specialisation_map_entry.len() == 0 { ptr::null() } else { &vertex_specialisation_constants },
       }
     );
     
@@ -329,7 +396,7 @@ impl PipelineBuilder {
         stage: vk::SHADER_STAGE_FRAGMENT_BIT,
         module: self.fragment_shader.unwrap(),
         pName: CString::new("main").unwrap().into_raw(),
-        pSpecializationInfo: ptr::null(),
+        pSpecializationInfo: if fragment_specialisation_map_entry.len() == 0 { ptr::null() } else { &fragment_specialisation_constants },
       }
     );
     

@@ -249,27 +249,7 @@ impl TextureShader {
                   .front_face_counter_clockwise()
                   .build(Arc::clone(&device));
     
-    let push_constant_size = UniformData::new()
-                               .add_matrix4(Matrix4::identity())
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
-    
-    let text_pipeline = PipelineBuilder::new()
-                  .vertex_shader(*vertex_shader_text.get_shader())
-                  .fragment_shader(*fragment_shader_text.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
-                  .render_pass(render_pass.clone())
-                  .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
-                  .vertex_binding(vec!(Vertex::vertex_input_binding()))
-                  .vertex_attributes(Vertex::vertex_input_attributes())
-                  .topology_triangle_list()
-                  .polygon_mode_fill()
-                  .cull_mode_back()
-                  .front_face_clockwise()
-                  .build(Arc::clone(&device));
+    let text_pipeline = TextureShader::create_text_pipline(Arc::clone(&device), &vertex_shader_text, &fragment_shader_text, &render_pass, &descriptor_sets, current_extent.width as f32, current_extent.height as f32);
     
     let push_constant_size = UniformData::new()
                                .add_matrix4(Matrix4::identity())
@@ -356,8 +336,8 @@ impl TextureShader {
     self.camera.lerp_to_size(size, vel);
   }
   
-  pub fn reset_camera(&mut self) {
-    self.camera.reset();
+  pub fn reset_camera(&mut self, width: f32, height: f32) {
+    self.camera.reset(width, height);
   }
   
   pub fn recreate(&mut self, device: Arc<Device>, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, textures: Vec<(String, Image)>, sampler: &Sampler) {
@@ -422,6 +402,30 @@ impl TextureShader {
     }
   }
   
+  fn create_text_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_sets: &HashMap<String, DescriptorSet>, width: f32, height: f32) -> Pipeline {
+    let push_constant_size = UniformData::new()
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .size();
+    
+    PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader.get_shader())
+                  .fragment_shader(*fragment_shader.get_shader())
+                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
+                  .vertex_binding(vec!(Vertex::vertex_input_binding()))
+                  .vertex_attributes(Vertex::vertex_input_attributes())
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .cull_mode_back()
+                  .front_face_clockwise()
+                  .build(Arc::clone(&device))
+  }
+  
   fn create_uniform_buffer(instance: Arc<Instance>, device: Arc<Device>, num_sets: u32, uniform_buffer: UniformBufferBuilder) -> Buffer<f32> {
     let buffer = uniform_buffer.build(Arc::clone(&instance), Arc::clone(&device), num_sets);
     
@@ -448,10 +452,10 @@ impl TextureShader {
   
   pub fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
     let triangle = vec!(
-      Vertex { pos: Vector2::new(0.5, 0.5), uvs: Vector2::new(1.0, 0.0) },
+      Vertex { pos: Vector2::new(0.5, 0.5), uvs: Vector2::new(0.99, 0.0) },
       Vertex { pos: Vector2::new(-0.5, 0.5), uvs: Vector2::new(0.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, -0.5), uvs: Vector2::new(0.0, 1.0) },
-      Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(1.0, 1.0) },
+      Vertex { pos: Vector2::new(-0.5, -0.5), uvs: Vector2::new(0.0, 0.99) },
+      Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(0.99, 0.99) },
     );
     
     let usage_src = BufferUsage::vertex_transfer_src_buffer();
@@ -543,7 +547,7 @@ impl TextureShader {
                              vec!(&descriptor.set(0)))
   }
   
-  pub fn draw_text(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_details: GenericFont) -> CommandBufferBuilder {
+  pub fn draw_text(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_details: GenericFont, window_width: f32, window_height: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&font) {
@@ -564,14 +568,16 @@ impl TextureShader {
       
       let c = font_details.get_character(char_letter as i32);
       
-      let model = drawcalls::calculate_text_model(Vector3::new(position.x, position.y, 0.0), scale, &c.clone(), char_letter);
+      let mut model = drawcalls::calculate_text_info(Vector3::new(position.x, position.y, 0.0), scale, &c.clone(), char_letter);
+      model.z *= scale/(scale/2.0);
+      model.w = window_width;
       let letter_uv = drawcalls::calculate_text_uv(&c.clone());
       let colour = colour;
-      let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, scale/(scale/2.0));
+      let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, window_height);
       let edge_width = edge_width; 
       
       let push_constant_data = UniformData::new()
-                                .add_matrix4(model)
+                                .add_vector4(model)
                                 .add_vector4(letter_uv)
                                 .add_vector4(edge_width)
                                 .add_vector4(colour)

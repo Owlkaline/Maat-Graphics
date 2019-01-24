@@ -112,6 +112,16 @@ impl UniformData {
     self
   }
   
+  pub fn size_non_aligned(&self) -> vk::DeviceSize {
+    let size = self.data.len();
+    
+    (mem::size_of::<f32>() * size) as vk::DeviceSize
+  }
+  
+  pub fn build_non_aligned(&mut self) -> Vec<f32> {
+    self.data.clone()
+  }
+  
   pub fn size(&self) -> vk::DeviceSize {
     let mut size = self.data.len();
     if size%4 != 0 {

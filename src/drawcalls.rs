@@ -497,6 +497,40 @@ pub fn setup_correct_wrapping(display_text: String, font: String, position: Vect
   new_draw_calls
 }
 
+pub fn calculate_text_info(translation: Vector3<f32>, size: f32, c: &GenericCharacter, letter: u8) -> Vector4<f32> {
+  let x_offset: f32 = c.get_offset_x()*size;
+  let y_offset: f32 = {
+    let mut temp = 0.0;
+    
+    if letter == '\'' as u8 ||
+       letter == '\"' as u8 {
+      temp = -size/16.333333333;
+      //println!("The letter is '");
+    }
+    
+    if letter == 'p' as u8 ||
+       letter == 'y' as u8 ||
+       letter == 'g' as u8 ||
+       letter == 'j' as u8 ||
+       letter == 'q' as u8 ||
+       letter == '@' as u8 ||
+       letter == '$' as u8 {
+      temp = c.get_offset_y()*0.5*size;
+    }
+    
+    if letter == '-' as u8 {
+      temp = -c.get_offset_y()*0.5*size;
+    }
+    temp
+  };
+  
+  let mut model = Vector4::new(translation.x + x_offset, 
+                               translation.y - y_offset, 
+                               size,
+                               1.0);
+  model
+}
+
 pub fn calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCharacter, letter: u8) -> Matrix4<f32> {
   let x_offset: f32 = c.get_offset_x()*size;
   let y_offset: f32 = {
