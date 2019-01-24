@@ -393,10 +393,12 @@ impl CoreRender for CoreMaat {
             cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
           },
           DrawType::Camera(ref info) => {
-            let (position, vel) = info.clone();
+            let (position, size, vel) = info.clone();
             
             if let Some(goal_pos) = position {
               self.texture_shader.lerp_camera(goal_pos, vel);
+            } else if let Some(goal_size) = size {
+              self.texture_shader.lerp_camera_to_size(goal_size, vel);
             } else {
               self.texture_shader.reset_camera();
             }

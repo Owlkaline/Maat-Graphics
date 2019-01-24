@@ -352,6 +352,10 @@ impl TextureShader {
     self.camera.lerp_to_position(position, vel);
   }
   
+  pub fn lerp_camera_to_size(&mut self, size: Vector2<f32>, vel: Vector2<f32>) {
+    self.camera.lerp_to_size(size, vel);
+  }
+  
   pub fn reset_camera(&mut self) {
     self.camera.reset();
   }

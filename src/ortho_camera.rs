@@ -85,4 +85,9 @@ impl OrthoCamera {
   pub fn lerp_to_position(&mut self, goal_pos: Vector2<f32>, vel: Vector2<f32>) {
     self.position = Vector2::new(lerp(self.position.x, goal_pos.x, vel.x), lerp(self.position.y, goal_pos.y, vel.y));
   }
+  
+  pub fn lerp_to_size(&mut self, goal_size: Vector2<f32>, vel: Vector2<f32>) {
+    self.right = lerp(self.right, goal_size.x, vel.x);
+    self.top = lerp(self.top, goal_size.y, vel.y);
+  }
 }
