@@ -62,7 +62,7 @@ impl OrthoCamera {
     ortho(self.position.x, self.right+self.position.x, self.top+self.position.y, self.position.y, -1.0, 1.0)
   }
   
-  pub fn get_raw_view_matrix(&self) -> Matrix4<f32> {
+  pub fn _get_raw_view_matrix(&self) -> Matrix4<f32> {
     ortho(0.0, self.right, self.top, 0.0, -1.0, 1.0)
   }
   

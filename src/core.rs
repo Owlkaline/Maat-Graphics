@@ -331,7 +331,6 @@ impl CoreRender for CoreMaat {
     match result {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
-        println!("so liek this happened");
         return;
       },
       e => {
@@ -350,10 +349,8 @@ impl CoreRender for CoreMaat {
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
       
       for draw in draw_calls {
-        let black_and_white = draw.is_black_and_white();
         match draw.get_type() {
           DrawType::DrawInstanced => {
-            println!("Here");
             cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i);
           },
           DrawType::AddInstancedSpriteSheet(ref info) => {
@@ -362,7 +359,7 @@ impl CoreRender for CoreMaat {
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(_texture) = texture_resource {
               self.texture_shader.add_instanced_draw
-(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), black_and_white, true, reference.to_string());
+(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, reference.to_string());
             }
           },
           DrawType::DrawFont(ref info) => {

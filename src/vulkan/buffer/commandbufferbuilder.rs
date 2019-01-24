@@ -75,7 +75,7 @@ impl CommandBufferBuilder {
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, vertex_buffer);
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 1, instance_buffer);
     self.command_buffer.bind_index_buffer(Arc::clone(&device), index_buffer);
-    println!("num instances: {}", instance_count);
+    
     self.command_buffer.draw_indexed(Arc::clone(&device), index_count, instance_count);
     
     self

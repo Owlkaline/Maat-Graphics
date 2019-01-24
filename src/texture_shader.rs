@@ -559,7 +559,7 @@ impl TextureShader {
     cmd
   }
   
-  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, black_and_white: bool, use_texture: bool, texture_reference: String) {
+  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) {
     let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);//math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
     
@@ -594,12 +594,10 @@ impl TextureShader {
     
     let data = self.instanced_data.build();
     let num_instances = data.len() as u32 / 12;
-    println!("Before cancel");
+    
     if num_instances == 0 {
       return cmd;
     }
-    
-    println!("Drawing instanced");
     
     self.instanced_cpu_buffer.fill_buffer(Arc::clone(&device), current_buffer, data);
     
