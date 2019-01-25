@@ -154,7 +154,7 @@ impl Device {
           vk::TRUE => {
             println!("Dynamic indexing supported!");
           },
-          _ => {panic!("Dynamic indexing not supported :(");}
+          _ => {println!("Dynamic indexing not supported :(");}
         }
         
         //features.robustBufferAccess = vk::TRUE;
