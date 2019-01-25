@@ -336,6 +336,8 @@ impl RenderPassBuilder {
       vk.CreateRenderPass(*device, &render_pass_create_info, ptr::null(), &mut render_pass);
     }
     
-    RenderPass::new_from_renderpass(render_pass)
+    let num_attachments = input_attachments.len() + colour_attachments.len() + resolve_attachments.len() + depth_stencil_attachments.len();
+    
+    RenderPass::new_from_renderpass(render_pass, num_attachments as u32)
   }
 }

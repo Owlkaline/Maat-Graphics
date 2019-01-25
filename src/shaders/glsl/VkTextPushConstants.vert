@@ -16,6 +16,27 @@ layout(push_constant) uniform PushConstants {
   vec4 outline_colour; //vec4(r,g,b, window_height)
 } push_constants;
 
+mat4 create_translation_matrix(vec2 pos, float scale) {
+  mat4 translate_matrix = mat4(vec4(scale, 0.0,   0.0, 0.0), 
+                               vec4(0.0,   scale, 0.0, 0.0), 
+                               vec4(0.0,   0.0,   1.0, 0.0), 
+                               vec4(pos,          0.0, 1.0));
+  
+  return translate_matrix;
+}
+
+mat4 create_ortho_projection(float near, float far, float right, float bottom) {
+  float left = 0.0;
+  float top = 0.0;
+  
+  mat4 ortho = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
+                    vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
+                    vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
+                    vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
+  
+  return ortho;
+}
+
 void main() {
   vec2 new_uv = uv;
   vec2 new_pos = position;
@@ -24,13 +45,6 @@ void main() {
   vec2 text_pos = push_constants.model.xy;
   float window_width = push_constants.model.w;
   float window_height = push_constants.outline_colour.w;
-  
-  float near = 1.0;
-  float far = -1.0;
-  float right = window_width;
-  float left = 0.0;
-  float bottom = window_height;
-  float top = 0.0;
   
   if(uv.x == 0) {
     new_uv.x += push_constants.letter_uv.x;
@@ -48,15 +62,8 @@ void main() {
     new_pos.y = push_constants.letter_uv.w - push_constants.letter_uv.y;
   }
   
-  mat4 model_matrix = mat4(vec4(text_scale,  0.0,        0.0, 0.0), 
-                              vec4(0.0,      text_scale, 0.0, 0.0), 
-                              vec4(0.0,      0.0,        1.0, 0.0), 
-                              vec4(text_pos,             0.0, 1.0));
-  
-  mat4 projection = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
-                          vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
-                          vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
-                          vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
+  mat4 model_matrix = create_translation_matrix(text_pos, text_scale);
+  mat4 projection = create_ortho_projection(1.0, -1.0, window_width, window_height);
   
   gl_Position = projection * model_matrix * vec4(new_pos, 0.0, 1.0);
   

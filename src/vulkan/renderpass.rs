@@ -9,12 +9,14 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct RenderPass {
   render_pass: vk::RenderPass,
+  num_attachments: u32,
 }
 
 impl RenderPass {
-  pub fn new_from_renderpass(render_pass: vk::RenderPass) -> RenderPass {
+  pub fn new_from_renderpass(render_pass: vk::RenderPass, num_attachments: u32) -> RenderPass {
     RenderPass {
-      render_pass
+      render_pass,
+      num_attachments,
     }
   }
   
@@ -106,11 +108,16 @@ impl RenderPass {
     
     RenderPass {
       render_pass,
+      num_attachments: 1,
     }
   }
   
   pub fn internal_object(&self) -> &vk::RenderPass {
     &self.render_pass
+  }
+  
+  pub fn get_num_attachments(&self) -> u32 {
+    self.num_attachments
   }
   
   pub fn destroy(&self, device: Arc<Device>) {

@@ -5,12 +5,9 @@ layout(location = 1) in vec2 uv;
 
 // Instanced.
 layout(location = 2) in vec4 model;//x y scale rot
-layout(location = 3) in vec4 colour;
 layout(location = 4) in vec4 sprite_sheet; // block_x, block_y, num_of_rows, image_scale
 
 layout(location = 0) out vec2 uvs;
-layout(location = 1) out vec4 new_colour;
-layout(location = 2) out float use_texture;
 
 // 128 bytes, float 4 bytes
 layout(push_constant) uniform PushConstants {
@@ -36,9 +33,6 @@ void main() {
   texcoords /= num_rows;
   uvs = texcoords;
   
-  new_colour = colour;
-  use_texture = sprite_sheet.z;
-  
   float x_offset = push_constants.projection.x;
   float y_offset = push_constants.projection.y;
   float near = 1.0;
@@ -52,6 +46,16 @@ void main() {
                           vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
                           vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
   
+  
+  float s = sin(rotation);
+  float c = cos(rotation);
+  float oc = 1.0 - c;
+  
+  mat4 rotation_matrix = mat4(vec4(c,   0.0, 0.0,  0.0), 
+                              vec4(s,   c,   0.0,  0.0), 
+                              vec4(0.0, 0.0, oc+c, 0.0), 
+                              vec4(0.0, 0.0,  0.0,  1.0));
+  
   mat4 model_matrix = mat4(vec4(texture_scale,  0.0,           0.0, 0.0), 
                               vec4(0.0,         texture_scale, 0.0, 0.0), 
                               vec4(0.0,         0.0,           1.0, 0.0), 
@@ -62,5 +66,5 @@ void main() {
                               vec4(0.0, 0.0,   1.0, 0.0), 
                               vec4(0.0, 0.0,   0.0, 1.0));
   
-  gl_Position = projection * scale_matrix * model_matrix * vec4(position, 0.0, 1.0);
+  gl_Position = projection * scale_matrix * model_matrix * rotation_matrix * vec4(position, 0.0, 1.0);
 }

@@ -10,6 +10,8 @@ use crate::drawcalls::DrawType;
 use crate::graphics::CoreRender;
 use crate::font::GenericFont;
 use crate::TextureShader;
+use crate::ModelShader;
+use crate::FinalShader;
 use crate::graphics;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
@@ -47,6 +49,8 @@ pub struct CoreMaat {
   texture: Image,
   sampler: Sampler,
   texture_shader: TextureShader,
+  model_shader: ModelShader,
+  final_shader: FinalShader,
   
   resources: ResourceManager,
   
@@ -68,6 +72,8 @@ impl CoreMaat {
     let descriptor_set_pool: DescriptorPool;
     
     let texture_shader: TextureShader;
+    let model_shader: ModelShader;
+    let final_shader: FinalShader;
     
     let texture_image: Image;
     let sampler: Sampler;
@@ -105,7 +111,8 @@ impl CoreMaat {
                        .build(Arc::clone(&device));
       
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
-      
+      model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
     }
     
     let max_frames = fences.len();
@@ -127,6 +134,8 @@ impl CoreMaat {
       sampler,
       
       texture_shader,
+      model_shader,
+      final_shader,
       resources: resource_manager,
       
       current_frame: 0,
@@ -289,7 +298,9 @@ impl CoreRender for CoreMaat {
       
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      self.texture_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
+      self.texture_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.model_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
       // TO REMOVE
       for (reference, texture) in &self.resources.get_all_textures() {
@@ -346,7 +357,7 @@ impl CoreRender for CoreMaat {
     }
     
     let i = self.current_frame;
-    //for i in 0..self.command_buffers.len() {
+    
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(Arc::clone(&device));
       cmd = self.texture_shader.fill_buffers(Arc::clone(&instance), Arc::clone(&device), cmd, i);
@@ -362,9 +373,9 @@ impl CoreRender for CoreMaat {
             cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string(), texture_ref.to_string());
           },
           DrawType::AddInstancedSpriteSheet(ref info) => {
-            let (buffer_reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+            let (buffer_reference, position, scale, rotation, colour, sprite_details) = info.clone(); 
             self.texture_shader.add_instanced_draw
-(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, buffer_reference.to_string());
+(position, scale, rotation, Some(sprite_details), colour, true, buffer_reference.to_string());
           },
           DrawType::DrawFont(ref info) => {
             let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
@@ -424,11 +435,16 @@ impl CoreRender for CoreMaat {
             
           }
         }
-      }
+      }/*
+      cmd = self.final_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
+      
+      cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
+      cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
+      
+      cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd);*/
       
       cmd = cmd.end_render_pass(Arc::clone(&device));
       cmd.end_command_buffer(Arc::clone(&device));
-    //}
     
     match self.command_buffers[self.current_frame].submit(Arc::clone(&device), swapchain, image_index as u32, &self.semaphore_image_available[self.current_frame], &self.semaphore_render_finished[self.current_frame], &self.fences[self.current_frame], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
@@ -516,6 +532,8 @@ impl Drop for CoreMaat {
     self.sampler.destroy(Arc::clone(&device));
     
     self.texture_shader.destroy(Arc::clone(&device));
+    self.model_shader.destroy(Arc::clone(&device));
+    self.final_shader.destroy(Arc::clone(&device));
     
     self.descriptor_set_pool.destroy(Arc::clone(&device));
     

@@ -486,7 +486,7 @@ impl PipelineBuilder {
         alphaToOneEnable: self.alpha_to_one,
       }
     };
-    /*
+    
     let front_stencil_op_state = {
       vk::StencilOpState {
         failOp: vk::STENCIL_OP_KEEP,
@@ -516,8 +516,8 @@ impl PipelineBuilder {
         sType: vk::STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        depthTestEnable: depth_test,
-        depthWriteEnable: depth_write,
+        depthTestEnable: self.depth_test,
+        depthWriteEnable: self.depth_write,
         depthCompareOp: vk::COMPARE_OP_LESS_OR_EQUAL,
         depthBoundsTestEnable: vk::FALSE,
         stencilTestEnable: vk::FALSE,
@@ -526,7 +526,7 @@ impl PipelineBuilder {
         minDepthBounds: 0.0,
         maxDepthBounds: 1.0,
       }
-    };*/
+    };
     
     let pipeline_color_blend_attachments = {
       vk::PipelineColorBlendAttachmentState {
@@ -610,7 +610,7 @@ impl PipelineBuilder {
         pViewportState: &pipeline_viewport_state_create_info,
         pRasterizationState: &pipeline_rasterization_state_create_info,
         pMultisampleState: &pipeline_multisample_state_create_info,
-        pDepthStencilState: ptr::null(),//&pipeline_depth_stencil_state_create_info,
+        pDepthStencilState: &pipeline_depth_stencil_state_create_info,
         pColorBlendState: &pipeline_colour_blend_state_create_info,
         pDynamicState: &dynamic_state_create_info,
         layout: layout,

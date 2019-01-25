@@ -561,7 +561,7 @@ impl TextureShader {
     cmd
   }
   
-  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, buffer_reference: String) {
+  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Vector4<f32>, use_texture: bool, buffer_reference: String) {
     let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);
     
     let mut sprite = {
@@ -576,13 +576,7 @@ impl TextureShader {
       sprite.z *= -1.0;
     }
     
-    let draw_colour;
-    if let Some(colour) = colour {
-      draw_colour = colour;
-    } else {
-      draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
-    }
-    
+    let draw_colour = colour;
     let mut details = self.instanced_cpu_buffers.get_mut(&buffer_reference).unwrap();
     
     let mut data = details.0.clone();

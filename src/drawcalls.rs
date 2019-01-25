@@ -27,8 +27,8 @@ pub enum DrawType {
   AddInstancedColoured,
   // Ref, Position, Scale, Rotation
   AddInstancedTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
-  // instanced buffer Ref, Position, Scale, Rotation, SpriteDetails(x,y,rows)
-  AddInstancedSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>)),
+  // instanced buffer Ref, Position, Scale, Rotation, colour, SpriteDetails(x,y,rows)
+  AddInstancedSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, Vector4<f32>, Vector3<i32>)),
   AddInstancedModel,
   // buffer ref, texture ref
   DrawInstanced((String, String)),
@@ -112,13 +112,23 @@ impl DrawCall {
   }
   
   pub fn add_instanced_sprite_sheet(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
-    let alpha = 1.0;
     debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
     debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
     debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
     debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
     DrawCall {
-      draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, alpha, sprite_details)),
+      draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, Vector4::new(0.0, 0.0, 0.0, 1.0), sprite_details)),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_sprite_sheet_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
+    debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
+    debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
+    debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
+    debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
+    DrawCall {
+      draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, colour, sprite_details)),
       coloured: true,
     }
   }

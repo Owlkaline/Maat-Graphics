@@ -104,8 +104,11 @@ const ENGINE_VERSION: u32 = (0 as u32) << 22 | (6 as u32) << 12 | (0 as u32);
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;
+use self::model_shader::ModelShader;
+use self::final_shader::FinalShader;
 use self::texture_shader::Vertex;
 use self::ortho_camera::OrthoCamera;
+use self::camera::Camera;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
@@ -117,7 +120,9 @@ pub mod vulkan;
 pub mod math;
 mod drawcalls;
 mod core;
+#[macro_use]
 mod texture_shader;
+mod model_shader;
 mod final_shader;
 //mod gltf_interpreter;
 mod font;

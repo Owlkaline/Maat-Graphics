@@ -21,7 +21,7 @@ impl Framebuffer {
       pNext: ptr::null(),
       flags: 0,
       renderPass: *render_pass.internal_object(),
-      attachmentCount: 1,
+      attachmentCount: render_pass.get_num_attachments(),
       pAttachments: image_view,
       width: extent.width,
       height: extent.height,

@@ -15,6 +15,20 @@ layout(push_constant) uniform PushConstants {
   vec4 projection_details;
 } push_constants;
 
+mat4 create_ortho_projection(float near, float far, float right, float bottom, vec2 offset) {
+  float left = offset.x;
+  float top = offset.y;
+  right += left;
+  bottom += top;
+  
+  mat4 ortho = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
+                    vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
+                    vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
+                    vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
+  
+  return ortho;
+}
+
 void main() {
   float num_rows = push_constants.sprite_sheet.z;
   float block_x = push_constants.sprite_sheet.x;
@@ -40,16 +54,9 @@ void main() {
   
   float x_offset = push_constants.projection_details.x;
   float y_offset = push_constants.projection_details.y;
-  float near = 1.0;
-  float far = -1.0;
-  float right = x_offset + push_constants.projection_details.z;
-  float left = x_offset;
-  float bottom = y_offset + push_constants.projection_details.w;
-  float top = y_offset;
-  mat4 projection = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
-                          vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
-                          vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
-                          vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
+  float right = push_constants.projection_details.z;
+  float bottom = push_constants.projection_details.w;
+  mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(x_offset, y_offset));
   
   gl_Position = projection * scale_matrix * push_constants.model * vec4(position, 0.0, 1.0);
 }
