@@ -219,6 +219,13 @@ impl CoreRender for CoreMaat {
     
   }
   
+  fn create_instance_buffer(&mut self, reference: String) {
+    let device = self.window.device();
+    let instance = self.window.instance();
+    let num_frames = self.fences.len() as u32;
+    self.texture_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
+  }
+  
   fn load_static_geometry(&mut self, _reference: String, _verticies: Vec<graphics::Vertex2d>, _indicies: Vec<u32>) {
     
   }
@@ -350,17 +357,14 @@ impl CoreRender for CoreMaat {
       
       for draw in draw_calls {
         match draw.get_type() {
-          DrawType::DrawInstanced => {
-            cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i);
+          DrawType::DrawInstanced(ref references) => {
+            let (buffer_ref, texture_ref) = references;
+            cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string(), texture_ref.to_string());
           },
           DrawType::AddInstancedSpriteSheet(ref info) => {
-            let (reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
-            
-            let texture_resource = self.resources.get_texture(reference.clone());
-            if let Some(_texture) = texture_resource {
-              self.texture_shader.add_instanced_draw
-(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, reference.to_string());
-            }
+            let (buffer_reference, position, scale, rotation, alpha, sprite_details) = info.clone(); 
+            self.texture_shader.add_instanced_draw
+(position, scale, rotation, Some(sprite_details), Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, buffer_reference.to_string());
           },
           DrawType::DrawFont(ref info) => {
             let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 

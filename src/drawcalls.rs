@@ -27,10 +27,11 @@ pub enum DrawType {
   AddInstancedColoured,
   // Ref, Position, Scale, Rotation
   AddInstancedTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
-  // Ref, Position, Scale, Rotation, SpriteDetails(x,y,rows)
+  // instanced buffer Ref, Position, Scale, Rotation, SpriteDetails(x,y,rows)
   AddInstancedSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, f32, Vector3<i32>)),
   AddInstancedModel,
-  DrawInstanced,
+  // buffer ref, texture ref
+  DrawInstanced((String, String)),
   
   // Ref, location
   NewTexture((String, String)),
@@ -122,9 +123,9 @@ impl DrawCall {
     }
   }
   
-  pub fn draw_instanced() -> DrawCall {
+  pub fn draw_instanced(buffer_reference: String, texture_reference: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawInstanced,
+      draw_type: DrawType::DrawInstanced((buffer_reference, texture_reference)),
       coloured: true,
     }
   }

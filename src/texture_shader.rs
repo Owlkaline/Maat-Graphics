@@ -145,10 +145,9 @@ pub struct TextureShader {
   
   vertex_shader_instanced: Shader,
   fragment_shader_instanced: Shader,
-  instanced_texture: String,
-  instanced_data: UniformData,
-  instanced_cpu_buffer: Buffer<f32>,
-  instanced_buffer: Buffer<f32>,
+ // instanced_texture: String,
+  instanced_cpu_buffers: HashMap<String, (UniformData, Buffer<f32>)>,
+  //instanced_buffer: Buffer<f32>,
   instanced_descriptor_sets: HashMap<String, DescriptorSet>,
   instanced_pipeline: Pipeline,
 }
@@ -245,16 +244,6 @@ impl TextureShader {
     let camera = OrthoCamera::new(current_extent.width as f32, current_extent.height as f32);
     TextureShader::update_uniform_buffers(Arc::clone(&device), &texture_image, sampler, descriptor_sets.get("").unwrap());
     
-    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
-    for _ in 0..(MAX_INSTANCES*12) {
-      instanced_data.push(0.0);
-    }
-    
-    let usage = BufferUsage::vertex_transfer_dst_buffer();
-    let instanced_buffer = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views.len() as u32, instanced_data.clone());
-    let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views.len() as u32, instanced_data);
-    
     TextureShader {
       renderpass: render_pass,
       framebuffers,
@@ -278,10 +267,10 @@ impl TextureShader {
       
       vertex_shader_instanced,
       fragment_shader_instanced,
-      instanced_texture: "".to_string(),
-      instanced_data: UniformData::with_capacity(MAX_INSTANCES*12),
-      instanced_cpu_buffer,
-      instanced_buffer,
+      //instanced_texture: "".to_string(),
+      //instanced_data: UniformData::with_capacity(MAX_INSTANCES*12),
+      instanced_cpu_buffers: HashMap::new(),
+     // instanced_buffer,
       instanced_descriptor_sets,
       instanced_pipeline,
     }
@@ -337,6 +326,19 @@ impl TextureShader {
         }
       }
     }
+  }
+  
+  pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, reference: String) {
+    //  let usage = BufferUsage::vertex_transfer_dst_buffer();
+    //  let instanced_buffer = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views.len() as u32, instanced_data.clone());
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
+    for _ in 0..(MAX_INSTANCES*12) {
+      instanced_data.push(0.0);
+    }
+    
+    let usage = BufferUsage::vertex_transfer_src_buffer();
+    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    self.instanced_cpu_buffers.insert(reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer));
   }
   
   pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler) {
@@ -559,9 +561,8 @@ impl TextureShader {
     cmd
   }
   
-  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) {
-    let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);//math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
-    
+  pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, buffer_reference: String) {
+    let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);
     
     let mut sprite = {
       let mut tex_view = Vector4::new(0.0, 0.0, 1.0, self.scale);
@@ -582,50 +583,53 @@ impl TextureShader {
       draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
     }
     
-    let data = self.instanced_data.clone();
-    self.instanced_data = data
-                          .add_vector4(model)
-                          .add_vector4(draw_colour)
-                          .add_vector4(sprite);
+    let mut details = self.instanced_cpu_buffers.get_mut(&buffer_reference).unwrap();
+    
+    let mut data = details.0.clone();
+    details.0 = data
+                      .add_vector4(model)
+                      .add_vector4(draw_colour)
+                      .add_vector4(sprite);
   }
   
-  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize) -> CommandBufferBuilder {
+  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, buffer_reference: String, texture_reference: String) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    let data = self.instanced_data.build();
-    let num_instances = data.len() as u32 / 12;
-    
-    if num_instances == 0 {
-      return cmd;
+    if let Some((instanced_data, buffer)) = self.instanced_cpu_buffers.get_mut(&buffer_reference) {
+      let data = instanced_data.build();
+      let num_instances = data.len() as u32 / 12;
+      
+      if num_instances == 0 {
+        return cmd;
+      }
+      
+      buffer.fill_buffer(Arc::clone(&device), current_buffer, data);
+      
+      let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&texture_reference).unwrap();
+      
+      let top = self.camera.get_top();
+      let right = self.camera.get_right();
+      let pos = self.camera.get_position();
+      let projection = Vector4::new(pos.x, pos.y, right, top);
+      
+      let push_constant_data = UniformData::new()
+                                .add_vector4(projection);
+      
+      cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+      
+      let index_count = 6;
+      
+      cmd = cmd.draw_instanced_indexed(Arc::clone(&device), 
+                                       &self.vertex_buffer.internal_object(0),
+                                       &self.index_buffer.internal_object(0),
+                                       &buffer.internal_object(current_buffer),
+                                       index_count,
+                                       num_instances,
+                                       &self.instanced_pipeline,
+                                       vec!(&descriptor.set(0)));
+      
+      instanced_data.empty();
     }
-    
-    self.instanced_cpu_buffer.fill_buffer(Arc::clone(&device), current_buffer, data);
-    
-    let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&"SpriteSheet".to_string()).unwrap();
-    
-    let top = self.camera.get_top();
-    let right = self.camera.get_right();
-    let pos = self.camera.get_position();
-    let projection = Vector4::new(pos.x, pos.y, right, top);
-    
-    let push_constant_data = UniformData::new()
-                              .add_vector4(projection);
-    
-    cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
-    
-    let index_count = 6;
-    
-    cmd = cmd.draw_instanced_indexed(Arc::clone(&device), 
-                                     &self.vertex_buffer.internal_object(0),
-                                     &self.index_buffer.internal_object(0),
-                                     &self.instanced_cpu_buffer.internal_object(current_buffer),
-                                     index_count,
-                                     num_instances,
-                                     &self.instanced_pipeline,
-                                     vec!(&descriptor.set(0)));
-    
-    self.instanced_data.empty();
-    self.instanced_texture = "".to_string();
     
     cmd
   }
@@ -657,8 +661,14 @@ impl TextureShader {
     
     self.index_buffer.destroy(Arc::clone(&device));
     self.vertex_buffer.destroy(Arc::clone(&device));
-    self.instanced_buffer.destroy(Arc::clone(&device));
-    self.instanced_cpu_buffer.destroy(Arc::clone(&device));
+   // self.instanced_buffer.destroy(Arc::clone(&device));
+    for instance_details in self.instanced_cpu_buffers.iter() {
+      match instance_details {
+        (reference, (data, buffer)) => {
+          buffer.destroy(Arc::clone(&device));
+        }
+      }
+    }
     
     self.texture_pipeline.destroy(Arc::clone(&device));
     self.text_pipeline.destroy(Arc::clone(&device));

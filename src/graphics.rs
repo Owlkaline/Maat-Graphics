@@ -36,6 +36,8 @@ pub trait CoreRender {
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
   
+  fn create_instance_buffer(&mut self, reference: String);
+  
   // Load custom goemetry
   fn load_static_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
   fn load_dynamic_geometry(&mut self, reference: String, verticies: Vec<graphics::Vertex2d>, indicies: Vec<u32>);
