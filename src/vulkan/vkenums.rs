@@ -715,6 +715,42 @@ impl ImageUsage {
       .. ImageUsage::none()
     }
   }
+  
+  pub fn colour_attachment_sampled() -> ImageUsage {
+    ImageUsage {
+      sampled: true,
+      colour_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn colour_attachment_storage_sampled() -> ImageUsage {
+    ImageUsage {
+      sampled: true,
+      storage: true,
+      colour_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transfer_src_colour_attachment_sampled() -> ImageUsage {
+    ImageUsage {
+      sampled: true,
+      colour_attachment: true,
+      transfer_src: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn colour_input_attachment_storage_sampled() -> ImageUsage {
+    ImageUsage {
+      sampled: true,
+      storage: true,
+      colour_attachment: true,
+      input_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
 }
 
 impl SharingMode {

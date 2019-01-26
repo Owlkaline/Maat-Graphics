@@ -291,15 +291,17 @@ impl CoreRender for CoreMaat {
     
     {
       let device = self.window.device();
+      let instance = self.window.instance();
       let image_views = self.window.swapchain_image_views();
       let textures = self.resources.get_all_textures();
+      let format = self.window.swapchain_format();
       
       self.fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
       
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      self.texture_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures.clone(), &self.sampler);
-      self.model_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
       self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
       // TO REMOVE
@@ -333,6 +335,14 @@ impl CoreRender for CoreMaat {
     self.fences[self.current_frame].wait(Arc::clone(&device));
     self.fences[self.current_frame].reset(Arc::clone(&device));
     
+    let texture_clear_values: Vec<vk::ClearValue> = {
+      vec!(
+        vk::ClearValue { 
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        }
+      )
+    };
+    
     let clear_values: Vec<vk::ClearValue> = {
       vec!(
         vk::ClearValue { 
@@ -361,7 +371,7 @@ impl CoreRender for CoreMaat {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(Arc::clone(&device));
       cmd = self.texture_shader.fill_buffers(Arc::clone(&instance), Arc::clone(&device), cmd, i);
-      cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
+      cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &texture_clear_values, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
@@ -435,13 +445,29 @@ impl CoreRender for CoreMaat {
             
           }
         }
-      }/*
+      }
+      cmd = cmd.end_render_pass(Arc::clone(&device));
+      
+      // Model Shader
+      /*let texture_image = self.texture_shader.get_texture(self.current_frame);
+      cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
+      
+      cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
+      cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
+      
+      cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, texture_image, &self.sampler, self.current_frame);
+      
+      cmd = cmd.end_render_pass(Arc::clone(&device));*/
+      
+      // Final Shader
       cmd = self.final_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
       
-      cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd);*/
+      let texture_image = self.texture_shader.get_texture(self.current_frame);
+      let model_image = self.model_shader.get_texture(self.current_frame);
+      cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd, texture_image, model_image, &self.sampler, window_size.width as f32, window_size.height as f32, self.current_frame);
       
       cmd = cmd.end_render_pass(Arc::clone(&device));
       cmd.end_command_buffer(Arc::clone(&device));

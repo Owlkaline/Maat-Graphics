@@ -13,6 +13,160 @@ use std::ptr;
 use std::sync::Arc;
 
 #[derive(Clone)]
+pub struct ImageAttachment {
+  image: vk::Image,
+  image_view: vk::ImageView,
+  memory: vk::DeviceMemory,
+  format: vk::Format,
+}
+
+impl ImageAttachment {
+  pub fn create_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
+    
+    let mut image: vk::Image = unsafe { mem::uninitialized() };
+    let mut memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let mut image_view: vk::ImageView = unsafe { mem::uninitialized() };
+    
+    let vk = device.pointers();
+    let vk_instance = instance.pointers();
+    let phys_device = device.physical_device();
+    let device = device.internal_object();
+    
+    let image_create_info = {
+      vk::ImageCreateInfo {
+        sType: vk::STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        pNext: ptr::null(),
+        flags: 0,
+        imageType: image_type.to_bits(),
+        format: *format,
+        extent: vk::Extent3D { width: image_extent.width, height: image_extent.height, depth: 1 },
+        mipLevels: 1,
+        arrayLayers: 1,
+        samples: samples.to_bits(),
+        tiling: tiling.to_bits(),
+        usage: usage.to_bits(),
+        sharingMode: SharingMode::Exclusive.to_bits(),
+        queueFamilyIndexCount: 0,
+        pQueueFamilyIndices: ptr::null(),
+        initialLayout: initial_layout.to_bits(),
+      }
+    };
+    
+   let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::uninitialized() };
+    
+    unsafe {
+      check_errors(vk.CreateImage(*device, &image_create_info, ptr::null(), &mut image));
+      vk.GetImageMemoryRequirements(*device, image, &mut memory_requirements);
+    }
+    
+    let memory_type_bits_index = {
+      
+      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::uninitialized() };
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceMemoryProperties(*phys_device, &mut memory_properties);
+      }
+      
+      let mut index: i32 = -1;
+      let properties = vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+      for i in 0..memory_properties.memoryTypeCount as usize {
+        if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties {
+          index = i as i32;
+        }
+      }
+      
+      if index == -1 {
+        panic!("Failed to find suitable memory type");
+      }
+      
+      index
+    };
+    
+    let memory_allocate_info = {
+      vk::MemoryAllocateInfo {
+        sType: vk::STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        pNext: ptr::null(),
+        allocationSize: memory_requirements.size,
+        memoryTypeIndex: memory_type_bits_index as u32,
+      }
+    };
+    
+    unsafe {
+      check_errors(vk.AllocateMemory(*device, &memory_allocate_info, ptr::null(), &mut memory));
+      check_errors(vk.BindImageMemory(*device, image, memory, 0));
+    }
+    
+    let component = vk::ComponentMapping {
+      r: vk::COMPONENT_SWIZZLE_IDENTITY,
+      g: vk::COMPONENT_SWIZZLE_IDENTITY,
+      b: vk::COMPONENT_SWIZZLE_IDENTITY,
+      a: vk::COMPONENT_SWIZZLE_IDENTITY,
+    };
+    
+    let subresource = vk::ImageSubresourceRange {
+      aspectMask: vk::IMAGE_ASPECT_COLOR_BIT,
+      baseMipLevel: 0,
+      levelCount: 1,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let image_view_create_info = vk::ImageViewCreateInfo {
+      sType: vk::STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      pNext: ptr::null(),
+      flags: 0,
+      image: image,
+      viewType: image_view_type.to_bits(),
+      format: *format,
+      components: component,
+      subresourceRange: subresource,
+    };
+    
+    unsafe {
+      vk.CreateImageView(*device, &image_view_create_info, ptr::null(), &mut image_view);
+    }
+    
+    ImageAttachment {
+      image,
+      image_view,
+      memory,
+      format: *format,
+    }
+  }
+  
+  pub fn get_image(&self) -> vk::Image {
+    self.image
+  }
+  
+  pub fn get_image_view(&self) -> vk::ImageView {
+    self.image_view
+  }
+  
+  pub fn get_image_memory(&self) -> vk::DeviceMemory {
+    self.memory
+  }
+  
+  pub fn to_image(&self) -> Image {
+    Image {
+      image: self.image,
+      image_view: self.image_view,
+      memory: self.memory,
+    }
+  }
+  
+  pub fn destroy(&self, device: Arc<Device>) {
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      
+      vk.DestroyImageView(*device, self.image_view, ptr::null());
+      vk.DestroyImage(*device, self.image, ptr::null());
+      vk.FreeMemory(*device, self.memory, ptr::null());
+    }
+  }
+}
+
+#[derive(Clone)]
 pub struct Image {
   image: vk::Image,
   image_view: vk::ImageView,

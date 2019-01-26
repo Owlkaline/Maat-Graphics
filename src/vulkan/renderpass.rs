@@ -76,7 +76,7 @@ impl RenderPass {
       dstAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
       dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
     });
-    /*
+    
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: 0,
       dstSubpass: vk::SUBPASS_EXTERNAL,
@@ -85,7 +85,7 @@ impl RenderPass {
       srcAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
       dstAccessMask: 0,//vk::ACCESS_MEMORY_READ_BIT,
       dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
-    });*/
+    });
     
     let render_pass_create_info = vk::RenderPassCreateInfo {
       sType: vk::STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,

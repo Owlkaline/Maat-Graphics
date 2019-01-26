@@ -116,7 +116,11 @@ impl PipelineBuilder {
   }
   
   pub fn descriptor_set_layout(mut self, layouts: Vec<vk::DescriptorSetLayout>) -> PipelineBuilder {
-    self.descriptor_set_layouts = Some(layouts);
+    if let Some(descriptor_layout) = &mut self.descriptor_set_layouts {
+      descriptor_layout.push(layouts[0]);
+    } else {
+      self.descriptor_set_layouts = Some((vec!(layouts[0])));
+    }
     self
   }
   

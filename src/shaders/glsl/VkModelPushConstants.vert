@@ -6,6 +6,8 @@ layout(location = 2) in vec2 uv;
 layout(location = 3) in vec4 colour;
 layout(location = 4) in vec4 tangent;
 
+layout(location = 0) out vec2 uvs;
+
 layout(push_constant) uniform PushConstants {
   mat4 view;
   vec4 model; // x, y, z, scale,
@@ -39,5 +41,6 @@ void main() {
   mat4 projection = create_perspective_matrix(0.1, 100.0, 90.0);
   mat4 model = create_translation_matrix(push_constants.model.xyz, push_constants.model.w);
   
+  uvs = uv;
   gl_Position = projection * push_constants.view * model * vec4(position, 1.0);
 }

@@ -63,7 +63,8 @@ impl FinalVertex {
 pub struct FinalShader {
   renderpass: RenderPass,
   framebuffers: Vec<Framebuffer>,
-  descriptor_set: DescriptorSet,
+  descriptor_sets: Vec<DescriptorSet>,
+  ds: Vec<DescriptorSet>,
   
   vertex_buffer: Buffer<FinalVertex>,
   index_buffer: Buffer<u32>,
@@ -89,7 +90,6 @@ impl FinalShader {
                                 .initial_layout(ImageLayout::Undefined)
                                 .final_layout(ImageLayout::PresentSrcKHR)
                                 .image_usage(ImageLayout::ColourAttachmentOptimal);
-    
     let subpass = SubpassInfo::new().add_colour_attachment(0);
     let render_pass = RenderPassBuilder::new()
                       .add_attachment(colour_attachment)
@@ -98,23 +98,39 @@ impl FinalShader {
     
     let framebuffers = FinalShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, image_views);
     
-    let descriptor_set = DescriptorSetBuilder::new()
-                           .fragment_combined_image_sampler(0) 
-                           .build(Arc::clone(&device), &descriptor_set_pool, 1);
+    let mut descriptor_sets = Vec::new();
+    let mut ds = Vec::new();
     
-    let pipeline = FinalShader::create_pipline(Arc::clone(&device), &vertex_shader, &fragment_shader, &render_pass, &descriptor_set);
+    for i in 0..image_views.len() {
+      descriptor_sets.push(DescriptorSetBuilder::new()
+        .fragment_combined_image_sampler(0)
+      //  .fragment_combined_image_sampler(1)
+        .build(Arc::clone(&device), &descriptor_set_pool, 1));
+      
+      UpdateDescriptorSets::new()
+       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       //.add_sampled_image(1, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .finish_update(Arc::clone(&device), &descriptor_sets[i]);
+       
+      ds.push(DescriptorSetBuilder::new()
+        .fragment_combined_image_sampler(0)
+        .build(Arc::clone(&device), &descriptor_set_pool, 1));
+      
+      UpdateDescriptorSets::new()
+       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .finish_update(Arc::clone(&device), &ds[i]);
+    }
+    
+    let pipeline = FinalShader::create_pipline(Arc::clone(&device), &vertex_shader, &fragment_shader, &render_pass, &descriptor_sets[0], &ds[0]);
     
     let vertex_buffer = FinalShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = FinalShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
-    UpdateDescriptorSets::new()
-       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
-       .finish_update(Arc::clone(&device), &descriptor_set);
-    
     FinalShader {
       renderpass: render_pass,
       framebuffers,
-      descriptor_set,
+      descriptor_sets,
+      ds,
       
       vertex_buffer,
       index_buffer,
@@ -135,14 +151,17 @@ impl FinalShader {
     
     for i in 0..image_views.len() {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
+      UpdateDescriptorSets::new()
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       //  .add_sampled_image(1, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .finish_update(Arc::clone(&device), &self.descriptor_sets[i]);
+      UpdateDescriptorSets::new()
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .finish_update(Arc::clone(&device), &self.ds[i]);
     }
-    
-    UpdateDescriptorSets::new()
-       .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
-       .finish_update(Arc::clone(&device), &self.descriptor_set);
   }
   
-  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet) -> Pipeline {
+  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, ds: &DescriptorSet) -> Pipeline {
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -154,6 +173,7 @@ impl FinalShader {
                   .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .descriptor_set_layout(ds.layouts_clone())
                   .vertex_binding(vec!(FinalVertex::vertex_input_binding()))
                   .vertex_attributes(FinalVertex::vertex_input_attributes())
                   .topology_triangle_list()
@@ -222,17 +242,23 @@ impl FinalShader {
     cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder) -> CommandBufferBuilder {
+  pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: Image, model_image: Image, sampler: &Sampler, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    let descriptor: &DescriptorSet = &self.descriptor_set;
+    UpdateDescriptorSets::new()
+       .add_sampled_image(0, &texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+    //   .add_sampled_image(1, &model_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
     
-    let model = Vector4::new(0.0, 0.0, 1.0, 0.0);
+    UpdateDescriptorSets::new()
+       .add_sampled_image(0, &model_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .finish_update(Arc::clone(&device), &self.ds[current_buffer]);
     
-    let top = 1.0;
-    let right = 1.0;
-    let pos = Vector2::new(0.0, 0.0);
-    let projection_details = Vector4::new(pos.x, pos.y, right, top);
+    let model = Vector4::new(window_width*0.5, window_height*0.5, window_width, window_height);
+    
+    let top = window_height;
+    let right = window_width;
+    let projection_details = Vector4::new(right, top, 0.0, 0.0);
     
     let push_constant_data = UniformData::new()
                                .add_vector4(model)
@@ -245,7 +271,7 @@ impl FinalShader {
     cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
                              &self.index_buffer.internal_object(0),
                              index_count, &self.pipeline,
-                             vec!(&descriptor.set(0)))
+                             vec!(*self.descriptor_sets[current_buffer].set(0), *self.ds[current_buffer].set(0)))
   }
   
   pub fn destroy(&mut self, device: Arc<Device>) {
@@ -253,7 +279,14 @@ impl FinalShader {
     self.vertex_buffer.destroy(Arc::clone(&device));
     
     self.pipeline.destroy(Arc::clone(&device));
-    self.descriptor_set.destroy(Arc::clone(&device));
+    
+    for descriptor_set in &self.descriptor_sets {
+      descriptor_set.destroy(Arc::clone(&device));
+    }
+    
+    for descriptor_set in &self.ds {
+      descriptor_set.destroy(Arc::clone(&device));
+    }
     
     self.vertex_shader.destroy(Arc::clone(&device));
     self.fragment_shader.destroy(Arc::clone(&device));

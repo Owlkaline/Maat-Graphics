@@ -271,8 +271,8 @@ impl RenderPassBuilder {
       
       let num_attchments = self.subpasses[i].num_colour_attachments();
       
-      for i in 0..num_attchments as usize {
-        let attachment_index = self.subpasses[i].get_colour_attachment_index(i);
+      for j in 0..num_attchments as usize {
+        let attachment_index = self.subpasses[i].get_colour_attachment_index(j);
         let attachment_layout = self.attachments[attachment_index as usize].get_image_usage();
         let reference = vk::AttachmentReference {
           attachment: attachment_index,

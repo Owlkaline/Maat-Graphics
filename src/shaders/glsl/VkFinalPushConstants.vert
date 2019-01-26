@@ -6,13 +6,13 @@ layout(location = 1) in vec2 uv;
 layout(location = 0) out vec2 uvs;
 
 layout(push_constant) uniform PushConstants {
-  vec4 model;
-  vec4 projection;
+  vec4 model; // x, y, scale_x, scale_y
+  vec4 projection; // right, bottom, 
 } push_constants;
 
-mat4 create_translation_matrix(vec2 pos, float scale) {
-  mat4 translate_matrix = mat4(vec4(scale, 0.0,   0.0, 0.0), 
-                               vec4(0.0,   scale, 0.0, 0.0), 
+mat4 create_translation_matrix(vec2 pos, vec2 scale) {
+  mat4 translate_matrix = mat4(vec4(scale.x, 0.0,   0.0, 0.0), 
+                               vec4(0.0,   scale.y, 0.0, 0.0), 
                                vec4(0.0,   0.0,   1.0, 0.0), 
                                vec4(pos,          0.0, 1.0));
   
@@ -36,16 +36,17 @@ mat4 create_ortho_projection(float near, float far, float right, float bottom) {
 void main() {
   float x      = push_constants.model.x;
   float y      = push_constants.model.y;
-  float scale  = push_constants.model.z;
+  float scale_x  = push_constants.model.z;
+  float scale_y = push_constants.model.w;
   
-  float near   = push_constants.projection.x;
-  float far    = push_constants.projection.y;
-  float right  = push_constants.projection.z;
-  float bottom = push_constants.projection.w; 
+  float near   = 1.0;
+  float far    = -1.0;
+  float right  = push_constants.projection.x;
+  float bottom = push_constants.projection.y; 
   
   mat4 projection = create_ortho_projection(near, far, right, bottom);
-  mat4 model = create_translation_matrix(vec2(x, y), scale);
+  mat4 model = create_translation_matrix(vec2(x, y), vec2(scale_x, scale_y));
   
   uvs = uv;
-  gl_Position = model * vec4(position, 0.0, 1.0);
+  gl_Position = projection * model * vec4(position, 0.0, 1.0);
 }

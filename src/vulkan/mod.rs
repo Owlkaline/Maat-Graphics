@@ -18,6 +18,7 @@ pub use self::ownage::check_errors;
 pub use self::sampler::Sampler;
 pub use self::sampler::SamplerBuilder;
 pub use self::image::Image;
+pub use self::image::ImageAttachment;
 
 pub mod pool;
 pub mod buffer;

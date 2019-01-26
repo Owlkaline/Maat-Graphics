@@ -84,8 +84,9 @@ impl<'a> UpdateDescriptorSets<'a> {
         );
       }
       
+     // let mut descriptor_image_info = Vec::new();
       for i in 0..self.images.len() {
-        let (binding, ref image, ref  layout, ref sampler) = self.images[i];
+        let (binding, ref image, ref layout, ref sampler) = self.images[i];
         
         let descriptor_image_info = {
           vk::DescriptorImageInfo {
@@ -113,6 +114,10 @@ impl<'a> UpdateDescriptorSets<'a> {
       
       let vk = device.pointers();
       let device = device.internal_object();
+      
+     /* unsafe {
+        vk.UpdateDescriptorSets(*device, write_descriptor_sets.len() as u32, write_descriptor_sets.as_ptr(), 0, ptr::null());
+      }*/
       
       for i in 0..write_descriptor_sets.len() {
         unsafe {
@@ -195,7 +200,7 @@ impl DescriptorSetBuilder {
         vk::DescriptorSetLayoutBinding {
           binding: self.descriptor_set_layout_info[i].binding,
           descriptorType: self.descriptor_set_layout_info[i].descriptor_type.to_bits(),
-          descriptorCount: 1,//binding_counts[i],
+          descriptorCount: binding_counts[i],
           stageFlags: self.descriptor_set_layout_info[i].shader_stage.to_bits(),
           pImmutableSamplers: ptr::null(),
         }
