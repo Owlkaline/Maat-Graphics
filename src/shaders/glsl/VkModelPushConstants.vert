@@ -31,7 +31,7 @@ mat4 create_perspective_matrix(float near, float far, float angle_of_view) {
 mat4 create_translation_matrix(vec3 pos, float scale) {
   mat4 translate_matrix = mat4(vec4(scale, 0.0,   0.0, 0.0), 
                                vec4(0.0,   scale, 0.0, 0.0), 
-                               vec4(0.0,   0.0,   1.0, 0.0), 
+                               vec4(0.0,   0.0,   scale, 0.0), 
                                vec4(pos,               1.0));
   
   return translate_matrix;

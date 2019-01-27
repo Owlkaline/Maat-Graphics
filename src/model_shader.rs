@@ -165,8 +165,6 @@ impl ModelShader {
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
     let mut camera = Camera::default_vk();
-    camera.process_movement(camera::Direction::Down, 0.5); 
-    camera.process_movement(camera::Direction::Right, 0.3);
     
     ModelShader {
       renderpass: render_pass,
@@ -323,14 +321,11 @@ impl ModelShader {
     cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: Image, sampler: &Sampler, current_buffer: usize) -> CommandBufferBuilder {
+  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    UpdateDescriptorSets::new()
-       .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
-    
-    let model = Vector4::new(0.0, 0.0, 5.0, 1.0);
-    let projection = Vector4::new(45.0, 1280.0, 720.0, 0.0);
+    let model = Vector4::new(position.x, position.y, position.z, scale.x);
+    let projection = Vector4::new(90.0, window_width, window_height, 0.0);
     
     let push_constant_data = UniformData::new()
                                .add_matrix4(self.camera.get_view_matrix())

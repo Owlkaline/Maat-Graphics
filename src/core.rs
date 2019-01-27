@@ -351,6 +351,8 @@ impl CoreRender for CoreMaat {
       )
     };
     
+    let mut model_draw_calls = Vec::new();
+    
     //
     // Actually Draw stuff
     //
@@ -441,23 +443,30 @@ impl CoreRender for CoreMaat {
               self.texture_shader.reset_camera(window_size.width as f32, window_size.height as f32);
             }
           },
-          _ => {
-            
+          draw => {
+            model_draw_calls.push(draw);
           }
         }
       }
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Model Shader
-      /*let texture_image = self.texture_shader.get_texture(self.current_frame);
       cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
       
-      cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, texture_image, &self.sampler, self.current_frame);
+      for draw in model_draw_calls {
+        match draw {
+          DrawType::DrawModel(ref info) => {
+            let (reference, position, scale, rotation) = info;
+            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32, self.current_frame);
+          }
+          _ => {}
+        }
+      }
       
-      cmd = cmd.end_render_pass(Arc::clone(&device));*/
+      cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Final Shader
       cmd = self.final_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
