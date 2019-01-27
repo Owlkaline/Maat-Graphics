@@ -239,21 +239,21 @@ impl DrawCall {
     }
   }
   
-  pub fn reset_camera() -> DrawCall {
+  pub fn reset_ortho_camera() -> DrawCall {
     DrawCall {
       draw_type: DrawType::Camera((None, None, Vector2::new(0.0, 0.0))),
       coloured: false,
     }
   }
   
-  pub fn lerp_camera_to_pos(position: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
+  pub fn lerp_ortho_camera_to_pos(position: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
     DrawCall {
       draw_type: DrawType::Camera((Some(position), None, vel)),
       coloured: false,
     }
   }
   
-  pub fn lerp_camera_to_size(size: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
+  pub fn lerp_ortho_camera_to_size(size: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
     DrawCall {
       draw_type: DrawType::Camera((None, Some(size), vel)),
       coloured: false,
