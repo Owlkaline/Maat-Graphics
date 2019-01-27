@@ -6,6 +6,7 @@ use cgmath::EuclideanSpace;
 use cgmath::prelude::InnerSpace;
 use cgmath::Matrix4;
 
+#[derive(Clone, PartialEq)]
 pub enum Direction {
   Forward,
   Backward,
@@ -21,7 +22,7 @@ pub enum Direction {
   NegativeZ,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Camera {
   position: Vector3<f32>,
   front: Vector3<f32>,
@@ -71,6 +72,15 @@ impl Camera {
       mouse_sensitivity: 1.0,
       zoom: 90.0,
     }
+  }
+  
+  
+  pub fn set_mouse_sensitivity(&mut self, new_sensitivity: f32) {
+    self.mouse_sensitivity = new_sensitivity;
+  }
+  
+  pub fn set_move_speed(&mut self, speed: f32) {
+    self.move_speed = speed;
   }
   
   fn update_camera_vector(&mut self) {

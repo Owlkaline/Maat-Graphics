@@ -193,8 +193,8 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn add_model(&mut self, _reference: String, _location: String) {
-    
+  fn add_model(&mut self, reference: String, location: String) {
+    self.resources.insert_unloaded_model(reference, location);
   }
   
   fn preload_texture(&mut self, reference: String, location: String) {
@@ -260,7 +260,12 @@ impl CoreRender for CoreMaat {
       let references: Vec<String> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
       for reference in references {
-        self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler);
+        if let Some(texture) = self.resources.get_texture(reference.to_string()) {
+          self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
+        }
+        if let Some(model) = self.resources.get_model(reference.to_string()) {
+          self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, &self.command_pool, graphics_queue);
+        }
       }
     }
     
@@ -432,7 +437,7 @@ impl CoreRender for CoreMaat {
           DrawType::ResetScissorRender => {
             cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
           },
-          DrawType::Camera(ref info) => {
+          DrawType::OrthoCamera(ref info) => {
             let (position, size, vel) = info.clone();
             
             if let Some(goal_pos) = position {
@@ -461,7 +466,34 @@ impl CoreRender for CoreMaat {
           DrawType::DrawModel(ref info) => {
             let (reference, position, scale, rotation) = info;
             cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32, self.current_frame);
-          }
+          },
+          DrawType::ModelCamera(ref info) => {
+            let (new_camera, move_direction, mouse_offset, set_move_speed, set_mouse_sensitivity) = info;
+            
+            if let Some(camera) = new_camera {
+              self.model_shader.set_camera(camera.clone());
+            }
+            
+            if let Some((direction, delta_time)) = move_direction {
+              self.model_shader.move_camera(direction.clone(), *delta_time);
+            }
+            
+            if let Some(offset) = mouse_offset {
+              self.model_shader.process_mouse_movement(offset.x, offset.y);
+            }
+            
+            if let Some(move_speed) = set_move_speed {
+              self.model_shader.set_camera_move_speed(*move_speed);
+            }
+            
+            if let Some(mouse_sensitivity) = set_mouse_sensitivity {
+              self.model_shader.set_mouse_sensitivity(*mouse_sensitivity);
+            }
+          },
+          DrawType::LoadModel(ref info) => {
+            let reference = info.clone();
+            self.resources.load_model_from_reference(reference);
+          },
           _ => {}
         }
       }

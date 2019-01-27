@@ -9,6 +9,7 @@ use crate::vulkan::{Image, Instance, Device};
 use crate::vulkan::buffer::{Buffer};
 use crate::vulkan::pool::{CommandPool};
 
+use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
 use std::time;
@@ -20,7 +21,7 @@ use std::sync::Mutex;
 enum ObjectType {
   Font(Option<(GenericFont, Image)>),
   Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<Image>),
-  _Model(String),
+  Model(Option<ModelDetails>),
   _Shape(Option<(Buffer<f32>, Image)>),
 }
 
@@ -34,19 +35,24 @@ struct LoadableObject {
 
 impl LoadableObject {
   pub fn load_object(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
-    let mut buffer_image = None;
+    let mut object;
     
     match &self.object_type {
       ObjectType::Texture(Some(image_data), ..) => { 
+        let mut buffer_image = None;
         let image = Some(Image::device_local_with_image_data(instance, device, image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
         
         buffer_image = image;
+        object = ObjectType::Texture(None, buffer_image);
       },
-      _ => { println!("No implemented to load yet"); },
+      ObjectType::Model(Some(model)) => {
+        object = ObjectType::Model(Some(model.clone()));
+      },
+      _ => { println!("No implemented to load yet"); return; },
     }
     
     self.loaded = true;
-    self.object_type = ObjectType::Texture(None, buffer_image);
+    self.object_type = object;
   }
 }
 
@@ -176,6 +182,26 @@ impl ResourceManager {
         match object.object_type {
           ObjectType::Texture(ref _data, ref image) => {
             result = image.clone()
+          },
+          _ => {}
+        }
+      }
+    }
+    
+    result
+  }
+  
+  /**
+  ** Returns None when resource isnt loaded yet otherwise returns a ModelDetails
+  **/
+  pub fn get_model(&mut self, reference: String) -> Option<ModelDetails> {
+    let mut result = None;
+    
+    for object in &self.objects {
+      if object.reference == reference {
+        match object.object_type {
+          ObjectType::Model(ref model) => {
+            result = model.clone()
           },
           _ => {}
         }
@@ -329,6 +355,39 @@ impl ResourceManager {
     new_font
   }
   
+  
+  /**
+  ** Inserts details for a model, does not load the image into memory.
+  ** Must call Load_model as a DrawCall in order to use
+  **/
+  pub fn insert_unloaded_model(&mut self, reference: String, location: String) {
+    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    println!("Inserting object: {}", reference);
+    self.objects.push(
+      LoadableObject {
+        loaded: false,
+        location: location,
+        reference: reference.clone(),
+        object_type: ObjectType::Model(None),
+      }
+    );
+  }
+  
+  /**
+  ** Loads models from inserted details in seperate threads, non bloacking.
+  **/
+  pub fn load_model_from_reference(&mut self, reference: String) {
+    let unloaded_object = self.get_unloaded_object(reference.clone());
+    if let Some(object) = unloaded_object {
+      let location = object.location;
+      let reference = object.reference;
+      
+      self.load_model(reference, location);
+    } else {
+      println!("Object {} already loaded", reference);
+    }
+  }
+  
   /**
   ** Loads textures in seperate threads, non bloacking.
   **/
@@ -381,6 +440,39 @@ impl ResourceManager {
       }
     }
     result
+  }
+  
+  /**
+  ** Loads modelss in seperate threads, non bloacking.
+  **/
+  pub fn load_model(&mut self, reference: String, location: String) {
+    
+    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+    println!("loading model");
+    self.num_recv_objects += 1;
+    let index = self.data.len();
+    
+    self.data.push(Arc::new(Mutex::new(None)));
+    
+    let (data, tx) = (self.data[index].clone(), self.tx.clone());
+    self.pool.execute(move || {
+      let mut data = data.lock().unwrap();
+      let model_start_time = time::Instant::now();
+      let model = ModelDetails::new(location.to_string());
+      
+      let object = LoadableObject {
+        loaded: true,
+        location: location.to_string(),
+        reference: reference,
+        object_type: ObjectType::Model(Some(model)),
+      };
+      
+      let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+      println!("{} ms,  {:?}", (model_time*1000f64) as f32, location);
+      
+      *data = Some(object);
+      tx.send(index.clone()).unwrap();
+    });
   }
   
   /*
@@ -491,44 +583,7 @@ impl ResourceManager {
     
     futures
   }
-  */
-
-  /*
-  /**
-  ** Inserts the font details, and the location of the font texture, the texture is not loaded into memory until a load_font Drawcall is made.
-  **
-  ** Note: The font details will be in memory, even if it is unloaded, remove_font is recommended if space is required.
-  **/
-  pub fn insert_unloaded_font(&mut self, reference: String, location: String, _font: &[u8]) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    self.objects.push(
-      LoadableObject {
-        loaded: true,
-        location: location,
-        reference: reference.clone(),
-        object_type: ObjectType::Font(None),
-      }
-    );
-  }
   
-  /**
-  ** Inserts a font (GenericFont + Texture) that was created elsewhere in the program into the resource manager
-  **/
-  pub fn insert_font(&mut self, reference: String, font_info: (GenericFont, Arc<ImmutableImage<format::R8G8B8A8Unorm>>)) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    self.objects.push(
-      LoadableObject {
-        loaded: true,
-        location: "".to_string(),
-        reference: reference.clone(),
-        object_type: ObjectType::Font(Some(font_info)),
-      }
-    );
-  }
   
   fn load_shape_into_memory(reference: String, vertex: Vec<Vertex2d>, index: Vec<u32>, queue: Arc<Queue>) -> (Arc<BufferAccess + Send + Sync>, Arc<ImmutableBuffer<[u32]>>, Vec<CommandBufferExecFuture<NowFuture, AutoCommandBuffer>>) {
     let shape_start_time = time::Instant::now();
@@ -547,27 +602,6 @@ impl ResourceManager {
     println!("{} ms, Shape: {:?}", (shape_time*1000f64) as f32, reference);
     
     (vertex, index, vec!(future_vtx, future_idx))
-  }
-  
-  fn load_texture_into_memory(location: String, queue: Arc<Queue>) -> (Arc<ImmutableImage<format::R8G8B8A8Unorm>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-    let texture_start_time = time::Instant::now();
-    
-    let (texture, tex_future) = {
-      let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
-      let (width, height) = image.dimensions();
-      let image_data = image.into_raw().clone();
-      
-      vkimage::immutable::ImmutableImage::from_iter(
-              image_data.iter().cloned(),
-              vkimage::Dimensions::Dim2d { width: width, height: height },
-              format::R8G8B8A8Unorm,
-              queue).unwrap()
-    };
-    
-    let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
-    
-    (texture, tex_future)
   }
   
   */

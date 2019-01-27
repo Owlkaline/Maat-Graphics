@@ -124,7 +124,7 @@ mod core;
 mod texture_shader;
 mod model_shader;
 mod final_shader;
-//mod gltf_interpreter;
+mod gltf_interpreter;
 mod font;
 mod threadpool;
 mod resource_manager;

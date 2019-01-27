@@ -54,6 +54,18 @@ pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
   (x_rot, z_rot)
 }
 
+pub fn array2_to_vec2<T: Clone>(array: [T; 2]) -> Vector2<T> {
+  Vector2::new(array[0].clone(), array[1].clone())
+}
+
+pub fn array3_to_vec3<T: Clone>(array: [T; 3]) -> Vector3<T> {
+  Vector3::new(array[0].clone(), array[1].clone(), array[2].clone())
+}
+
+pub fn array4_to_vec4<T: Clone>(array: [T; 4]) -> Vector4<T> {
+  Vector4::new(array[0].clone(), array[1].clone(), array[2].clone(), array[3].clone())
+}
+
 pub fn to_radians(degree: f32) -> f32 {
   degree * (PI as f32/180.0)
 }

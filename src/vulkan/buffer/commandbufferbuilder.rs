@@ -53,6 +53,17 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn draw(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, vertex_count: u32, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
+    self.command_buffer.bind_pipeline(Arc::clone(&device), pipeline);
+    
+    self.command_buffer.bind_descriptor_set(Arc::clone(&device), pipeline, descriptor_set);
+    
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, vertex_buffer);
+    self.command_buffer.draw(Arc::clone(&device), vertex_count, 1);
+    
+    self
+  }
+  
   pub fn draw_indexed(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, index_count: u32, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_pipeline(Arc::clone(&device), pipeline);
     

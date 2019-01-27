@@ -206,6 +206,14 @@ impl CommandBuffer {
     }
   }
   
+  pub fn draw(&self, device: Arc<Device>, vertex_count: u32, instance_count: u32) {
+    let vk = device.pointers();
+    
+    unsafe {
+      vk.CmdDraw(self.command_buffer, vertex_count, instance_count, 0, 0, );
+    }
+  }
+  
   pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, instance_count: u32) {
     let vk = device.pointers();
     

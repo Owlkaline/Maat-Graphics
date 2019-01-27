@@ -115,6 +115,7 @@ struct FinalModel {
 //  animation: Animation,
 }
 
+#[derive(Clone)]
 pub struct ModelDetails {
   models: Vec<FinalModel>,
  // materials: Vec<Material>,

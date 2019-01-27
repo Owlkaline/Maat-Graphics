@@ -1,5 +1,6 @@
 use crate::font::GenericCharacter;
 use crate::font::GenericFont;
+use crate::camera;
 
 use crate::graphics;
 
@@ -42,7 +43,7 @@ pub enum DrawType {
   // Ref
   LoadTexture((String)),
   LoadFont((String)),
-  LoadModel,
+  LoadModel((String)),
   UnloadTexture((String)),
   UnloadFont((String)),
   UnloadModel,
@@ -66,7 +67,10 @@ pub enum DrawType {
   ResetScissorRender,
   
   // Some(x offset, y offset), Some(right and top size), velocity to lerp
-  Camera((Option<Vector2<f32>>, Option<Vector2<f32>>, Vector2<f32>)),
+  OrthoCamera((Option<Vector2<f32>>, Option<Vector2<f32>>, Vector2<f32>)),
+  
+  // Some(camera), Some(Direction, delta_time), Some(mouse_x_offset, moue_y_offset), Some(set_move_speed), Some(set_mouse_sensitivity)
+  ModelCamera((Option<camera::Camera>, Option<(camera::Direction, f32)>, Option<Vector2<f32>>, Option<f32>, Option<f32>)),
   
   None,
 }
@@ -239,23 +243,72 @@ impl DrawCall {
     }
   }
   
+  pub fn set_camera(camera: camera::Camera) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((Some(camera), None, None, None, None)),
+      coloured: false,
+    }
+  }
+  
+  pub fn set_camera_mouse_sensitivity(sensitivity: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, None, None, None, Some(sensitivity))),
+      coloured: false,
+    }
+  }
+  
+  pub fn set_camera_move_speed(speed: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, None, None, Some(speed), None)),
+      coloured: false,
+    }
+  }
+  
+  pub fn move_camera_forward(delta_time: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, Some((camera::Direction::Forward, delta_time)), None, None, None)),
+      coloured: false,
+    }
+  }
+  
+  pub fn move_camera_backward(delta_time: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, Some((camera::Direction::Backward, delta_time)), None, None, None)),
+      coloured: false,
+    }
+  }
+  
+  pub fn move_camera_left(delta_time: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, Some((camera::Direction::Left, delta_time)), None, None, None)),
+      coloured: false,
+    }
+  }
+  
+  pub fn move_camera_right(delta_time: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::ModelCamera((None, Some((camera::Direction::Right, delta_time)), None, None, None)),
+      coloured: false,
+    }
+  }
+  
   pub fn reset_ortho_camera() -> DrawCall {
     DrawCall {
-      draw_type: DrawType::Camera((None, None, Vector2::new(0.0, 0.0))),
+      draw_type: DrawType::OrthoCamera((None, None, Vector2::new(0.0, 0.0))),
       coloured: false,
     }
   }
   
   pub fn lerp_ortho_camera_to_pos(position: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::Camera((Some(position), None, vel)),
+      draw_type: DrawType::OrthoCamera((Some(position), None, vel)),
       coloured: false,
     }
   }
   
   pub fn lerp_ortho_camera_to_size(size: Vector2<f32>, vel: Vector2<f32>) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::Camera((None, Some(size), vel)),
+      draw_type: DrawType::OrthoCamera((None, Some(size), vel)),
       coloured: false,
     }
   }
@@ -277,6 +330,13 @@ impl DrawCall {
   pub fn set_texture_scale(scale: f32) -> DrawCall {
     DrawCall {
       draw_type: DrawType::SetTextureScale(scale),
+      coloured: true,
+    }
+  }
+  
+  pub fn load_model(reference: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::LoadModel(reference),
       coloured: true,
     }
   }
