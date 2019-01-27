@@ -215,7 +215,9 @@ impl ModelShader {
   
   fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet) -> Pipeline {
     let push_constant_size = UniformData::new()
-                               .add_matrix4(Matrix4::identity())
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size();
@@ -324,13 +326,22 @@ impl ModelShader {
   pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    let model = Vector4::new(position.x, position.y, position.z, scale.x);
-    let projection = Vector4::new(90.0, window_width, window_height, 0.0);
+    let fov = 90.0;
+    let aspect = window_width / window_height;
+    let (c_pos, c_center, c_up) = self.camera.get_look_at();
+    
+    let camera_position = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
+    let camera_center   = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
+    let camera_up       = Vector4::new(c_up.x,     c_up.y,     c_up.z,     scale.x);
+    let model           = Vector4::new(position.x, position.y, position.z, scale.y);
+    let rotation        = Vector4::new(rotation.x, rotation.y, rotation.x, scale.z);
     
     let push_constant_data = UniformData::new()
-                               .add_matrix4(self.camera.get_view_matrix())
+                               .add_vector4(camera_position)
+                               .add_vector4(camera_center)
+                               .add_vector4(camera_up)
                                .add_vector4(model)
-                               .add_vector4(projection);
+                               .add_vector4(rotation);
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
     

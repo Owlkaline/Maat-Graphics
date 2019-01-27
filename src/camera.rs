@@ -144,6 +144,10 @@ impl Camera {
     }
   }
   
+  pub fn get_look_at(&self) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {
+    (self.position, self.position+self.front, self.up)
+  }
+  
   pub fn get_view_matrix(&self) -> Matrix4<f32> {
     Matrix4::look_at(Point3::from_vec(self.position), Point3::from_vec(self.position +
                      self.front), self.up)
