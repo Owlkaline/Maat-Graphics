@@ -10,27 +10,31 @@ layout(location = 0) out vec4 outColour;
 layout(set = 0, binding = 0) uniform sampler2D base_texture;
 
 void main() {
-  vec4 base_colour = vec4(1.0);
-  base_colour = texture(base_texture, uvs);
-  base_colour.rgb *= v_base_colour_factor.rgb;
-  base_colour *= v_colour;
+  vec3 base_colour = vec3(1.0);
+  float alpha = v_colour.a;
+  
+  if (v_colour.a < -0.0) {
+    base_colour *= texture(base_texture, uvs).rgb;
+    alpha += 1.1;
+    alpha *= texture(base_texture, uvs).a;
+  }
+  
+  base_colour *= v_base_colour_factor.rgb;
+  base_colour *= v_colour.rgb;
+  alpha *= v_base_colour_factor.a;
   
   float alpha_cutoff = v_alpha_cutoff.x;
   float alpha_mask = v_alpha_cutoff.y;
   
-  float alpha = base_colour.a;
-  /*
-  if (alpha_mask == 1) {
+  if (alpha_mask == 1.0) { //opaque
     alpha = 1.0;
-  }*/
-  
-  if (alpha_mask == 2) {
-    if (alpha < alpha_cutoff) {
+  } else if (alpha_mask == 2.0) { // mask
+    if (alpha < alpha_cutoff) { // draw nothing
       discard;
     } else {
-      alpha = 1.0;
+      alpha = alpha_cutoff;
     }
   }
   
-  outColour = vec4(base_colour.rgb, alpha);
+  outColour = vec4(base_colour, alpha);
 }

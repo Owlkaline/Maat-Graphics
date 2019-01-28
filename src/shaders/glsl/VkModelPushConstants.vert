@@ -18,7 +18,7 @@ layout(push_constant) uniform PushConstants {
   vec4 model;      // x, y, z, y_scale
   vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
   vec4 base_colour_factor; // r, g, b, a
-  vec4 alpha_cutoff; // alpha cuttoff, alpha mask,
+  vec4 alpha_cutoff; // alpha cuttoff, alpha mask
 } push_constants;
 
 const float M_PI = 3.141592653589793;

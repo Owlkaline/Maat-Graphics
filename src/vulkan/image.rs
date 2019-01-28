@@ -365,7 +365,7 @@ impl Image {
 pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let width = 2;
     let height = 2;
-    let image_data = vec!(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1);
+    let image_data = vec!(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     
     let image_extent = vk::Extent3D { width: width, height: height, depth: 1 };
     

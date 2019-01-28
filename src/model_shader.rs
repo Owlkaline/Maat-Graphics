@@ -155,6 +155,10 @@ impl Model {
           model_tangent = tangent[j];
         }
         
+        if base_textures[i].is_some() {
+          model_colour[3] -= 1.1;
+        }
+        println!("{:?}", model_colour);
         let mut pos = math::array3_to_vec3(position[j]);
         pos.x *= -1.0;
         vertex.push(ModelVertex::from(pos, 
@@ -261,7 +265,6 @@ impl Model {
     }
     
     for sampler in &self.samplers {
-      println!("destroy samplers boiii");
       sampler.destroy(Arc::clone(&device));
     }
   }
