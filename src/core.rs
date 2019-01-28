@@ -46,8 +46,9 @@ pub struct CoreMaat {
   
   clear_colour: Vector4<f32>,
   
-  texture: Image,
+  dummy_image: Image,
   sampler: Sampler,
+  
   texture_shader: TextureShader,
   model_shader: ModelShader,
   final_shader: FinalShader,
@@ -80,6 +81,8 @@ impl CoreMaat {
     
     let current_extent = window.get_current_extent();
     
+    let dummy_image;
+    
     {
       let instance = window.instance();
       let device = window.device();
@@ -98,8 +101,8 @@ impl CoreMaat {
       command_buffers = command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 40, 40);
-      
-      texture_image = Image::device_local(Arc::clone(&instance), Arc::clone(&device), "./resources/Textures/statue.png".to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &command_pool, graphics_queue);
+            
+      dummy_image = Image::device_local_dummy_image(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, &Sample::Count1Bit, &ImageTiling::Optimal, &command_pool, graphics_queue);
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -110,9 +113,9 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
-      model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
-      final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &texture_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
     }
     
     let max_frames = fences.len();
@@ -130,7 +133,7 @@ impl CoreMaat {
       
       clear_colour: Vector4::new(0.0, 0.0, 0.2, 1.0),
       
-      texture: texture_image,
+      dummy_image,
       sampler,
       
       texture_shader,
@@ -263,8 +266,8 @@ impl CoreRender for CoreMaat {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
           self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
         }
-        if let Some(model) = self.resources.get_model(reference.to_string()) {
-          self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, &self.command_pool, graphics_queue);
+        if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
+          self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
         }
       }
     }
@@ -300,13 +303,14 @@ impl CoreRender for CoreMaat {
       let image_views = self.window.swapchain_image_views();
       let textures = self.resources.get_all_textures();
       let format = self.window.swapchain_format();
+      let graphics_queue = self.window.get_graphics_queue();
       
       self.fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
       
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
-      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler, &self.command_pool, *graphics_queue);
       self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
       // TO REMOVE
@@ -352,6 +356,17 @@ impl CoreRender for CoreMaat {
       vec!(
         vk::ClearValue { 
           color: vk::ClearColorValue { float32: [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w] }
+        }
+      )
+    };
+    
+    let clear_values_depth: Vec<vk::ClearValue> = {
+      vec!(
+        vk::ClearValue { 
+          color: vk::ClearColorValue { float32: [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w] },
+        },
+        vk::ClearValue { 
+          depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 },
         }
       )
     };
@@ -456,7 +471,7 @@ impl CoreRender for CoreMaat {
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Model Shader
-      cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
+      cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values_depth, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
@@ -492,7 +507,8 @@ impl CoreRender for CoreMaat {
           },
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
-            self.resources.load_model_from_reference(reference);
+            let device = self.window.device();
+            self.resources.load_model_from_reference(Arc::clone(&device), reference);
           },
           _ => {}
         }
@@ -595,7 +611,7 @@ impl Drop for CoreMaat {
     let device = self.window.device();
     
     self.resources.destroy(Arc::clone(&device));
-    self.texture.destroy(Arc::clone(&device));
+    self.dummy_image.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
     self.texture_shader.destroy(Arc::clone(&device));

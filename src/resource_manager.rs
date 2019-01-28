@@ -21,7 +21,7 @@ use std::sync::Mutex;
 enum ObjectType {
   Font(Option<(GenericFont, Image)>),
   Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<Image>),
-  Model(Option<ModelDetails>),
+  Model(Option<ModelDetails>, Vec<Option<Image>>),
   _Shape(Option<(Buffer<f32>, Image)>),
 }
 
@@ -45,8 +45,19 @@ impl LoadableObject {
         buffer_image = image;
         object = ObjectType::Texture(None, buffer_image);
       },
-      ObjectType::Model(Some(model)) => {
-        object = ObjectType::Model(Some(model.clone()));
+      ObjectType::Model(Some(model), ..) => {
+        let mut images = Vec::new();
+        for i in 0..model.num_models() {
+          if let Some(image_data) = model.base_colour_texture(i) {
+            let image_data = image_data.to_rgba();
+            let base_image = Some(Image::device_local_with_image_data(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
+            images.push(base_image);
+          } else {
+            images.push(None);
+          }
+        }
+        
+        object = ObjectType::Model(Some(model.clone()), images);
       },
       _ => { println!("No implemented to load yet"); return; },
     }
@@ -141,7 +152,13 @@ impl ResourceManager {
                 image.destroy(Arc::clone(&device));
               }
             },
-            _ => {},
+            ObjectType::Model(_, images) => {
+              for some_image in images {
+                if let Some(image) = some_image {
+                  image.destroy(Arc::clone(&device));
+                }
+              }
+            },
           }
         },
         _ => {},
@@ -194,14 +211,14 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns a ModelDetails
   **/
-  pub fn get_model(&mut self, reference: String) -> Option<ModelDetails> {
+  pub fn get_model(&mut self, reference: String) -> Option<(Option<ModelDetails>, Vec<Option<Image>>)> {
     let mut result = None;
     
     for object in &self.objects {
       if object.reference == reference {
         match object.object_type {
-          ObjectType::Model(ref model) => {
-            result = model.clone()
+          ObjectType::Model(ref model, ref images) => {
+            result = Some((model.clone(), images.clone()));
           },
           _ => {}
         }
@@ -368,7 +385,7 @@ impl ResourceManager {
         loaded: false,
         location: location,
         reference: reference.clone(),
-        object_type: ObjectType::Model(None),
+        object_type: ObjectType::Model(None, Vec::new()),
       }
     );
   }
@@ -376,13 +393,13 @@ impl ResourceManager {
   /**
   ** Loads models from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_model_from_reference(&mut self, reference: String) {
+  pub fn load_model_from_reference(&mut self, device: Arc<Device>, reference: String) {
     let unloaded_object = self.get_unloaded_object(reference.clone());
     if let Some(object) = unloaded_object {
       let location = object.location;
       let reference = object.reference;
       
-      self.load_model(reference, location);
+      self.load_model(Arc::clone(&device), reference, location);
     } else {
       println!("Object {} already loaded", reference);
     }
@@ -445,7 +462,7 @@ impl ResourceManager {
   /**
   ** Loads modelss in seperate threads, non bloacking.
   **/
-  pub fn load_model(&mut self, reference: String, location: String) {
+  pub fn load_model(&mut self, device: Arc<Device>, reference: String, location: String) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     println!("loading model");
@@ -458,13 +475,13 @@ impl ResourceManager {
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
       let model_start_time = time::Instant::now();
-      let model = ModelDetails::new(location.to_string());
+      let model = ModelDetails::new(Arc::clone(&device), location.to_string());
       
       let object = LoadableObject {
         loaded: true,
         location: location.to_string(),
         reference: reference,
-        object_type: ObjectType::Model(Some(model)),
+        object_type: ObjectType::Model(Some(model), Vec::new()),
       };
       
       let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;

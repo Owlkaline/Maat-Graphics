@@ -670,6 +670,13 @@ impl ImageUsage {
     flags
   }
   
+  pub fn depth_stencil_attachment() -> ImageUsage {
+    ImageUsage {
+      depth_stencil_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
   pub fn transfer_src() -> ImageUsage {
     ImageUsage {
       transfer_src: true,

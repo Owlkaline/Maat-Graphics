@@ -1,6 +1,9 @@
 use std::{fs, io};
 use std::path::Path;
 
+use crate::vulkan::{Device, Sampler, SamplerBuilder};
+use crate::vulkan::vkenums::{VkBool, AddressMode, Filter, MipmapMode};
+
 use base64;
 
 use gltf;
@@ -21,6 +24,7 @@ use image;
 use image::ImageFormat::{JPEG, PNG};
 
 use std::mem;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum Topology {
@@ -63,14 +67,14 @@ struct VertexArray {
 struct ColourArray {
   colour: Vec<[f32; 4]>,
 }
-
+/*
 #[derive(Clone)]
 pub struct Sampler {
   pub mag_filter: MagFilter,
   pub min_filter: MinFilter,
   pub wrap_s: WrappingMode,
   pub wrap_t: WrappingMode,
-}
+}*/
 
 #[derive(Clone)]
 struct Texture {
@@ -168,7 +172,7 @@ impl Material {
    }
  }
 }
-
+/*
 impl Sampler {
   pub fn new() -> Sampler {
     Sampler {
@@ -178,10 +182,10 @@ impl Sampler {
       wrap_t: WrappingMode::ClampToEdge,
     }
   }
-}
+}*/
 
 impl ModelDetails {
-  pub fn new(source: String) -> ModelDetails {
+  pub fn new(device: Arc<Device>, source: String) -> ModelDetails {
     let source = &source;
     //let (gltf, buffers, images) = gltf::import("./examples/ObjectStatic.gltf").unwrap();
 //    let source = "./examples/ObjectStatic.gltf";
@@ -240,13 +244,68 @@ impl ModelDetails {
         //println!("Texture: {:?}", texture.source().index());
         let img: Option<image::DynamicImage> = texture_to_image(texture.clone(), &buffers, &Path::new(&source));
         
-        let texture_sampler = texture.sampler();
-        let sampler = Sampler {
-          mag_filter: texture_sampler.mag_filter().unwrap_or(MagFilter::Linear),
-          min_filter: texture_sampler.min_filter().unwrap_or(MinFilter::Linear),
-          wrap_s: texture_sampler.wrap_s(),
-          wrap_t: texture_sampler.wrap_t(),
+        let mag_filter = {
+          match texture.sampler().mag_filter().unwrap_or(MagFilter::Linear) {
+            MagFilter::Linear => {
+              Filter::Linear
+            },
+            MagFilter::Nearest => {
+              Filter::Nearest
+            }
+          }
         };
+        
+        let min_filter = {
+          match texture.sampler().min_filter().unwrap_or(MinFilter::Linear) {
+            MinFilter::Linear => {
+              Filter::Linear
+            },
+            MinFilter::Nearest => {
+              Filter::Nearest
+            },
+            _ => {Filter::Linear},
+          }
+        };
+        
+        let s_wrap = {
+          match texture.sampler().wrap_s() {
+            WrappingMode::ClampToEdge => {
+              AddressMode::ClampToEdge
+            },
+            WrappingMode::MirroredRepeat => {
+              AddressMode::MirroredRepeat
+            },
+            WrappingMode::Repeat => {
+              AddressMode::Repeat
+            }
+          }
+        };
+        
+        let t_wrap = {
+          match texture.sampler().wrap_t() {
+            WrappingMode::ClampToEdge => {
+              AddressMode::ClampToEdge
+            },
+            WrappingMode::MirroredRepeat => {
+              AddressMode::MirroredRepeat
+            },
+            WrappingMode::Repeat => {
+              AddressMode::Repeat
+            }
+          }
+        };
+        
+        let sampler = SamplerBuilder::new()
+                       .min_filter(min_filter)
+                       .mag_filter(mag_filter)
+                       .address_mode_u(s_wrap)
+                       .address_mode_v(t_wrap)
+                       .address_mode_w(AddressMode::ClampToEdge)
+                       .mipmap_mode(MipmapMode::Nearest)
+                       .anisotropy(VkBool::True)
+                       .max_anisotropy(8.0)
+                       .build(Arc::clone(&device));
+        
         textures_samplers.push((img, sampler));
       }
       
@@ -453,10 +512,10 @@ impl ModelDetails {
     texture
   }
   
-  pub fn base_colour_sampler(&self, model_index: usize) -> Sampler {
-    let mut sampler = Sampler::new();
+  pub fn base_colour_sampler(&self, model_index: usize) -> Option<Sampler> {
+    let mut sampler = None;
     if self.models[model_index].material.base_colour_texture.is_some() {
-      sampler = self.models[model_index].material.base_colour_texture.clone().unwrap().1;
+      sampler = Some(self.models[model_index].material.base_colour_texture.clone().unwrap().1);
     }
     sampler
   }
@@ -477,10 +536,10 @@ impl ModelDetails {
     texture
   }
   
-  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Sampler {
-    let mut sampler = Sampler::new();
+  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Option<Sampler> {
+    let mut sampler = None;
     if self.models[model_index].material.metallic_roughness_texture.is_some() {
-      sampler = self.models[model_index].material.metallic_roughness_texture.clone().unwrap().1;
+      sampler = Some(self.models[model_index].material.metallic_roughness_texture.clone().unwrap().1);
     }
     sampler
   }
@@ -497,10 +556,10 @@ impl ModelDetails {
     texture
   }
   
-  pub fn normal_sampler(&self, model_index: usize) -> Sampler {
-    let mut sampler = Sampler::new();
+  pub fn normal_sampler(&self, model_index: usize) -> Option<Sampler> {
+    let mut sampler = None;
     if self.models[model_index].material.normal_texture.is_some() {
-      sampler = self.models[model_index].material.normal_texture.clone().unwrap().1
+      sampler = Some(self.models[model_index].material.normal_texture.clone().unwrap().1);
     }
     sampler
   }
@@ -513,10 +572,10 @@ impl ModelDetails {
     texture
   }
   
-  pub fn occlusion_sampler(&self, model_index: usize) -> Sampler {
-    let mut sampler = Sampler::new();
+  pub fn occlusion_sampler(&self, model_index: usize) -> Option<Sampler> {
+    let mut sampler = None;
     if self.models[model_index].material.occlusion_texture.is_some() {
-      sampler = self.models[model_index].material.occlusion_texture.clone().unwrap().1
+      sampler = Some(self.models[model_index].material.occlusion_texture.clone().unwrap().1);
     }
     sampler
   }
@@ -533,10 +592,10 @@ impl ModelDetails {
     texture
   }
   
-  pub fn emissive_sampler(&self, model_index: usize) -> Sampler {
-    let mut sampler = Sampler::new();
+  pub fn emissive_sampler(&self, model_index: usize) -> Option<Sampler> {
+    let mut sampler = None;
     if self.models[model_index].material.emissive_texture.is_some() {
-      sampler = self.models[model_index].material.emissive_texture.clone().unwrap().1
+      sampler = Some(self.models[model_index].material.emissive_texture.clone().unwrap().1);
     }
     sampler
   }

@@ -8,6 +8,7 @@ use std::mem;
 use std::ptr;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Sampler {
   sampler: vk::Sampler,
 }
@@ -77,6 +78,21 @@ impl SamplerBuilder {
   
   pub fn mipmap_mode(mut self, mode: MipmapMode) -> SamplerBuilder {
     self.mipmap_mode = mode;
+    self
+  }
+  
+  pub fn address_mode_u(mut self, mode: AddressMode) -> SamplerBuilder {
+    self.address_mode_u = mode.clone();
+    self
+  }
+  
+  pub fn address_mode_v(mut self, mode: AddressMode) -> SamplerBuilder {
+    self.address_mode_v = mode.clone();
+    self
+  }
+  
+  pub fn address_mode_w(mut self, mode: AddressMode) -> SamplerBuilder {
+    self.address_mode_w = mode.clone();
     self
   }
   

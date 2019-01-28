@@ -134,6 +134,119 @@ impl ImageAttachment {
     }
   }
   
+  pub fn create_depth_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
+    
+    let mut image: vk::Image = unsafe { mem::uninitialized() };
+    let mut memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let mut image_view: vk::ImageView = unsafe { mem::uninitialized() };
+    
+    let vk = device.pointers();
+    let vk_instance = instance.pointers();
+    let phys_device = device.physical_device();
+    let device = device.internal_object();
+    
+    let image_create_info = {
+      vk::ImageCreateInfo {
+        sType: vk::STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        pNext: ptr::null(),
+        flags: 0,
+        imageType: image_type.to_bits(),
+        format: *format,
+        extent: vk::Extent3D { width: image_extent.width, height: image_extent.height, depth: 1 },
+        mipLevels: 1,
+        arrayLayers: 1,
+        samples: samples.to_bits(),
+        tiling: tiling.to_bits(),
+        usage: usage.to_bits(),
+        sharingMode: SharingMode::Exclusive.to_bits(),
+        queueFamilyIndexCount: 0,
+        pQueueFamilyIndices: ptr::null(),
+        initialLayout: initial_layout.to_bits(),
+      }
+    };
+    
+   let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::uninitialized() };
+    
+    unsafe {
+      check_errors(vk.CreateImage(*device, &image_create_info, ptr::null(), &mut image));
+      vk.GetImageMemoryRequirements(*device, image, &mut memory_requirements);
+    }
+    
+    let memory_type_bits_index = {
+      
+      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::uninitialized() };
+      
+      unsafe {
+        vk_instance.GetPhysicalDeviceMemoryProperties(*phys_device, &mut memory_properties);
+      }
+      
+      let mut index: i32 = -1;
+      let properties = vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+      for i in 0..memory_properties.memoryTypeCount as usize {
+        if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties {
+          index = i as i32;
+        }
+      }
+      
+      if index == -1 {
+        panic!("Failed to find suitable memory type");
+      }
+      
+      index
+    };
+    
+    let memory_allocate_info = {
+      vk::MemoryAllocateInfo {
+        sType: vk::STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        pNext: ptr::null(),
+        allocationSize: memory_requirements.size,
+        memoryTypeIndex: memory_type_bits_index as u32,
+      }
+    };
+    
+    unsafe {
+      check_errors(vk.AllocateMemory(*device, &memory_allocate_info, ptr::null(), &mut memory));
+      check_errors(vk.BindImageMemory(*device, image, memory, 0));
+    }
+    
+    let component = vk::ComponentMapping {
+      r: vk::COMPONENT_SWIZZLE_IDENTITY,
+      g: vk::COMPONENT_SWIZZLE_IDENTITY,
+      b: vk::COMPONENT_SWIZZLE_IDENTITY,
+      a: vk::COMPONENT_SWIZZLE_IDENTITY,
+    };
+    
+    let subresource = vk::ImageSubresourceRange {
+      aspectMask: vk::IMAGE_ASPECT_DEPTH_BIT,
+      baseMipLevel: 0,
+      levelCount: 1,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let image_view_create_info = vk::ImageViewCreateInfo {
+      sType: vk::STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      pNext: ptr::null(),
+      flags: 0,
+      image: image,
+      viewType: image_view_type.to_bits(),
+      format: *format,
+      components: component,
+      subresourceRange: subresource,
+    };
+    
+    unsafe {
+      vk.CreateImageView(*device, &image_view_create_info, ptr::null(), &mut image_view);
+    }
+    
+    ImageAttachment {
+      image,
+      image_view,
+      memory,
+      format: *format,
+    }
+  }
+  
   pub fn get_image(&self) -> vk::Image {
     self.image
   }
@@ -174,6 +287,36 @@ pub struct Image {
 }
 
 impl Image {
+ /* pub fn device_local_depth(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, extent: &vk::Extent3D, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+    let image_extent = vk::Extent3D { width: extent.width, height: extent.height, depth: 1 };
+    
+    let mut depth_image: vk::Image = unsafe { mem::uninitialized() };
+    let mut depth_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let depth_image_view: vk::ImageView;
+    
+    let depth_usage = ImageUsage::depth_stencil_attachment();
+    
+    Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, depth_usage, format, &image_extent, samples, ImageLayout::Undefined, &tiling, &mut depth_image, &mut depth_memory);
+    depth_image_view = Image::create_image_view(Arc::clone(&device), &depth_image, format, image_view_type);
+    
+    Image::transition_layout(Arc::clone(&device), &depth_image, ImageLayout::Undefined, ImageLayout::DepthStencilAttachmentOptimal, &command_pool, graphics_queue);
+    
+    Image {
+      image: depth_image,
+      image_view: depth_image_view,
+      memory: depth_memory,
+    }
+  }
+  
+  pub fn to_image_attachment(&mut self) -> ImageAttachment {
+    ImageAttachment {
+      image: self.image,
+      image_view: self.image_view,
+      memory: self.memory,
+      format: vk::FORMAT_D16_UNORM,
+    }
+  }
+  */
   pub fn device_local(instance: Arc<Instance>, device: Arc<Device>, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
     Image::device_local_with_image_data(instance, device, &image, &image_type, &image_view_type, format, &samples, &tiling, command_pool, graphics_queue)
@@ -218,6 +361,48 @@ impl Image {
       memory: texture_memory,
     }
   }
+  
+pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+    let width = 2;
+    let height = 2;
+    let image_data = vec!(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1);
+    
+    let image_extent = vk::Extent3D { width: width, height: height, depth: 1 };
+    
+    //let image_size: vk::DeviceSize = (width * height * 4).into();
+    
+    let mut texture_image: vk::Image = unsafe { mem::uninitialized() };
+    let mut texture_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let texture_image_view: vk::ImageView;
+    
+    let staging_usage = BufferUsage::transfer_src_buffer();
+    let image_usage = ImageUsage::transfer_dst_sampled();
+    
+    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
+    
+    Image::create_image(Arc::clone(&instance), Arc::clone(&device), image_type, image_usage, format, &image_extent, samples, ImageLayout::Undefined, &tiling, &mut texture_image, &mut texture_memory);
+    
+    Image::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
+    
+    let command_buffer = Image::begin_single_time_command(Arc::clone(&device), &command_pool);
+    command_buffer.copy_buffer_to_image(Arc::clone(&device), &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
+    Image::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
+    
+    
+    Image::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
+    
+    
+    staging_buffer.destroy(Arc::clone(&device));
+    
+    texture_image_view = Image::create_image_view(Arc::clone(&device), &texture_image, format, image_view_type);
+    
+    Image {
+      image: texture_image,
+      image_view: texture_image_view,
+      memory: texture_memory,
+    }
+  }
+  
   
   pub fn get_image(&self) -> vk::Image {
     self.image

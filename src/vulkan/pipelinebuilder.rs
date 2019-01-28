@@ -522,7 +522,7 @@ impl PipelineBuilder {
         flags: 0,
         depthTestEnable: self.depth_test,
         depthWriteEnable: self.depth_write,
-        depthCompareOp: vk::COMPARE_OP_LESS_OR_EQUAL,
+        depthCompareOp: vk::COMPARE_OP_LESS,
         depthBoundsTestEnable: vk::FALSE,
         stencilTestEnable: vk::FALSE,
         front: front_stencil_op_state,

@@ -161,7 +161,7 @@ void main() {
   
   if (u_material_params.forced_alpha == 2) { // Mask
     if(alpha < alpha_cutoff) {
-      discard;
+      alpha= 0.0;
     } else {
       alpha = 1.0;
     }
