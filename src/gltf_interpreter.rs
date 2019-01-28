@@ -1,8 +1,7 @@
 use std::{fs, io};
 use std::path::Path;
 
-use crate::vulkan::{Device, Sampler, SamplerBuilder};
-use crate::vulkan::vkenums::{VkBool, AddressMode, Filter, MipmapMode};
+use crate::vulkan::vkenums::{AddressMode, Filter};
 
 use base64;
 
@@ -67,14 +66,14 @@ struct VertexArray {
 struct ColourArray {
   colour: Vec<[f32; 4]>,
 }
-/*
+
 #[derive(Clone)]
-pub struct Sampler {
-  pub mag_filter: MagFilter,
-  pub min_filter: MinFilter,
-  pub wrap_s: WrappingMode,
-  pub wrap_t: WrappingMode,
-}*/
+pub struct SamplerInfo {
+  pub mag_filter: Filter,
+  pub min_filter: Filter,
+  pub s_wrap: AddressMode,
+  pub t_wrap: AddressMode,
+}
 
 #[derive(Clone)]
 struct Texture {
@@ -89,18 +88,19 @@ struct Material {
   textures: Vec<Texture>,
   
   base_colour_factor: Vector4<f32>,
-  base_colour_texture: Option<(Option<image::DynamicImage>, Sampler)>,
+  base_colour_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
   metallic_factor: f32,
   roughness_factor: f32,
-  metallic_roughness_texture: Option<(Option<image::DynamicImage>, Sampler)>,
+  metallic_roughness_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
   normal_texture_scale: f32,
-  normal_texture: Option<(Option<image::DynamicImage>, Sampler)>,
-  occlusion_texture: Option<(Option<image::DynamicImage>, Sampler)>,
+  normal_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  occlusion_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
   occlusion_texture_strength: f32,
-  emissive_texture: Option<(Option<image::DynamicImage>, Sampler)>,
+  emissive_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
   emissive_factor: Vector3<f32>,
   alpha_mode: AlphaMode,
   alpha_cutoff: f32,
+  double_sided: bool,
 }
 
 #[derive(Clone)]
@@ -169,6 +169,7 @@ impl Material {
      emissive_factor: Vector3::new(0.0, 0.0, 0.0),
      alpha_mode: AlphaMode::Blend,
      alpha_cutoff: 0.5,
+     double_sided: false,
    }
  }
 }
@@ -185,7 +186,7 @@ impl Sampler {
 }*/
 
 impl ModelDetails {
-  pub fn new(device: Arc<Device>, source: String) -> ModelDetails {
+  pub fn new(source: String) -> ModelDetails {
     let source = &source;
     //let (gltf, buffers, images) = gltf::import("./examples/ObjectStatic.gltf").unwrap();
 //    let source = "./examples/ObjectStatic.gltf";
@@ -237,7 +238,7 @@ impl ModelDetails {
       animation: Animation,
   }*/
     
-    let gltf_textures_samplers: Vec<(Option<image::DynamicImage>, Sampler)> = {
+    let gltf_textures_samplers: Vec<(Option<image::DynamicImage>, SamplerInfo)> = {
       let mut textures_samplers = Vec::new();
       
       for texture in gltf.textures() {
@@ -295,18 +296,14 @@ impl ModelDetails {
           }
         };
         
-        let sampler = SamplerBuilder::new()
-                       .min_filter(min_filter)
-                       .mag_filter(mag_filter)
-                       .address_mode_u(s_wrap)
-                       .address_mode_v(t_wrap)
-                       .address_mode_w(AddressMode::ClampToEdge)
-                       .mipmap_mode(MipmapMode::Nearest)
-                       .anisotropy(VkBool::True)
-                       .max_anisotropy(8.0)
-                       .build(Arc::clone(&device));
+        let samplerinfo = SamplerInfo {
+                        mag_filter,
+                        min_filter,
+                        s_wrap,
+                        t_wrap,
+                      };
         
-        textures_samplers.push((img, sampler));
+        textures_samplers.push((img, samplerinfo));
       }
       
       textures_samplers
@@ -366,6 +363,7 @@ impl ModelDetails {
           
           models[index].material.alpha_mode = mat.alpha_mode();
           models[index].material.alpha_cutoff = mat.alpha_cutoff();
+          models[index].material.double_sided = mat.double_sided();
           
           let colour_factor = pbr.base_color_factor();
           models[index].material.base_colour_factor = Vector4::new(colour_factor[0], colour_factor[1], colour_factor[2], colour_factor[3]);
@@ -463,6 +461,10 @@ impl ModelDetails {
     self.models[model_index].material.alpha_cutoff
   }
   
+  pub fn double_sided(&self, model_index: usize) -> bool {
+    self.models[model_index].material.double_sided
+  }
+  
   pub fn has_indices(&self, model_index: usize) -> bool {
     self.models[model_index].has_indices
   }
@@ -512,7 +514,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn base_colour_sampler(&self, model_index: usize) -> Option<Sampler> {
+  pub fn base_colour_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.base_colour_texture.is_some() {
       sampler = Some(self.models[model_index].material.base_colour_texture.clone().unwrap().1);
@@ -536,7 +538,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Option<Sampler> {
+  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.metallic_roughness_texture.is_some() {
       sampler = Some(self.models[model_index].material.metallic_roughness_texture.clone().unwrap().1);
@@ -556,7 +558,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn normal_sampler(&self, model_index: usize) -> Option<Sampler> {
+  pub fn normal_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.normal_texture.is_some() {
       sampler = Some(self.models[model_index].material.normal_texture.clone().unwrap().1);
@@ -572,7 +574,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn occlusion_sampler(&self, model_index: usize) -> Option<Sampler> {
+  pub fn occlusion_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.occlusion_texture.is_some() {
       sampler = Some(self.models[model_index].material.occlusion_texture.clone().unwrap().1);
@@ -592,7 +594,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn emissive_sampler(&self, model_index: usize) -> Option<Sampler> {
+  pub fn emissive_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.emissive_texture.is_some() {
       sampler = Some(self.models[model_index].material.emissive_texture.clone().unwrap().1);

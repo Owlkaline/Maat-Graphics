@@ -393,13 +393,13 @@ impl ResourceManager {
   /**
   ** Loads models from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_model_from_reference(&mut self, device: Arc<Device>, reference: String) {
+  pub fn load_model_from_reference(&mut self, reference: String) {
     let unloaded_object = self.get_unloaded_object(reference.clone());
     if let Some(object) = unloaded_object {
       let location = object.location;
       let reference = object.reference;
       
-      self.load_model(Arc::clone(&device), reference, location);
+      self.load_model(reference, location);
     } else {
       println!("Object {} already loaded", reference);
     }
@@ -462,7 +462,7 @@ impl ResourceManager {
   /**
   ** Loads modelss in seperate threads, non bloacking.
   **/
-  pub fn load_model(&mut self, device: Arc<Device>, reference: String, location: String) {
+  pub fn load_model(&mut self, reference: String, location: String) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     println!("loading model");
@@ -475,7 +475,7 @@ impl ResourceManager {
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
       let model_start_time = time::Instant::now();
-      let model = ModelDetails::new(Arc::clone(&device), location.to_string());
+      let model = ModelDetails::new(location.to_string());
       
       let object = LoadableObject {
         loaded: true,

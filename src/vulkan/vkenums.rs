@@ -70,6 +70,7 @@ pub enum Topology {
   PatchList,
 }
 
+#[derive(Clone)]
 pub enum Filter {
   Nearest,
   Linear,

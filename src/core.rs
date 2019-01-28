@@ -508,7 +508,7 @@ impl CoreRender for CoreMaat {
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
             let device = self.window.device();
-            self.resources.load_model_from_reference(Arc::clone(&device), reference);
+            self.resources.load_model_from_reference(reference);
           },
           _ => {}
         }

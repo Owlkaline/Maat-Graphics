@@ -8,9 +8,9 @@ use crate::font::GenericFont;
 use crate::camera;
 use crate::gltf_interpreter::ModelDetails;
 
-use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, Sample, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate};
+use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, Sample, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate, AddressMode, MipmapMode, VkBool};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
@@ -115,6 +115,7 @@ struct Model {
   
   base_colour_factors: Vec<Vector4<f32>>,
   alpha_cutoffs: Vec<(f32, f32)>,
+  double_sided: Vec<bool>,
 }
 
 impl Model {
@@ -130,6 +131,7 @@ impl Model {
     
     let mut base_colour_factors = Vec::with_capacity(num_models);
     let mut alpha_cutoffs = Vec::with_capacity(num_models);
+    let mut double_sided = Vec::with_capacity(num_models);
     
     for i in 0..num_models {
       let position = model.vertex(i); //vec3
@@ -168,19 +170,23 @@ impl Model {
       let v_buffer = Model::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), vertex, command_pool, graphics_queue);
       let (i_buffer, indice) = Model::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), index, command_pool, graphics_queue);
       
-      if let Some(custom_sampler) = model.base_colour_sampler(i) {
-        let mut has_sampler = false;
-        for sampler in &samplers {
-          if sampler.internal_object() == custom_sampler.internal_object() {
-            has_sampler = true;
-          }
-        }
-        if !has_sampler {
-          samplers.push(custom_sampler);
-        }
-      }
+      let mut sampler = sampler;
       
-      let sampler = model.base_colour_sampler(i).unwrap_or(sampler.clone());
+      let temp_sampler;
+      if let Some(sampler_info) = model.base_colour_sampler(i) {
+        temp_sampler = SamplerBuilder::new()
+                       .min_filter(sampler_info.min_filter)
+                       .mag_filter(sampler_info.mag_filter)
+                       .address_mode_u(sampler_info.s_wrap)
+                       .address_mode_v(sampler_info.t_wrap)
+                       .address_mode_w(AddressMode::ClampToEdge)
+                       .mipmap_mode(MipmapMode::Nearest)
+                       .anisotropy(VkBool::True)
+                       .max_anisotropy(8.0)
+                       .build(Arc::clone(&device));
+        samplers.push(temp_sampler.clone());
+        sampler = &temp_sampler;
+      }
       
       let descriptor_set;
       descriptor_set = DescriptorSetBuilder::new()
@@ -212,7 +218,7 @@ impl Model {
         }
       };
       
-      
+      let double_side = model.double_sided(i);
       
       vertex_buffers.push(v_buffer);
       vertex_count.push(vertice);
@@ -222,6 +228,7 @@ impl Model {
       
       base_colour_factors.push(math::array4_to_vec4(base_colour_factor));
       alpha_cutoffs.push((alpha_cutoff, alpha_mask));
+      double_sided.push(double_side);
     }
     
     Model {
@@ -236,6 +243,7 @@ impl Model {
       
       base_colour_factors,
       alpha_cutoffs,
+      double_sided,
     }
   }
   
@@ -307,6 +315,7 @@ pub struct ModelShader {
   index_buffer: Buffer<u32>,
   
   pipeline: Pipeline,
+  double_pipeline: Pipeline,
   
   vertex_shader: Shader,
   fragment_shader: Shader,
@@ -370,7 +379,7 @@ impl ModelShader {
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
     }
     
-    let pipeline = ModelShader::create_pipline(Arc::clone(&device), &vertex_shader, &fragment_shader, &render_pass, &descriptor_sets[0]);
+    let (pipeline, double_pipeline) = ModelShader::create_pipline(Arc::clone(&device), &vertex_shader, &fragment_shader, &render_pass, &descriptor_sets[0]);
     
     let vertex_buffer = ModelShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
@@ -390,6 +399,7 @@ impl ModelShader {
       index_buffer,
       
       pipeline,
+      double_pipeline,
       
       vertex_shader,
       fragment_shader,
@@ -453,7 +463,7 @@ impl ModelShader {
     }
   }
   
-  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet) -> Pipeline {
+  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet) -> (Pipeline, Pipeline) {
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -477,11 +487,27 @@ impl ModelShader {
                   //.enable_depth_clamp()
                   .enable_depth_write()
                   .enable_depth_test()
-                  .cull_mode_none()//back()
+                  .cull_mode_back()
                   .front_face_counter_clockwise()
                   .build(Arc::clone(&device));
     
-    pipeline
+    let double_pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader.get_shader())
+                  .fragment_shader(*fragment_shader.get_shader())
+                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .vertex_binding(vec!(ModelVertex::vertex_input_binding()))
+                  .vertex_attributes(ModelVertex::vertex_input_attributes())
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .enable_depth_write()
+                  .enable_depth_test()
+                  .cull_mode_none()
+                  .front_face_counter_clockwise()
+                  .build(Arc::clone(&device));
+    
+    (pipeline, double_pipeline)
   }
   
   pub fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
@@ -599,6 +625,7 @@ impl ModelShader {
         let base_colour_factor = self.models[i].base_colour_factors[j];
         let (cutoff, mask) = self.models[i].alpha_cutoffs[j];
         let alpha_cutoff = Vector4::new(cutoff, mask, 0.0, 0.0);
+        let double_sided = self.models[i].double_sided[j];
         
         let push_constant_data = UniformData::new()
                                  .add_vector4(camera_position)
@@ -613,11 +640,13 @@ impl ModelShader {
         
         if index_count == 0 {
           cmd = cmd.draw(Arc::clone(&device), &vertex.internal_object(0), vertex_count, 
-                                 &self.pipeline, vec!(*descriptor.set(0)));
+                                 if double_sided { &self.double_pipeline } else { &self.pipeline },
+                                 vec!(*descriptor.set(0)));
         } else {
           cmd = cmd.draw_indexed(Arc::clone(&device), &vertex.internal_object(0),
                                  &index.internal_object(0),
-                                 index_count, &self.pipeline,
+                                 index_count, 
+                                 if double_sided { &self.double_pipeline } else { &self.pipeline },
                                  vec!(*descriptor.set(0)));
         }
       }
@@ -642,6 +671,7 @@ impl ModelShader {
     }
     
     self.pipeline.destroy(Arc::clone(&device));
+    self.double_pipeline.destroy(Arc::clone(&device));
     for descriptor in &self.descriptor_sets {
       descriptor.destroy(Arc::clone(&device));
     }
