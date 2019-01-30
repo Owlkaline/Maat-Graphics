@@ -3,7 +3,7 @@ use crate::ThreadPool;
 use vk;
 use image;
 
-use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, Sample};
+use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount};
 
 use crate::vulkan::{Image, Instance, Device};
 use crate::vulkan::buffer::{Buffer};
@@ -34,7 +34,7 @@ struct LoadableObject {
 }
 
 impl LoadableObject {
-  pub fn load_object(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+  pub fn load_object(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &SampleCount, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     let mut object;
     
     match &self.object_type {
@@ -101,7 +101,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<String> {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<String> {
     let mut references = Vec::new();
     
     if self.num_recv_objects <= 0 {
@@ -441,7 +441,7 @@ impl ResourceManager {
   fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> (Image) {
     let texture_start_time = time::Instant::now();
     
-    let texture = Image::device_local(instance, device, location.to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, command_pool, &graphics_queue);
+    let texture = Image::device_local(instance, device, location.to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, command_pool, &graphics_queue);
     
     let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);

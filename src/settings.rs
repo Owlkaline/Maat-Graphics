@@ -137,7 +137,7 @@ impl Settings {
       triple_buffer: triple_buffer,
       samples: samples,
       fullscreen: is_fullscreen,
-      resolution: [resolution.x as u32, resolution.y as u32],
+      resolution: [resolution.x.max(minimum_resolution.x) as u32, resolution.y.max(minimum_resolution.y) as u32],
       _minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
       force_dpi: force_dpi,
       dpi: dpi,
@@ -210,19 +210,19 @@ impl Settings {
     println!("Forcing dpi scale of {}", dpi_value);
   }
   
-  pub fn _vsync_enabled(&self) -> bool {
+  pub fn vsync_enabled(&self) -> bool {
     self.vsync
   }
   
-  pub fn _triple_buffer_enabled(&self) -> bool {
+  pub fn triple_buffer_enabled(&self) -> bool {
     self.triple_buffer
   }
   
-  pub fn _get_msaa(&self) -> u32 {
+  pub fn get_msaa(&self) -> u32 {
     self.samples
   }
   
-  pub fn _is_fullscreen(&self) -> bool {
+  pub fn is_fullscreen(&self) -> bool {
     self.fullscreen
   }
   
@@ -250,7 +250,7 @@ impl Settings {
     self.fullscreen = enable;
   }
   
-  pub fn _get_resolution(&mut self) -> [u32; 2] {
+  pub fn get_resolution(&self) -> [u32; 2] {
     self.resolution
   }
 }

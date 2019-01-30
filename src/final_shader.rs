@@ -1,6 +1,6 @@
 use vk;
 
-use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate};
+use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
@@ -162,7 +162,7 @@ impl FinalShader {
     let pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_set.layouts_clone())
                   .descriptor_set_layout(ds.layouts_clone())
@@ -256,7 +256,7 @@ impl FinalShader {
                                .add_vector4(model)
                                .add_vector4(projection_details);
     
-    cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+    cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
     
     let index_count = 6;
     

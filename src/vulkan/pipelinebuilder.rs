@@ -6,7 +6,9 @@ use crate::vulkan::PipelineInfo;
 use crate::vulkan::RenderPass;
 use crate::vulkan::buffer::{UniformData};
 use crate::vulkan::ownage::check_errors;
-use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, Sample, VkBool, ShaderStageFlagBits};
+use crate::vulkan::vkenums::{BlendFactor, Topology, PolygonMode, CullMode, FrontFace, SampleCount, 
+                             VkBool, ShaderStage, StencilOp, CompareOp, ColourComponent, LogicOp, 
+                             BlendOp, DynamicState};
 
 use std::mem;
 use std::ptr;
@@ -28,14 +30,14 @@ pub struct PipelineBuilder {
   rasterizer_discard: u32,
   blend_constants: [f32; 4],
   primitive_restart: u32,
-  rasterization_samples: Sample,
+  rasterization_samples: SampleCount,
   sample_shader: u32,
   alpha_to_coverage: u32,
   alpha_to_one: u32,
   has_push_constant: bool,
   push_constant_size: u32,
-  push_constant_shader_stage: ShaderStageFlagBits,
-  specialisation_constants: Vec<(u32, UniformData, u32, ShaderStageFlagBits)>, //Vec<(id, data, offset, shader stage)>
+  push_constant_shader_stage: ShaderStage,
+  specialisation_constants: Vec<(u32, UniformData, u32, ShaderStage)>, //Vec<(id, data, offset, shader stage)>
   descriptor_set_layouts: Option<Vec<vk::DescriptorSetLayout>>,
   vertex_binding: Option<Vec<vk::VertexInputBindingDescription>>,
   vertex_attributes: Option<Vec<vk::VertexInputAttributeDescription>>,
@@ -58,13 +60,13 @@ impl PipelineBuilder {
       rasterizer_discard: vk::FALSE,
       blend_constants: [0.0, 0.0, 0.0, 0.0],
       primitive_restart: vk::FALSE,
-      rasterization_samples: Sample::Count1Bit,
+      rasterization_samples: SampleCount::OneBit,
       sample_shader: vk::FALSE,
       alpha_to_coverage: vk::FALSE,
       alpha_to_one: vk::FALSE,
       has_push_constant: false,
       push_constant_size: 0,
-      push_constant_shader_stage: ShaderStageFlagBits::Vertex,
+      push_constant_shader_stage: ShaderStage::Vertex,
       specialisation_constants: Vec::new(),
       descriptor_set_layouts: None,
       vertex_binding: None,
@@ -72,7 +74,7 @@ impl PipelineBuilder {
     }
   }
   
-  pub fn push_constants(mut self, shader_stage: ShaderStageFlagBits, size: u32) -> PipelineBuilder {
+  pub fn push_constants(mut self, shader_stage: ShaderStage, size: u32) -> PipelineBuilder {
     self.has_push_constant = true;
     self.push_constant_size = size;
     self.push_constant_shader_stage = shader_stage;
@@ -91,12 +93,12 @@ impl PipelineBuilder {
   }
   
   pub fn add_vertex_specialisation_constant(mut self, id: u32, data: UniformData, offset: u32) -> PipelineBuilder {
-    self.specialisation_constants.push((id, data, offset, ShaderStageFlagBits::Vertex));
+    self.specialisation_constants.push((id, data, offset, ShaderStage::Vertex));
     self
   }
   
   pub fn add_fragment_specialisation_constant(mut self, id: u32, data: UniformData, offset: u32) -> PipelineBuilder {
-    self.specialisation_constants.push((id, data, offset, ShaderStageFlagBits::Fragment));
+    self.specialisation_constants.push((id, data, offset, ShaderStage::Fragment));
     self
   }
   
@@ -255,27 +257,27 @@ impl PipelineBuilder {
   }
   
   pub fn rasterization_samples_1_bit(mut self) -> PipelineBuilder {
-    self.rasterization_samples = Sample::Count1Bit;
+    self.rasterization_samples = SampleCount::OneBit;
     self
   }
   
   pub fn rasterization_samples_2_bit(mut self) -> PipelineBuilder {
-    self.rasterization_samples = Sample::Count2Bit;
+    self.rasterization_samples = SampleCount::TwoBit;
     self
   }
   
   pub fn rasterization_samples_4_bit(mut self) -> PipelineBuilder {
-    self.rasterization_samples = Sample::Count4Bit;
+    self.rasterization_samples = SampleCount::FourBit;
     self
   }
   
   pub fn rasterization_samples_8_bit(mut self) -> PipelineBuilder {
-    self.rasterization_samples = Sample::Count8Bit;
+    self.rasterization_samples = SampleCount::EightBit;
     self
   }
   
   pub fn rasterization_samples_16_bit(mut self) -> PipelineBuilder {
-    self.rasterization_samples = Sample::Count16Bit;
+    self.rasterization_samples = SampleCount::SixteenBit;
     self
   }
   
@@ -336,7 +338,7 @@ impl PipelineBuilder {
     
     for (id, data, offset, shader_stage) in &mut self.specialisation_constants {
       match shader_stage {
-        ShaderStageFlagBits::Vertex => {
+        ShaderStage::Vertex => {
           vertex_specialisation_map_entry.push(
             vk::SpecializationMapEntry {
               constantID: *id,
@@ -349,7 +351,7 @@ impl PipelineBuilder {
             vertex_specialisation_data = vertex_specialisation_data.add_float(*float);
           }
         },
-        ShaderStageFlagBits::Fragment => {
+        ShaderStage::Fragment => {
           fragment_specialisation_map_entry.push(
             vk::SpecializationMapEntry {
               constantID: *id,
@@ -385,7 +387,7 @@ impl PipelineBuilder {
         sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        stage: vk::SHADER_STAGE_VERTEX_BIT,
+        stage: ShaderStage::Vertex.to_bits(),
         module: self.vertex_shader.unwrap(),
         pName: CString::new("main").unwrap().into_raw(),
         pSpecializationInfo: if vertex_specialisation_map_entry.len() == 0 { ptr::null() } else { &vertex_specialisation_constants },
@@ -397,7 +399,7 @@ impl PipelineBuilder {
         sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         pNext: ptr::null(),
         flags: 0,
-        stage: vk::SHADER_STAGE_FRAGMENT_BIT,
+        stage: ShaderStage::Fragment.to_bits(),
         module: self.fragment_shader.unwrap(),
         pName: CString::new("main").unwrap().into_raw(),
         pSpecializationInfo: if fragment_specialisation_map_entry.len() == 0 { ptr::null() } else { &fragment_specialisation_constants },
@@ -493,10 +495,10 @@ impl PipelineBuilder {
     
     let front_stencil_op_state = {
       vk::StencilOpState {
-        failOp: vk::STENCIL_OP_KEEP,
-        passOp: vk::STENCIL_OP_KEEP,
-        depthFailOp: vk::STENCIL_OP_KEEP,
-        compareOp: vk::COMPARE_OP_NEVER,
+        failOp: StencilOp::Keep.to_bits(),
+        passOp: StencilOp::Keep.to_bits(),
+        depthFailOp: StencilOp::Keep.to_bits(),
+        compareOp: CompareOp::Never.to_bits(),
         compareMask: 0,
         writeMask: 0,
         reference: 0,
@@ -505,10 +507,10 @@ impl PipelineBuilder {
     
     let back_stencil_op_state = {
       vk::StencilOpState {
-        failOp: vk::STENCIL_OP_KEEP,
-        passOp: vk::STENCIL_OP_KEEP,
-        depthFailOp: vk::STENCIL_OP_KEEP,
-        compareOp: vk::COMPARE_OP_NEVER,
+        failOp: StencilOp::Keep.to_bits(),
+        passOp: StencilOp::Keep.to_bits(),
+        depthFailOp: StencilOp::Keep.to_bits(),
+        compareOp: CompareOp::Never.to_bits(),
         compareMask: 0,
         writeMask: 0,
         reference: 0,
@@ -522,7 +524,7 @@ impl PipelineBuilder {
         flags: 0,
         depthTestEnable: self.depth_test,
         depthWriteEnable: self.depth_write,
-        depthCompareOp: vk::COMPARE_OP_LESS,
+        depthCompareOp: CompareOp::Less.to_bits(),
         depthBoundsTestEnable: vk::FALSE,
         stencilTestEnable: vk::FALSE,
         front: front_stencil_op_state,
@@ -537,11 +539,11 @@ impl PipelineBuilder {
         blendEnable: VkBool::True.to_bits(),
         srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
         dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
-        colorBlendOp: vk::BLEND_OP_ADD,
+        colorBlendOp: BlendOp::Add.to_bits(),
         srcAlphaBlendFactor: BlendFactor::One.to_bits(),
         dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
-        alphaBlendOp: vk::BLEND_OP_ADD,
-        colorWriteMask: vk::COLOR_COMPONENT_R_BIT | vk::COLOR_COMPONENT_G_BIT | vk::COLOR_COMPONENT_B_BIT | vk::COLOR_COMPONENT_A_BIT,
+        alphaBlendOp: BlendOp::Add.to_bits(),
+        colorWriteMask: ColourComponent::R.to_bits() | ColourComponent::G.to_bits() | ColourComponent::B.to_bits() | ColourComponent::A.to_bits(),
       }
     };
     
@@ -551,7 +553,7 @@ impl PipelineBuilder {
         pNext: ptr::null(),
         flags: 0,
         logicOpEnable: vk::FALSE,
-        logicOp: vk::LOGIC_OP_COPY,
+        logicOp: LogicOp::Copy.to_bits(),
         attachmentCount: 1,
         pAttachments: &pipeline_color_blend_attachments,
         blendConstants: self.blend_constants,
@@ -559,9 +561,9 @@ impl PipelineBuilder {
     };
     
     let mut dynamic_states = Vec::with_capacity(3);
-    dynamic_states.push(vk::DYNAMIC_STATE_VIEWPORT);
-    dynamic_states.push(vk::DYNAMIC_STATE_SCISSOR);
-    dynamic_states.push(vk::DYNAMIC_STATE_LINE_WIDTH);
+    dynamic_states.push(DynamicState::Viewport.to_bits());
+    dynamic_states.push(DynamicState::Scissor.to_bits());
+    dynamic_states.push(DynamicState::LineWidth.to_bits());
     
     let dynamic_state_create_info = {
       vk::PipelineDynamicStateCreateInfo {

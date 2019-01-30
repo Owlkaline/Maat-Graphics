@@ -4,6 +4,9 @@ use crate::vulkan::ownage::check_errors;
 use crate::vulkan::Instance;
 use crate::vulkan::Device;
 
+use crate::vulkan::vkenums::{PresentMode, CompositeAlpha, ComponentSwizzle, ImageAspect, 
+                             ImageViewType, SharingMode};
+
 use std::ptr;
 use std::mem;
 use std::sync::Arc; 
@@ -16,9 +19,9 @@ pub struct Swapchain {
 }
 
 impl Swapchain {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) -> Swapchain {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool) -> Swapchain {
     
-    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, None);
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, None, vsync, triple_buffer);
     let images = Swapchain::get_swapchain_images(Arc::clone(&device), &swapchain);
     let image_views = Swapchain::create_image_views(Arc::clone(&device), &images, &format);
     
@@ -30,9 +33,9 @@ impl Swapchain {
     }
   }
   
-  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32) {
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool) {
     let old_swapchain = self.swapchain;
-    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, Some(old_swapchain));
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, Some(old_swapchain), vsync, triple_buffer);
     
     self.destroy(Arc::clone(&device));
     
@@ -79,14 +82,14 @@ impl Swapchain {
     let mut image_views = Vec::with_capacity(images.len());
     for image in images.iter() {
       let component = vk::ComponentMapping {
-        r: vk::COMPONENT_SWIZZLE_IDENTITY,
-        g: vk::COMPONENT_SWIZZLE_IDENTITY,
-        b: vk::COMPONENT_SWIZZLE_IDENTITY,
-        a: vk::COMPONENT_SWIZZLE_IDENTITY,
+        r: ComponentSwizzle::Identity.to_bits(),
+        g: ComponentSwizzle::Identity.to_bits(),
+        b: ComponentSwizzle::Identity.to_bits(),
+        a: ComponentSwizzle::Identity.to_bits(),
       };
       
       let subresource = vk::ImageSubresourceRange {
-        aspectMask: vk::IMAGE_ASPECT_COLOR_BIT,
+        aspectMask: ImageAspect::Colour.to_bits(),
         baseMipLevel: 0,
         levelCount: 1,
         baseArrayLayer: 0,
@@ -98,7 +101,7 @@ impl Swapchain {
         pNext: ptr::null(),
         flags: 0,
         image: *image,
-        viewType: vk::IMAGE_VIEW_TYPE_2D,
+        viewType: ImageViewType::Type2D.to_bits(),
         format: *format,
         components: component,
         subresourceRange: subresource,
@@ -132,7 +135,7 @@ impl Swapchain {
     images
   }
   
-  fn create_swapchain(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>) -> (vk::SwapchainKHR, vk::Format) {
+  fn create_swapchain(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>, vsync: bool, triple_buffer: bool) -> (vk::SwapchainKHR, vk::Format) {
     let vk = device.pointers();
     let phys_device = device.physical_device();
     let device = device.internal_object();
@@ -165,30 +168,37 @@ impl Swapchain {
       (final_format.format, final_format.colorSpace)
     };
     
-    let present_mode = {
-      if present_modes.contains(&vk::PRESENT_MODE_MAILBOX_KHR) {
+    let present_mode: u32 = {
+      let mut present_type = PresentMode::Immediate.to_bits();
+      if triple_buffer && present_modes.contains(&PresentMode::Mailbox.to_bits()) {
         println!("Using Mailbox present mode (triple buffering)");
-        vk::PRESENT_MODE_MAILBOX_KHR
-      } else if present_modes.contains(&vk::PRESENT_MODE_FIFO_KHR) {
+        present_type = PresentMode::Mailbox.to_bits();
+      } else if vsync && present_modes.contains(&PresentMode::Fifo.to_bits()) {
         println!("Using Fifo present mode (vsync)");
-        vk::PRESENT_MODE_FIFO_KHR
-      } else if present_modes.contains(&vk::PRESENT_MODE_IMMEDIATE_KHR) {
+        present_type = PresentMode::Fifo.to_bits();
+      } else if present_modes.contains(&PresentMode::Immediate.to_bits()) {
         println!("Using immediate present mode");
-        vk::PRESENT_MODE_IMMEDIATE_KHR
       } else {
+        if present_modes.contains(&PresentMode::Mailbox.to_bits()) {
+          present_type = PresentMode::Mailbox.to_bits();
+        } else if present_modes.contains(&PresentMode::Fifo.to_bits()) {
+          present_type = PresentMode::Fifo.to_bits();
+        }
         panic!("No present mode found!");
       }
+      
+      present_type
     };
     
     let alpha;
     if supported_composite_alpha % 2 != 0 {
-      alpha = vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+      alpha = CompositeAlpha::Opaque.to_bits()
     } else if supported_composite_alpha == 6 || supported_composite_alpha == 2 || supported_composite_alpha == 10 {
-      alpha = vk::COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+      alpha = CompositeAlpha::PreMultiplied.to_bits()
     } else if supported_composite_alpha == 4 || supported_composite_alpha == 12 {
-      alpha = vk::COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+      alpha = CompositeAlpha::PostMultiplied.to_bits()
     } else {
-      alpha = vk::COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+      alpha = CompositeAlpha::Inherit.to_bits()
     }
     
     let image_sharing_mode;
@@ -197,12 +207,12 @@ impl Swapchain {
     
     if graphics_family != present_family {
       println!("Concurrent sharing enabled");
-      image_sharing_mode = vk::SHARING_MODE_CONCURRENT;
+      image_sharing_mode = SharingMode::Concurrent.to_bits();
       queue_family_index_count = 2;
       queue_family_indices = vec!(graphics_family, present_family);
     } else {
       println!("Exclusive sharing enabled");
-      image_sharing_mode = vk::SHARING_MODE_EXCLUSIVE;
+      image_sharing_mode = SharingMode::Exclusive.to_bits();
       queue_family_index_count = 0;
     }
     

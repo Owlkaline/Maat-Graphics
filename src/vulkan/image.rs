@@ -3,7 +3,9 @@ use vk;
 use crate::vulkan::{Instance, Device};
 use crate::vulkan::buffer::{Buffer, BufferUsage, CommandBuffer};
 use crate::vulkan::pool::{CommandPool};
-use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageLayout, ImageTiling, ImageAspect, Sample, ImageUsage, SharingMode, PipelineStage, AccessFlagBits};
+use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageLayout, ImageTiling, ImageAspect, SampleCount, 
+                             ImageUsage, SharingMode, PipelineStage, Access, MemoryProperty, ComponentSwizzle, 
+                             CommandBufferLevel};
 use crate::vulkan::check_errors;
 
 use image;
@@ -21,7 +23,7 @@ pub struct ImageAttachment {
 }
 
 impl ImageAttachment {
-  pub fn create_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
+  pub fn create_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &SampleCount, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
     
     let mut image: vk::Image = unsafe { mem::uninitialized() };
     let mut memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
@@ -68,7 +70,7 @@ impl ImageAttachment {
       }
       
       let mut index: i32 = -1;
-      let properties = vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+      let properties = MemoryProperty::DeviceLocal.to_bits();
       for i in 0..memory_properties.memoryTypeCount as usize {
         if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties {
           index = i as i32;
@@ -97,14 +99,14 @@ impl ImageAttachment {
     }
     
     let component = vk::ComponentMapping {
-      r: vk::COMPONENT_SWIZZLE_IDENTITY,
-      g: vk::COMPONENT_SWIZZLE_IDENTITY,
-      b: vk::COMPONENT_SWIZZLE_IDENTITY,
-      a: vk::COMPONENT_SWIZZLE_IDENTITY,
+      r: ComponentSwizzle::Identity.to_bits(),
+      g: ComponentSwizzle::Identity.to_bits(),
+      b: ComponentSwizzle::Identity.to_bits(),
+      a: ComponentSwizzle::Identity.to_bits(),
     };
     
     let subresource = vk::ImageSubresourceRange {
-      aspectMask: vk::IMAGE_ASPECT_COLOR_BIT,
+      aspectMask: ImageAspect::Colour.to_bits(),
       baseMipLevel: 0,
       levelCount: 1,
       baseArrayLayer: 0,
@@ -134,7 +136,7 @@ impl ImageAttachment {
     }
   }
   
-  pub fn create_depth_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
+  pub fn create_depth_image_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &SampleCount, initial_layout: ImageLayout, tiling: &ImageTiling, image_view_type: &ImageViewType) -> ImageAttachment {
     
     let mut image: vk::Image = unsafe { mem::uninitialized() };
     let mut memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
@@ -210,14 +212,14 @@ impl ImageAttachment {
     }
     
     let component = vk::ComponentMapping {
-      r: vk::COMPONENT_SWIZZLE_IDENTITY,
-      g: vk::COMPONENT_SWIZZLE_IDENTITY,
-      b: vk::COMPONENT_SWIZZLE_IDENTITY,
-      a: vk::COMPONENT_SWIZZLE_IDENTITY,
+      r: ComponentSwizzle::Identity.to_bits(),
+      g: ComponentSwizzle::Identity.to_bits(),
+      b: ComponentSwizzle::Identity.to_bits(),
+      a: ComponentSwizzle::Identity.to_bits(),
     };
     
     let subresource = vk::ImageSubresourceRange {
-      aspectMask: vk::IMAGE_ASPECT_DEPTH_BIT,
+      aspectMask: ImageAspect::Depth.to_bits(),
       baseMipLevel: 0,
       levelCount: 1,
       baseArrayLayer: 0,
@@ -317,12 +319,12 @@ impl Image {
     }
   }
   */
-  pub fn device_local(instance: Arc<Instance>, device: Arc<Device>, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: Sample, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+  pub fn device_local(instance: Arc<Instance>, device: Arc<Device>, location: String, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let image = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba(); 
     Image::device_local_with_image_data(instance, device, &image, &image_type, &image_view_type, format, &samples, &tiling, command_pool, graphics_queue)
   }
   
-  pub fn device_local_with_image_data(instance: Arc<Instance>, device: Arc<Device>, image: &image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+  pub fn device_local_with_image_data(instance: Arc<Instance>, device: Arc<Device>, image: &image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &SampleCount, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let (width, height) = image.dimensions();
     let image_data = image.clone().into_raw().clone();
     
@@ -362,7 +364,7 @@ impl Image {
     }
   }
   
-pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &Sample, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
+pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &SampleCount, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Image {
     let width = 2;
     let height = 2;
     let image_data = vec!(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -418,7 +420,7 @@ pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, im
   
   fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
     let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
-    command_buffer.begin_command_buffer(Arc::clone(&device), vk::COMMAND_BUFFER_LEVEL_PRIMARY);
+    command_buffer.begin_command_buffer(Arc::clone(&device), CommandBufferLevel::Primary.to_bits());
     command_buffer
   }
   
@@ -461,17 +463,17 @@ pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, im
     
     let src_stage: PipelineStage;
     let dst_stage: PipelineStage;
-    let mut src_access: Option<AccessFlagBits> = None;
-    let dst_access: AccessFlagBits;
+    let mut src_access: Option<Access> = None;
+    let dst_access: Access;
     
     if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::TransferDstOptimal {
-      dst_access = AccessFlagBits::TransferWrite;
+      dst_access = Access::TransferWrite;
       
       src_stage = PipelineStage::TopOfPipe;
       dst_stage = PipelineStage::Transfer;
     } else if old_layout == ImageLayout::TransferDstOptimal && new_layout == ImageLayout::ShaderReadOnlyOptimal {
-      src_access = Some(AccessFlagBits::TransferWrite);
-      dst_access = AccessFlagBits::ShaderRead;
+      src_access = Some(Access::TransferWrite);
+      dst_access = Access::ShaderRead;
       
       src_stage = PipelineStage::Transfer;
       dst_stage = PipelineStage::FragmentShader;
@@ -497,7 +499,7 @@ pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, im
     Image::end_single_time_command(Arc::clone(&device), command_buffer, command_pool, graphics_queue);
   }
   
-  fn create_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &Sample, initial_layout: ImageLayout, tiling: &ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
+  fn create_image(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, usage: ImageUsage, format: &vk::Format, image_extent: &vk::Extent3D, samples: &SampleCount, initial_layout: ImageLayout, tiling: &ImageTiling, image: &mut vk::Image, image_memory: &mut vk::DeviceMemory) {
     
     let vk = device.pointers();
     let vk_instance = instance.pointers();
@@ -540,7 +542,7 @@ pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, im
       }
       
       let mut index: i32 = -1;
-      let properties = vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+      let properties = MemoryProperty::DeviceLocal.to_bits();
       for i in 0..memory_properties.memoryTypeCount as usize {
         if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties {
           index = i as i32;
@@ -576,14 +578,14 @@ pub fn device_local_dummy_image(instance: Arc<Instance>, device: Arc<Device>, im
     let mut image_view: vk::ImageView = unsafe { mem::uninitialized() };
     
     let component = vk::ComponentMapping {
-      r: vk::COMPONENT_SWIZZLE_IDENTITY,
-      g: vk::COMPONENT_SWIZZLE_IDENTITY,
-      b: vk::COMPONENT_SWIZZLE_IDENTITY,
-      a: vk::COMPONENT_SWIZZLE_IDENTITY,
+      r: ComponentSwizzle::Identity.to_bits(),
+      g: ComponentSwizzle::Identity.to_bits(),
+      b: ComponentSwizzle::Identity.to_bits(),
+      a: ComponentSwizzle::Identity.to_bits(),
     };
     
     let subresource = vk::ImageSubresourceRange {
-      aspectMask: vk::IMAGE_ASPECT_COLOR_BIT,
+      aspectMask: ImageAspect::Colour.to_bits(),
       baseMipLevel: 0,
       levelCount: 1,
       baseArrayLayer: 0,

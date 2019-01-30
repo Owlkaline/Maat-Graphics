@@ -686,15 +686,11 @@ impl CoreRender for VkMaat {
         self.recreate_swapchain = true;
         return;
       },
-      Err(err) => panic!("{:?}", err)
+      Err(err) => println!("{:?}", err);//panic!("{:?}", err)
     };
     
     let command_buffer;
-   // if self.window.gpu_is_amd() {
-      command_buffer = self.draw_without_secondary_buffers(draw_calls, image_num);
-   // } else {
-     // command_buffer = self.draw_with_secondary_buffers(draw_calls, image_num);
-   // }
+    command_buffer = self.draw_without_secondary_buffers(draw_calls, image_num);
     
     let future = self.previous_frame_end.take().unwrap().join(acquire_future)
                      .then_execute(self.window.get_queue(), command_buffer).expect("future")

@@ -1,5 +1,7 @@
 use vk;
 
+use crate::vulkan::vkenums::{SampleCount, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, PipelineBindPoint, PipelineStage, Access, Dependency};
+
 use crate::vulkan::Device;
 
 use std::mem;
@@ -28,13 +30,13 @@ impl RenderPass {
       vk::AttachmentDescription {
         flags: 0,
         format: *format,
-        samples: vk::SAMPLE_COUNT_1_BIT,
-        loadOp: vk::ATTACHMENT_LOAD_OP_CLEAR,
-        storeOp: vk::ATTACHMENT_STORE_OP_STORE,
-        stencilLoadOp: vk::ATTACHMENT_LOAD_OP_DONT_CARE,
-        stencilStoreOp: vk::ATTACHMENT_STORE_OP_DONT_CARE,
-        initialLayout: vk::IMAGE_LAYOUT_UNDEFINED,
-        finalLayout: vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        samples: SampleCount::OneBit.to_bits(),
+        loadOp: AttachmentLoadOp::Clear.to_bits(),
+        storeOp: AttachmentStoreOp::Store.to_bits(),
+        stencilLoadOp: AttachmentLoadOp::DontCare.to_bits(),
+        stencilStoreOp: AttachmentLoadOp::DontCare.to_bits(),
+        initialLayout: ImageLayout::Undefined.to_bits(),
+        finalLayout: ImageLayout::PresentSrcKHR.to_bits(),
       }
     );
     
@@ -45,7 +47,7 @@ impl RenderPass {
     colour_attachments.push(
       vk::AttachmentReference {
         attachment: 0,
-        layout: vk::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        layout: ImageLayout::ColourAttachmentOptimal.to_bits(),
       }
     );
     
@@ -53,7 +55,7 @@ impl RenderPass {
     subpass_description.push(
       vk::SubpassDescription {
         flags: 0,
-        pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineBindPoint: PipelineBindPoint::Graphics.to_bits(),
         inputAttachmentCount: 0,//input_attachments.len() as u32,
         pInputAttachments: ptr::null(),//input_attachments,
         colorAttachmentCount: colour_attachments.len() as u32,
@@ -70,21 +72,21 @@ impl RenderPass {
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: vk::SUBPASS_EXTERNAL,
       dstSubpass: 0,
-      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      dstStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
+      dstStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
       srcAccessMask: 0,
-      dstAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
+      dstAccessMask: Access::ColourAttachmentRead.to_bits() | Access::ColourAttachmentWrite.to_bits(),
+      dependencyFlags: Dependency::ByRegion.to_bits(),
     });
     
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: 0,
       dstSubpass: vk::SUBPASS_EXTERNAL,
-      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      dstStageMask: vk::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      srcAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      dstAccessMask: 0,//vk::ACCESS_MEMORY_READ_BIT,
-      dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
+      srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
+      dstStageMask: PipelineStage::BottomOfPipe.to_bits(),
+      srcAccessMask: Access::ColourAttachmentRead.to_bits() | Access::ColourAttachmentWrite.to_bits(),
+      dstAccessMask: 0,
+      dependencyFlags: Dependency::ByRegion.to_bits(),
     });
     
     let render_pass_create_info = vk::RenderPassCreateInfo {

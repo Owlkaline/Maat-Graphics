@@ -1,6 +1,7 @@
 use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
-use crate::vulkan::vkenums::{Sample, AttachmentLoadOp, AttachmentStoreOp, ImageLayout};
+use crate::vulkan::vkenums::{SampleCount, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, PipelineStage, 
+                             Access, Dependency};
 
 use std::mem;
 use std::ptr;
@@ -8,7 +9,7 @@ use std::sync::Arc;
 
 pub struct AttachmentInfo {
   format: vk::Format,
-  samples: Sample,
+  samples: SampleCount,
   load: AttachmentLoadOp,
   store: AttachmentStoreOp,
   stencil_load: AttachmentLoadOp,
@@ -38,7 +39,7 @@ impl AttachmentInfo {
   pub fn new() -> AttachmentInfo {
     AttachmentInfo {
       format: 0,
-      samples: Sample::Count1Bit,
+      samples: SampleCount::OneBit,
       load: AttachmentLoadOp::Clear,
       store: AttachmentStoreOp::Store,
       stencil_load: AttachmentLoadOp::DontCare,
@@ -56,15 +57,15 @@ impl AttachmentInfo {
   
   pub fn multisample(mut self, sample: usize) -> AttachmentInfo {
     if sample >= 16 {
-      self.samples = Sample::Count16Bit;
+      self.samples = SampleCount::SixteenBit;
     } else if sample >= 8 {
-      self.samples = Sample::Count8Bit;
+      self.samples = SampleCount::EightBit;
     } else if sample >= 4 {
-      self.samples = Sample::Count4Bit;
+      self.samples = SampleCount::FourBit;
     } else if sample >= 2 {
-      self.samples = Sample::Count2Bit;
+      self.samples = SampleCount::TwoBit;
     } else {
-      self.samples = Sample::Count1Bit;
+      self.samples = SampleCount::OneBit;
     }
     self
   }
@@ -311,11 +312,11 @@ impl RenderPassBuilder {
     subpass_dependency.push(vk::SubpassDependency {
       srcSubpass: vk::SUBPASS_EXTERNAL,
       dstSubpass: 0,
-      srcStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      dstStageMask: vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
+      dstStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
       srcAccessMask: 0,
-      dstAccessMask: vk::ACCESS_COLOR_ATTACHMENT_READ_BIT | vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      dependencyFlags: vk::DEPENDENCY_BY_REGION_BIT,
+      dstAccessMask: Access::ColourAttachmentRead.to_bits() | Access::ColourAttachmentWrite.to_bits(),
+      dependencyFlags: Dependency::ByRegion.to_bits(),
     });
     
     let render_pass_create_info = vk::RenderPassCreateInfo {

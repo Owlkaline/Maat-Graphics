@@ -30,12 +30,12 @@ pub enum ImageLayout {
   PresentSrcKHR,
 }
 
-pub enum Sample {
-  Count1Bit,
-  Count2Bit,
-  Count4Bit,
-  Count8Bit,
-  Count16Bit,
+pub enum SampleCount {
+  OneBit,
+  TwoBit,
+  FourBit,
+  EightBit,
+  SixteenBit,
 }
 
 pub enum FrontFace {
@@ -147,7 +147,7 @@ pub enum ImageViewType {
   TypeCubeArray,
 }
 
-pub enum ShaderStageFlagBits {
+pub enum ShaderStage {
   Vertex,
   TessellationControl,
   Geometry,
@@ -171,7 +171,7 @@ pub enum DescriptorType {
   InputAttachment,
 }
 
-pub enum AccessFlagBits {
+pub enum Access {
   IndirectCommandRead,
   IndexRead,
   VertexAttributeRead,
@@ -237,6 +237,132 @@ pub enum BlendFactor {
 pub enum VertexInputRate {
   Vertex,
   Instance,
+}
+
+pub enum PresentMode {
+  Mailbox,
+  Fifo,
+  Immediate,
+}
+
+pub enum CompositeAlpha {
+  Opaque,
+  PreMultiplied,
+  PostMultiplied,
+  Inherit,
+}
+
+pub enum ComponentSwizzle {
+  Identity,
+  Zero,
+  One,
+  R,
+  G,
+  B,
+  A,
+}
+
+pub enum PhysicalDeviceType {
+  Other,
+  IntegratedGpu,
+  DiscreteGpu,
+  VirtualGpu,
+  Cpu,
+}
+
+pub enum PipelineBindPoint {
+  Graphics,
+  Compute,
+}
+
+pub enum Dependency {
+  ByRegion,
+}
+
+pub enum CommandBufferLevel {
+  Primary,
+  Secondary,
+}
+
+pub enum SubpassContents {
+  Inline,
+  SecondaryCommandBuffers,
+}
+
+pub enum IndexType {
+  Uint16,
+  Uint32,
+}
+
+pub enum CommandBufferUsage {
+  OneTimeSubmit,
+  RenderPassContinue,
+  SimultaneousUse,
+}
+
+pub enum StencilOp {
+  Keep,
+  Zero,
+  Replace,
+  IncrementAndClamp,
+  DecrementAndClamp,
+  Invert,
+  IncrementAndWrap,
+  DecrementAndWrap,
+}
+
+pub enum ColourComponent {
+  R,
+  G,
+  B,
+  A,
+}
+
+pub enum LogicOp {
+  Clear,
+  And,
+  AndReverse,
+  Copy,
+  AndInverted,
+  NoOp,
+  Xor,
+  Or,
+  Nor,
+  Equivalent,
+  Invert,
+  OrReverse,
+  CopyInverted,
+  OrInverted,
+  Nand,
+  Set,
+}
+
+pub enum BlendOp {
+  Add,
+  Subtract,
+  ReverseSubtract,
+  Min,
+  Max
+}
+
+pub enum DynamicState {
+  Viewport,
+  Scissor,
+  LineWidth,
+  DepthBias,
+  BlendConstants,
+  DepthBounds,
+  StencilCompareMask,
+  StencilWriteMask,
+  StencilReference,
+}
+
+pub enum MemoryProperty {
+  DeviceLocal,
+  HostVisible,
+  HostCoherent,
+  HostCached,
+  LazilyAllocated,
 }
 
 impl VkBool {
@@ -383,22 +509,22 @@ impl ImageLayout {
   }
 }
 
-impl Sample {
+impl SampleCount {
   pub fn to_bits(&self) -> vk::SampleCountFlagBits {
     match self {
-      Sample::Count1Bit => {
+      SampleCount::OneBit => {
         vk::SAMPLE_COUNT_1_BIT
       },
-      Sample::Count2Bit => {
+      SampleCount::TwoBit => {
         vk::SAMPLE_COUNT_2_BIT
       },
-      Sample::Count4Bit => {
+      SampleCount::FourBit => {
         vk::SAMPLE_COUNT_4_BIT
       },
-      Sample::Count8Bit => {
+      SampleCount::EightBit => {
         vk::SAMPLE_COUNT_8_BIT
       },
-      Sample::Count16Bit => {
+      SampleCount::SixteenBit => {
         vk::SAMPLE_COUNT_16_BIT
       }
     }
@@ -802,28 +928,28 @@ impl ImageViewType {
   }
 }
 
-impl ShaderStageFlagBits {
+impl ShaderStage {
   pub fn to_bits(&self) -> vk::ShaderStageFlagBits {
     match self {
-      ShaderStageFlagBits::Vertex => {
+      ShaderStage::Vertex => {
         vk::SHADER_STAGE_VERTEX_BIT
       },
-      ShaderStageFlagBits::TessellationControl => {
+      ShaderStage::TessellationControl => {
         vk::SHADER_STAGE_TESSELLATION_CONTROL_BIT
       },
-      ShaderStageFlagBits::Geometry => {
+      ShaderStage::Geometry => {
         vk::SHADER_STAGE_GEOMETRY_BIT
       },
-      ShaderStageFlagBits::Fragment => {
+      ShaderStage::Fragment => {
         vk::SHADER_STAGE_FRAGMENT_BIT
       },
-      ShaderStageFlagBits::Compute => {
+      ShaderStage::Compute => {
         vk::SHADER_STAGE_COMPUTE_BIT
       },
-      ShaderStageFlagBits::AllGraphics => {
+      ShaderStage::AllGraphics => {
         vk::SHADER_STAGE_ALL_GRAPHICS
       },
-      ShaderStageFlagBits::All => {
+      ShaderStage::All => {
         vk::SHADER_STAGE_ALL
       },
     }
@@ -870,58 +996,58 @@ impl DescriptorType {
   }
 }
 
-impl AccessFlagBits {
+impl Access {
   pub fn to_bits(&self) -> vk::AccessFlagBits {
     match self {
-      AccessFlagBits::IndirectCommandRead => {
+      Access::IndirectCommandRead => {
         vk::ACCESS_INDIRECT_COMMAND_READ_BIT
       },
-      AccessFlagBits::IndexRead => {
+      Access::IndexRead => {
         vk::ACCESS_INDEX_READ_BIT
       },
-      AccessFlagBits::VertexAttributeRead => {
+      Access::VertexAttributeRead => {
         vk::ACCESS_VERTEX_ATTRIBUTE_READ_BIT
       },
-      AccessFlagBits::UniformRead => {
+      Access::UniformRead => {
         vk::ACCESS_UNIFORM_READ_BIT
       },
-      AccessFlagBits::InputAttachmentRead => {
+      Access::InputAttachmentRead => {
         vk::ACCESS_INPUT_ATTACHMENT_READ_BIT
       },
-      AccessFlagBits::ShaderRead => {
+      Access::ShaderRead => {
         vk::ACCESS_SHADER_READ_BIT
       },
-      AccessFlagBits::ShaderWrite => {
+      Access::ShaderWrite => {
         vk::ACCESS_SHADER_WRITE_BIT
       },
-      AccessFlagBits::ColourAttachmentRead => {
+      Access::ColourAttachmentRead => {
         vk::ACCESS_COLOR_ATTACHMENT_READ_BIT
       },
-      AccessFlagBits::ColourAttachmentWrite => {
+      Access::ColourAttachmentWrite => {
         vk::ACCESS_COLOR_ATTACHMENT_WRITE_BIT
       },
-      AccessFlagBits::DepthStencilAttachmentRead => {
+      Access::DepthStencilAttachmentRead => {
         vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
       },
-      AccessFlagBits::DepthStencilAttachmentWrite => {
+      Access::DepthStencilAttachmentWrite => {
         vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
       },
-      AccessFlagBits::TransferRead => {
+      Access::TransferRead => {
         vk::ACCESS_TRANSFER_READ_BIT
       },
-      AccessFlagBits::TransferWrite => {
+      Access::TransferWrite => {
         vk::ACCESS_TRANSFER_WRITE_BIT
       },
-      AccessFlagBits::HostRead => {
+      Access::HostRead => {
         vk::ACCESS_HOST_READ_BIT
       },
-      AccessFlagBits::HostWrite => {
+      Access::HostWrite => {
         vk::ACCESS_HOST_WRITE_BIT
       },
-      AccessFlagBits::MemoryRead => {
+      Access::MemoryRead => {
         vk::ACCESS_MEMORY_READ_BIT
       },
-      AccessFlagBits::MemoryWrite => {
+      Access::MemoryWrite => {
         vk::ACCESS_MEMORY_WRITE_BIT
       },
     }
@@ -1063,4 +1189,352 @@ impl VertexInputRate {
     }
   }
 }
+
+impl PresentMode {
+  pub fn to_bits(&self) -> vk::PresentModeKHR {
+    match self {
+      PresentMode::Mailbox => {
+        vk::PRESENT_MODE_MAILBOX_KHR
+      },
+      PresentMode::Fifo => {
+        vk::PRESENT_MODE_FIFO_KHR
+      },
+      PresentMode::Immediate => {
+        vk::PRESENT_MODE_IMMEDIATE_KHR
+      },
+    }
+  }
+}
+
+impl CompositeAlpha {
+  pub fn to_bits(&self) -> vk::CompositeAlphaFlagBitsKHR {
+    match self {
+      CompositeAlpha::Opaque => {
+        vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+      },
+      CompositeAlpha::PreMultiplied => {
+        vk::COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
+      },
+      CompositeAlpha::PostMultiplied => {
+        vk::COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
+      },
+      CompositeAlpha::Inherit => {
+        vk::COMPOSITE_ALPHA_INHERIT_BIT_KHR
+      },
+    }
+  }
+}
+
+impl ComponentSwizzle {
+  pub fn to_bits(&self) -> vk::ComponentSwizzle {
+    match self {
+      ComponentSwizzle::Identity => {
+        vk::COMPONENT_SWIZZLE_IDENTITY
+      },
+      ComponentSwizzle::Zero => {
+        vk::COMPONENT_SWIZZLE_ZERO
+      },
+      ComponentSwizzle::One => {
+        vk::COMPONENT_SWIZZLE_ONE
+      },
+      ComponentSwizzle::R => {
+        vk::COMPONENT_SWIZZLE_R
+      },
+      ComponentSwizzle::G => {
+        vk::COMPONENT_SWIZZLE_G
+      },
+      ComponentSwizzle::B => {
+        vk::COMPONENT_SWIZZLE_B
+      },
+      ComponentSwizzle::A => {
+        vk::COMPONENT_SWIZZLE_A
+      },
+    }
+  }
+}
+
+impl PhysicalDeviceType {
+  pub fn to_bits(&self) -> vk::PhysicalDeviceType {
+    match self {
+      PhysicalDeviceType::Other => {
+        vk::PHYSICAL_DEVICE_TYPE_OTHER
+      },
+      PhysicalDeviceType::IntegratedGpu => {
+        vk::PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
+      },
+      PhysicalDeviceType::DiscreteGpu => {
+        vk::PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+      },
+      PhysicalDeviceType::VirtualGpu => {
+        vk::PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU
+      },
+      PhysicalDeviceType::Cpu => {
+        vk::PHYSICAL_DEVICE_TYPE_CPU
+      },
+    }
+  }
+}
+
+impl PipelineBindPoint {
+  pub fn to_bits(&self) -> vk::PipelineBindPoint {
+    match self {
+      PipelineBindPoint::Graphics => {
+        vk::PIPELINE_BIND_POINT_GRAPHICS
+      },
+      PipelineBindPoint::Compute => {
+        vk::PIPELINE_BIND_POINT_COMPUTE
+      },
+    }
+  }
+}
+
+impl Dependency {
+  pub fn to_bits(&self) -> vk::DependencyFlagBits {
+    match self {
+      Dependency::ByRegion => {
+        vk::DEPENDENCY_BY_REGION_BIT
+      },
+    }
+  }
+}
+
+impl CommandBufferLevel {
+  pub fn to_bits(&self) -> vk::CommandBufferLevel {
+    match self {
+      CommandBufferLevel::Primary => {
+        vk::COMMAND_BUFFER_LEVEL_PRIMARY
+      },
+      CommandBufferLevel::Secondary => {
+        vk::COMMAND_BUFFER_LEVEL_SECONDARY
+      },
+    }
+  }
+}
+
+impl SubpassContents {
+  pub fn to_bits(&self) -> vk::SubpassContents {
+    match self {
+      SubpassContents::Inline => {
+        vk::SUBPASS_CONTENTS_INLINE
+      },
+      SubpassContents::SecondaryCommandBuffers => {
+        vk::SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
+      },
+    }
+  }
+}
+
+impl IndexType {
+  pub fn to_bits(&self) -> vk::IndexType {
+    match self {
+      IndexType::Uint16 => {
+        vk::INDEX_TYPE_UINT16
+      },
+      IndexType::Uint32 => {
+        vk::INDEX_TYPE_UINT32
+      },
+    }
+  }
+}
+
+impl CommandBufferUsage {
+  pub fn to_bits(&self) -> vk::CommandBufferUsageFlagBits {
+    match self {
+      CommandBufferUsage::OneTimeSubmit => {
+        vk::COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+      },
+      CommandBufferUsage::RenderPassContinue => {
+        vk::COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT
+      },
+      CommandBufferUsage::SimultaneousUse => {
+        vk::COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+      },
+    }
+  }
+}
+
+impl StencilOp {
+  pub fn to_bits(&self) -> vk::StencilOp {
+    match self {
+      StencilOp::Keep => {
+        vk::STENCIL_OP_KEEP
+      },
+      StencilOp::Zero => {
+        vk::STENCIL_OP_ZERO
+      },
+      StencilOp::Replace => {
+        vk::STENCIL_OP_REPLACE
+      },
+      StencilOp::IncrementAndClamp => {
+        vk::STENCIL_OP_INCREMENT_AND_CLAMP
+      },
+      StencilOp::DecrementAndClamp => {
+        vk::STENCIL_OP_DECREMENT_AND_CLAMP
+      },
+      StencilOp::Invert => {
+        vk::STENCIL_OP_INVERT
+      },
+      StencilOp::IncrementAndWrap => {
+        vk::STENCIL_OP_INCREMENT_AND_WRAP
+      },
+      StencilOp::DecrementAndWrap => {
+        vk::STENCIL_OP_DECREMENT_AND_WRAP
+      },
+    }
+  }
+}
+
+impl ColourComponent {
+  pub fn to_bits(&self) -> vk::ColorComponentFlagBits {
+    match self {
+      ColourComponent::R => {
+        vk::COLOR_COMPONENT_R_BIT
+      },
+      ColourComponent::G => {
+        vk::COLOR_COMPONENT_G_BIT
+      },
+      ColourComponent::B => {
+        vk::COLOR_COMPONENT_B_BIT
+      },
+      ColourComponent::A => {
+        vk::COLOR_COMPONENT_A_BIT
+      },
+    }
+  }
+}
+
+impl LogicOp {
+  pub fn to_bits(&self) -> vk::LogicOp {
+    match self {
+      LogicOp::Clear => {
+        vk::LOGIC_OP_CLEAR
+      },
+      LogicOp::And => {
+        vk::LOGIC_OP_AND
+      },
+      LogicOp::AndReverse => {
+        vk::LOGIC_OP_AND_REVERSE
+      },
+      LogicOp::Copy => {
+        vk::LOGIC_OP_COPY
+      },
+     LogicOp:: AndInverted => {
+        vk::LOGIC_OP_AND_INVERTED
+      },
+      LogicOp::NoOp => {
+        vk::LOGIC_OP_NO_OP
+      },
+      LogicOp::Xor => {
+        vk::LOGIC_OP_XOR
+      },
+      LogicOp::Or => {
+        vk::LOGIC_OP_OR
+      },
+      LogicOp::Nor => {
+        vk::LOGIC_OP_NOR
+      },
+      LogicOp::Equivalent => {
+        vk::LOGIC_OP_EQUIVALENT
+      },
+      LogicOp::Invert => {
+        vk::LOGIC_OP_INVERT
+      },
+      LogicOp::OrReverse => {
+        vk::LOGIC_OP_OR_REVERSE
+      },
+      LogicOp::CopyInverted => {
+        vk::LOGIC_OP_COPY_INVERTED
+      },
+      LogicOp::OrInverted => {
+        vk::LOGIC_OP_OR_INVERTED
+      },
+      LogicOp::Nand => {
+        vk::LOGIC_OP_NAND
+      },
+      LogicOp::Set => {
+        vk::LOGIC_OP_SET
+      },
+    }
+  }
+}
+
+impl BlendOp {
+  pub fn to_bits(&self) -> vk::BlendOp {
+    match self {
+      BlendOp::Add => {
+        vk::BLEND_OP_ADD
+      },
+      BlendOp::Subtract => {
+        vk::BLEND_OP_SUBTRACT
+      },
+      BlendOp::ReverseSubtract => {
+        vk::BLEND_OP_REVERSE_SUBTRACT
+      },
+      BlendOp::Min => {
+        vk::BLEND_OP_MIN
+      },
+      BlendOp::Max => {
+        vk::BLEND_OP_MAX
+      },
+    }
+  }
+}
+
+impl DynamicState {
+  pub fn to_bits(&self) -> vk::DynamicState {
+    match self {
+      DynamicState::Viewport => {
+        vk::DYNAMIC_STATE_VIEWPORT
+      },
+      DynamicState::Scissor => {
+        vk::DYNAMIC_STATE_SCISSOR
+      },
+      DynamicState::LineWidth => {
+        vk::DYNAMIC_STATE_LINE_WIDTH
+      },
+      DynamicState::DepthBias => {
+        vk::DYNAMIC_STATE_DEPTH_BIAS
+      },
+      DynamicState::BlendConstants => {
+        vk::DYNAMIC_STATE_BLEND_CONSTANTS
+      },
+      DynamicState::DepthBounds => {
+        vk::DYNAMIC_STATE_DEPTH_BOUNDS
+      },
+      DynamicState::StencilCompareMask => {
+        vk::DYNAMIC_STATE_STENCIL_COMPARE_MASK
+      },
+      DynamicState::StencilWriteMask => {
+        vk::DYNAMIC_STATE_STENCIL_WRITE_MASK
+      },
+      DynamicState::StencilReference => {
+        vk::DYNAMIC_STATE_STENCIL_REFERENCE
+      },
+    }
+  }
+}
+
+impl MemoryProperty {
+  pub fn to_bits(&self) -> vk::MemoryPropertyFlagBits {
+    match self {
+      MemoryProperty::DeviceLocal => {
+        vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+      },
+      MemoryProperty::HostVisible => {
+        vk::MEMORY_PROPERTY_HOST_VISIBLE_BIT
+      },
+      MemoryProperty::HostCoherent => {
+        vk::MEMORY_PROPERTY_HOST_COHERENT_BIT
+      },
+      MemoryProperty::HostCached => {
+        vk::MEMORY_PROPERTY_HOST_CACHED_BIT
+      },
+      MemoryProperty::LazilyAllocated => {
+        vk::MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
+      },
+    }
+  }
+}
+
+
 

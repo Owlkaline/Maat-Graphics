@@ -11,7 +11,7 @@ use crate::vulkan::buffer::Buffer;
 use crate::vulkan::check_errors;
 use crate::vulkan::buffer::UniformData;
 
-use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStageFlagBits};
+use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStage, CommandBufferLevel, PipelineBindPoint, SubpassContents, IndexType};
 
 use std::mem;
 use std::ptr;
@@ -30,7 +30,7 @@ impl CommandBuffer {
         sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         pNext: ptr::null(),
         commandPool: *command_pool,
-        level: vk::COMMAND_BUFFER_LEVEL_PRIMARY,
+        level: CommandBufferLevel::Primary.to_bits(),
         commandBufferCount: 1,
       }
     };
@@ -62,7 +62,7 @@ impl CommandBuffer {
         sType: vk::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         pNext: ptr::null(),
         commandPool: *command_pool,
-        level: vk::COMMAND_BUFFER_LEVEL_SECONDARY,
+        level: CommandBufferLevel::Secondary.to_bits(),
         commandBufferCount: 1,
       }
     };
@@ -96,7 +96,7 @@ impl CommandBuffer {
     };
     
     unsafe {
-      vk.CmdBeginRenderPass(self.command_buffer, &render_pass_begin_info, vk::SUBPASS_CONTENTS_INLINE);
+      vk.CmdBeginRenderPass(self.command_buffer, &render_pass_begin_info, SubpassContents::Inline.to_bits());
     }
   }
   
@@ -137,7 +137,7 @@ impl CommandBuffer {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindDescriptorSets(self.command_buffer, vk::PIPELINE_BIND_POINT_GRAPHICS, *pipeline.layout(), 0, descriptor_set.len() as u32, descriptor_set.as_ptr(), 0, ptr::null());
+      vk.CmdBindDescriptorSets(self.command_buffer, PipelineBindPoint::Graphics.to_bits(), *pipeline.layout(), 0, descriptor_set.len() as u32, descriptor_set.as_ptr(), 0, ptr::null());
     }
   }
   
@@ -161,7 +161,7 @@ impl CommandBuffer {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindIndexBuffer(self.command_buffer, *index_buffer, 0, vk::INDEX_TYPE_UINT32);
+      vk.CmdBindIndexBuffer(self.command_buffer, *index_buffer, 0, IndexType::Uint32.to_bits());
     }
   }
   
@@ -195,7 +195,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn push_constants(&self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) {
+  pub fn push_constants(&self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStage, push_constant_data: UniformData) {
     let mut push_constant_data = push_constant_data;
     let size = push_constant_data.size();
     let data = push_constant_data.build();
@@ -275,7 +275,7 @@ impl CommandBuffer {
   }
   
   pub fn submit(&self, device: Arc<Device>, swapchain: &Swapchain, current_image: u32, image_available: &Semaphore, render_finished: &Semaphore, fence: &Fence, graphics_queue: &vk::Queue) -> vk::Result {
-    let pipeline_stage_flags = vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    let pipeline_stage_flags = PipelineStage::ColorAttachmentOutput.to_bits();
     let submit_info: vk::SubmitInfo = {
       vk::SubmitInfo {
         sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,

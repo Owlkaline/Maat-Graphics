@@ -5,7 +5,7 @@ use crate::drawcalls;
 use crate::font::GenericFont; 
 use crate::OrthoCamera;
 
-use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, Sample, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate};
+use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
@@ -181,7 +181,7 @@ impl TextureShader {
     
     let mut framebuffer_images = Vec::with_capacity(image_views.len());
     for _ in 0..image_views.len() {
-      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_input_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_input_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
     }
     
     let framebuffers = TextureShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, &framebuffer_images);
@@ -206,7 +206,7 @@ impl TextureShader {
     let texture_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader_texture.get_shader())
                   .fragment_shader(*fragment_shader_texture.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding()))
@@ -229,7 +229,7 @@ impl TextureShader {
     let instanced_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader_instanced.get_shader())
                   .fragment_shader(*fragment_shader_instanced.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(instanced_descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding(), TextureInstanceData::vertex_input_binding()))
@@ -274,10 +274,7 @@ impl TextureShader {
       
       vertex_shader_instanced,
       fragment_shader_instanced,
-      //instanced_texture: "".to_string(),
-      //instanced_data: UniformData::with_capacity(MAX_INSTANCES*12),
       instanced_cpu_buffers: HashMap::new(),
-     // instanced_buffer,
       instanced_descriptor_sets,
       instanced_pipeline,
     }
@@ -313,7 +310,7 @@ impl TextureShader {
     self.framebuffer_images.clear();
     
     for _ in 0..image_views.len() {
-      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
     }
     
     for i in 0..image_views.len() {
@@ -396,7 +393,7 @@ impl TextureShader {
     PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding()))
@@ -519,7 +516,7 @@ impl TextureShader {
                                .add_vector4(sprite)
                                .add_vector4(projection_details);
     
-    cmd = cmd.push_constants(Arc::clone(&device), &self.texture_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+    cmd = cmd.push_constants(Arc::clone(&device), &self.texture_pipeline, ShaderStage::Vertex, push_constant_data);
     
     let index_count = 6;
     
@@ -565,7 +562,7 @@ impl TextureShader {
                                 .add_vector4(colour)
                                 .add_vector4(outline);
       
-      cmd = cmd.push_constants(Arc::clone(&device), &self.text_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+      cmd = cmd.push_constants(Arc::clone(&device), &self.text_pipeline, ShaderStage::Vertex, push_constant_data);
       
       let index_count = 6;
       
@@ -626,7 +623,7 @@ impl TextureShader {
       let push_constant_data = UniformData::new()
                                 .add_vector4(projection);
       
-      cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+      cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStage::Vertex, push_constant_data);
       
       let index_count = 6;
       

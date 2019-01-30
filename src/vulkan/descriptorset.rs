@@ -7,7 +7,7 @@ use crate::vulkan::buffer::Buffer;
 use crate::vulkan::buffer::UniformData;
 use crate::vulkan::pool::DescriptorPool;
 use crate::vulkan::check_errors;
-use crate::vulkan::vkenums::{ShaderStageFlagBits, DescriptorType, ImageLayout};
+use crate::vulkan::vkenums::{ShaderStage, DescriptorType, ImageLayout};
 
 use std::mem;
 use std::ptr;
@@ -21,7 +21,7 @@ pub struct DescriptorSet {
 struct DescriptorSetLayoutInfo {
   binding: u32,
   descriptor_type: DescriptorType,
-  shader_stage: ShaderStageFlagBits,
+  shader_stage: ShaderStage,
 }
 
 pub struct DescriptorSetBuilder {
@@ -140,7 +140,7 @@ impl DescriptorSetBuilder {
       DescriptorSetLayoutInfo {
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
-        shader_stage: ShaderStageFlagBits::Vertex,
+        shader_stage: ShaderStage::Vertex,
       }
     );
     self
@@ -151,7 +151,7 @@ impl DescriptorSetBuilder {
       DescriptorSetLayoutInfo {
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
-        shader_stage: ShaderStageFlagBits::Fragment,
+        shader_stage: ShaderStage::Fragment,
       }
     );
     self
@@ -162,7 +162,7 @@ impl DescriptorSetBuilder {
       DescriptorSetLayoutInfo {
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
-        shader_stage: ShaderStageFlagBits::Vertex,
+        shader_stage: ShaderStage::Vertex,
       }
     );
     self
@@ -173,7 +173,7 @@ impl DescriptorSetBuilder {
       DescriptorSetLayoutInfo {
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
-        shader_stage: ShaderStageFlagBits::Fragment,
+        shader_stage: ShaderStage::Fragment,
       }
     );
     self
@@ -357,7 +357,7 @@ impl DescriptorSet {
         binding: 0,
         descriptorType: DescriptorType::UniformBuffer.to_bits(),
         descriptorCount: 1,
-        stageFlags: ShaderStageFlagBits::Vertex.to_bits(),
+        stageFlags: ShaderStage::Vertex.to_bits(),
         pImmutableSamplers: ptr::null(),
       }
     );
@@ -368,7 +368,7 @@ impl DescriptorSet {
         binding: 1,
         descriptorType: DescriptorType::CombinedImageSampler.to_bits(),
         descriptorCount: 1,
-        stageFlags: ShaderStageFlagBits::Fragment.to_bits(),
+        stageFlags: ShaderStage::Fragment.to_bits(),
         pImmutableSamplers: ptr::null(),
       }
     );

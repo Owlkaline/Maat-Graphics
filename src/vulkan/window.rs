@@ -1,5 +1,9 @@
 use vk;
 use winit;
+
+use crate::math;
+use crate::Settings;
+
 use crate::vulkan::loader::Loader;
 use crate::vulkan::loader::FunctionPointers;
 use crate::vulkan::sync::Semaphore;
@@ -295,21 +299,28 @@ pub struct VkWindow {
 }
 
 impl VkWindow {
-  pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> VkWindow {
+  pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool, settings: &Settings) -> VkWindow {
+    let fullscreen = settings.is_fullscreen();
+    let vsync = settings.vsync_enabled();
+    let triple_buffer = settings.triple_buffer_enabled();
+    let resolution = math::array2_to_vec2(settings.get_resolution());
+    
     let instance = Instance::new(app_name.to_string(), app_version, should_debug);
     
     let (window, events_loop, surface) = {
       VkWindow::create_window(Arc::clone(&instance),
                               app_name, 
-                              width, 
-                              height)
+                              fullscreen,
+                              resolution.x as f32, 
+                              resolution.y as f32)
     };
     
     let device = Device::new(Arc::clone(&instance), &surface);
     
     let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface);
     
-    let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, graphics_family, present_family);
+    let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, 
+                                   graphics_family, present_family, vsync, triple_buffer);
     
     VkWindow {
       instance: instance,
@@ -334,8 +345,10 @@ impl VkWindow {
     vk::Extent2D { width: self.get_capabilities().currentExtent.width * self.get_hidpi_factor() as u32, height: self.get_capabilities().currentExtent.height * self.get_hidpi_factor() as u32 }
   }
   
-  pub fn recreate_swapchain(&mut self) {
-    self.swapchain.recreate(Arc::clone(&self.instance), Arc::clone(&self.device), &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1);
+  pub fn recreate_swapchain(&mut self, settings: &Settings) {
+    let vsync = settings.vsync_enabled();
+    let triple_buffer = settings.triple_buffer_enabled();
+    self.swapchain.recreate(Arc::clone(&self.instance), Arc::clone(&self.device), &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1, vsync, triple_buffer);
   }
   
   pub fn get_swapchain(&self) -> &Swapchain {
@@ -416,10 +429,31 @@ impl VkWindow {
     self.instance.get_surface_capabilities(phys_device, &self.surface)
   }
   
-  fn create_window(instance: Arc<Instance>, app_name: String, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
+  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
     let events_loop = winit::EventsLoop::new();
-    let window = winit::WindowBuilder::new().with_title(app_name).with_dimensions(LogicalSize::new(width as f64, height as f64)).build(&events_loop).unwrap();
-    
+    let window = {
+      if fullscreen {
+        for (num, monitor) in events_loop.get_available_monitors().enumerate() {
+          println!("Monitor #{}: {:?}", num, monitor.get_name());
+        }
+        
+        let monitor = events_loop.get_available_monitors().nth(0).expect("Please enter a valid ID");
+        
+        println!("Using {:?}", monitor.get_name());
+        
+        // Fullscreen
+        winit::WindowBuilder::new()
+                             .with_fullscreen(Some(monitor))
+                             .with_title(app_name)
+                             //  .build_vk_surface(&events_loop, instance.clone())
+                             .build(&events_loop).unwrap()
+      } else {
+        winit::WindowBuilder::new()
+                              .with_title(app_name)
+                              .with_dimensions(LogicalSize::new(width as f64, height as f64))
+                              .build(&events_loop).unwrap()
+      }
+    };
     let surface = unsafe { create_surface(&instance, &window) };
     
     (window, events_loop, surface)

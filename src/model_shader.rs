@@ -6,7 +6,7 @@ use crate::math;
 use crate::camera;
 use crate::gltf_interpreter::ModelDetails;
 
-use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, Sample, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate, AddressMode, MipmapMode, VkBool};
+use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate, AddressMode, MipmapMode, VkBool};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
@@ -358,9 +358,9 @@ impl ModelShader {
     let mut framebuffer_images = Vec::with_capacity(image_views.len());
     let mut framebuffer_depth = Vec::with_capacity(image_views.len());
     for _ in 0..image_views.len() {
-      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
       
-      framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
     }
     
     let framebuffers = ModelShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, &framebuffer_images, &framebuffer_depth);
@@ -445,9 +445,9 @@ impl ModelShader {
     self.framebuffer_depth.clear();
     
     for _ in 0..image_views.len() {
-      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
       
-      self.framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &Sample::Count1Bit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
     }
     
     for i in 0..image_views.len() {
@@ -469,7 +469,7 @@ impl ModelShader {
     let pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_set.layouts_clone())
                   .vertex_binding(vec!(ModelVertex::vertex_input_binding()))
@@ -486,7 +486,7 @@ impl ModelShader {
     let double_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
                   .fragment_shader(*fragment_shader.get_shader())
-                  .push_constants(ShaderStageFlagBits::Vertex, push_constant_size as u32)
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_set.layouts_clone())
                   .vertex_binding(vec!(ModelVertex::vertex_input_binding()))
@@ -628,7 +628,7 @@ impl ModelShader {
                                  .add_vector4(base_colour_factor)
                                  .add_vector4(alpha_cutoff);
         
-        cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStageFlagBits::Vertex, push_constant_data);
+        cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
         
         if index_count == 0 {
           cmd = cmd.draw(Arc::clone(&device), &vertex.internal_object(0), vertex_count, 
@@ -645,13 +645,6 @@ impl ModelShader {
     }
     
     cmd
-    /*
-    let index_count = 36;
-    
-    cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
-                             &self.index_buffer.internal_object(0),
-                             index_count, &self.pipeline,
-                             vec!(*self.descriptor_sets[current_buffer].set(0)))*/
   }
   
   pub fn destroy(&mut self, device: Arc<Device>) {

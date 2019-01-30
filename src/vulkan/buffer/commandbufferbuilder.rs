@@ -4,7 +4,7 @@ use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
 use crate::vulkan::Pipeline;
 use crate::vulkan::buffer::{CommandBuffer, UniformData, Buffer};
-use crate::vulkan::vkenums::{ShaderStageFlagBits};
+use crate::vulkan::vkenums::{ShaderStage,CommandBufferUsage};
 
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ pub struct CommandBufferBuilder {
 impl CommandBufferBuilder {
   pub fn primary_one_time_submit(command_buffer: Arc<CommandBuffer>) -> CommandBufferBuilder {
     CommandBufferBuilder {
-      flags: vk::COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      flags: CommandBufferUsage::OneTimeSubmit.to_bits(),
       command_buffer,
     }
   }
@@ -47,7 +47,7 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn push_constants(self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStageFlagBits, push_constant_data: UniformData) -> CommandBufferBuilder {
+  pub fn push_constants(self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStage, push_constant_data: UniformData) -> CommandBufferBuilder {
     self.command_buffer.push_constants(Arc::clone(&device), pipeline, shader_stage, push_constant_data);
     
     self

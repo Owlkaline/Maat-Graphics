@@ -15,7 +15,8 @@ use crate::FinalShader;
 use crate::graphics;
 use crate::Settings;
 
-use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
+use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
+                             MipmapMode, VkBool, CommandBufferLevel};
 
 use crate::vulkan::VkWindow;
 use crate::vulkan::pool::CommandPool;
@@ -66,7 +67,7 @@ pub struct CoreMaat {
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
     let settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
-    let window = VkWindow::new(app_name, app_version, width, height, should_debug);
+    let window = VkWindow::new(app_name, app_version, width, height, should_debug, &settings);
     
     let resource_manager = ResourceManager::new();
     
@@ -106,7 +107,7 @@ impl CoreMaat {
       
       descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 40, 40);
             
-      dummy_image = Image::device_local_dummy_image(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, &Sample::Count1Bit, &ImageTiling::Optimal, &command_pool, graphics_queue);
+      dummy_image = Image::device_local_dummy_image(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, &SampleCount::OneBit, &ImageTiling::Optimal, &command_pool, graphics_queue);
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -154,7 +155,7 @@ impl CoreMaat {
   
   pub fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
     let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
-    command_buffer.begin_command_buffer(Arc::clone(&device), vk::COMMAND_BUFFER_LEVEL_PRIMARY);
+    command_buffer.begin_command_buffer(Arc::clone(&device), CommandBufferLevel::Primary.to_bits());
     command_buffer
   }
   
@@ -266,7 +267,7 @@ impl CoreRender for CoreMaat {
       let device = self.window.device();
       let instance = self.window.instance();
       
-      let references: Vec<String> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, Sample::Count1Bit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+      let references: Vec<String> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
       for reference in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
@@ -293,8 +294,7 @@ impl CoreRender for CoreMaat {
       fence.destroy(Arc::clone(&device));
     }
     
-    
-    self.window.recreate_swapchain();
+    self.window.recreate_swapchain(&self.settings);
     self.window_dimensions = self.window.get_current_extent();
     
     for i in 0..self.command_buffers.len() {
