@@ -183,8 +183,9 @@ impl Swapchain {
           present_type = PresentMode::Mailbox.to_bits();
         } else if present_modes.contains(&PresentMode::Fifo.to_bits()) {
           present_type = PresentMode::Fifo.to_bits();
+        } else {
+          panic!("No present mode found!");
         }
-        panic!("No present mode found!");
       }
       
       present_type

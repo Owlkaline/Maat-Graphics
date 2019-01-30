@@ -67,7 +67,7 @@ pub struct CoreMaat {
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
     let settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
-    let window = VkWindow::new(app_name, app_version, width, height, should_debug, &settings);
+    let window = VkWindow::new(app_name, app_version, should_debug, &settings);
     
     let resource_manager = ResourceManager::new();
     

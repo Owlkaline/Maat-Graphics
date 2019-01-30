@@ -1,7 +1,5 @@
 use vk;
 
-use crate::vulkan::vkenums::{PhysicalDeviceType};
-
 use crate::vulkan::Instance;
 
 use std::mem;
@@ -205,18 +203,12 @@ impl Device {
       let device_type = device_prop.deviceType;
       let mut device_type_name = "";
       
-      let _other = PhysicalDeviceType::Other.to_bits();
-      let _integrated = PhysicalDeviceType::IntegratedGpu.to_bits();
-      let _discrete = PhysicalDeviceType::DiscreteGpu.to_bits();
-      let _virtual_gpu = PhysicalDeviceType::VirtualGpu.to_bits();
-      let _cpu = PhysicalDeviceType::Cpu.to_bits();
-      
       match device_type {
-       _other => { device_type_name = "Other GPU"; },
-       _integrated => { device_type_name = "Integrated GPU"; },
-       _discrete => { device_type_name = "Discrete GPU"; },
-       _virtual_gpu => { device_type_name = "Virtual GPU"; },
-       _cpu => { device_type_name = "CPU"; },
+       vk::PHYSICAL_DEVICE_TYPE_OTHER => { device_type_name = "Other GPU"; },
+       vk::PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU => { device_type_name = "Integrated GPU"; },
+       vk::PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => { device_type_name = "Discrete GPU"; },
+       vk::PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU => { device_type_name = "Virtual GPU"; },
+       vk::PHYSICAL_DEVICE_TYPE_CPU => { device_type_name = "CPU"; },
         _ => {},
       }
       

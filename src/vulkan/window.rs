@@ -299,7 +299,7 @@ pub struct VkWindow {
 }
 
 impl VkWindow {
-  pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool, settings: &Settings) -> VkWindow {
+  pub fn new(app_name: String, app_version: u32, should_debug: bool, settings: &Settings) -> VkWindow {
     let fullscreen = settings.is_fullscreen();
     let vsync = settings.vsync_enabled();
     let triple_buffer = settings.triple_buffer_enabled();
