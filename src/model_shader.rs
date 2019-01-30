@@ -3,25 +3,20 @@ use vk;
 use gltf::material::AlphaMode;
 
 use crate::math;
-use crate::drawcalls;
-use crate::font::GenericFont; 
 use crate::camera;
 use crate::gltf_interpreter::ModelDetails;
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, Sample, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate, AddressMode, MipmapMode, VkBool};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
-use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
+use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
 
-use cgmath::{Vector2, Vector3, Vector4, Matrix4, SquareMatrix};
+use cgmath::{Vector2, Vector3, Vector4};
 
 use std::mem;
 use std::sync::Arc;
-use std::collections::HashMap;
-
-const MAX_INSTANCES: usize = 8096;
 
 #[derive(Clone)]
 pub struct ModelVertex {
@@ -158,7 +153,7 @@ impl Model {
         if base_textures[i].is_some() {
           model_colour[3] -= 1.1;
         }
-        println!("{:?}", model_colour);
+        
         let mut pos = math::array3_to_vec3(position[j]);
         pos.x *= -1.0;
         vertex.push(ModelVertex::from(pos, 
@@ -323,7 +318,6 @@ pub struct ModelShader {
   vertex_shader: Shader,
   fragment_shader: Shader,
   
-  scale: f32,
   camera: camera::Camera,
 }
 
@@ -387,7 +381,7 @@ impl ModelShader {
     let vertex_buffer = ModelShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
-    let mut camera = camera::Camera::default_vk();
+    let camera = camera::Camera::default_vk();
     
     ModelShader {
       renderpass: render_pass,
@@ -407,13 +401,8 @@ impl ModelShader {
       vertex_shader,
       fragment_shader,
       
-      scale: 1.0,
       camera,
     }
-  }
-  
-  pub fn set_scale(&mut self, new_scale: f32) {
-    self.scale = new_scale;
   }
   
   pub fn set_camera(&mut self, camera: camera::Camera) {
@@ -444,7 +433,7 @@ impl ModelShader {
     self.models.push(Model::new(Arc::clone(&instance), Arc::clone(&device), reference, model, base_textures, dummy_texture, command_pool, descriptor_set_pool, sampler, graphics_queue));
   }
   
-  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, format: &vk::Format, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, textures: Vec<(String, Image)>, sampler: &Sampler, command_pool: &CommandPool, graphics_queue: vk::Queue) {
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, format: &vk::Format, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D) {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));
       self.framebuffer_images[i].destroy(Arc::clone(&device));
@@ -595,7 +584,7 @@ impl ModelShader {
     cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
+  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if self.models.len() == 0 {
@@ -607,7 +596,7 @@ impl ModelShader {
         continue;
       }
       
-      let fov = 90.0;
+      let fov = 60.0;
       let aspect = window_width / window_height;
       let (c_pos, c_center, c_up) = self.camera.get_look_at();
       

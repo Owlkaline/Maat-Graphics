@@ -39,7 +39,7 @@ impl LoadableObject {
     
     match &self.object_type {
       ObjectType::Texture(Some(image_data), ..) => { 
-        let mut buffer_image = None;
+        let buffer_image;
         let image = Some(Image::device_local_with_image_data(instance, device, image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
         
         buffer_image = image;

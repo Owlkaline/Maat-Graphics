@@ -119,7 +119,7 @@ impl PipelineBuilder {
     if let Some(descriptor_layout) = &mut self.descriptor_set_layouts {
       descriptor_layout.push(layouts[0]);
     } else {
-      self.descriptor_set_layouts = Some((vec!(layouts[0])));
+      self.descriptor_set_layouts = Some(vec!(layouts[0]));
     }
     self
   }

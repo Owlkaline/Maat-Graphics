@@ -596,7 +596,7 @@ impl TextureShader {
     let draw_colour = colour;
     let mut details = self.instanced_cpu_buffers.get_mut(&buffer_reference).unwrap();
     
-    let mut data = details.0.clone();
+    let data = details.0.clone();
     details.0 = data
                       .add_vector4(model)
                       .add_vector4(draw_colour)
@@ -675,7 +675,7 @@ impl TextureShader {
    // self.instanced_buffer.destroy(Arc::clone(&device));
     for instance_details in self.instanced_cpu_buffers.iter() {
       match instance_details {
-        (reference, (data, buffer)) => {
+        (_reference, (_data, buffer)) => {
           buffer.destroy(Arc::clone(&device));
         }
       }

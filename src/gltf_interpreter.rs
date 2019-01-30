@@ -23,13 +23,12 @@ use image;
 use image::ImageFormat::{JPEG, PNG};
 
 use std::mem;
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum Topology {
   PointList,
   LineList,
-  LineLoop, // Vulkan not supoprted
+  _LineLoop, // Vulkan not supoprted
   LineStrip,
   TriangleList,
   TriangleStrip,
@@ -139,7 +138,7 @@ impl Drop for ModelDetails{
 }
 
 impl Texture {
-  pub fn new() -> Texture {
+  pub fn _new() -> Texture {
     Texture {
       texture: "".to_string(),
       raw_transform: [1.0, 0.0, 0.0, 0.0, 
@@ -465,15 +464,15 @@ impl ModelDetails {
     self.models[model_index].material.double_sided
   }
   
-  pub fn has_indices(&self, model_index: usize) -> bool {
+  pub fn _has_indices(&self, model_index: usize) -> bool {
     self.models[model_index].has_indices
   }
   
-  pub fn has_normals(&self, model_index: usize) -> bool {
+  pub fn _has_normals(&self, model_index: usize) -> bool {
     self.models[model_index].has_normals
   }
   
-  pub fn has_tangents(&self, model_index: usize) -> bool {
+  pub fn _has_tangents(&self, model_index: usize) -> bool {
     self.models[model_index].has_tangents
   }
   
@@ -522,15 +521,15 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn metallic_factor(&self, model_index: usize) -> f32 {
+  pub fn _metallic_factor(&self, model_index: usize) -> f32 {
     self.models[model_index].material.metallic_factor
   }
   
-  pub fn roughness_factor(&self, model_index: usize) -> f32 {
+  pub fn _roughness_factor(&self, model_index: usize) -> f32 {
     self.models[model_index].material.roughness_factor
   }
   
-  pub fn metallic_roughness_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn _metallic_roughness_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.metallic_roughness_texture.is_some() {
       texture = self.models[model_index].material.metallic_roughness_texture.clone().unwrap().0;
@@ -538,7 +537,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn metallic_roughness_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
+  pub fn _metallic_roughness_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.metallic_roughness_texture.is_some() {
       sampler = Some(self.models[model_index].material.metallic_roughness_texture.clone().unwrap().1);
@@ -546,11 +545,11 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn normal_texture_scale(&self, model_index: usize) -> f32 {
+  pub fn _normal_texture_scale(&self, model_index: usize) -> f32 {
     self.models[model_index].material.normal_texture_scale
   }
   
-  pub fn normal_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn _normal_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.normal_texture.is_some() {
       texture = self.models[model_index].material.normal_texture.clone().unwrap().0;
@@ -558,7 +557,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn normal_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
+  pub fn _normal_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.normal_texture.is_some() {
       sampler = Some(self.models[model_index].material.normal_texture.clone().unwrap().1);
@@ -566,7 +565,7 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn occlusion_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn _occlusion_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.occlusion_texture.is_some() {
       texture = self.models[model_index].material.occlusion_texture.clone().unwrap().0
@@ -574,7 +573,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn occlusion_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
+  pub fn _occlusion_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.occlusion_texture.is_some() {
       sampler = Some(self.models[model_index].material.occlusion_texture.clone().unwrap().1);
@@ -582,11 +581,11 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn occlusion_texture_strength(&self, model_index: usize) -> f32 {
+  pub fn _occlusion_texture_strength(&self, model_index: usize) -> f32 {
     self.models[model_index].material.occlusion_texture_strength
   }
   
-  pub fn emissive_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn _emissive_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.emissive_texture.is_some() {
       texture = self.models[model_index].material.emissive_texture.clone().unwrap().0
@@ -594,7 +593,7 @@ impl ModelDetails {
     texture
   }
   
-  pub fn emissive_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
+  pub fn _emissive_sampler(&self, model_index: usize) -> Option<SamplerInfo> {
     let mut sampler = None;
     if self.models[model_index].material.emissive_texture.is_some() {
       sampler = Some(self.models[model_index].material.emissive_texture.clone().unwrap().1);
@@ -602,12 +601,12 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn emissive_factor(&self, model_index: usize) -> [f32; 3] {
+  pub fn _emissive_factor(&self, model_index: usize) -> [f32; 3] {
     let emissive = self.models[model_index].material.emissive_factor;
     [emissive.x, emissive.y, emissive.z]
   }
   
-  pub fn get_primitive_topology(&self, model_index: usize) -> Topology {
+  pub fn _get_primitive_topology(&self, model_index: usize) -> Topology {
     self.models[model_index].topology.clone()
   }
 }

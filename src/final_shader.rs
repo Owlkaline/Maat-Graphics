@@ -1,24 +1,16 @@
 use vk;
 
-use crate::math;
-use crate::drawcalls;
-use crate::font::GenericFont; 
-use crate::Camera;
-
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStageFlagBits, VertexInputRate};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
-use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
+use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
 
-use cgmath::{Vector2, Vector3, Vector4, Matrix4, SquareMatrix};
+use cgmath::{Vector2, Vector4};
 
 use std::mem;
 use std::sync::Arc;
-use std::collections::HashMap;
-
-const MAX_INSTANCES: usize = 8096;
 
 #[derive(Clone)]
 pub struct FinalVertex {

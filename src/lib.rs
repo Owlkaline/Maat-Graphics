@@ -106,15 +106,14 @@ use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;
 use self::model_shader::ModelShader;
 use self::final_shader::FinalShader;
-use self::texture_shader::Vertex;
 use self::ortho_camera::OrthoCamera;
-use self::camera::Camera;
+use self::settings::Settings;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
 
 pub mod graphics;
-pub mod settings;
+mod settings;
 pub mod camera;
 pub mod vulkan;
 pub mod math;

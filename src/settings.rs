@@ -27,7 +27,7 @@ pub struct Settings {
   triple_buffer: bool,
   samples: u32,
   fullscreen: bool,
-  minimum_resolution: [u32; 2],
+  _minimum_resolution: [u32; 2],
   resolution: [u32; 2],
   force_dpi: bool,
   dpi: f32,
@@ -138,7 +138,7 @@ impl Settings {
       samples: samples,
       fullscreen: is_fullscreen,
       resolution: [resolution.x as u32, resolution.y as u32],
-      minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
+      _minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
       force_dpi: force_dpi,
       dpi: dpi,
     }
@@ -210,47 +210,47 @@ impl Settings {
     println!("Forcing dpi scale of {}", dpi_value);
   }
   
-  pub fn vsync_enabled(&self) -> bool {
+  pub fn _vsync_enabled(&self) -> bool {
     self.vsync
   }
   
-  pub fn triple_buffer_enabled(&self) -> bool {
+  pub fn _triple_buffer_enabled(&self) -> bool {
     self.triple_buffer
   }
   
-  pub fn get_msaa(&self) -> u32 {
+  pub fn _get_msaa(&self) -> u32 {
     self.samples
   }
   
-  pub fn is_fullscreen(&self) -> bool {
+  pub fn _is_fullscreen(&self) -> bool {
     self.fullscreen
   }
   
-  pub fn get_minimum_resolution(&self) -> [u32; 2] {
-    self.minimum_resolution
+  pub fn _get_minimum_resolution(&self) -> [u32; 2] {
+    self._minimum_resolution
   }
   
-  pub fn set_resolution(&mut self, res: Vector2<i32>) {
+  pub fn _set_resolution(&mut self, res: Vector2<i32>) {
     self.resolution = [res.x as u32, res.y as u32];
   }
   
-  pub fn set_dpi(&mut self, new_dpi: f32) {
+  pub fn _set_dpi(&mut self, new_dpi: f32) {
     self.dpi = new_dpi;
   }
   
-  pub fn enable_dpi(&mut self, enable: bool) {
+  pub fn _enable_dpi(&mut self, enable: bool) {
     self.force_dpi = enable;
   }
   
-  pub fn enable_vsync(&mut self, enable: bool) {
+  pub fn _enable_vsync(&mut self, enable: bool) {
     self.vsync = enable;
   }
   
-  pub fn enable_fullscreen(&mut self, enable: bool) {
+  pub fn _enable_fullscreen(&mut self, enable: bool) {
     self.fullscreen = enable;
   }
   
-  pub fn get_resolution(&mut self) -> [u32; 2] {
+  pub fn _get_resolution(&mut self) -> [u32; 2] {
     self.resolution
   }
 }

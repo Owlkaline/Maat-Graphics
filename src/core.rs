@@ -13,6 +13,7 @@ use crate::TextureShader;
 use crate::ModelShader;
 use crate::FinalShader;
 use crate::graphics;
+use crate::Settings;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, Sample, Filter, AddressMode, MipmapMode, VkBool};
 
@@ -28,6 +29,8 @@ use crate::vulkan::sync::Semaphore;
 use crate::vulkan::buffer::CommandBuffer;
 use crate::vulkan::buffer::CommandBufferBuilder;
 use crate::vulkan::check_errors;
+
+use cgmath::{Vector2};
 
 use std::ptr;
 use std::sync::Arc;
@@ -53,6 +56,7 @@ pub struct CoreMaat {
   model_shader: ModelShader,
   final_shader: FinalShader,
   
+  settings: Settings,
   resources: ResourceManager,
   
   current_frame: usize,
@@ -61,6 +65,7 @@ pub struct CoreMaat {
 
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
+    let settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
     let window = VkWindow::new(app_name, app_version, width, height, should_debug);
     
     let resource_manager = ResourceManager::new();
@@ -76,7 +81,6 @@ impl CoreMaat {
     let model_shader: ModelShader;
     let final_shader: FinalShader;
     
-    let texture_image: Image;
     let sampler: Sampler;
     
     let current_extent = window.get_current_extent();
@@ -139,6 +143,8 @@ impl CoreMaat {
       texture_shader,
       model_shader,
       final_shader,
+      
+      settings,
       resources: resource_manager,
       
       current_frame: 0,
@@ -303,14 +309,13 @@ impl CoreRender for CoreMaat {
       let image_views = self.window.swapchain_image_views();
       let textures = self.resources.get_all_textures();
       let format = self.window.swapchain_format();
-      let graphics_queue = self.window.get_graphics_queue();
       
       self.fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
       
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
-      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler, &self.command_pool, *graphics_queue);
+      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions);
       self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
       // TO REMOVE
@@ -480,7 +485,7 @@ impl CoreRender for CoreMaat {
         match draw {
           DrawType::DrawModel(ref info) => {
             let (reference, position, scale, rotation) = info;
-            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32, self.current_frame);
+            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32);
           },
           DrawType::ModelCamera(ref info) => {
             let (new_camera, move_direction, mouse_offset, set_move_speed, set_mouse_sensitivity) = info;
@@ -507,7 +512,6 @@ impl CoreRender for CoreMaat {
           },
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
-            let device = self.window.device();
             self.resources.load_model_from_reference(reference);
           },
           _ => {}
