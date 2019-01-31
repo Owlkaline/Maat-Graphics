@@ -37,6 +37,7 @@ pub enum SampleCount {
   EightBit,
   SixteenBit,
   ThirtyTwoBit,
+  SixtyFourBit,
 }
 
 pub enum FrontFace {
@@ -530,6 +531,9 @@ impl SampleCount {
       },
       SampleCount::ThirtyTwoBit => {
         vk::SAMPLE_COUNT_32_BIT
+      },
+      SampleCount::SixtyFourBit =>{
+        vk::SAMPLE_COUNT_64_BIT
       }
     }
   }

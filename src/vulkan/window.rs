@@ -379,18 +379,6 @@ impl VkWindow {
     
     (result, current_image as usize)
   }
-  /*
-  pub fn aquire_next_image(&self, device: Arc<Device>, image_available: &Semaphore) -> usize {
-    let mut current_image = 0;
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.internal_object();
-      check_errors(vk.AcquireNextImageKHR(*device, *self.swapchain.get_swapchain(), MAX, *image_available.internal_object(), 0, &mut current_image));
-    }
-    
-    current_image as usize
-  }*/
   
   pub fn instance_pointers(&self) -> &vk::InstancePointers {
     &self.instance.pointers()
@@ -422,6 +410,14 @@ impl VkWindow {
   
   pub fn get_graphics_family(&self) -> u32 {
     self.graphics_present_family_index.0
+  }
+  
+  pub fn get_max_mssa(&self) -> u32 {
+    let device_properties = self.instance.get_device_properties(&self.device.physical_device());
+    let limits = device_properties.limits;
+    let msaa_limit = limits.framebufferColorSampleCounts.min(limits.framebufferDepthSampleCounts);
+    
+    msaa_limit + 1
   }
   
   fn get_capabilities(&self) -> vk::SurfaceCapabilitiesKHR {

@@ -1,7 +1,7 @@
 use vk;
 
 use crate::vulkan::Device;
-use crate::vulkan::Image;
+use crate::vulkan::ImageAttachment;
 use crate::vulkan::Sampler;
 use crate::vulkan::buffer::Buffer;
 use crate::vulkan::buffer::UniformData;
@@ -30,7 +30,7 @@ pub struct DescriptorSetBuilder {
 
 pub struct UpdateDescriptorSets<'a> {
   uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
-  images: Vec<(u32, &'a Image, ImageLayout, &'a Sampler)>,
+  images: Vec<(u32, &'a ImageAttachment, ImageLayout, &'a Sampler)>,
 }
 
 impl<'a> UpdateDescriptorSets<'a> {
@@ -48,7 +48,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     self
   }
   
-  pub fn add_sampled_image(mut self, binding: u32, image: &'a Image, image_layout: ImageLayout, sampler: &'a Sampler) -> UpdateDescriptorSets<'a> {
+  pub fn add_sampled_image(mut self, binding: u32, image: &'a ImageAttachment, image_layout: ImageLayout, sampler: &'a Sampler) -> UpdateDescriptorSets<'a> {
     self.images.push((binding, image, image_layout, sampler));
     self
   }

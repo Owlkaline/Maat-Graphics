@@ -8,7 +8,7 @@ use crate::gltf_interpreter::ModelDetails;
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate, AddressMode, MipmapMode, VkBool};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
@@ -114,7 +114,7 @@ struct Model {
 }
 
 impl Model {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<Image>>, dummy_texture: &Image, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) -> Model {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) -> Model {
     let num_models = model.num_models();
     
     let mut vertex_buffers = Vec::with_capacity(num_models);
@@ -322,7 +322,7 @@ pub struct ModelShader {
 }
 
 impl ModelShader {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ModelShader {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ModelShader {
     let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
     let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
     
@@ -358,9 +358,9 @@ impl ModelShader {
     let mut framebuffer_images = Vec::with_capacity(image_views.len());
     let mut framebuffer_depth = Vec::with_capacity(image_views.len());
     for _ in 0..image_views.len() {
-      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::colour_attachment_storage_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, current_extent.width as u32, current_extent.height as u32));
       
-      framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_depth.push(ImageAttachment::create_image_depth_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::depth_stencil_attachment(),  &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D,&vk::FORMAT_D32_SFLOAT, current_extent.width as u32, current_extent.height as u32));
     }
     
     let framebuffers = ModelShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, &framebuffer_images, &framebuffer_depth);
@@ -425,11 +425,11 @@ impl ModelShader {
     self.camera.process_mouse_movement(x_offset, y_offset);
   }
   
-  pub fn get_texture(&mut self, current_buffer: usize) -> Image {
-    self.framebuffer_images[current_buffer].to_image()
+  pub fn get_texture(&mut self, current_buffer: usize) -> ImageAttachment {
+    self.framebuffer_images[current_buffer].clone()
   }
   
-  pub fn add_model(&mut self, instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<Image>>, dummy_texture: &Image, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) {
+  pub fn add_model(&mut self, instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) {
     self.models.push(Model::new(Arc::clone(&instance), Arc::clone(&device), reference, model, base_textures, dummy_texture, command_pool, descriptor_set_pool, sampler, graphics_queue));
   }
   
@@ -445,9 +445,9 @@ impl ModelShader {
     self.framebuffer_depth.clear();
     
     for _ in 0..image_views.len() {
-      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::colour_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, new_extent.width as u32, new_extent.height as u32));
       
-      self.framebuffer_depth.push(ImageAttachment::create_depth_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::depth_stencil_attachment(), &vk::FORMAT_D32_SFLOAT, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_depth.push(ImageAttachment::create_image_depth_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::depth_stencil_attachment(),  &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, &vk::FORMAT_D32_SFLOAT, new_extent.width as u32, new_extent.height as u32));
     }
     
     for i in 0..image_views.len() {

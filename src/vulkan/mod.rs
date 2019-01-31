@@ -1,4 +1,3 @@
-//pub use self::vulkan::Vulkan;
 pub use self::window::VkWindow;
 pub use self::swapchain::Swapchain;
 pub use self::shader::Shader;
@@ -17,8 +16,7 @@ pub use self::renderpassbuilder::SubpassInfo;
 pub use self::ownage::check_errors;
 pub use self::sampler::Sampler;
 pub use self::sampler::SamplerBuilder;
-pub use self::image::Image;
-pub use self::image::ImageAttachment;
+pub use self::imageattachment::ImageAttachment;
 
 pub mod pool;
 pub mod buffer;
@@ -26,7 +24,6 @@ pub mod sync;
 pub mod vkenums;
 mod loader;
 mod ownage;
-//mod vulkan;
 mod window;
 mod swapchain;
 mod shader;
@@ -38,4 +35,4 @@ mod pipelinebuilder;
 mod renderpass;
 mod renderpassbuilder;
 mod sampler;
-mod image;
+mod imageattachment;

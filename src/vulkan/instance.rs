@@ -174,6 +174,16 @@ impl Instance {
     device_supports_surface
   }
   
+  pub fn get_device_properties(&self, phys_device: &vk::PhysicalDevice) -> vk::PhysicalDeviceProperties {
+    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+    
+    unsafe {
+      self.vk.GetPhysicalDeviceProperties(*phys_device, &mut device_prop);
+    }
+    
+    device_prop
+  }
+  
   pub fn enumerate_device_extension_properties(&self, phys_device: &vk::PhysicalDevice) -> Vec<vk::ExtensionProperties> {
     let mut property_count = 0;
     let mut device_extensions;

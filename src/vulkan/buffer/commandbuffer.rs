@@ -80,6 +80,39 @@ impl CommandBuffer {
     }
   }
   
+  pub fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
+    let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
+    command_buffer.begin_command_buffer(Arc::clone(&device), CommandBufferLevel::Primary.to_bits());
+    command_buffer
+  }
+  
+  pub fn end_single_time_command(&self, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+    let submit_info = {
+      vk::SubmitInfo {
+        sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
+        pNext: ptr::null(),
+        waitSemaphoreCount: 0,
+        pWaitSemaphores: ptr::null(),
+        pWaitDstStageMask: ptr::null(),
+        commandBufferCount: 1,
+        pCommandBuffers: &self.command_buffer,
+        signalSemaphoreCount: 0,
+        pSignalSemaphores: ptr::null(),
+      }
+    };
+    
+    self.end_command_buffer(Arc::clone(&device));
+    
+    unsafe {
+      let vk = device.pointers();
+      let device = device.internal_object();
+      let command_pool = command_pool.local_command_pool();
+      vk.QueueSubmit(*graphics_queue, 1, &submit_info, 0);
+      vk.QueueWaitIdle(*graphics_queue);
+      vk.FreeCommandBuffers(*device, *command_pool, 1, &self.command_buffer);
+    }
+  }
+  
   pub fn begin_render_pass(&self, device: Arc<Device>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &Vec<vk::ClearValue>, width: u32, height: u32) {
     let vk = device.pointers();
     

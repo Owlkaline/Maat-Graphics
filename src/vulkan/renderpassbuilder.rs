@@ -56,7 +56,11 @@ impl AttachmentInfo {
   }
   
   pub fn multisample(mut self, sample: usize) -> AttachmentInfo {
-    if sample >= 16 {
+    if sample >= 64 {
+      self.samples = SampleCount::SixtyFourBit;
+    } else if sample >= 32 {
+      self.samples = SampleCount::ThirtyTwoBit;
+    } else if sample >= 16 {
       self.samples = SampleCount::SixteenBit;
     } else if sample >= 8 {
       self.samples = SampleCount::EightBit;
@@ -283,8 +287,8 @@ impl RenderPassBuilder {
         colour_attachments.push(reference);
       }
       
-      if let Some(resolve) = self.subpasses[i].get_resolve_attachment_references() {
-        resolve_attachments = resolve;
+      if let Some(resolve) = &mut self.subpasses[i].get_resolve_attachment_references() {
+        resolve_attachments.append(resolve);
       }
       
       if let Some(depth_stencil) = self.subpasses[i].get_depth_stencil_attachment_references() {
@@ -297,7 +301,7 @@ impl RenderPassBuilder {
           pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
           inputAttachmentCount: input_attachments.len() as u32,
           pInputAttachments: if input_attachments.len() == 0 { ptr::null() } else { input_attachments.as_ptr() },
-          colorAttachmentCount: colour_attachments.len() as u32,
+          colorAttachmentCount: colour_attachments.len() as u32 + resolve_attachments.len() as u32,
           pColorAttachments: if colour_attachments.len() == 0 { ptr::null() } else { colour_attachments.as_ptr() },
           pResolveAttachments: if resolve_attachments.len() == 0 { ptr::null() } else { resolve_attachments.as_ptr() },
           pDepthStencilAttachment: if depth_stencil_attachments.len() == 0 { ptr::null() } else { depth_stencil_attachments.as_ptr() },

@@ -7,7 +7,7 @@ use crate::OrthoCamera;
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, Image, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
@@ -154,7 +154,7 @@ pub struct TextureShader {
 }
 
 impl TextureShader {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &Image, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> TextureShader {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue, msaa: u32) -> TextureShader {
     let vertex_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureVert.spv"));
     let fragment_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureFrag.spv"));
     let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextVert.spv"));
@@ -163,6 +163,17 @@ impl TextureShader {
     let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureInstancedFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
+                                .format(*format)
+                                .multisample(0)//msaa as usize)
+                                .load(AttachmentLoadOp::Clear)
+                                .store(AttachmentStoreOp::Store)
+                                .stencil_load(AttachmentLoadOp::DontCare)
+                                .stencil_store(AttachmentStoreOp::DontCare)
+                                .initial_layout(ImageLayout::Undefined)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
+                                .image_usage(ImageLayout::ColourAttachmentOptimal);
+    
+    let msaa_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(0)
                                 .load(AttachmentLoadOp::Clear)
@@ -173,15 +184,16 @@ impl TextureShader {
                                 .final_layout(ImageLayout::ShaderReadOnlyOptimal)
                                 .image_usage(ImageLayout::ColourAttachmentOptimal);
     
-    let subpass = SubpassInfo::new().add_colour_attachment(0);
+    let subpass = SubpassInfo::new().add_colour_attachment(0);//.add_resolve_attachment(1);
     let render_pass = RenderPassBuilder::new()
                       .add_attachment(colour_attachment)
+                     // .add_attachment(msaa_attachment)
                       .add_subpass(subpass)
                       .build(Arc::clone(&device));
     
     let mut framebuffer_images = Vec::with_capacity(image_views.len());
     for _ in 0..image_views.len() {
-      framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_input_attachment_storage_sampled(), &format, &vk::Extent3D { width: current_extent.width, height: current_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      framebuffer_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::colour_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, current_extent.width as u32, current_extent.height as u32));
     }
     
     let framebuffers = TextureShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, &framebuffer_images);
@@ -296,11 +308,11 @@ impl TextureShader {
     self.camera.reset(width, height);
   }
   
-  pub fn get_texture(&mut self, current_buffer: usize) -> Image {
-    self.framebuffer_images[current_buffer].to_image()
+  pub fn get_texture(&mut self, current_buffer: usize) -> ImageAttachment {
+    self.framebuffer_images[current_buffer].clone()
   }
   
-  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, format: &vk::Format, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, textures: Vec<(String, Image)>, sampler: &Sampler) {
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, format: &vk::Format, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, textures: Vec<(String, ImageAttachment)>, sampler: &Sampler) {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));
       self.framebuffer_images[i].destroy(Arc::clone(&device));
@@ -310,7 +322,7 @@ impl TextureShader {
     self.framebuffer_images.clear();
     
     for _ in 0..image_views.len() {
-      self.framebuffer_images.push(ImageAttachment::create_image_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, ImageUsage::colour_attachment_storage_sampled(), format, &vk::Extent3D { width: new_extent.width, height: new_extent.height, depth: 1 }, &SampleCount::OneBit, ImageLayout::Undefined, &ImageTiling::Optimal, &ImageViewType::Type2D));
+      self.framebuffer_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::colour_attachment_storage_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, new_extent.width as u32, new_extent.height as u32));
     }
     
     for i in 0..image_views.len() {
@@ -322,7 +334,7 @@ impl TextureShader {
     self.update_uniform(device, textures, sampler);
   }
   
-  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, Image)>, sampler: &Sampler) {
+  pub fn update_uniform(&mut self, device: Arc<Device>, textures: Vec<(String, ImageAttachment)>, sampler: &Sampler) {
     for (key, descriptor) in &self.descriptor_sets {
       for i in 0..textures.len() {
         if key.to_string() == textures[i].0 {
@@ -355,7 +367,7 @@ impl TextureShader {
     self.instanced_cpu_buffers.insert(reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer));
   }
   
-  pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &Image, sampler: &Sampler) {
+  pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &ImageAttachment, sampler: &Sampler) {
    if !self.descriptor_sets.contains_key(&texture_reference) {
       let descriptor = DescriptorSetBuilder::new()
                            .fragment_combined_image_sampler(0)
@@ -464,7 +476,7 @@ impl TextureShader {
     framebuffers
   }
   
-  fn update_uniform_buffers(device: Arc<Device>, texture: &Image, sampler: &Sampler, descriptor_sets: &DescriptorSet) {
+  fn update_uniform_buffers(device: Arc<Device>, texture: &ImageAttachment, sampler: &Sampler, descriptor_sets: &DescriptorSet) {
     UpdateDescriptorSets::new()
        .add_sampled_image(0, texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets);

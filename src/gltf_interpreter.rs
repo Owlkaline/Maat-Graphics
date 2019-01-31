@@ -615,10 +615,15 @@ fn texture_to_image(texture: gltf::Texture, buffers: &Vec<gltf::buffer::Data>, b
   let data = texture.source().source();
   let img = match data {
     gltf::image::Source::View { ref view, mime_type } => {
-      let data = &buffers[view.offset()].to_vec();//buffers.view(view).expect("Failed to get buffer view for image");
+      let data = &buffers[view.buffer().index()].0;
+      let begin = view.offset();
+      let end = begin + view.length();
+      let real_data = &data[begin..end];
+      //let data = &buffers[view.offset()].to_vec();
+      //buffers.view(view).expect("Failed to get buffer view for image");
       match mime_type {
-        "image/jpeg" => image::load_from_memory_with_format(data, JPEG),
-        "image/png" => image::load_from_memory_with_format(data, PNG),
+        "image/jpeg" => image::load_from_memory_with_format(real_data, JPEG),
+        "image/png" => image::load_from_memory_with_format(real_data, PNG),
         _ => panic!(format!("unsupported image type (image: {}, mime_type: {})",
                     texture.index(), mime_type)),
       }

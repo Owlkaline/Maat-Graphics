@@ -5,7 +5,7 @@ use image;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount};
 
-use crate::vulkan::{Image, Instance, Device};
+use crate::vulkan::{ImageAttachment, Instance, Device};
 use crate::vulkan::buffer::{Buffer};
 use crate::vulkan::pool::{CommandPool};
 
@@ -19,10 +19,10 @@ use std::sync::Mutex;
 
 #[derive(Clone)]
 enum ObjectType {
-  Font(Option<(GenericFont, Image)>),
-  Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<Image>),
-  Model(Option<ModelDetails>, Vec<Option<Image>>),
-  _Shape(Option<(Buffer<f32>, Image)>),
+  Font(Option<(GenericFont, ImageAttachment)>),
+  Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<ImageAttachment>),
+  Model(Option<ModelDetails>, Vec<Option<ImageAttachment>>),
+  _Shape(Option<(Buffer<f32>, ImageAttachment)>),
 }
 
 #[derive(Clone)]
@@ -40,7 +40,7 @@ impl LoadableObject {
     match &self.object_type {
       ObjectType::Texture(Some(image_data), ..) => { 
         let buffer_image;
-        let image = Some(Image::device_local_with_image_data(instance, device, image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
+        let image = Some(ImageAttachment::create_texture(instance, device, image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
         
         buffer_image = image;
         object = ObjectType::Texture(None, buffer_image);
@@ -50,7 +50,7 @@ impl LoadableObject {
         for i in 0..model.num_models() {
           if let Some(image_data) = model.base_colour_texture(i) {
             let image_data = image_data.to_rgba();
-            let base_image = Some(Image::device_local_with_image_data(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, image_view_type, format, samples, tiling, command_pool, graphics_queue));
+            let base_image = Some(ImageAttachment::create_texture(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
             images.push(base_image);
           } else {
             images.push(None);
@@ -191,7 +191,7 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns a ImmutableImage of format R8G8B8A8Unorm thats already in memory.
   **/
-  pub fn get_texture(&mut self, reference: String) -> Option<Image> {
+  pub fn get_texture(&mut self, reference: String) -> Option<ImageAttachment> {
     let mut result = None;
     
     for object in &self.objects {
@@ -211,7 +211,7 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns a ModelDetails
   **/
-  pub fn get_model(&mut self, reference: String) -> Option<(Option<ModelDetails>, Vec<Option<Image>>)> {
+  pub fn get_model(&mut self, reference: String) -> Option<(Option<ModelDetails>, Vec<Option<ImageAttachment>>)> {
     let mut result = None;
     
     for object in &self.objects {
@@ -231,8 +231,8 @@ impl ResourceManager {
   /**
   ** Returns None when resource isnt loaded yet otherwise returns font thats already in memory.
   **/
-  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, Image)> {
-    let mut result: Option<(GenericFont, Image)> = None;
+  pub fn get_font(&mut self, reference: String) -> Option<(GenericFont, ImageAttachment)> {
+    let mut result: Option<(GenericFont, ImageAttachment)> = None;
     
     for object in &self.objects {
       if object.reference == reference {
@@ -250,7 +250,7 @@ impl ResourceManager {
     result
   }
   
-  pub fn get_all_textures(&self) -> Vec<(String, Image)> {
+  pub fn get_all_textures(&self) -> Vec<(String, ImageAttachment)> {
     let mut result = Vec::with_capacity(self.objects.len());
     
     for object in &self.objects {
@@ -289,7 +289,7 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn _insert_texture(&mut self, reference: String, new_image: Image) {
+  pub fn _insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
     println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -438,10 +438,10 @@ impl ResourceManager {
     });
   }
   
-  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> (Image) {
+  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> (ImageAttachment) {
     let texture_start_time = time::Instant::now();
     
-    let texture = Image::device_local(instance, device, location.to_string(), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, command_pool, &graphics_queue);
+    let texture = ImageAttachment::create_texture_from_location(instance, device, location.to_string(), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);
     
     let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
     println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);

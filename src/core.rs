@@ -22,7 +22,7 @@ use crate::vulkan::VkWindow;
 use crate::vulkan::pool::CommandPool;
 use crate::vulkan::Device;
 use crate::vulkan::pool::DescriptorPool;
-use crate::vulkan::Image;
+use crate::vulkan::ImageAttachment;
 use crate::vulkan::Sampler;
 use crate::vulkan::SamplerBuilder;
 use crate::vulkan::sync::Fence;
@@ -50,7 +50,8 @@ pub struct CoreMaat {
   
   clear_colour: Vector4<f32>,
   
-  dummy_image: Image,
+  dummy_image: ImageAttachment,
+  
   sampler: Sampler,
   
   texture_shader: TextureShader,
@@ -96,6 +97,9 @@ impl CoreMaat {
       let graphics_queue = window.get_graphics_queue();
       let image_views = window.swapchain_image_views();
       
+      let max_msaa = window.get_max_mssa();
+      println!("Max Msaa possible: {}", max_msaa);
+      
       for _ in 0..image_views.len() {
         semaphore_image_available.push(Semaphore::new(Arc::clone(&device)));
         semaphore_render_finished.push(Semaphore::new(Arc::clone(&device)));
@@ -105,9 +109,11 @@ impl CoreMaat {
       command_pool = CommandPool::new(Arc::clone(&device), graphics_family);
       command_buffers = command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 40, 40);
-            
-      dummy_image = Image::device_local_dummy_image(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, &SampleCount::OneBit, &ImageTiling::Optimal, &command_pool, graphics_queue);
+      descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 80, 80);
+      
+      println!("Before: Dummy image from core");
+      dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
+      println!("After: Dummy image from core");
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -118,7 +124,7 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, max_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
       final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
     }
