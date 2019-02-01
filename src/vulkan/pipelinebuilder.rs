@@ -256,6 +256,11 @@ impl PipelineBuilder {
     self
   }
   
+  pub fn multisample(mut self, samples: &SampleCount) -> PipelineBuilder {
+    self.rasterization_samples = *samples;
+    self
+  }
+  
   pub fn rasterization_samples_1_bit(mut self) -> PipelineBuilder {
     self.rasterization_samples = SampleCount::OneBit;
     self

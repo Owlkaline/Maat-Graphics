@@ -53,6 +53,24 @@ impl ImageAttachment {
     }
   }
   
+  pub fn create_image_msaa_attachment(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, tiling: &ImageTiling, usage: &ImageUsage, initial_layout: &ImageLayout, final_layout: &ImageLayout, image_aspect: &ImageAspect, samples: &SampleCount, image_view_type: &ImageViewType, format: &vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue, width: u32, height: u32) -> ImageAttachment {
+    
+    let memory_property = MemoryProperty::DeviceLocal;
+    let (image, memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, image_type, tiling, usage, initial_layout, samples, format, width, height);
+    
+    
+    ImageAttachment::transition_layout(Arc::clone(&device), &image, ImageLayout::Undefined, final_layout.clone(), &command_pool, graphics_queue);
+    
+    let image_view = ImageAttachment::create_image_view(Arc::clone(&device), &image, format, &image_aspect, image_view_type);
+    
+    ImageAttachment {
+      image,
+      image_view,
+      memory,
+      format: *format,
+    }
+  }
+  
   pub fn create_texture_from_location(instance: Arc<Instance>, device: Arc<Device>, image: String, image_type: &ImageType, tiling: &ImageTiling, samples: &SampleCount, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ImageAttachment {
     let image = image::open(&image.clone()).expect(&("No file or Directory at: ".to_string() + &image)).to_rgba();
     
@@ -181,6 +199,11 @@ impl ImageAttachment {
       
       src_stage = PipelineStage::Transfer;
       dst_stage = PipelineStage::FragmentShader;
+    } else if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::ColourAttachmentOptimal {
+      dst_access = Access::ColourAttachmentReadAndWrite;
+      
+      src_stage = PipelineStage::TopOfPipe;
+      dst_stage = PipelineStage::ColorAttachmentOutput;
     } else {
       panic!("Error image transition not supported!");
     }

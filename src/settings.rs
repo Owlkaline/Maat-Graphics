@@ -218,6 +218,10 @@ impl Settings {
     self.triple_buffer
   }
   
+  pub fn set_msaa(&mut self, msaa: u32) {
+    self.samples = msaa;
+  }
+  
   pub fn get_msaa(&self) -> u32 {
     self.samples
   }

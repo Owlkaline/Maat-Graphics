@@ -30,6 +30,7 @@ pub enum ImageLayout {
   PresentSrcKHR,
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum SampleCount {
   OneBit,
   TwoBit,
@@ -191,6 +192,9 @@ pub enum Access {
   HostWrite,
   MemoryRead,
   MemoryWrite,
+  
+  // Daul
+  ColourAttachmentReadAndWrite
 }
 
 pub enum ImageAspect {
@@ -512,6 +516,28 @@ impl ImageLayout {
 }
 
 impl SampleCount {
+  pub fn from(value: u32) -> SampleCount {
+    let msaa;
+    
+    if value >= 64 {
+      msaa = SampleCount::SixtyFourBit;
+    } else if value >= 32 {
+      msaa = SampleCount::ThirtyTwoBit;
+    } else if value >= 16 {
+      msaa = SampleCount::SixteenBit;
+    } else if value >= 8 {
+      msaa = SampleCount::EightBit;
+    } else if value >= 4 {
+      msaa = SampleCount::FourBit;
+    } else if value >= 2 {
+      msaa = SampleCount::TwoBit;
+    } else {
+      msaa = SampleCount::OneBit;
+    }
+    
+    msaa
+  }
+  
   pub fn to_bits(&self) -> vk::SampleCountFlagBits {
     match self {
       SampleCount::OneBit => {
@@ -842,6 +868,15 @@ impl ImageUsage {
     }
   }
   
+  pub fn transfer_src_dst_sampled() -> ImageUsage {
+    ImageUsage {
+      transfer_src: true,
+      transfer_dst: true,
+      sampled: true,
+      .. ImageUsage::none()
+    }
+  }
+  
   pub fn transfer_src_storage() -> ImageUsage {
     ImageUsage {
       transfer_src: true,
@@ -890,6 +925,22 @@ impl ImageUsage {
       storage: true,
       colour_attachment: true,
       input_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transient_colour_attachment() -> ImageUsage {
+    ImageUsage {
+      transient_attachment: true,
+      colour_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transient_depth_stencil_attachment() -> ImageUsage {
+    ImageUsage {
+      transient_attachment: true,
+      depth_stencil_attachment: true,
       .. ImageUsage::none()
     }
   }
@@ -1057,6 +1108,9 @@ impl Access {
       },
       Access::MemoryWrite => {
         vk::ACCESS_MEMORY_WRITE_BIT
+      },
+      Access::ColourAttachmentReadAndWrite => {
+        Access::ColourAttachmentRead.to_bits() | Access::ColourAttachmentWrite.to_bits()
       },
     }
   }

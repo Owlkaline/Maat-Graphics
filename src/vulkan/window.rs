@@ -417,7 +417,7 @@ impl VkWindow {
     let limits = device_properties.limits;
     let msaa_limit = limits.framebufferColorSampleCounts.min(limits.framebufferDepthSampleCounts);
     
-    msaa_limit + 1
+    msaa_limit
   }
   
   fn get_capabilities(&self) -> vk::SurfaceCapabilitiesKHR {

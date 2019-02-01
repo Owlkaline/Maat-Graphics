@@ -209,7 +209,7 @@ impl ModelDetails {
       },
       Err(e) => {
         println!("{:?}", e);
-        panic!();
+        panic!(e);
       }
     };
 //    let (gltf, buffers, images) = .unwrap();

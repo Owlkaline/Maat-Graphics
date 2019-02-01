@@ -1,6 +1,7 @@
 use vk;
 
-use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage, VertexInputRate};
+use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage,
+                             VertexInputRate, SampleCount};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
@@ -74,7 +75,7 @@ impl FinalShader {
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
-                                .multisample(0)
+                                .multisample(&SampleCount::OneBit)
                                 .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::Store)
                                 .stencil_load(AttachmentLoadOp::DontCare)
@@ -96,12 +97,10 @@ impl FinalShader {
     for i in 0..image_views.len() {
       descriptor_sets.push(DescriptorSetBuilder::new()
         .fragment_combined_image_sampler(0)
-      //  .fragment_combined_image_sampler(1)
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
       UpdateDescriptorSets::new()
-       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
-       //.add_sampled_image(1, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .add_sampled_image(0, texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
        
       ds.push(DescriptorSetBuilder::new()
@@ -145,7 +144,6 @@ impl FinalShader {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
       UpdateDescriptorSets::new()
          .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
-       //  .add_sampled_image(1, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.descriptor_sets[i]);
       UpdateDescriptorSets::new()
          .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
@@ -238,8 +236,7 @@ impl FinalShader {
     let mut cmd = cmd;
     
     UpdateDescriptorSets::new()
-       .add_sampled_image(0, &texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
-    //   .add_sampled_image(1, &model_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .add_sampled_image(0, &texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
        .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
     
     UpdateDescriptorSets::new()

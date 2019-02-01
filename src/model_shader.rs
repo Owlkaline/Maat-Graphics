@@ -328,7 +328,7 @@ impl ModelShader {
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
-                                .multisample(0)
+                                .multisample(&SampleCount::OneBit)
                                 .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::Store)
                                 .stencil_load(AttachmentLoadOp::DontCare)
@@ -339,7 +339,7 @@ impl ModelShader {
     
     let depth_attachment = AttachmentInfo::new()
                                 .format(vk::FORMAT_D32_SFLOAT)
-                                .multisample(0)
+                                .multisample(&SampleCount::OneBit)
                                 .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
@@ -360,7 +360,7 @@ impl ModelShader {
     for _ in 0..image_views.len() {
       framebuffer_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::colour_attachment_storage_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, current_extent.width as u32, current_extent.height as u32));
       
-      framebuffer_depth.push(ImageAttachment::create_image_depth_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::depth_stencil_attachment(),  &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D,&vk::FORMAT_D32_SFLOAT, current_extent.width as u32, current_extent.height as u32));
+      framebuffer_depth.push(ImageAttachment::create_image_depth_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::depth_stencil_attachment(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D,&vk::FORMAT_D32_SFLOAT, current_extent.width as u32, current_extent.height as u32));
     }
     
     let framebuffers = ModelShader::create_frame_buffers(Arc::clone(&device), &render_pass, current_extent, &framebuffer_images, &framebuffer_depth);

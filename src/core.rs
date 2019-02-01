@@ -67,7 +67,7 @@ pub struct CoreMaat {
 
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
-    let settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
+    let mut settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
     let window = VkWindow::new(app_name, app_version, should_debug, &settings);
     
     let resource_manager = ResourceManager::new();
@@ -89,6 +89,8 @@ impl CoreMaat {
     
     let dummy_image;
     
+    let desired_msaa = settings.get_msaa();
+    
     {
       let instance = window.instance();
       let device = window.device();
@@ -99,6 +101,15 @@ impl CoreMaat {
       
       let max_msaa = window.get_max_mssa();
       println!("Max Msaa possible: {}", max_msaa);
+      
+      let msaa;
+      
+      if desired_msaa < max_msaa {
+        msaa = SampleCount::from(desired_msaa);
+      } else {
+        msaa = SampleCount::from(max_msaa);
+        settings.set_msaa(max_msaa);
+      }
       
       for _ in 0..image_views.len() {
         semaphore_image_available.push(Semaphore::new(Arc::clone(&device)));
@@ -111,9 +122,7 @@ impl CoreMaat {
       
       descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 80, 80);
       
-      println!("Before: Dummy image from core");
       dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
-      println!("After: Dummy image from core");
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -124,7 +133,7 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, max_msaa);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
       final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
     }
@@ -315,12 +324,13 @@ impl CoreRender for CoreMaat {
       let image_views = self.window.swapchain_image_views();
       let textures = self.resources.get_all_textures();
       let format = self.window.swapchain_format();
+      let graphics_queue = self.window.get_present_queue();
       
       self.fences = CoreMaat::create_fences(Arc::clone(&device), image_views.len() as u32);
       
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler);
+      self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler, &self.command_pool, graphics_queue);
       self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions);
       self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
@@ -609,6 +619,8 @@ impl CoreRender for CoreMaat {
 
 impl Drop for CoreMaat {
   fn drop(&mut self) {
+    self.settings.save();
+    
     self.window.device().wait();
     
     println!("Destroying Fences");
