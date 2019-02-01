@@ -3,7 +3,7 @@ use vk;
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage,
                              VertexInputRate, SampleCount};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, ClearValues};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
@@ -108,7 +108,7 @@ impl FinalShader {
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
       UpdateDescriptorSets::new()
-       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .add_sampled_image(0, texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
        .finish_update(Arc::clone(&device), &ds[i]);
     }
     
@@ -143,10 +143,10 @@ impl FinalShader {
     for i in 0..image_views.len() {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
       UpdateDescriptorSets::new()
-         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ColourAttachmentOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.descriptor_sets[i]);
       UpdateDescriptorSets::new()
-         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ColourAttachmentOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.ds[i]);
     }
   }
@@ -228,8 +228,8 @@ impl FinalShader {
     framebuffers
   }
   
-  pub fn begin_renderpass(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, clear_value: &Vec<vk::ClearValue>, window_size: &vk::Extent2D, current_buffer: usize) -> CommandBufferBuilder {
-    cmd.begin_render_pass(Arc::clone(&device), &clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
+  pub fn begin_renderpass(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, clear_value: &ClearValues, window_size: &vk::Extent2D, current_buffer: usize) -> CommandBufferBuilder {
+    cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
   pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: ImageAttachment, model_image: ImageAttachment, sampler: &Sampler, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
@@ -240,7 +240,7 @@ impl FinalShader {
        .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
     
     UpdateDescriptorSets::new()
-       .add_sampled_image(0, &model_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+       .add_sampled_image(0, &model_image, ImageLayout::ColourAttachmentOptimal, sampler)
        .finish_update(Arc::clone(&device), &self.ds[current_buffer]);
     
     let model = Vector4::new(window_width*0.5, window_height*0.5, window_width, window_height);

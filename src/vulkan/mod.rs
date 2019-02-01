@@ -17,6 +17,7 @@ pub use self::ownage::check_errors;
 pub use self::sampler::Sampler;
 pub use self::sampler::SamplerBuilder;
 pub use self::imageattachment::ImageAttachment;
+pub use self::clearvalues::ClearValues;
 
 pub mod pool;
 pub mod buffer;
@@ -36,3 +37,4 @@ mod renderpass;
 mod renderpassbuilder;
 mod sampler;
 mod imageattachment;
+mod clearvalues;

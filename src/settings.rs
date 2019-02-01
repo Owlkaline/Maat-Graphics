@@ -15,7 +15,8 @@ const SPACE: &str = " ";
 const TRUE: &str = "True";
 const FALSE: &str = "False";
 const FULLSCREEN: &str = "Fullscreen";
-const MSAA: &str = "MSAA";
+const TEXTURE_MSAA: &str = "TextureMsaa";
+const MODEL_MSAA: &str = "ModelMsaa";
 const VSYNC: &str = "Vsync";
 const FORCE_DPI: &str = "ForceDpi";
 const DPI: &str = "Dpi";
@@ -25,7 +26,8 @@ const RESOLUTION: &str = "Resolution";
 pub struct Settings {
   vsync: bool,
   triple_buffer: bool,
-  samples: u32,
+  texture_msaa: u32,
+  model_msaa: u32,
   fullscreen: bool,
   _minimum_resolution: [u32; 2],
   resolution: [u32; 2],
@@ -37,7 +39,8 @@ impl Settings {
   pub fn load(minimum_resolution: Vector2<i32>, default_resolution: Vector2<i32>) -> Settings {
     let mut vsync = true;
     let mut triple_buffer = false;
-    let mut samples = 4;
+    let mut texture_msaa = 4;
+    let mut model_msaa = 4;
     let mut is_fullscreen = false;
     let mut resolution = default_resolution;//[1280, 720];
     let mut force_dpi = false;
@@ -75,9 +78,14 @@ impl Settings {
                 _ => {}
               }
             },
-            MSAA => {
+            TEXTURE_MSAA => {
               if let Ok(s) = v[1].parse::<u32>() {
-                samples = s;
+                texture_msaa = s;
+              }
+            },
+            MODEL_MSAA => {
+              if let Ok(s) = v[1].parse::<u32>() {
+                model_msaa = s;
               }
             },
             VSYNC => {
@@ -135,7 +143,8 @@ impl Settings {
     Settings {
       vsync: vsync,
       triple_buffer: triple_buffer,
-      samples: samples,
+      texture_msaa,
+      model_msaa,
       fullscreen: is_fullscreen,
       resolution: [resolution.x.max(minimum_resolution.x) as u32, resolution.y.max(minimum_resolution.y) as u32],
       _minimum_resolution: [minimum_resolution.x as u32, minimum_resolution.y as u32],
@@ -181,7 +190,8 @@ impl Settings {
                   FULLSCREEN + SPACE + fullscreen + NL + 
                   VSYNC             + SPACE + vsync + NL + 
                   TRIPLE_BUFFERING  + SPACE + triple_buffer + NL + 
-                  MSAA              + SPACE + &self.samples.to_string() + NL + 
+                  TEXTURE_MSAA      + SPACE + &self.texture_msaa.to_string() + NL + 
+                  MODEL_MSAA        + SPACE + &self.model_msaa.to_string() + NL + 
                   FORCE_DPI         + SPACE + force_dpi + NL + 
                   DPI               + SPACE + &self.dpi.to_string() + NL;
     let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
@@ -196,7 +206,8 @@ impl Settings {
                   FULLSCREEN + SPACE + FALSE + NL + 
                   VSYNC             + SPACE + TRUE  + NL + 
                   TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
-                  MSAA              + SPACE + "4"   + NL + 
+                  TEXTURE_MSAA      + SPACE + "2"   + NL + 
+                  MODEL_MSAA        + SPACE + "2"   + NL + 
                   FORCE_DPI         + SPACE + FALSE + NL + 
                   DPI               + SPACE + "1"   + NL;
     let f = File::create(SETTINGS_LOCATION).expect("Error: Failed to create settings file");
@@ -218,12 +229,20 @@ impl Settings {
     self.triple_buffer
   }
   
-  pub fn set_msaa(&mut self, msaa: u32) {
-    self.samples = msaa;
+  pub fn set_texture_msaa(&mut self, msaa: u32) {
+    self.texture_msaa = msaa;
   }
   
-  pub fn get_msaa(&self) -> u32 {
-    self.samples
+  pub fn set_model_msaa(&mut self, msaa: u32) {
+    self.model_msaa = msaa;
+  }
+  
+  pub fn get_texture_msaa(&self) -> u32 {
+    self.texture_msaa
+  }
+  
+  pub fn get_model_msaa(&self) -> u32 {
+    self.model_msaa
   }
   
   pub fn is_fullscreen(&self) -> bool {

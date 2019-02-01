@@ -18,6 +18,8 @@ use crate::Settings;
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool, CommandBufferLevel};
 
+use crate::vulkan::ClearValues;
+
 use crate::vulkan::VkWindow;
 use crate::vulkan::pool::CommandPool;
 use crate::vulkan::Device;
@@ -48,7 +50,9 @@ pub struct CoreMaat {
   command_buffers: Vec<Arc<CommandBuffer>>,
   descriptor_set_pool: DescriptorPool,
   
-  clear_colour: Vector4<f32>,
+  texture_clear_colour: ClearValues,
+  model_clear_colour: ClearValues,
+  final_clear_colour: ClearValues,
   
   dummy_image: ImageAttachment,
   
@@ -89,7 +93,11 @@ impl CoreMaat {
     
     let dummy_image;
     
-    let desired_msaa = settings.get_msaa();
+    let desired_texture_msaa = settings.get_texture_msaa();
+    let desired_model_msaa = settings.get_model_msaa();
+    
+    let texture_msaa;
+    let model_msaa;
     
     {
       let instance = window.instance();
@@ -102,14 +110,22 @@ impl CoreMaat {
       let max_msaa = window.get_max_mssa();
       println!("Max Msaa possible: {}", max_msaa);
       
-      let msaa;
-      
-      if desired_msaa < max_msaa {
-        msaa = SampleCount::from(desired_msaa);
+      if desired_texture_msaa < max_msaa {
+        texture_msaa = SampleCount::from(desired_texture_msaa);
       } else {
-        msaa = SampleCount::from(max_msaa);
-        settings.set_msaa(max_msaa);
+        texture_msaa = SampleCount::from(max_msaa);
       }
+      
+      if desired_model_msaa < max_msaa {
+        model_msaa = SampleCount::from(desired_model_msaa);
+      } else {
+        model_msaa = SampleCount::from(max_msaa);
+      }
+      
+      settings.set_texture_msaa(texture_msaa.to_bits());
+      settings.set_model_msaa(model_msaa.to_bits());
+      println!("Using Msaa: {}x for 2D", texture_msaa.to_bits());
+      println!("Using Msaa: {}x for 3D", model_msaa.to_bits());
       
       for _ in 0..image_views.len() {
         semaphore_image_available.push(Semaphore::new(Arc::clone(&device)));
@@ -133,12 +149,20 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &msaa);
-      model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
+      model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
       final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
     }
     
     let max_frames = fences.len();
+    
+    let default_clear_colour = Vector4::new(0.0, 0.0, 0.2, 1.0);
+    
+    let model_clear_colour = if model_msaa != SampleCount::OneBit {
+      ClearValues::new().add_colour(default_clear_colour).add_depth(1.0, 0).add_colour(default_clear_colour)
+    } else {
+      ClearValues::new().add_depth(1.0, 0).add_colour(default_clear_colour).add_colour(default_clear_colour)
+    };
     
     CoreMaat {
       window: window,
@@ -151,7 +175,9 @@ impl CoreMaat {
       command_buffers,
       descriptor_set_pool,
       
-      clear_colour: Vector4::new(0.0, 0.0, 0.2, 1.0),
+      texture_clear_colour: ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
+      model_clear_colour,
+      final_clear_colour: ClearValues::new().add_colour(default_clear_colour),
       
       dummy_image,
       sampler,
@@ -232,11 +258,6 @@ impl CoreRender for CoreMaat {
   
   fn add_texture(&mut self, reference: String, location: String) {
     self.resources.insert_unloaded_texture(reference, location);
-    /*let graphics_queue = self.window.get_graphics_queue();
-    let device = self.window.device();
-    let instance = self.window.instance();
-    self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
-    self.texture_shader.add_texture(Arc::clone(&instance), Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler, &self.window_dimensions);*/
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
@@ -331,7 +352,7 @@ impl CoreRender for CoreMaat {
       self.command_buffers = self.command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       self.texture_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, textures.clone(), &self.sampler, &self.command_pool, graphics_queue);
-      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions);
+      self.model_shader.recreate(Arc::clone(&instance), Arc::clone(&device), &format, image_views, &self.window_dimensions, &self.command_pool, graphics_queue);
       self.final_shader.recreate(Arc::clone(&device), image_views, &self.window_dimensions, textures, &self.sampler);
       
       // TO REMOVE
@@ -364,7 +385,7 @@ impl CoreRender for CoreMaat {
     let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
     self.fences[self.current_frame].wait(Arc::clone(&device));
     self.fences[self.current_frame].reset(Arc::clone(&device));
-    
+    /*
     let texture_clear_values: Vec<vk::ClearValue> = {
       vec!(
         vk::ClearValue { 
@@ -388,9 +409,13 @@ impl CoreRender for CoreMaat {
         },
         vk::ClearValue { 
           depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 },
-        }
+        },
+        vk::ClearValue { 
+          color: vk::ClearColorValue { float32: [self.clear_colour.x, self.clear_colour.y, self.clear_colour.z, self.clear_colour.w] },
+        },
+        
       )
-    };
+    };*/
     
     let mut model_draw_calls = Vec::new();
     
@@ -414,7 +439,7 @@ impl CoreRender for CoreMaat {
       let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
       cmd = cmd.begin_command_buffer(Arc::clone(&device));
       cmd = self.texture_shader.fill_buffers(Arc::clone(&instance), Arc::clone(&device), cmd, i);
-      cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &texture_clear_values, &window_size, i);
+      cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &self.texture_clear_colour, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
@@ -492,7 +517,7 @@ impl CoreRender for CoreMaat {
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Model Shader
-      cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values_depth, &window_size, i);
+      cmd = self.model_shader.begin_renderpass(Arc::clone(&device), cmd, &self.model_clear_colour, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
@@ -537,7 +562,7 @@ impl CoreRender for CoreMaat {
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Final Shader
-      cmd = self.final_shader.begin_renderpass(Arc::clone(&device), cmd, &clear_values, &window_size, i);
+      cmd = self.final_shader.begin_renderpass(Arc::clone(&device), cmd, &self.final_clear_colour, &window_size, i);
       
       cmd = cmd.set_viewport(Arc::clone(&device), 0.0, 0.0, window_size.width as f32, window_size.height as f32);
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
@@ -600,7 +625,18 @@ impl CoreRender for CoreMaat {
   }
   
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
-    self.clear_colour = Vector4::new(r,g,b,a);
+    //self.clear_colour = Vector4::new(r,g,b,a);
+    println!("SETTING CLEAR COLOUR");
+    let model_msaa = self.settings.get_model_msaa();
+    let model_clear_colour = if SampleCount::from(model_msaa) != SampleCount::OneBit {
+      ClearValues::new().add_colour(Vector4::new(r,g,b,a)).add_depth(1.0, 0).add_colour(Vector4::new(r,g,b,a))
+    } else {
+      println!("here");
+      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(r,g,b,a)).add_colour(Vector4::new(r,g,b,a))
+    };
+    
+    self.model_clear_colour = model_clear_colour;
+    self.final_clear_colour = ClearValues::new().add_colour(Vector4::new(r,g,b,a));
   }
   
   fn set_camera(&mut self, _camera: Camera) {
