@@ -159,9 +159,9 @@ impl CoreMaat {
     let default_clear_colour = Vector4::new(0.0, 0.0, 0.2, 1.0);
     
     let model_clear_colour = if model_msaa != SampleCount::OneBit {
-      ClearValues::new().add_colour(default_clear_colour).add_depth(1.0, 0).add_colour(default_clear_colour)
+      ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
     } else {
-      ClearValues::new().add_depth(1.0, 0).add_colour(default_clear_colour).add_colour(default_clear_colour)
+      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
     };
     
     CoreMaat {
@@ -175,7 +175,7 @@ impl CoreMaat {
       command_buffers,
       descriptor_set_pool,
       
-      texture_clear_colour: ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
+      texture_clear_colour: ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
       model_clear_colour,
       final_clear_colour: ClearValues::new().add_colour(default_clear_colour),
       
@@ -629,10 +629,10 @@ impl CoreRender for CoreMaat {
     println!("SETTING CLEAR COLOUR");
     let model_msaa = self.settings.get_model_msaa();
     let model_clear_colour = if SampleCount::from(model_msaa) != SampleCount::OneBit {
-      ClearValues::new().add_colour(Vector4::new(r,g,b,a)).add_depth(1.0, 0).add_colour(Vector4::new(r,g,b,a))
+      ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_depth(1.0, 0).add_colour(Vector4::new(0.0,0.0,0.0,0.0))
     } else {
       println!("here");
-      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(r,g,b,a)).add_colour(Vector4::new(r,g,b,a))
+      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
     };
     
     self.model_clear_colour = model_clear_colour;

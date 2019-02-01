@@ -169,7 +169,7 @@ impl TextureShader {
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
-                                .load(colour_attachment_load)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::Store)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
