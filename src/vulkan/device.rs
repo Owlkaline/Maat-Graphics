@@ -1,6 +1,7 @@
 use vk;
 
 use crate::vulkan::Instance;
+use crate::vulkan::vkenums::{VkBool};
 
 use std::mem;
 use std::ptr;
@@ -48,6 +49,48 @@ impl Device {
     }
     
     graphics_queue
+  }
+  
+  pub fn get_compute_queue(&self, instance: Arc<Instance>) -> vk::Queue {
+    let mut num_queue_families = 0;
+    let mut queue_family_properties: Vec<vk::QueueFamilyProperties> = unsafe { mem::uninitialized() };
+    let mut compute_index: u32 = 0;
+    let mut compute_queue = 0;
+    
+    let vk_instance = instance.pointers();
+    
+    unsafe {
+      vk_instance.GetPhysicalDeviceQueueFamilyProperties(self.phys_device, &mut num_queue_families, ptr::null_mut());
+      vk_instance.GetPhysicalDeviceQueueFamilyProperties(self.phys_device, &mut num_queue_families, queue_family_properties.as_mut_ptr());
+      queue_family_properties.set_len(num_queue_families as usize);
+    }
+    
+    let mut compute_queue_found = false;
+    for i in 0..num_queue_families as usize {
+      if Device::has_compute_bit(&queue_family_properties[i].queueFlags) && !Device::has_graphics_bit(&queue_family_properties[i].queueFlags) {
+        compute_index = i as u32;
+        compute_queue_found = true;
+        println!("Dedicated Compute queue found!");
+        break;
+      }
+    }
+    
+    if !compute_queue_found {
+      for i in 0..num_queue_families as usize {
+        if Device::has_compute_bit(&queue_family_properties[i].queueFlags) {
+          compute_index = i as u32;
+          compute_queue_found = true;
+          println!("Shared Compute queue found!");
+          break;
+        }
+      }
+    }
+    
+    unsafe {
+      self.vk.GetDeviceQueue(self.device, compute_index, 0, &mut compute_queue);
+    }
+    
+    compute_queue
   }
   
   pub fn wait(&self) {
@@ -148,14 +191,72 @@ impl Device {
           );
         }
         
-        let features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
+        let device_features: vk::PhysicalDeviceFeatures = instance.get_device_features(&physical_devices[physical_device_index]);
         
-        match features.shaderSampledImageArrayDynamicIndexing {
+        match device_features.shaderSampledImageArrayDynamicIndexing {
           vk::TRUE => {
             println!("Dynamic indexing supported!");
           },
           _ => {println!("Dynamic indexing not supported :(");}
         }
+        
+        let features = vk::PhysicalDeviceFeatures {
+          robustBufferAccess: VkBool::False.to_bits(),
+          fullDrawIndexUint32: VkBool::False.to_bits(),
+          imageCubeArray: VkBool::False.to_bits(),
+          independentBlend: VkBool::False.to_bits(),
+          geometryShader: VkBool::False.to_bits(),
+          tessellationShader: VkBool::False.to_bits(),
+          sampleRateShading: VkBool::False.to_bits(),
+          dualSrcBlend: VkBool::False.to_bits(),
+          logicOp: VkBool::False.to_bits(),
+          multiDrawIndirect: VkBool::False.to_bits(),
+          drawIndirectFirstInstance: VkBool::False.to_bits(),
+          depthClamp: VkBool::False.to_bits(),
+          depthBiasClamp: VkBool::False.to_bits(),
+          fillModeNonSolid: VkBool::False.to_bits(),
+          depthBounds: VkBool::False.to_bits(),
+          wideLines: VkBool::False.to_bits(),
+          largePoints: VkBool::False.to_bits(),
+          alphaToOne: VkBool::True.to_bits(),
+          multiViewport: VkBool::False.to_bits(),
+          samplerAnisotropy: VkBool::True.to_bits(),
+          textureCompressionETC2: VkBool::False.to_bits(),
+          textureCompressionASTC_LDR: VkBool::False.to_bits(),
+          textureCompressionBC: VkBool::False.to_bits(),
+          occlusionQueryPrecise: VkBool::False.to_bits(),
+          pipelineStatisticsQuery: VkBool::False.to_bits(),
+          vertexPipelineStoresAndAtomics: VkBool::False.to_bits(),
+          fragmentStoresAndAtomics: VkBool::False.to_bits(),
+          shaderTessellationAndGeometryPointSize: VkBool::False.to_bits(),
+          shaderImageGatherExtended: VkBool::False.to_bits(),
+          shaderStorageImageExtendedFormats: VkBool::False.to_bits(),
+          shaderStorageImageMultisample: VkBool::False.to_bits(),
+          shaderStorageImageReadWithoutFormat: VkBool::False.to_bits(),
+          shaderStorageImageWriteWithoutFormat: VkBool::False.to_bits(),
+          shaderUniformBufferArrayDynamicIndexing: VkBool::False.to_bits(),
+          shaderSampledImageArrayDynamicIndexing: VkBool::False.to_bits(),
+          shaderStorageBufferArrayDynamicIndexing: VkBool::False.to_bits(),
+          shaderStorageImageArrayDynamicIndexing: VkBool::False.to_bits(),
+          shaderClipDistance: VkBool::False.to_bits(),
+          shaderCullDistance: VkBool::False.to_bits(),
+          shaderf3264: VkBool::False.to_bits(),
+          shaderInt64: VkBool::False.to_bits(),
+          shaderInt16: VkBool::False.to_bits(),
+          shaderResourceResidency: VkBool::False.to_bits(),
+          shaderResourceMinLod: VkBool::False.to_bits(),
+          sparseBinding: VkBool::False.to_bits(),
+          sparseResidencyBuffer: VkBool::False.to_bits(),
+          sparseResidencyImage2D: VkBool::False.to_bits(),
+          sparseResidencyImage3D: VkBool::False.to_bits(),
+          sparseResidency2Samples: VkBool::False.to_bits(),
+          sparseResidency4Samples: VkBool::False.to_bits(),
+          sparseResidency8Samples: VkBool::False.to_bits(),
+          sparseResidency16Samples: VkBool::False.to_bits(),
+          sparseResidencyAliased: VkBool::False.to_bits(),
+          variableMultisampleRate: VkBool::False.to_bits(),
+          inheritedQueries: VkBool::False.to_bits(),
+        };
         
         //features.robustBufferAccess = vk::TRUE;
         
@@ -263,5 +364,20 @@ impl Device {
   
   fn has_graphics_bit(queue_flags: &u32) -> bool {
     queue_flags % 2 != 0 
+  }
+  
+  fn has_compute_bit(queue_flags: &u32) -> bool {
+    let mut queue = *queue_flags;
+    if Device::has_graphics_bit(queue_flags) {
+      queue -= 1;
+    }
+    if queue >= 8 {
+      queue -= 8;
+    }
+    if queue >= 4 {
+      queue -= 4;
+    }
+    
+    (queue != 0)
   }
 }

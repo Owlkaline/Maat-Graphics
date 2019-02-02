@@ -30,7 +30,7 @@ pub struct DescriptorSetBuilder {
 
 pub struct UpdateDescriptorSets<'a> {
   uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
-  images: Vec<(u32, &'a ImageAttachment, ImageLayout, &'a Sampler)>,
+  images: Vec<(u32, &'a ImageAttachment, ImageLayout, Option<&'a Sampler>, DescriptorType)>,
 }
 
 impl<'a> UpdateDescriptorSets<'a> {
@@ -49,7 +49,12 @@ impl<'a> UpdateDescriptorSets<'a> {
   }
   
   pub fn add_sampled_image(mut self, binding: u32, image: &'a ImageAttachment, image_layout: ImageLayout, sampler: &'a Sampler) -> UpdateDescriptorSets<'a> {
-    self.images.push((binding, image, image_layout, sampler));
+    self.images.push((binding, image, image_layout, Some(sampler), DescriptorType::CombinedImageSampler));
+    self
+  }
+  
+  pub fn add_storage_image(mut self, binding: u32, image: &'a ImageAttachment, image_layout: ImageLayout) -> UpdateDescriptorSets<'a> {
+    self.images.push((binding, image, image_layout, None, DescriptorType::StorageImage));
     self
   }
   
@@ -86,15 +91,27 @@ impl<'a> UpdateDescriptorSets<'a> {
       
      // let mut descriptor_image_info = Vec::new();
       for i in 0..self.images.len() {
-        let (binding, ref image, ref layout, ref sampler) = self.images[i];
+        let (binding, ref image, ref layout, ref sampler, ref descriptor_type) = self.images[i];
         
-        let descriptor_image_info = {
-          vk::DescriptorImageInfo {
-            sampler: sampler.internal_object(),
-            imageView: image.get_image_view(),
-            imageLayout: layout.to_bits(),
-          }
-        };
+        let descriptor_image_info;
+        
+        if sampler.is_some() {
+          descriptor_image_info = {
+            vk::DescriptorImageInfo {
+              sampler: sampler.unwrap().internal_object(),
+              imageView: image.get_image_view(),
+              imageLayout: layout.to_bits(),
+            }
+          };
+        } else {
+          descriptor_image_info = {
+            vk::DescriptorImageInfo {
+              sampler: 0,
+              imageView: image.get_image_view(),
+              imageLayout: layout.to_bits(),
+            }
+          };
+        }
         
         write_descriptor_sets.push(
           vk::WriteDescriptorSet {
@@ -104,7 +121,7 @@ impl<'a> UpdateDescriptorSets<'a> {
             dstBinding: binding,
             dstArrayElement: 0,
             descriptorCount: 1,
-            descriptorType: DescriptorType::CombinedImageSampler.to_bits(),
+            descriptorType: descriptor_type.to_bits(),
             pImageInfo: &descriptor_image_info,
             pBufferInfo: ptr::null(),
             pTexelBufferView: ptr::null(),
@@ -174,6 +191,17 @@ impl DescriptorSetBuilder {
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStage::Fragment,
+      }
+    );
+    self
+  }
+  
+  pub fn compute_storage_image(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::StorageImage,
+        shader_stage: ShaderStage::Compute,
       }
     );
     self
