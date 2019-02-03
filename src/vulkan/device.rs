@@ -51,9 +51,9 @@ impl Device {
     graphics_queue
   }
   
-  pub fn get_compute_queue(&self, instance: Arc<Instance>) -> vk::Queue {
+  pub fn get_compute_queue(&self, instance: Arc<Instance>) -> (vk::Queue, u32) {
     let mut num_queue_families = 0;
-    let mut queue_family_properties: Vec<vk::QueueFamilyProperties> = unsafe { mem::uninitialized() };
+    let mut queue_family_properties: Vec<vk::QueueFamilyProperties>;
     let mut compute_index: u32 = 0;
     let mut compute_queue = 0;
     
@@ -61,6 +61,9 @@ impl Device {
     
     unsafe {
       vk_instance.GetPhysicalDeviceQueueFamilyProperties(self.phys_device, &mut num_queue_families, ptr::null_mut());
+      
+      queue_family_properties = Vec::with_capacity(num_queue_families as usize);
+      
       vk_instance.GetPhysicalDeviceQueueFamilyProperties(self.phys_device, &mut num_queue_families, queue_family_properties.as_mut_ptr());
       queue_family_properties.set_len(num_queue_families as usize);
     }
@@ -90,7 +93,7 @@ impl Device {
       self.vk.GetDeviceQueue(self.device, compute_index, 0, &mut compute_queue);
     }
     
-    compute_queue
+    (compute_queue, compute_index)
   }
   
   pub fn wait(&self) {
@@ -200,6 +203,7 @@ impl Device {
           _ => {println!("Dynamic indexing not supported :(");}
         }
         
+        // Need to fix
         let features = vk::PhysicalDeviceFeatures {
           robustBufferAccess: VkBool::False.to_bits(),
           fullDrawIndexUint32: VkBool::False.to_bits(),

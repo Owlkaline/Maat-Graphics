@@ -18,19 +18,10 @@ use crate::Settings;
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool, CommandBufferLevel};
 
-use crate::vulkan::ClearValues;
-
-use crate::vulkan::VkWindow;
-use crate::vulkan::pool::CommandPool;
-use crate::vulkan::Device;
-use crate::vulkan::pool::DescriptorPool;
-use crate::vulkan::ImageAttachment;
-use crate::vulkan::Sampler;
-use crate::vulkan::SamplerBuilder;
-use crate::vulkan::sync::Fence;
-use crate::vulkan::sync::Semaphore;
-use crate::vulkan::buffer::CommandBuffer;
-use crate::vulkan::buffer::CommandBufferBuilder;
+use crate::vulkan::{ClearValues, VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
+use crate::vulkan::pool::{CommandPool, DescriptorPool, DescriptorPoolBuilder};
+use crate::vulkan::sync::{Semaphore, Fence};
+use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
 use crate::vulkan::check_errors;
 
 use cgmath::{Vector2};
@@ -58,6 +49,7 @@ pub struct CoreMaat {
   
   sampler: Sampler,
   
+  compute_shader: Compute,
   texture_shader: TextureShader,
   model_shader: ModelShader,
   final_shader: FinalShader,
@@ -99,6 +91,8 @@ impl CoreMaat {
     let texture_msaa;
     let model_msaa;
     
+    let mut compute_shader;
+    
     {
       let instance = window.instance();
       let device = window.device();
@@ -136,7 +130,12 @@ impl CoreMaat {
       command_pool = CommandPool::new(Arc::clone(&device), graphics_family);
       command_buffers = command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
-      descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 80, 80);
+      //descriptor_set_pool = DescriptorPool::new(Arc::clone(&device), image_views.len() as u32, 80, 80);
+      descriptor_set_pool = DescriptorPoolBuilder::new()
+                              .add_combined_image_samplers(80)
+                              .add_uniform_buffers(80)
+                              .add_storage_images(2)
+                              .build(Arc::clone(&device), image_views.len() as u32);
       
       dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
       
@@ -149,9 +148,17 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
+      compute_shader = Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32);
+      
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
       final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      
+      let mut model_images = Vec::with_capacity(image_views.len());
+      for i in 0..image_views.len() {
+        model_images.push(model_shader.get_texture_ref(i));
+      }
+      //compute_shader.build(Arc::clone(&device), *graphics_queue as u32, model_images);
     }
     
     let max_frames = fences.len();
@@ -182,6 +189,7 @@ impl CoreMaat {
       dummy_image,
       sampler,
       
+      compute_shader,
       texture_shader,
       model_shader,
       final_shader,
@@ -672,6 +680,7 @@ impl Drop for CoreMaat {
     self.dummy_image.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
+    self.compute_shader.destroy(Arc::clone(&device));
     self.texture_shader.destroy(Arc::clone(&device));
     self.model_shader.destroy(Arc::clone(&device));
     self.final_shader.destroy(Arc::clone(&device));

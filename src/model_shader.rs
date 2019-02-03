@@ -447,8 +447,12 @@ impl ModelShader {
     self.camera.process_mouse_movement(x_offset, y_offset);
   }
   
-  pub fn get_texture(&mut self, current_buffer: usize) -> ImageAttachment {
+  pub fn get_texture(&self, current_buffer: usize) -> ImageAttachment {
     self.framebuffer_colour_images[current_buffer].clone()
+  }
+  
+  pub fn get_texture_ref(&self, current_buffer: usize) -> &ImageAttachment {
+    &self.framebuffer_colour_images[current_buffer]
   }
   
   pub fn add_model(&mut self, instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) {

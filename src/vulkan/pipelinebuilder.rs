@@ -18,6 +18,7 @@ use std::ffi::CString;
 pub struct PipelineBuilder {
   vertex_shader: Option<vk::ShaderModule>,
   fragment_shader: Option<vk::ShaderModule>,
+  compute_shader: Option<vk::ShaderModule>,
   render_pass: Option<RenderPass>,
   topology: Topology,
   polygon_mode: PolygonMode,
@@ -48,6 +49,7 @@ impl PipelineBuilder {
     PipelineBuilder {
       vertex_shader: None,
       fragment_shader: None,
+      compute_shader: None,
       render_pass: None,
       topology: Topology::TriangleList,
       polygon_mode: PolygonMode::Fill,
@@ -89,6 +91,11 @@ impl PipelineBuilder {
   
   pub fn fragment_shader(mut self, shader: vk::ShaderModule) -> PipelineBuilder {
     self.fragment_shader = Some(shader);
+    self
+  }
+  
+  pub fn compute_shader(mut self, shader: vk::ShaderModule) -> PipelineBuilder {
+    self.compute_shader = Some(shader);
     self
   }
   
@@ -299,6 +306,74 @@ impl PipelineBuilder {
   pub fn alpha_to_one(mut self) -> PipelineBuilder {
     self.alpha_to_one = vk::TRUE;
     self
+  }
+  
+  pub fn build_compute(mut self, device: Arc<Device>) -> Pipeline {
+    let vk = device.pointers();
+    let device = device.internal_object();
+    
+    let mut layout = unsafe { mem::uninitialized() };
+    let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
+    let mut compute_pipeline_create_infos: Vec<vk::ComputePipelineCreateInfo> = Vec::with_capacity(2);
+    
+    let shader_stage = vk::PipelineShaderStageCreateInfo {
+      sType: vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      pNext: ptr::null(),
+      flags: 0,
+      stage: ShaderStage::Compute.to_bits(),
+      module: self.compute_shader.unwrap(),
+      pName: CString::new("main").unwrap().into_raw(),
+      pSpecializationInfo: ptr::null(),
+    };
+    
+    let push_constant_range = {
+      vk::PushConstantRange {
+        stageFlags: self.push_constant_shader_stage.to_bits(),
+        offset: 0,
+        size: self.push_constant_size,
+      }
+    };
+    
+    let layouts = self.descriptor_set_layouts.unwrap();
+    let pipeline_layout_create_info = {
+      vk::PipelineLayoutCreateInfo {
+        sType: vk::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        pNext: ptr::null(),
+        flags: 0,
+        setLayoutCount: layouts.len() as u32,
+        pSetLayouts: layouts.as_ptr(),
+        pushConstantRangeCount: if self.push_constant_size == 0 { 0 } else { 1 },
+        pPushConstantRanges: if self.push_constant_size == 0 { ptr::null() } else { &push_constant_range },
+      }
+    };
+    
+    unsafe {
+      vk.CreatePipelineLayout(*device, &pipeline_layout_create_info, ptr::null(), &mut layout);
+    }
+    
+    compute_pipeline_create_infos.push(vk::ComputePipelineCreateInfo {
+      sType: vk::STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+      pNext: ptr::null(),
+      flags: 0,
+      stage: shader_stage,
+      layout: layout,
+      basePipelineHandle: 0,
+      basePipelineIndex: -1,
+    });
+    
+    unsafe {
+      check_errors(vk.CreateComputePipelines(*device, 0, compute_pipeline_create_infos.len() as u32, compute_pipeline_create_infos.as_ptr(), ptr::null(), pipelines.as_mut_ptr()));
+      pipelines.set_len(compute_pipeline_create_infos.len());
+    }
+    
+    let pipeline_info = PipelineInfo {
+      vertex_shader: 0,
+      fragment_shader: 0,
+      vertex_binding: Vec::new(),
+      vertex_input_attribute_descriptions: Vec::new(),
+    };
+    
+    Pipeline::new_with_fields(pipeline_info, pipelines, 0, layout)
   }
   
   pub fn build(mut self, device: Arc<Device>) -> Pipeline {
@@ -596,8 +671,8 @@ impl PipelineBuilder {
         flags: 0,
         setLayoutCount: layouts.len() as u32,
         pSetLayouts: layouts.as_ptr(),
-        pushConstantRangeCount: 1,
-        pPushConstantRanges: &push_constant_range,
+        pushConstantRangeCount: if self.push_constant_size == 0 { 0 } else { 1 },
+        pPushConstantRanges: if self.push_constant_size == 0 { ptr::null() } else { &push_constant_range },
       }
     };
     

@@ -216,7 +216,7 @@ pub enum PipelineStage {
   EarlyFragmentTests,
   LateFragementTests,
   ColorAttachmentOutput,
-  ComputShader,
+  ComputeShader,
   Transfer,
   BottomOfPipe,
   Host,
@@ -1171,7 +1171,7 @@ impl PipelineStage {
       PipelineStage::ColorAttachmentOutput => {
         vk::PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
       },
-      PipelineStage::ComputShader => {
+      PipelineStage::ComputeShader => {
         vk::PIPELINE_STAGE_COMPUTE_SHADER_BIT
       },
       PipelineStage::Transfer => {

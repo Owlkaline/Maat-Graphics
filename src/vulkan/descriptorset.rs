@@ -207,6 +207,17 @@ impl DescriptorSetBuilder {
     self
   }
   
+  pub fn compute_combined_image_sampler(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::CombinedImageSampler,
+        shader_stage: ShaderStage::Compute,
+      }
+    );
+    self
+  }
+  
   pub fn build(&self, device: Arc<Device>, set_pool: &DescriptorPool, num_sets: u32) -> DescriptorSet {
     let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
     let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);

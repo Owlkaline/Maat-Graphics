@@ -19,6 +19,8 @@ pub struct ImageAttachment {
   image_view: vk::ImageView,
   memory: vk::DeviceMemory,
   format: vk::Format,
+  width: u32,
+  height: u32,
 }
 
 impl ImageAttachment {
@@ -35,6 +37,8 @@ impl ImageAttachment {
       image_view,
       memory,
       format: *format,
+      width,
+      height,
     }
   }
   
@@ -50,6 +54,8 @@ impl ImageAttachment {
       image_view,
       memory,
       format: *format,
+      width,
+      height,
     }
   }
   
@@ -68,6 +74,8 @@ impl ImageAttachment {
       image_view,
       memory,
       format: *format,
+      width,
+      height,
     }
   }
   
@@ -110,6 +118,8 @@ impl ImageAttachment {
       image_view: texture_image_view,
       memory: texture_memory,
       format: format,
+      width,
+      height,
     }
   }
   
@@ -147,7 +157,13 @@ impl ImageAttachment {
       image_view: texture_image_view,
       memory: texture_memory,
       format: format,
+      width,
+      height,
     }
+  }
+  
+  pub fn get_size(&self) -> (u32, u32) {
+    (self.width, self.height)
   }
   
   pub fn get_image(&self) -> vk::Image {

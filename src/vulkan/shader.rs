@@ -40,7 +40,7 @@ impl Shader {
     &self.module
   }
   
-  pub fn destroy(&mut self, device: Arc<Device>) {
+  pub fn destroy(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();
     

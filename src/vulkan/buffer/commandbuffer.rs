@@ -1,5 +1,6 @@
 use vk;
 
+use crate::vulkan::ImageAttachment;
 use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
 use crate::vulkan::Pipeline;
@@ -12,7 +13,8 @@ use crate::vulkan::buffer::Buffer;
 use crate::vulkan::check_errors;
 use crate::vulkan::buffer::UniformData;
 
-use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStage, CommandBufferLevel, PipelineBindPoint, SubpassContents, IndexType};
+use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStage, CommandBufferLevel,
+                             PipelineBindPoint, SubpassContents, IndexType, Access};
 
 use std::mem;
 use std::ptr;
@@ -167,7 +169,7 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) {
+  pub fn bind_graphics_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) {
     let vk = device.pointers();
     
     unsafe {
@@ -175,11 +177,27 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_pipeline(&self, device: Arc<Device>, pipeline: &Pipeline) {
+  pub fn bind_graphics_pipeline(&self, device: Arc<Device>, pipeline: &Pipeline) {
     let vk = device.pointers();
     
     unsafe {
       vk.CmdBindPipeline(self.command_buffer, vk::PIPELINE_BIND_POINT_GRAPHICS, *pipeline.pipeline(0));
+    }
+  }
+  
+  pub fn bind_compute_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) {
+    let vk = device.pointers();
+    
+    unsafe {
+      vk.CmdBindDescriptorSets(self.command_buffer, PipelineBindPoint::Compute.to_bits(), *pipeline.layout(), 0, descriptor_set.len() as u32, descriptor_set.as_ptr(), 0, ptr::null());
+    }
+  }
+  
+  pub fn bind_compute_pipeline(&self, device: Arc<Device>, pipeline: &Pipeline) {
+    let vk = device.pointers();
+    
+    unsafe {
+      vk.CmdBindPipeline(self.command_buffer, PipelineBindPoint::Compute.to_bits(), *pipeline.pipeline(0));
     }
   }
   
@@ -256,6 +274,14 @@ impl CommandBuffer {
     }
   }
   
+  pub fn dispatch(&self, device: Arc<Device>, x: u32, y: u32, z: u32) {
+    let vk = device.pointers();
+    
+    unsafe {
+      vk.CmdDispatch(self.command_buffer, x, y, z);
+    }
+  }
+  
   pub fn copy_buffer<T: Clone, U: Clone>(&self, device: Arc<Device>, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) 
 {
     let buffer_copy = {
@@ -301,7 +327,34 @@ impl CommandBuffer {
       let vk = device.pointers();
       vk.CmdPipelineBarrier(self.command_buffer, src_stage.to_bits(), dst_stage.to_bits(), 0, 0, ptr::null(), 0, ptr::null(), 1, &barrier);
     }
+  }
+  
+  pub fn image_barrier(&self, device: Arc<Device>, src_mask: &Access, dst_mask: &Access, old_layout: &ImageLayout, new_layout: &ImageLayout, aspect: &ImageAspect, src_stage: PipelineStage, dst_stage: PipelineStage, src_queue_family: u32, dst_queue_family: u32, image: &ImageAttachment) {
+    let subresource_range = vk::ImageSubresourceRange {
+      aspectMask: aspect.to_bits(),
+      baseMipLevel: 0,
+      levelCount: 1,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
     
+    let barrier = vk::ImageMemoryBarrier {
+      sType: vk::STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      pNext: ptr::null(),
+      srcAccessMask: src_mask.to_bits(),
+      dstAccessMask: dst_mask.to_bits(),
+      oldLayout: old_layout.to_bits(),
+      newLayout: new_layout.to_bits(),
+      srcQueueFamilyIndex: src_queue_family,
+      dstQueueFamilyIndex: dst_queue_family,
+      image: image.get_image(),
+      subresourceRange: subresource_range,
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdPipelineBarrier(self.command_buffer, src_stage.to_bits(), dst_stage.to_bits(), 0, 0, ptr::null(), 0, ptr::null(), 1, &barrier);
+    }
   }
   
   pub fn internal_object(&self) -> &vk::CommandBuffer {
