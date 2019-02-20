@@ -11,7 +11,8 @@ layout(location = 1) out vec4 v_colour;
 layout(location = 2) out vec4 v_base_colour_factor;
 layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
-layout(location = 5) out vec3 v_to_light;
+layout(location = 5) out vec3 v_world_pos;
+layout(location = 6) out vec3 v_camera_pos;
 
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
@@ -24,8 +25,6 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 const float M_PI = 3.141592653589793;
-
-const vec3 sun_pos = vec3(10.0, 100.0, 10.0);
 
 float cot(float value) {
   return 1.0 / tan(value);
@@ -115,16 +114,18 @@ void main() {
   mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 256.0);
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
   mat4 model = create_translation_matrix(push_constants.model.xyz, model_scale);
+  mat4 untranslated_model = create_translation_matrix(vec3(1.0), model_scale);
   mat4 rotation = create_rotation_matrix(push_constants.rotation.xyz);
   
   vec3 local_pos = vec3((model * rotation) * vec4(position, 1.0));
+  vec3 centered_pos = mat3((untranslated_model * rotation)) * position;
   
   uvs = uv;
   v_colour = colour;
   v_alpha_cutoff = push_constants.alpha_cutoff;
   v_base_colour_factor = push_constants.base_colour_factor;
-  v_normal = vec4(-normal.x, normal.y, normal.z, 0.0).xyz;
-  v_to_light = sun_pos; //- local_pos;
-  
+  v_world_pos = local_pos;
+  v_normal = mat3(model) * vec3(normal.x, normal.y, -normal.z);
+  v_camera_pos = push_constants.c_position.rgb;
   gl_Position = projection * view * vec4(local_pos, 1.0);
 }

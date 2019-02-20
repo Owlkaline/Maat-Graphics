@@ -41,9 +41,9 @@ pub struct CoreMaat {
   command_buffers: Vec<Arc<CommandBuffer>>,
   descriptor_set_pool: DescriptorPool,
   
-  texture_clear_colour: ClearValues,
-  model_clear_colour: ClearValues,
-  final_clear_colour: ClearValues,
+  texture_clear_colour: Vec<vk::ClearValue>,//ClearValues,
+  model_clear_colour: Vec<vk::ClearValue>,//ClearValues,
+  final_clear_colour: Vec<vk::ClearValue>,//ClearValues,
   
   dummy_image: ImageAttachment,
   
@@ -163,12 +163,33 @@ impl CoreMaat {
     
     let max_frames = fences.len();
     
-    let default_clear_colour = Vector4::new(0.0, 0.0, 0.2, 1.0);
+    let default_clear_colour = vec!(vk::ClearValue {
+      color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
+    });
     
     let model_clear_colour = if model_msaa != SampleCount::OneBit {
-      ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
+      //ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
+      vec!(
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
+        },
+        vk::ClearValue {
+          depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] }
+        },
+      )
     } else {
-      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
+      //ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
+      vec!(
+        vk::ClearValue {
+          depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+      )
     };
     
     CoreMaat {
@@ -182,9 +203,17 @@ impl CoreMaat {
       command_buffers,
       descriptor_set_pool,
       
-      texture_clear_colour: ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
+      texture_clear_colour: //ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
+        vec!(
+          vk::ClearValue {
+            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+          },
+          vk::ClearValue {
+            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+          },
+        ),
       model_clear_colour,
-      final_clear_colour: ClearValues::new().add_colour(default_clear_colour),
+      final_clear_colour: default_clear_colour,
       
       dummy_image,
       sampler,
@@ -635,16 +664,40 @@ impl CoreRender for CoreMaat {
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     //self.clear_colour = Vector4::new(r,g,b,a);
     println!("SETTING CLEAR COLOUR");
+    println!("Clear Colour: {}, {}, {}, {}", r, g, b, a);
     let model_msaa = self.settings.get_model_msaa();
-    let model_clear_colour = if SampleCount::from(model_msaa) != SampleCount::OneBit {
-      ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_depth(1.0, 0).add_colour(Vector4::new(0.0,0.0,0.0,0.0))
+    println!("model msaa: {}", model_msaa);
+    let model_clear_colour = if SampleCount::from(model_msaa) == SampleCount::OneBit {
+      //ClearValues::new().add_colour(Vector4::new(r,g,b,a)).add_depth(1.0, 0)
+      vec!(
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [r, g, b, a] }
+        },
+        vk::ClearValue {
+          depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
+        },
+      )
     } else {
-      println!("here");
-      ClearValues::new().add_depth(1.0, 0).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0))
+      //ClearValues::new().add_colour(Vector4::new(r,g,b,a)).add_colour(Vector4::new(r,g,b,a)).add_depth(1.0, 0)
+      vec!(
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [r, g, b, a] }
+        },
+        vk::ClearValue {
+          depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [r, g, b, a] }
+        },
+      )
     };
     
     self.model_clear_colour = model_clear_colour;
-    self.final_clear_colour = ClearValues::new().add_colour(Vector4::new(r,g,b,a));
+    self.final_clear_colour = vec!(
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [r, g, b, a] }
+        },
+      );//ClearValues::new().add_colour(Vector4::new(r,g,b,a));
   }
   
   fn set_camera(&mut self, _camera: Camera) {

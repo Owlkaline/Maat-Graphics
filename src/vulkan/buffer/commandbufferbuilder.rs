@@ -24,7 +24,7 @@ impl CommandBufferBuilder {
     self
   }
   
-  pub fn begin_render_pass(self, device: Arc<Device>, clear_values: &ClearValues, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, render_area: &vk::Extent2D) -> CommandBufferBuilder {
+  pub fn begin_render_pass(self, device: Arc<Device>, clear_values: &Vec<vk::ClearValue>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, render_area: &vk::Extent2D) -> CommandBufferBuilder {
     self.command_buffer.begin_render_pass(Arc::clone(&device), render_pass, framebuffer, clear_values, render_area.width, render_area.height);
     
     self

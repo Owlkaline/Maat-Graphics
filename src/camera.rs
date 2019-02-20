@@ -74,13 +74,24 @@ impl Camera {
     }
   }
   
-  
   pub fn set_mouse_sensitivity(&mut self, new_sensitivity: f32) {
     self.mouse_sensitivity = new_sensitivity;
   }
   
   pub fn set_move_speed(&mut self, speed: f32) {
     self.move_speed = speed;
+  }
+  
+  pub fn set_position(&mut self, pos: Vector3<f32>) {
+    self.position = pos;
+  }
+  
+  pub fn set_pitch(&mut self, pitch: f32) {
+    self.pitch = pitch;
+  }
+  
+  pub fn set_yaw(&mut self, yaw: f32) {
+    self.yaw = yaw;
   }
   
   fn update_camera_vector(&mut self) {

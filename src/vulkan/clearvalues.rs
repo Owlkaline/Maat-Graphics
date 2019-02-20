@@ -40,6 +40,7 @@ impl ClearValues {
   }
   
   pub fn add_colour(mut self, colour: Vector4<f32>) -> ClearValues {
+            println!("{:?}", colour);
     self.clear_values.push(ClearValue::ClearColour(colour));
     self
   }

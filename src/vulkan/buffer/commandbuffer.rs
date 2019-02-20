@@ -116,9 +116,8 @@ impl CommandBuffer {
     }
   }
   
-  pub fn begin_render_pass(&self, device: Arc<Device>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &ClearValues, width: u32, height: u32) {
+  pub fn begin_render_pass(&self, device: Arc<Device>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, clear_values: &Vec<vk::ClearValue>, width: u32, height: u32) {
     let vk = device.pointers();
-    
     let render_pass_begin_info = {
       vk::RenderPassBeginInfo {
         sType: vk::STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -126,8 +125,8 @@ impl CommandBuffer {
         renderPass: *render_pass.internal_object(),
         framebuffer: *framebuffer,
         renderArea: vk::Rect2D { offset: vk::Offset2D {x: 0, y: 0 }, extent: vk::Extent2D { width: width, height: height, } },
-        clearValueCount: clear_values.get_len() as u32,
-        pClearValues: clear_values.to_bits().as_ptr(),
+        clearValueCount: clear_values.len() as u32,
+        pClearValues: clear_values.as_ptr(),
       }
     };
     

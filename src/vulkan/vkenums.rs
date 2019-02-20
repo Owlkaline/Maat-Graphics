@@ -919,6 +919,13 @@ impl ImageUsage {
     }
   }
   
+  pub fn transfer_src_colour_attachment_sampled_storage() -> ImageUsage {
+    ImageUsage {
+      storage: true,
+      .. ImageUsage::transfer_src_colour_attachment_sampled()
+    }
+  }
+  
   pub fn colour_input_attachment_storage_sampled() -> ImageUsage {
     ImageUsage {
       sampled: true,
