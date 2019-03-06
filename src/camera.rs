@@ -20,6 +20,10 @@ pub enum Direction {
   NegativeY,
   PositiveZ,
   NegativeZ,
+  YAlignedForward,
+  YAlignedBackward,
+  YAlignedLeft,
+  YAlignedRight
 }
 
 #[derive(Clone, PartialEq)]
@@ -74,6 +78,11 @@ impl Camera {
     }
   }
   
+  pub fn print_details(&self) {
+    println!("x: {}, y: {}, z: {}, pitch: {}, yaw: {}", self.position.x, self.position.y, self.position.z,
+                                                        self.pitch, self.yaw);
+  }
+  
   pub fn set_mouse_sensitivity(&mut self, new_sensitivity: f32) {
     self.mouse_sensitivity = new_sensitivity;
   }
@@ -88,10 +97,12 @@ impl Camera {
   
   pub fn set_pitch(&mut self, pitch: f32) {
     self.pitch = pitch;
+    self.update_camera_vector();
   }
   
   pub fn set_yaw(&mut self, yaw: f32) {
     self.yaw = yaw;
+    self.update_camera_vector();
   }
   
   fn update_camera_vector(&mut self) {
@@ -161,8 +172,36 @@ impl Camera {
       },
       Direction::NegativeZ => {
         self.position.z -= self.move_speed * delta_time;
+      },
+      Direction::YAlignedForward => {
+        let mut t_camera = self.clone();
+        t_camera.set_pitch(0.0);
+        t_camera.process_movement(Direction::Forward, delta_time);
+        self.position = t_camera.get_position();
+      },
+      Direction::YAlignedBackward => {
+        let mut t_camera = self.clone();
+        t_camera.set_pitch(0.0);
+        t_camera.process_movement(Direction::Backward, delta_time);
+        self.position = t_camera.get_position();
+      },
+      Direction::YAlignedLeft => {
+        let mut t_camera = self.clone();
+        t_camera.set_pitch(0.0);
+        t_camera.process_movement(Direction::Left, delta_time);
+        self.position = t_camera.get_position();
+      },
+      Direction::YAlignedRight => {
+        let mut t_camera = self.clone();
+        t_camera.set_pitch(0.0);
+        t_camera.process_movement(Direction::Right, delta_time);
+        self.position = t_camera.get_position();
       }
     }
+  }
+  
+  pub fn get_front(&self) -> Vector3<f32> {
+    self.front
   }
   
   pub fn get_look_at(&self) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {

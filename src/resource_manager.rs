@@ -12,6 +12,8 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
+use cgmath::Vector3;
+
 use std::time;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -101,7 +103,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<String> {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<(String, Option<Vector3<f32>>)> {
     let mut references = Vec::new();
     
     if self.num_recv_objects <= 0 {
@@ -121,8 +123,18 @@ impl ResourceManager {
           
           object.load_object(Arc::clone(&instance), Arc::clone(&device), &image_type, &image_view_type, &format, &samples, &tiling, &command_pool, &graphics_queue);
           println!("Object recieved: {}", object.reference);
+          
+          let mut size = None;
+          match &object.object_type {
+            ObjectType::Model(Some(model), ..) => {
+              size = Some(model.get_size());
+            }
+            _ => {}
+          }
+          
           self.objects.push(object);
-          references.push(reference);
+          
+          references.push((reference, size));
           self.num_recv_objects -= 1;
         },
         Err(_e) => { },

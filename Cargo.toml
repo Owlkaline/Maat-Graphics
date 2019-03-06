@@ -6,8 +6,8 @@ edition = '2018'
 
 [dependencies]
 vk = { version = "0.4.0", package = "vk-sys" }
-gltf = "0.11.2"
-cgmath = "0.16.1"
+gltf = "0.11.3"
+cgmath = "0.17.0"
 image = "0.20.1"
 winit = "0.18.0"
 base64 = "*"

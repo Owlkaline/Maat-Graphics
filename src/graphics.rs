@@ -4,6 +4,8 @@ use crate::font::GenericFont;
 use crate::camera::Camera;
 use crate::graphics;
 
+use cgmath::Vector3;
+
 use winit;
 use winit::dpi::LogicalSize;
 
@@ -49,8 +51,8 @@ pub trait CoreRender {
   fn init(&mut self);
   
   // Standard draw calls that should be called in 98% of cases
-  fn pre_draw(&mut self);
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>);
+  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
   fn post_draw(&self);
   fn screen_resized(&mut self);
   

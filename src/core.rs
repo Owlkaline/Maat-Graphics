@@ -24,7 +24,7 @@ use crate::vulkan::sync::{Semaphore, Fence};
 use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
 use crate::vulkan::check_errors;
 
-use cgmath::{Vector2};
+use cgmath::{Vector2, Vector3};
 
 use std::ptr;
 use std::sync::Arc;
@@ -334,26 +334,32 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn pre_draw(&mut self) {
+  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)> {
+    let mut model_details = Vec::new();
+    
     {
       let graphics_queue = self.window.get_graphics_queue();
       let device = self.window.device();
       let instance = self.window.instance();
       
-      let references: Vec<String> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+      let references: Vec<(String, Option<Vector3<f32>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
-      for reference in references {
+      for (reference, size) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
           self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
         }
         if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
         }
+        
+        if size.is_some() {
+          model_details.push((reference, size.unwrap()));
+        }
       }
     }
     
     if !self.recreate_swapchain {
-      return;
+      return model_details;
     }
     
     println!("Reszing window");
@@ -401,13 +407,15 @@ impl CoreRender for CoreMaat {
       self.current_frame = 0;
     }
     
-    self.draw(&Vec::new());
+    self.draw(&Vec::new(), 0.0);
     
     self.window.device().wait();
     println!("Finished resize");
+    
+    model_details
   }
   
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>) {
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32) {
     //
     // Build drawcalls
     //
@@ -453,6 +461,8 @@ impl CoreRender for CoreMaat {
         
       )
     };*/
+    
+    self.model_shader.update_scanline(delta_time);
     
     let mut model_draw_calls = Vec::new();
     
@@ -563,7 +573,7 @@ impl CoreRender for CoreMaat {
         match draw {
           DrawType::DrawModel(ref info) => {
             let (reference, position, scale, rotation) = info;
-            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32);
+            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32, delta_time);
           },
           DrawType::ModelCamera(ref info) => {
             let (new_camera, move_direction, mouse_offset, set_move_speed, set_mouse_sensitivity) = info;

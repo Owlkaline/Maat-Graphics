@@ -11,8 +11,7 @@ layout(location = 1) out vec4 v_colour;
 layout(location = 2) out vec4 v_base_colour_factor;
 layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
-layout(location = 5) out vec3 v_to_light[2];
-layout(location = 7) out vec2 v_scanline;
+layout(location = 5) out vec3 v_to_light;
 
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
@@ -21,13 +20,12 @@ layout(push_constant) uniform PushConstants {
   vec4 model;      // x, y, z, y_scale
   vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
   vec4 base_colour_factor; // r, g, b, a
-  vec4 alpha_cutoff; // alpha cuttoff, alpha mask, scanline
+  vec4 alpha_cutoff; // alpha cuttoff, alpha mask
 } push_constants;
 
 const float M_PI = 3.141592653589793;
 
-const vec3 sun_pos = vec3(-40.0, 20.0, -40.0);
-const vec3 light2 = vec3(40.0, 20.0, 40.0);
+const vec3 sun_pos = vec3(10.0, 10.0, 10.0);
 
 float cot(float value) {
   return 1.0 / tan(value);
@@ -126,9 +124,7 @@ void main() {
   v_alpha_cutoff = push_constants.alpha_cutoff;
   v_base_colour_factor = push_constants.base_colour_factor;
   v_normal = vec4(-normal.x, normal.y, normal.z, 0.0).xyz;
-  v_to_light[0] = sun_pos - local_pos;
-  v_to_light[1] = light2 - local_pos;
+  v_to_light = sun_pos - local_pos;
   
   gl_Position = projection * view * vec4(local_pos, 1.0);
-  v_scanline = vec2(push_constants.alpha_cutoff.z, local_pos.y);
 }

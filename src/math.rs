@@ -70,6 +70,10 @@ pub fn to_radians(degree: f32) -> f32 {
   degree * (PI as f32/180.0)
 }
 
+pub fn to_degrees(radian: f32) -> f32 {
+  radian *  180.0 / PI as f32
+}
+
 pub fn squared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
   unsquared_distance(origin, point).sqrt()
 }

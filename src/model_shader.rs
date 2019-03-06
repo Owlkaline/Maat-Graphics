@@ -321,6 +321,8 @@ pub struct ModelShader {
   
   msaa: SampleCount,
   camera: camera::Camera,
+  
+  scanline: f32,
 }
 
 impl ModelShader {
@@ -401,7 +403,7 @@ impl ModelShader {
     let vertex_buffer = ModelShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
-    let camera = camera::Camera::default_vk();
+    let mut camera = camera::Camera::default_vk();
     
     ModelShader {
       renderpass: render_pass,
@@ -424,6 +426,15 @@ impl ModelShader {
       
       msaa: *msaa,
       camera,
+      
+      scanline: 0.0,
+    }
+  }
+  
+  pub fn update_scanline(&mut self, delta_time: f32) {
+    self.scanline += delta_time;
+    if self.scanline > 10000.0 {
+      self.scanline = 0.0;
     }
   }
   
@@ -644,7 +655,7 @@ impl ModelShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32) -> CommandBufferBuilder {
+  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32, delta_time: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if self.models.len() == 0 {
@@ -676,7 +687,7 @@ impl ModelShader {
         
         let base_colour_factor = self.models[i].base_colour_factors[j];
         let (cutoff, mask) = self.models[i].alpha_cutoffs[j];
-        let alpha_cutoff = Vector4::new(cutoff, mask, 0.0, 0.0);
+        let alpha_cutoff = Vector4::new(cutoff, mask, self.scanline, 0.0);
         let double_sided = self.models[i].double_sided[j];
         
         let push_constant_data = UniformData::new()

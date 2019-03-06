@@ -121,6 +121,7 @@ struct FinalModel {
 #[derive(Clone)]
 pub struct ModelDetails {
   models: Vec<FinalModel>,
+  size: Vector3<f32>,
  // materials: Vec<Material>,
 }
 
@@ -228,6 +229,8 @@ impl ModelDetails {
     
 
     let mut models: Vec<FinalModel> = Vec::new();
+    let mut min_xyz: Vector3<f32> = Vector3::new(10000000000000000.0, 100000000000000.0, 10000000000000000.0);
+    let mut max_xyz: Vector3<f32> = Vector3::new(-10000000000000000000.0, -1.000000000000000000, -100000000000000000.0);
   /*  let mut models = FinalModel {
       vertices: VertexArray,
       indices: IndexArray,
@@ -337,6 +340,16 @@ impl ModelDetails {
             has_tangents: false,
           });
           
+          let bounding_box = primitive.bounding_box();
+          
+          min_xyz.x = min_xyz.x.min(bounding_box.min[0]);
+          min_xyz.y = min_xyz.y.min(bounding_box.min[1]);
+          min_xyz.z = min_xyz.z.min(bounding_box.min[2]);
+          
+          max_xyz.x = max_xyz.x.max(bounding_box.max[0]);
+          max_xyz.y = max_xyz.y.max(bounding_box.max[1]);
+          max_xyz.z = max_xyz.z.max(bounding_box.max[2]);
+          
           //println!("- Primitive #{}", primitive.index());
           //println!("Material: {:?}", primitive.material().index());
           //println!("Material name: {:?}", primitive.material().name());
@@ -442,10 +455,16 @@ impl ModelDetails {
       }
     }
     //let mut materials: Vec<Material> = Vec::new();
+    
     ModelDetails {
       models: models,
+      size: Vector3::new(max_xyz.x - min_xyz.x, max_xyz.y - min_xyz.y, max_xyz.z - min_xyz.z),
      // materials: materials,
     }
+  }
+  
+  pub fn get_size(&self) -> Vector3<f32> {
+    self.size
   }
   
   pub fn num_models(&self) -> usize {

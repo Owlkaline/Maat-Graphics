@@ -17,5 +17,5 @@ void main() {
     final_colour = model;
   }
   
-  outColour = model;
+  outColour = tex + model;
 }
