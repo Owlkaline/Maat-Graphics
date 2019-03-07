@@ -121,11 +121,13 @@ void main() {
   
   vec3 local_pos = vec3((model * rotation) * vec4(position, 1.0));
   
+  vec4 rotated_normal = /*model */ rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
+  
   uvs = uv;
   v_colour = colour;
   v_alpha_cutoff = push_constants.alpha_cutoff;
   v_base_colour_factor = push_constants.base_colour_factor;
-  v_normal = vec4(-normal.x, normal.y, normal.z, 0.0).xyz;
+  v_normal = rotated_normal.xyz;
   v_to_light[0] = sun_pos - local_pos;
   v_to_light[1] = light2 - local_pos;
   
