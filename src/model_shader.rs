@@ -509,6 +509,7 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size();
     
     let pipeline = PipelineBuilder::new()
@@ -655,7 +656,7 @@ impl ModelShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, window_width: f32, window_height: f32, delta_time: f32) -> CommandBufferBuilder {
+  pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, hologram: bool, window_width: f32, window_height: f32, delta_time: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if self.models.len() == 0 {
@@ -676,6 +677,7 @@ impl ModelShader {
       let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     scale.x);
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
+      let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, 0.0, 0.0, 0.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -697,7 +699,8 @@ impl ModelShader {
                                  .add_vector4(model)
                                  .add_vector4(rotation)
                                  .add_vector4(base_colour_factor)
-                                 .add_vector4(alpha_cutoff);
+                                 .add_vector4(alpha_cutoff)
+                                 .add_vector4(hologram);
         
         cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
         

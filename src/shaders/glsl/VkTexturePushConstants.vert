@@ -9,11 +9,20 @@ layout(location = 2) out float use_texture;
 
 // 128 bytes, float 4 bytes
 layout(push_constant) uniform PushConstants {
-  mat4 model;
+  vec4 model; // position.x, position.y, scale x, scale y
   vec4 colour;
-  vec4 sprite_sheet; // block_x, block_y, num_of_rows, image_scale
+  vec4 sprite_sheet; // block_x, block_y, num_of_rows, image_scale?
   vec4 projection_details;
 } push_constants;
+
+mat4 create_translation_matrix(vec2 pos, vec2 scale) {
+  mat4 translate_matrix = mat4(vec4(scale.x, 0.0,   0.0, 0.0), 
+                               vec4(0.0,   scale.y, 0.0, 0.0), 
+                               vec4(0.0,   0.0,   1.0, 0.0), 
+                               vec4(pos,          0.0, 1.0));
+  
+  return translate_matrix;
+}
 
 mat4 create_ortho_projection(float near, float far, float right, float bottom, vec2 offset) {
   float left = offset.x;
@@ -33,7 +42,6 @@ void main() {
   float num_rows = push_constants.sprite_sheet.z;
   float block_x = push_constants.sprite_sheet.x;
   float block_y = push_constants.sprite_sheet.y;
-  float scale = push_constants.sprite_sheet.w;
   
   if (num_rows < 0.0) {
     num_rows *= -1;
@@ -47,16 +55,17 @@ void main() {
   new_colour = push_constants.colour;
   use_texture = push_constants.sprite_sheet.z;
   
-  mat4 scale_matrix = mat4(vec4(scale, 0.0, 0.0, 0.0), 
-                           vec4(0.0, scale, 0.0, 0.0), 
-                           vec4(0.0, 0.0, scale, 0.0), 
-                           vec4(0.0, 0.0, 0.0, 1.0));
+  //mat4 scale_matrix = mat4(vec4(scale, 0.0, 0.0, 0.0), 
+  //                         vec4(0.0, scale, 0.0, 0.0), 
+  //                         vec4(0.0, 0.0, scale, 0.0), 
+  //                         vec4(0.0, 0.0, 0.0, 1.0));
   
   float x_offset = push_constants.projection_details.x;
   float y_offset = push_constants.projection_details.y;
   float right = push_constants.projection_details.z;
   float bottom = push_constants.projection_details.w;
-  mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(x_offset, y_offset));
+  mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(0.0, 0.0));
+  mat4 model = create_translation_matrix(push_constants.model.xy, push_constants.model.zw);
   
-  gl_Position = projection * scale_matrix * push_constants.model * vec4(position, 0.0, 1.0);
+  gl_Position = projection * model * vec4(position, 0.0, 1.0);
 }

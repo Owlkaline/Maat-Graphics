@@ -40,7 +40,7 @@ impl LoadableObject {
     let mut object;
     
     match &self.object_type {
-      ObjectType::Texture(Some(image_data), ..) => { 
+      ObjectType::Texture(Some(image_data), ..) => {
         let buffer_image;
         let image = Some(ImageAttachment::create_texture(instance, device, image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
         
@@ -434,6 +434,10 @@ impl ResourceManager {
       let mut data = data.lock().unwrap();
       let texture_start_time = time::Instant::now();
       let texture = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba();
+      
+   //   if location.to_string() == "./resources/Textures/Logo.png".to_string() {
+        println!("{:?}", texture);
+    //  }
       
       let object = LoadableObject {
         loaded: true,

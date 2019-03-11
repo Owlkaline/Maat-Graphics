@@ -14,8 +14,8 @@ void main() {
   vec4 final_colour = vec4(tex.rgb, 1.0);
   if (tex == vec4(0.0)) {
     //drawmodel
-    final_colour = model;
+    //final_colour = model;
   }
   
-  outColour = tex + model;
+  outColour = tex+model;
 }

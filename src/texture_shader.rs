@@ -218,7 +218,7 @@ impl TextureShader {
                            .build(Arc::clone(&device), &descriptor_set_pool, 1));
     
     let push_constant_size = UniformData::new()
-                               .add_matrix4(Matrix4::identity())
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -537,7 +537,7 @@ impl TextureShader {
     
     let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
-    let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
+  //  let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
     
     
     let mut sprite = {
@@ -563,9 +563,10 @@ impl TextureShader {
     let right = self.camera.get_right();
     let pos = self.camera.get_position();
     let projection_details = Vector4::new(pos.x, pos.y, right, top);
+    let model = Vector4::new(position.x, position.y, scale.x, scale.y);
     
     let push_constant_data = UniformData::new()
-                               .add_matrix4(model)
+                               .add_vector4(model)
                                .add_vector4(draw_colour)
                                .add_vector4(sprite)
                                .add_vector4(projection_details);

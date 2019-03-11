@@ -12,7 +12,7 @@ layout(location = 2) out vec4 v_base_colour_factor;
 layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_to_light[2];
-layout(location = 7) out vec2 v_scanline;
+layout(location = 7) out vec3 v_scanline;
 
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
@@ -22,6 +22,7 @@ layout(push_constant) uniform PushConstants {
   vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
   vec4 base_colour_factor; // r, g, b, a
   vec4 alpha_cutoff; // alpha cuttoff, alpha mask, scanline
+  vec4 hologram; // hologram enable, _, _, _
 } push_constants;
 
 const float M_PI = 3.141592653589793;
@@ -132,5 +133,5 @@ void main() {
   v_to_light[1] = light2 - local_pos;
   
   gl_Position = projection * view * vec4(local_pos, 1.0);
-  v_scanline = vec2(push_constants.alpha_cutoff.z, local_pos.y);
+  v_scanline = vec3(push_constants.alpha_cutoff.z, local_pos.y, push_constants.hologram.x);
 }

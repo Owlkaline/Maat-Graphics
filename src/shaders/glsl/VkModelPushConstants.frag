@@ -6,7 +6,7 @@ layout(location = 2) in vec4 v_base_colour_factor;
 layout(location = 3) in vec4 v_alpha_cutoff;
 layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_to_light[2];
-layout(location = 7) in vec2 v_scanline;
+layout(location = 7) in vec3 v_scanline;
 
 layout(location = 0) out vec4 outColour;
 
@@ -59,7 +59,10 @@ void main() {
   
   base_colour.xyz *= brightness;
   
-  //float halpha = hologram_alpha(v_scanline.x, v_scanline.y);
+  float halpha = hologram_alpha(v_scanline.x, v_scanline.y);
+  if (v_scanline.z > 0.0) {
+    alpha = halpha;
+  }
   
   outColour = vec4(base_colour, alpha);
 }

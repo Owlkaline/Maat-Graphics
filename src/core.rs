@@ -49,7 +49,7 @@ pub struct CoreMaat {
   
   sampler: Sampler,
   
-  compute_shader: Compute,
+  compute_shader: Option<Compute>,
   texture_shader: TextureShader,
   model_shader: ModelShader,
   final_shader: FinalShader,
@@ -91,7 +91,7 @@ impl CoreMaat {
     let texture_msaa;
     let model_msaa;
     
-    let mut compute_shader;
+    let mut compute_shader = None;
     
     {
       let instance = window.instance();
@@ -148,7 +148,7 @@ impl CoreMaat {
                        .max_anisotropy(8.0)
                        .build(Arc::clone(&device));
       
-      compute_shader = Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32);
+     // compute_shader = Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32);
       
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
@@ -572,8 +572,8 @@ impl CoreRender for CoreMaat {
       for draw in model_draw_calls {
         match draw {
           DrawType::DrawModel(ref info) => {
-            let (reference, position, scale, rotation) = info;
-            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), window_size.width as f32, window_size.height as f32, delta_time);
+            let (reference, position, scale, rotation, hologram) = info;
+            cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), *hologram, window_size.width as f32, window_size.height as f32, delta_time);
           },
           DrawType::ModelCamera(ref info) => {
             let (new_camera, move_direction, mouse_offset, set_move_speed, set_mouse_sensitivity) = info;
@@ -743,7 +743,7 @@ impl Drop for CoreMaat {
     self.dummy_image.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
-    self.compute_shader.destroy(Arc::clone(&device));
+    //self.compute_shader.destroy(Arc::clone(&device));
     self.texture_shader.destroy(Arc::clone(&device));
     self.model_shader.destroy(Arc::clone(&device));
     self.final_shader.destroy(Arc::clone(&device));

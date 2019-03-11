@@ -1,10 +1,8 @@
+use crate::math;
+
 use cgmath;
-use cgmath::Vector3;
-use cgmath::Point3;
-use cgmath::Angle;
-use cgmath::EuclideanSpace;
-use cgmath::prelude::InnerSpace;
-use cgmath::Matrix4;
+use cgmath::{dot, InnerSpace, SquareMatrix, PerspectiveFov, Deg, Vector2, Vector3, Vector4, Point3, Angle, 
+             EuclideanSpace, Matrix4};
 
 #[derive(Clone, PartialEq)]
 pub enum Direction {
@@ -200,6 +198,63 @@ impl Camera {
     }
   }
   
+  pub fn world_to_screen_coords(&self, position: Vector3<f32>, window_dim: Vector2<f32>) -> Vector2<f32> {
+    let aspect = window_dim.y / window_dim.x;
+    
+    let position = Vector4::new(position.x, position.y, position.z,1.0);
+   // let view = self.get_view_matrix();
+    let view = Camera::create_view_matrix(self.position, self.position +
+                     self.front, self.up);
+    let perspective = self.get_perspective_matrix(aspect);
+    
+    let mut screen_coords = (perspective * view * position);
+    screen_coords.x /= screen_coords.w;
+    screen_coords.y /= screen_coords.w;
+    screen_coords.z /= screen_coords.w;
+    screen_coords.w = 1.0;
+    //unnormalise
+    let x = ((screen_coords.x+3.0)*window_dim.x)*0.16666666;
+    let y = ((screen_coords.y-1.0)*window_dim.y)*-0.5;
+    
+    Vector2::new(x,y)
+  }
+  
+  pub fn mouse_to_world_ray(&self, mouse: Vector2<f32>, window_dim: Vector2<f32>) -> Vector3<f32> {
+    let fov = 60.0;
+    let aspect = window_dim.x / window_dim.y;
+    let near = 0.1;
+    let far = 256.0;
+    // let f = (math::to_radians(fov) / 2.0).cot();
+    let perspective = PerspectiveFov {
+      fovy: Deg(fov).into(),
+      aspect,
+      near,
+      far,
+    };
+    
+    let perspective = perspective.to_perspective();
+    
+    let view = self.get_view_matrix();
+    
+    let invt_view = view.invert().unwrap();
+    let invt_perspective = Matrix4::from(perspective).invert().unwrap();
+    
+    // normalise mouse coords
+    let x = (2.0*mouse.x) / window_dim.x - 1.0;
+    let y = -(2.0*mouse.y) / window_dim.y + 1.0;
+    
+    let mut clip_coords = Vector4::new(x, y, -1.0, 1.0);
+    
+    // clip to eye space
+    let eye_matrix = invt_perspective * clip_coords;
+    let eye_coords = Vector4::new(eye_matrix.x, eye_matrix.y, -1.0, 0.0);
+    
+    let world_matrix = invt_view * eye_coords;
+    let mouse_ray = Vector3::new(world_matrix.x, world_matrix.y, world_matrix.z).normalize();
+    
+    mouse_ray
+  }
+  
   pub fn get_front(&self) -> Vector3<f32> {
     self.front
   }
@@ -211,6 +266,37 @@ impl Camera {
   pub fn get_view_matrix(&self) -> Matrix4<f32> {
     Matrix4::look_at(Point3::from_vec(self.position), Point3::from_vec(self.position +
                      self.front), self.up)
+  }
+  
+  fn create_view_matrix(eye: Vector3<f32>, center: Vector3<f32>, up: Vector3<f32>) -> Matrix4<f32> {
+    let dir = center - eye;
+    
+    let f = (dir).normalize();
+    let s = (f.cross(up)).normalize();
+    let u = s.cross(f);
+    
+    let look_at_matrix = Matrix4::from_cols(Vector4::new(s.x,           u.x,        -f.x,         0.0), 
+                                            Vector4::new(s.y,           u.y,        -f.y,         0.0), 
+                                            Vector4::new(s.z,           u.z,        -f.z,         0.0), 
+                                            Vector4::new(-dot(eye, s), -dot(eye, u), dot(eye, f), 1.0));
+    
+    look_at_matrix
+  }
+  
+  fn get_perspective_matrix(&self, aspect: f32) -> Matrix4<f32> {
+    let near = 0.1;
+    let far = 256.0;
+    let fov = 60.0;
+    let f = 1.0 / (math::to_radians(fov) / 2.0).tan();
+    
+    let perspective = Matrix4::from_cols(
+                      Vector4::new(f / aspect, 0.0,   0.0,                               0.0),
+                      Vector4::new(0.0,        f,     0.0,                               0.0),
+                      Vector4::new(0.0,        0.0,   (far + near) / (near - far),      -1.0),
+                      Vector4::new(0.0,        0.0,   (2.0 * far * near) / (near - far), 0.0)
+                    );
+                
+    perspective
   }
   
   pub fn get_position(&self) -> Vector3<f32> {
