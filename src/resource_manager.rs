@@ -84,7 +84,7 @@ impl ResourceManager {
     
     ResourceManager {
       objects: Vec::new(),
-      pool: ThreadPool::new(10),
+      pool: ThreadPool::new(50),
       num_recv_objects: 0,
       tx: tx,
       rx: rx,

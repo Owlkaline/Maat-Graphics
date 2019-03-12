@@ -14,9 +14,5 @@ void main() {
     drawTexture *= texture(tex, uvs);
   }
   
-  if (drawTexture.w == 0.0) {
-    discard;
-  }
-  
   outColour = drawTexture;
 }

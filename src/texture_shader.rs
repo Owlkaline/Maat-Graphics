@@ -553,7 +553,7 @@ impl TextureShader {
     if let Some(colour) = colour {
       draw_colour = colour;
     } else {
-      draw_colour = Vector4::new(1.0, 1.0, 1.0, 1.0);
+      draw_colour = Vector4::new(0.0, 0.0, 0.0, 0.0);
     }
     
     let top = self.camera.get_top();
