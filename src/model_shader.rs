@@ -9,7 +9,7 @@ use crate::gltf_interpreter::ModelDetails;
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageAspect, ShaderStage, VertexInputRate, AddressMode, MipmapMode, VkBool};
 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder, ClearValues};
-use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
+use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::CoreMaat;
 
@@ -111,6 +111,8 @@ struct Model {
   base_colour_factors: Vec<Vector4<f32>>,
   alpha_cutoffs: Vec<(f32, f32)>,
   double_sided: Vec<bool>,
+  
+  uniform_buffers: Vec<Buffer<f32>>,
 }
 
 impl Model {
@@ -127,6 +129,8 @@ impl Model {
     let mut base_colour_factors = Vec::with_capacity(num_models);
     let mut alpha_cutoffs = Vec::with_capacity(num_models);
     let mut double_sided = Vec::with_capacity(num_models);
+    
+    let mut uniform_buffers = Vec::with_capacity(num_models);
     
     for i in 0..num_models {
       let position = model.vertex(i); //vec3
@@ -148,10 +152,6 @@ impl Model {
         }
         if j < tangent.len() {
           model_tangent = tangent[j];
-        }
-        
-        if base_textures[i].is_some() {
-          model_colour[3] -= 1.1;
         }
         
         let mut pos = math::array3_to_vec3(position[j]);
@@ -187,20 +187,6 @@ impl Model {
         sampler = &temp_sampler;
       }
       
-      let descriptor_set;
-      descriptor_set = DescriptorSetBuilder::new()
-                           .fragment_combined_image_sampler(0)
-                           .build(Arc::clone(&device), &descriptor_set_pool, 1);
-      if let Some(ref texture) = &base_textures[i] {
-        UpdateDescriptorSets::new()
-             .add_sampled_image(0, &texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-             .finish_update(Arc::clone(&device), &descriptor_set);
-      } else {
-        UpdateDescriptorSets::new()
-             .add_sampled_image(0, &dummy_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-             .finish_update(Arc::clone(&device), &descriptor_set);
-      }
-      
       let base_colour_factor = model.base_colour(i);
       let alpha_cutoff = model.alphacutoff(i);
       let alpha_mask = {
@@ -223,11 +209,62 @@ impl Model {
       vertex_count.push(vertice);
       index_buffers.push(i_buffer);
       index_count.push(indice);
-      descriptor_sets.push(descriptor_set);
       
       base_colour_factors.push(math::array4_to_vec4(base_colour_factor));
       alpha_cutoffs.push((alpha_cutoff, alpha_mask));
       double_sided.push(double_side);
+      
+      let use_base_texture = if model.base_colour_texture(i).is_some() { 1.0 } else { -1.0 };
+      let use_metallic_roughness_texture = if model.metallic_roughness_texture(i).is_some() { 1.0 } else { -1.0 };
+      let use_normal_texture = if model.normal_texture(i).is_some() { 1.0 } else { -1.0 };
+      let use_occlusion_texture = if model.occlusion_texture(i).is_some() { 1.0 } else { -1.0 };
+      let use_emissive_texture = if model.emissive_texture(i).is_some() { 1.0 } else { -1.0 };
+      
+      let metallic_factor = model.metallic_factor(i);
+      let roughness_factor = model.roughness_factor(i);
+      let normal_scale = model.normal_texture_scale(i);
+      let occlusion_strength = model.occlusion_texture_strength(i);
+      let emissive_factor = math::array3_to_vec3(model.emissive_factor(i)); // vec3
+      
+      let mut uniform_buffer = UniformBufferBuilder::new()
+         .set_binding(0)
+         .add_vector4()
+         .add_vector4()
+         .add_vector4()
+         .add_vector4()
+         .add_vector4()
+         .build(Arc::clone(&instance), Arc::clone(&device), 1);
+         
+      let mut uniform_data = UniformData::new()
+                           .add_vector4(Vector4::new(use_base_texture, use_metallic_roughness_texture,
+                                                     use_normal_texture, use_occlusion_texture))
+                           .add_vector4(Vector4::new(use_emissive_texture, normal_scale, alpha_cutoff, alpha_mask))
+                           .add_vector4(math::array4_to_vec4(base_colour_factor))
+                           .add_vector4(Vector4::new(metallic_factor, roughness_factor, occlusion_strength, 0.0))
+                           .add_vector4(Vector4::new(emissive_factor.x, emissive_factor.y, emissive_factor.z, 0.0))
+                           .build();
+      
+      uniform_buffer.fill_entire_buffer(Arc::clone(&device), uniform_data);
+      
+      let descriptor_set;
+      descriptor_set = DescriptorSetBuilder::new()
+                           .vertex_uniform_buffer(0)
+                           .fragment_combined_image_sampler(1)
+                           .build(Arc::clone(&device), &descriptor_set_pool, 1);
+      if let Some(ref texture) = &base_textures[i] {
+        UpdateDescriptorSets::new()
+             .add_built_uniformbuffer(Arc::clone(&device), 0, &mut uniform_buffer)
+             .add_sampled_image(1, &texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .finish_update(Arc::clone(&device), &descriptor_set);
+      } else {
+        UpdateDescriptorSets::new()
+             .add_built_uniformbuffer(Arc::clone(&device), 0, &mut uniform_buffer)
+             .add_sampled_image(1, &dummy_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .finish_update(Arc::clone(&device), &descriptor_set);
+      }
+      
+      uniform_buffers.push(uniform_buffer);
+      descriptor_sets.push(descriptor_set);
     }
     
     Model {
@@ -243,6 +280,8 @@ impl Model {
       base_colour_factors,
       alpha_cutoffs,
       double_sided,
+      
+      uniform_buffers,
     }
   }
   
@@ -253,6 +292,10 @@ impl Model {
     
     for index in &self.index_buffers {
       index.destroy(Arc::clone(&device));
+    }
+    
+    for buffer in &self.uniform_buffers {
+      buffer.destroy(Arc::clone(&device));
     }
     
     for descriptor in &self.descriptor_sets {
@@ -307,6 +350,7 @@ pub struct ModelShader {
   framebuffer_msaa_images: Vec<ImageAttachment>,
   framebuffer_depth_images: Vec<ImageAttachment>,
   descriptor_sets: Vec<DescriptorSet>,
+  dummy_uniform_buffer: Buffer<f32>,
   
   models: Vec<Model>,
   
@@ -388,13 +432,33 @@ impl ModelShader {
                                         graphics_queue);
     
     let mut descriptor_sets = Vec::new();
+    let mut uniform_buffer = UniformBufferBuilder::new().add_vector4().build(Arc::clone(&instance), Arc::clone(&device), 1);
     for i in 0..image_views.len() {
       descriptor_sets.push(DescriptorSetBuilder::new()
-        .fragment_combined_image_sampler(0)
+        .vertex_uniform_buffer(0)
+        .fragment_combined_image_sampler(1)
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
+      uniform_buffer.destroy(Arc::clone(&device));
+      uniform_buffer = UniformBufferBuilder::new()
+        .set_binding(0)
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .build(Arc::clone(&instance), Arc::clone(&device), 1);
+         
+      let mut uniform_data = UniformData::new()
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0));
+      
       UpdateDescriptorSets::new()
-        .add_sampled_image(0, &texture_image, ImageLayout::ColourAttachmentOptimal, &sampler)
+        .add_uniformbuffer(Arc::clone(&device), 0, &mut uniform_buffer, uniform_data)
+        .add_sampled_image(1, &texture_image, ImageLayout::ColourAttachmentOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
     }
     
@@ -412,6 +476,7 @@ impl ModelShader {
       framebuffer_msaa_images,
       framebuffer_depth_images,
       descriptor_sets,
+      dummy_uniform_buffer: uniform_buffer,
       
       models: Vec::new(),
       
@@ -502,8 +567,6 @@ impl ModelShader {
   
   fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, msaa: &SampleCount) -> (Pipeline, Pipeline) {
     let push_constant_size = UniformData::new()
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -677,7 +740,7 @@ impl ModelShader {
       let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     scale.x);
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
-      let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, 0.0, 0.0, 0.0);
+      let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, 0.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -686,10 +749,7 @@ impl ModelShader {
         let index_count = self.models[i].index_count[j];
         
         let descriptor = &self.models[i].descriptor_sets[j];
-        
-        let base_colour_factor = self.models[i].base_colour_factors[j];
-        let (cutoff, mask) = self.models[i].alpha_cutoffs[j];
-        let alpha_cutoff = Vector4::new(cutoff, mask, self.scanline, 0.0);
+       
         let double_sided = self.models[i].double_sided[j];
         
         let push_constant_data = UniformData::new()
@@ -698,8 +758,6 @@ impl ModelShader {
                                  .add_vector4(camera_up)
                                  .add_vector4(model)
                                  .add_vector4(rotation)
-                                 .add_vector4(base_colour_factor)
-                                 .add_vector4(alpha_cutoff)
                                  .add_vector4(hologram);
         
         cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
@@ -728,6 +786,8 @@ impl ModelShader {
     for model in &self.models {
       model.destroy(Arc::clone(&device));
     }
+    
+    self.dummy_uniform_buffer.destroy(Arc::clone(&device));
     
     self.pipeline.destroy(Arc::clone(&device));
     self.double_pipeline.destroy(Arc::clone(&device));

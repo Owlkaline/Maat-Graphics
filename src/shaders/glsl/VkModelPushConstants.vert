@@ -13,6 +13,15 @@ layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_to_light[2];
 layout(location = 7) out vec3 v_scanline;
+layout(location = 8) out vec4 v_use_textures;
+
+layout(set = 0, binding = 0) uniform UniformBuffer {
+  vec4 use_textures; //base, metallic_roughness, normal, occlusion
+  vec4 emissive_alpha; //use_emissive, normal_scale, alpha_cutoff, alpha_mask
+  vec4 base_colour_factor; // r, g, b, a
+  vec4 mro_factors; // metallic_factor, roughness_factor, occlusion_string, _
+  vec4 emissive_factor; // r, g, b, _
+} uniforms;
 
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
@@ -20,9 +29,7 @@ layout(push_constant) uniform PushConstants {
   vec4 c_up;       // x, y, z, x_scale
   vec4 model;      // x, y, z, y_scale
   vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
-  vec4 base_colour_factor; // r, g, b, a
-  vec4 alpha_cutoff; // alpha cuttoff, alpha mask, scanline
-  vec4 hologram; // hologram enable, _, _, _
+  vec4 hologram_scanline; // hologram_enabled, scanline, _, _
 } push_constants;
 
 const float M_PI = 3.141592653589793;
@@ -126,12 +133,14 @@ void main() {
   
   uvs = uv;
   v_colour = colour;
-  v_alpha_cutoff = push_constants.alpha_cutoff;
-  v_base_colour_factor = push_constants.base_colour_factor;
+  v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);
+  v_base_colour_factor = uniforms.base_colour_factor;
   v_normal = rotated_normal.xyz;
   v_to_light[0] = sun_pos - local_pos;
   v_to_light[1] = light2 - local_pos;
   
+  v_use_textures = uniforms.use_textures;
+  v_scanline = vec3(push_constants.hologram_scanline.y, local_pos.y, push_constants.hologram_scanline.x);
+  
   gl_Position = projection * view * vec4(local_pos, 1.0);
-  v_scanline = vec3(push_constants.alpha_cutoff.z, local_pos.y, push_constants.hologram.x);
 }

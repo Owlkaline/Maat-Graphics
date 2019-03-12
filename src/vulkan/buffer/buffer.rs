@@ -202,7 +202,7 @@ impl<T: Clone> Buffer<T> {
   }
   
   pub fn destroy(&self, device: Arc<Device>) {
-    println!("Destroying buffer");
+    //println!("Destroying buffer");
     for i in 0..self.memory.len() {
       unsafe {
         let vk = device.pointers();

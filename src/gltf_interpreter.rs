@@ -540,15 +540,15 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn _metallic_factor(&self, model_index: usize) -> f32 {
+  pub fn metallic_factor(&self, model_index: usize) -> f32 {
     self.models[model_index].material.metallic_factor
   }
   
-  pub fn _roughness_factor(&self, model_index: usize) -> f32 {
+  pub fn roughness_factor(&self, model_index: usize) -> f32 {
     self.models[model_index].material.roughness_factor
   }
   
-  pub fn _metallic_roughness_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn metallic_roughness_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.metallic_roughness_texture.is_some() {
       texture = self.models[model_index].material.metallic_roughness_texture.clone().unwrap().0;
@@ -564,11 +564,11 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn _normal_texture_scale(&self, model_index: usize) -> f32 {
+  pub fn normal_texture_scale(&self, model_index: usize) -> f32 {
     self.models[model_index].material.normal_texture_scale
   }
   
-  pub fn _normal_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn normal_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.normal_texture.is_some() {
       texture = self.models[model_index].material.normal_texture.clone().unwrap().0;
@@ -584,7 +584,7 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn _occlusion_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn occlusion_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.occlusion_texture.is_some() {
       texture = self.models[model_index].material.occlusion_texture.clone().unwrap().0
@@ -600,11 +600,11 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn _occlusion_texture_strength(&self, model_index: usize) -> f32 {
+  pub fn occlusion_texture_strength(&self, model_index: usize) -> f32 {
     self.models[model_index].material.occlusion_texture_strength
   }
   
-  pub fn _emissive_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
+  pub fn emissive_texture(&self, model_index: usize) -> Option<image::DynamicImage> {
     let mut texture = None;
     if self.models[model_index].material.emissive_texture.is_some() {
       texture = self.models[model_index].material.emissive_texture.clone().unwrap().0
@@ -620,7 +620,7 @@ impl ModelDetails {
     sampler
   }
   
-  pub fn _emissive_factor(&self, model_index: usize) -> [f32; 3] {
+  pub fn emissive_factor(&self, model_index: usize) -> [f32; 3] {
     let emissive = self.models[model_index].material.emissive_factor;
     [emissive.x, emissive.y, emissive.z]
   }

@@ -7,13 +7,22 @@ layout(location = 3) in vec4 v_alpha_cutoff;
 layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_to_light[2];
 layout(location = 7) in vec3 v_scanline;
+layout(location = 8) in vec4 v_use_textures;
 
 layout(location = 0) out vec4 outColour;
 
-layout(set = 0, binding = 0) uniform sampler2D base_texture;
+layout(set = 0, binding = 1) uniform sampler2D base_texture;
 
 const float M_PI = 3.141592653589793;
 const vec3 light_colour = vec3(0.5, 0.5, 0.5);
+
+vec4 when_gt(vec4 x, vec4 y) {
+  return max(sign(x - y), 0.0);
+}
+
+vec4 not(vec4 a) {
+  return 1.0 - a;
+}
 
 float hologram_alpha(float scanline, float y_offset) {
   
@@ -47,11 +56,13 @@ void main() {
   vec3 base_colour = vec3(1.0);
   float alpha = v_colour.a;
   
-  if (v_colour.a < -0.0) {
-    base_colour *= texture(base_texture, uvs).rgb;
-    alpha += 1.1;
-    alpha *= texture(base_texture, uvs).a;
-  }
+  vec4 use_base_texture = when_gt(v_use_textures.x, vec4(0.0));
+  base_colour = use_base_texture.rgb      * texture(base_texture, uvs).rgb + 
+                not(use_base_texture).rgb * base_colour;
+  
+  alpha = use_base_texture.a    * texture(base_texture, uvs).a + 
+          not(use_base_texture) * alpha;
+  
   
   base_colour *= v_base_colour_factor.rgb;
   base_colour *= v_colour.rgb;
@@ -60,9 +71,10 @@ void main() {
   base_colour.xyz *= brightness;
   
   float halpha = hologram_alpha(v_scanline.x, v_scanline.y);
-  if (v_scanline.z > 0.0) {
-    alpha = halpha;
-  }
+  vec4 use_scanline = when_gt(vec4(v_scanline.z), vec4(0.0));
+  
+  alpha = use_scanline      * halpha + 
+          not(use_scanline) * alpha;
   
   outColour = vec4(base_colour, alpha);
 }
