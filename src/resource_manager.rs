@@ -476,6 +476,31 @@ impl ResourceManager {
   }
   
   /**
+  ** Loads models in the main thread blocking.
+  **/
+  pub fn sync_load_model(&mut self, reference: String, location: String) {
+    
+    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+    
+    println!("loading model");
+    
+    let model_start_time = time::Instant::now();
+    let model = ModelDetails::new(location.to_string());
+      
+    let object = LoadableObject {
+      loaded: true,
+      location: location.to_string(),
+      reference: reference,
+      object_type: ObjectType::Model(Some(model), Vec::new()),
+    };
+    
+    let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+    println!("{} ms,  {:?}", (model_time*1000f64) as f32, location);
+    
+    self.objects.push(object);
+  }
+  
+  /**
   ** Loads modelss in seperate threads, non bloacking.
   **/
   pub fn load_model(&mut self, reference: String, location: String) {

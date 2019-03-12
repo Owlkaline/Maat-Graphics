@@ -198,6 +198,7 @@ impl Camera {
     }
   }
   
+  // Fix world to screen size at different aspect ratios
   pub fn world_to_screen_coords(&self, position: Vector3<f32>, window_dim: Vector2<f32>) -> Vector2<f32> {
     let aspect = window_dim.y / window_dim.x;
     
@@ -207,15 +208,40 @@ impl Camera {
                      self.front, self.up);
     let perspective = self.get_perspective_matrix(aspect);
     
-    let mut screen_coords = (perspective * view * position);
+    let mut screen_coords = (perspective * view * position).normalize();
     screen_coords.x /= screen_coords.w;
     screen_coords.y /= screen_coords.w;
     screen_coords.z /= screen_coords.w;
     screen_coords.w = 1.0;
-    //unnormalise
-    let x = ((screen_coords.x+3.0)*window_dim.x)*0.16666666;
-    let y = ((screen_coords.y-1.0)*window_dim.y)*-0.5;
+    //println!("coords: {:?}", screen_coords);
     
+    // full aspect 0.396875 x -6 to 6    // 1/12
+    // wind aspect 0.5625 x -3 to 3      // 1/6
+    // wind aspect 0.79375 -1.5 to 1.5   // 1/3
+    // wind aspect 1.0    x -1 to 1     //  1/2
+    
+    //x*0.396875= 0.083333333
+    //x = 0.083333333/0.396875
+    // x= 0.209973753
+    
+    //unnormalise
+    //x*0.5625 = 0.16666666
+    //x = 0.16666666/0.5625
+    // x = 0.296296284
+    
+    //x*0.79375= 0.333333333
+    //x = 0.333333333/0.79375
+    // x= 0.419947507
+    
+    // x*1.0 = 0.5
+    // x = 0.5/1.0
+    //x = 0.5
+    
+    //aspect 1 = 0.5
+    let scaled_aspect = (aspect*(aspect*0.5));
+    let x = ((screen_coords.x+3.0)*window_dim.x)*/*scaled_aspect;*/0.296296284*aspect;
+    let y = ((screen_coords.y-1.0)*window_dim.y)*-0.5;
+    //println!("aspect {}", aspect);
     Vector2::new(x,y)
   }
   

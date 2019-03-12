@@ -277,8 +277,8 @@ impl CoreMaat {
 }
 
 impl CoreRender for CoreMaat {
-  fn preload_model(&mut self, _reference: String, _location: String) {
-    
+  fn preload_model(&mut self, reference: String, location: String) {
+    self.resources.sync_load_model(reference, location);
   }
   
   fn add_model(&mut self, reference: String, location: String) {
