@@ -537,9 +537,6 @@ impl TextureShader {
     
     let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference).unwrap();
     
-  //  let model = math::calculate_texture_model(Vector3::new(position.x, position.y, 0.0), scale, -rotation -180.0);
-    
-    
     let mut sprite = {
       let mut tex_view = Vector4::new(0.0, 0.0, 1.0, self.scale);
       if let Some(details) = sprite_details {

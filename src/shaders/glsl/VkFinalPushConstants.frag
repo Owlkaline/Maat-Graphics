@@ -11,11 +11,10 @@ void main() {
   vec4 tex = texture(texture_image, uvs);
   vec4 model = texture(model_image, uvs);
   
-  vec4 final_colour = vec4(tex.rgb, 1.0);
-  if (tex == vec4(0.0)) {
-    //drawmodel
-    //final_colour = model;
+ // vec4 final_colour = vec4(tex.rgb, 1.0);
+  if (tex.w == 0.0) {
+    discard;
   }
   
-  outColour = tex+model;
+  outColour = tex;
 }

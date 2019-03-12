@@ -20,5 +20,9 @@ void main() {
   
   vec3 overallColour = mix(v_outline_colour, v_new_colour.rgb, alpha / overallAlpha);
   
+  if (overallAlpha == 0.0 || v_new_colour.w == 0.0) {
+    discard;
+  }
+  
   colour = vec4(overallColour, overallAlpha*v_new_colour.w);
 }

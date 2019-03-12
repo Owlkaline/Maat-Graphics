@@ -206,10 +206,10 @@ impl CoreMaat {
       texture_clear_colour: //ClearValues::new().add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)).add_colour(Vector4::new(0.0, 0.0, 0.0, 0.0)),
         vec!(
           vk::ClearValue {
-            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 1.0] }
           },
           vk::ClearValue {
-            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 1.0] }
           },
         ),
       model_clear_colour,
@@ -515,7 +515,7 @@ impl CoreRender for CoreMaat {
             
             let texture_resource = self.resources.get_texture(reference.clone());
             if let Some(_texture) = texture_resource {
-              cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(Vector4::new(0.0, 0.0, 0.0, alpha)), true, reference.to_string());
+              cmd = self.texture_shader.draw_texture(Arc::clone(&device), cmd, position, scale, rotation, None, Some(Vector4::new(1.0, 1.0, 1.0, alpha)), true, reference.to_string());
             }
           },
           DrawType::DrawSpriteSheet(ref info) => {
