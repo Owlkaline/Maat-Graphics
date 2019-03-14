@@ -46,7 +46,6 @@ void main() {
                           vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
                           vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
   
-  
   float s = sin(rotation);
   float c = cos(rotation);
   float oc = 1.0 - c;

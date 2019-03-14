@@ -21,6 +21,7 @@ pub enum DrawType {
   DrawColoured((Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   // Ref, position, scale, rotation
   DrawModel((String, Vector3<f32>, Vector3<f32>, Vector3<f32>, bool)),
+  DrawInstancedModel(String),
   // Ref, texture, position, scale, rotation
   DrawCustomShapeTextured((String, String, Vector2<f32>, Vector2<f32>, f32)),
   // Ref, position, scale, colour, rotation
@@ -31,7 +32,8 @@ pub enum DrawType {
   AddInstancedTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
   // instanced buffer Ref, Position, Scale, Rotation, colour, SpriteDetails(x,y,rows)
   AddInstancedSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, Vector4<f32>, Vector3<i32>)),
-  AddInstancedModel,
+  //  reference, position, scale rotation
+  AddInstancedModel((String, Vector3<f32>, Vector3<f32>, Vector3<f32>, bool)),
   // buffer ref, texture ref
   DrawInstanced((String, String)),
   
@@ -148,6 +150,27 @@ impl DrawCall {
     debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
     DrawCall {
       draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, colour, sprite_details)),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_model(buffer_reference: String, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedModel((buffer_reference, position, scale, rotation, false)),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_hologram_model(buffer_reference: String, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedModel((buffer_reference, position, scale, rotation, true)),
+      coloured: true,
+    }
+  }
+  
+  pub fn draw_instanced_model(buffer_reference: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::DrawInstancedModel(buffer_reference),
       coloured: true,
     }
   }

@@ -317,6 +317,13 @@ impl CoreRender for CoreMaat {
     self.texture_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
   }
   
+  fn create_model_instance_buffer(&mut self, reference: String) {
+    let device = self.window.device();
+    let instance = self.window.instance();
+    let num_frames = self.fences.len() as u32;
+    self.model_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
+  }
+  
   fn load_static_geometry(&mut self, _reference: String, _verticies: Vec<graphics::Vertex2d>, _indicies: Vec<u32>) {
     
   }
@@ -542,6 +549,13 @@ impl CoreRender for CoreMaat {
           DrawType::DrawModel(ref info) => {
             let (reference, position, scale, rotation, hologram) = info;
             cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), *hologram, window_size.width as f32, window_size.height as f32, delta_time);
+          },
+          DrawType::AddInstancedModel(ref info) => {
+            let (reference, position, scale, rotation, hologram) = info;
+            self.model_shader.add_instanced_model(*position, *scale, *rotation, reference.to_string(), *hologram);
+          },
+          DrawType::DrawInstancedModel(ref reference) => {
+            cmd = self.model_shader.draw_instanced(Arc::clone(&device), cmd, reference.to_string(), window_size.width as f32, window_size.height as f32, delta_time);
           },
           DrawType::ModelCamera(ref info) => {
             let (new_camera, move_direction, mouse_offset, set_move_speed, set_mouse_sensitivity) = info;

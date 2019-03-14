@@ -239,6 +239,13 @@ impl ModelDetails {
       material_ref: String,
       animation: Animation,
   }*/
+  
+    for animation in gltf.animations() {
+      println!("{}", animation.name().unwrap());
+      for channel in animation.channels() {
+        
+      }
+    }
     
     let gltf_textures_samplers: Vec<(Option<image::DynamicImage>, SamplerInfo)> = {
       let mut textures_samplers = Vec::new();

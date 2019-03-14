@@ -6,17 +6,19 @@ layout(location = 2) in vec2 uv;
 layout(location = 3) in vec4 colour;
 layout(location = 4) in vec4 tangent;
 
+// Instanced Data
+layout(location = 5) in vec4 model; // x, y, z, x_scale
+layout(location = 6) in vec4 rotation; // x_rot, y_rot, z_rot, y_scale
+layout(location = 7) in vec4 hologram_scanline; // hologram_enabled, scanline, _, z_scale
+
 layout(location = 0) out vec2 uvs;
 layout(location = 1) out vec4 v_colour;
 layout(location = 2) out vec4 v_base_colour_factor;
 layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
-layout(location = 5) out vec3 v_world_pos;
-layout(location = 6) out vec3 v_camera_pos;
-layout(location = 7) out vec3 v_to_light[2];
-layout(location = 9) out vec3 v_scanline;
-layout(location = 10) out vec4 v_use_textures;
-layout(location = 11) out vec2 v_mr;
+layout(location = 5) out vec3 v_to_light[2];
+layout(location = 7) out vec3 v_scanline;
+layout(location = 8) out vec4 v_use_textures;
 
 layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 use_textures; //base, metallic_roughness, normal, occlusion
@@ -29,10 +31,7 @@ layout(set = 0, binding = 0) uniform UniformBuffer {
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, aspect
-  vec4 c_up;       // x, y, z, x_scale
-  vec4 model;      // x, y, z, y_scale
-  vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
-  vec4 hologram_scanline; // hologram_enabled, scanline, _, _
+  vec4 c_up;       // x, y, z, 
 } push_constants;
 
 const float M_PI = 3.141592653589793;
@@ -123,31 +122,27 @@ mat4 create_translation_matrix(vec3 pos, vec3 scale) {
 }
 
 void main() {
-  vec3 model_scale = vec3(push_constants.c_up.w, push_constants.model.w, push_constants.rotation.w);
+  vec3 model_scale = vec3(model.w, rotation.w, hologram_scanline.w);
   
   mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 256.0);
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
-  mat4 model = create_translation_matrix(push_constants.model.xyz, model_scale);
-  mat4 rotation = create_rotation_matrix(push_constants.rotation.xyz);
+  mat4 model = create_translation_matrix(model.xyz, model_scale);
+  mat4 rotation = create_rotation_matrix(rotation.xyz);
   
   vec3 local_pos = vec3((model * rotation) * vec4(position, 1.0));
   
-  vec4 rotated_normal = /*model * rotation */ vec4(-normal.x, normal.y, normal.z, 1.0);
+  vec4 rotated_normal = /*model */ rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
   
   uvs = uv;
   v_colour = colour;
-  v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);;
+  v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);
   v_base_colour_factor = uniforms.base_colour_factor;
-  v_world_pos = local_pos;
-  v_normal = rotated_normal.xyz; //mat3(model) * vec3(normal.x, normal.y, -normal.z);
+  v_normal = rotated_normal.xyz;
   v_to_light[0] = sun_pos - local_pos;
   v_to_light[1] = light2 - local_pos;
   
-  v_camera_pos = push_constants.c_position.rgb;
-  
   v_use_textures = uniforms.use_textures;
-  v_scanline = vec3(push_constants.hologram_scanline.y, local_pos.y, push_constants.hologram_scanline.x);
-  v_mr = vec2(uniforms.mro_factors.x, uniforms.mro_factors.y);
+  v_scanline = vec3(hologram_scanline.y, local_pos.y, hologram_scanline.x);
   
   gl_Position = projection * view * vec4(local_pos, 1.0);
 }

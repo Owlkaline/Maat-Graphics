@@ -18,6 +18,8 @@ use cgmath::{Vector2, Vector3, Vector4};
 use std::mem;
 use std::sync::Arc;
 
+const MAX_INSTANCES: usize = 2048;
+
 #[derive(Clone)]
 pub struct ModelVertex {
   pos: Vector3<f32>,
@@ -25,6 +27,13 @@ pub struct ModelVertex {
   uvs: Vector2<f32>,
   colour: Vector4<f32>,
   tangent: Vector4<f32>,
+}
+
+#[derive(Clone)]
+pub struct ModelInstanceData {
+  model: Vector4<f32>,
+  rotation: Vector4<f32>,
+  hologram: Vector4<f32>,
 }
 
 impl ModelVertex {
@@ -91,6 +100,49 @@ impl ModelVertex {
         binding: 0,
         format: vk::FORMAT_R32G32B32A32_SFLOAT,
         offset: offset_of!(ModelVertex, tangent) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions
+  }
+}
+
+impl ModelInstanceData {
+  pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
+    vk::VertexInputBindingDescription {
+      binding: 1,
+      stride: (mem::size_of::<ModelInstanceData>()) as u32,
+      inputRate: VertexInputRate::Instance.to_bits(),
+    }
+  }
+  
+  pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
+    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(2);
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 5,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(ModelInstanceData, model) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 6,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(ModelInstanceData, rotation) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 7,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(ModelInstanceData, hologram) as u32,
       }
     );
     
@@ -359,9 +411,15 @@ pub struct ModelShader {
   
   pipeline: Pipeline,
   double_pipeline: Pipeline,
+  instanced_pipeline: Pipeline,
+  instanced_double_pipeline: Pipeline,
+  instanced_cpu_buffers: Vec<(String, Buffer<f32>)>,
+  instanced_cpu_data: Vec<UniformData>,
   
   vertex_shader: Shader,
   fragment_shader: Shader,
+  vertex_shader_instanced: Shader,
+  fragment_shader_instanced: Shader,
   
   msaa: SampleCount,
   camera: camera::Camera,
@@ -373,6 +431,11 @@ impl ModelShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue, msaa: &SampleCount) -> ModelShader {
     let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
     let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
+    let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedVert.spv"));
+    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedFrag.spv"));
+    
+    //let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingVert.spv"));
+    //let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingFrag.spv"));
     
     let colour_attachment_load = if msaa != &SampleCount::OneBit { AttachmentLoadOp::DontCare } else { AttachmentLoadOp::Clear };
     
@@ -463,11 +526,20 @@ impl ModelShader {
     }
     
     let (pipeline, double_pipeline) = ModelShader::create_pipline(Arc::clone(&device), &vertex_shader, &fragment_shader, &render_pass, &descriptor_sets[0], msaa);
+    let (instanced_pipeline, instanced_double_pipeline) = ModelShader::create_instanced_pipline(Arc::clone(&device), &vertex_shader_instanced, &fragment_shader_instanced, &render_pass, &descriptor_sets[0], msaa);
     
     let vertex_buffer = ModelShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
     let mut camera = camera::Camera::default_vk();
+    /*
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
+    for _ in 0..(MAX_INSTANCES*12) {
+      instanced_data.push(0.0);
+    }
+    
+    let usage = BufferUsage::vertex_transfer_src_buffer();
+    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, 0, instanced_data);*/
     
     ModelShader {
       renderpass: render_pass,
@@ -485,9 +557,15 @@ impl ModelShader {
       
       pipeline,
       double_pipeline,
+      instanced_pipeline,
+      instanced_double_pipeline,
+      instanced_cpu_buffers: Vec::new(),//instanced_cpu_buffer,
+      instanced_cpu_data: Vec::new(),//UniformData::with_capacity(MAX_INSTANCES*12),
       
       vertex_shader,
       fragment_shader,
+      vertex_shader_instanced,
+      fragment_shader_instanced,
       
       msaa: *msaa,
       camera,
@@ -613,6 +691,57 @@ impl ModelShader {
     (pipeline, double_pipeline)
   }
   
+  fn create_instanced_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, msaa: &SampleCount) -> (Pipeline, Pipeline) {
+    let push_constant_size = UniformData::new()
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .size();
+    
+    let mut attributes = ModelVertex::vertex_input_attributes();
+    attributes.append(&mut ModelInstanceData::vertex_input_attributes());
+    
+    let pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader.get_shader())
+                  .fragment_shader(*fragment_shader.get_shader())
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .vertex_binding(vec!(ModelVertex::vertex_input_binding(), ModelInstanceData::vertex_input_binding()))
+                  .vertex_attributes(attributes)
+                  .multisample(msaa)
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  //.enable_depth_clamp()
+                  .enable_depth_write()
+                  .enable_depth_test()
+                  .cull_mode_back()
+                  .front_face_counter_clockwise()
+                  .build(Arc::clone(&device));
+    
+    let mut attributes = ModelVertex::vertex_input_attributes();
+    attributes.append(&mut ModelInstanceData::vertex_input_attributes());
+    
+    let double_pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_shader.get_shader())
+                  .fragment_shader(*fragment_shader.get_shader())
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_set.layouts_clone())
+                  .vertex_binding(vec!(ModelVertex::vertex_input_binding(), ModelInstanceData::vertex_input_binding()))
+                  .vertex_attributes(attributes)
+                  .multisample(msaa)
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .enable_depth_write()
+                  .enable_depth_test()
+                  .cull_mode_none()
+                  .front_face_counter_clockwise()
+                  .build(Arc::clone(&device));
+    
+    (pipeline, double_pipeline)
+  }
+  
   pub fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
     let indices = vec!(0, 3, 2, 2, 1, 0, // back side
                        7, 3, 4, 4, 3, 0, // right side
@@ -719,6 +848,20 @@ impl ModelShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
+  pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, model_reference: String) {
+        
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
+    for _ in 0..(MAX_INSTANCES*12) {
+      instanced_data.push(0.0);
+    }
+    
+    let usage = BufferUsage::vertex_transfer_src_buffer();
+    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    
+    self.instanced_cpu_buffers.push((model_reference, instanced_cpu_buffer));
+    self.instanced_cpu_data.push(UniformData::new());
+  }
+  
   pub fn draw_model(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, hologram: bool, window_width: f32, window_height: f32, delta_time: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
@@ -779,9 +922,124 @@ impl ModelShader {
     cmd
   }
   
+  pub fn add_instanced_model(&mut self, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, hologram: bool) {
+    if self.models.len() == 0 {
+      return;
+    }
+    
+    for i in 0..self.instanced_cpu_buffers.len() {
+      if self.instanced_cpu_buffers[i].0 != model_reference {
+        continue;
+      }
+      
+      let model              = Vector4::new(position.x, position.y, position.z, scale.x);
+      let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.y);
+      let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, scale.z);
+      
+      let mut details = self.instanced_cpu_data[i].clone();
+      let data = details.clone();
+      self.instanced_cpu_data[i] = data
+                                    .add_vector4(model)
+                                    .add_vector4(rotation)
+                                    .add_vector4(hologram);
+    }
+  }
+  
+  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, model_reference: String, window_width: f32, window_height: f32, delta_time: f32) -> CommandBufferBuilder {
+    let mut cmd = cmd;
+    
+    if self.models.len() == 0 || self.instanced_cpu_buffers.len() == 0 {
+      return cmd;
+    }
+    
+    let mut idx = 0;
+    for j in 0..self.instanced_cpu_buffers.len() {
+      if self.instanced_cpu_buffers[j].0 != model_reference {
+        continue;
+      }
+      
+      idx = j
+    };
+    
+    let (model_reference, mut buffer) = self.instanced_cpu_buffers[idx].clone();
+    let mut instanced_data = self.instanced_cpu_data[idx].clone();
+    
+    let data = instanced_data.build();
+    let num_instances = (data.len() as f32 / 12.0) as u32;
+    
+    if num_instances == 0 {
+      return cmd;
+    }
+    
+    buffer.fill_buffer(Arc::clone(&device), 0, data);
+    
+    for i in 0..self.models.len() {
+      if self.models[i].reference != model_reference {
+        continue;
+      }
+      
+      let fov = 60.0;
+      let aspect = window_width / window_height;
+      let (c_pos, c_center, c_up) = self.camera.get_look_at();
+      
+      let camera_position    = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
+      let camera_center      = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
+      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0);
+      
+      for j in 0..self.models[i].vertex_buffers.len() {
+        let vertex = &self.models[i].vertex_buffers[j];
+        let vertex_count = self.models[i].vertex_count[j];
+        let index = &self.models[i].index_buffers[j];
+        let index_count = self.models[i].index_count[j];
+        
+        let descriptor = &self.models[i].descriptor_sets[j];
+       
+        let double_sided = self.models[i].double_sided[j];
+        
+        let push_constant_data = UniformData::new()
+                                 .add_vector4(camera_position)
+                                 .add_vector4(camera_center)
+                                 .add_vector4(camera_up);
+        
+        cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
+        
+        if index_count == 0 {
+          
+          cmd = cmd.draw_instanced(Arc::clone(&device), 
+                                   &vertex.internal_object(0), 
+                                   &buffer.internal_object(0),
+                                   vertex_count, 
+                                   num_instances,
+                                 if double_sided { &self.double_pipeline } else { &self.pipeline },
+                                 vec!(*descriptor.set(0)));
+          println!("Instanced draw Not indexed! Not Implemented!");
+        } else {
+          
+          cmd = cmd.draw_instanced_indexed(Arc::clone(&device), 
+                                       &vertex.internal_object(0),
+                                       &index.internal_object(0),
+                                       &buffer.internal_object(0),
+                                       index_count,
+                                       num_instances,
+                                       if double_sided { &self.instanced_double_pipeline } else { &self.instanced_pipeline },
+                                       vec!(*descriptor.set(0)));
+        }
+        
+      }
+    }
+    
+    self.instanced_cpu_data[idx] = UniformData::new();
+    
+    cmd
+  }
+  
   pub fn destroy(&mut self, device: Arc<Device>) {
     self.index_buffer.destroy(Arc::clone(&device));
     self.vertex_buffer.destroy(Arc::clone(&device));
+    
+    for (data, buffer) in &self.instanced_cpu_buffers {
+      buffer.destroy(Arc::clone(&device));
+    }
     
     for model in &self.models {
       model.destroy(Arc::clone(&device));
@@ -791,12 +1049,17 @@ impl ModelShader {
     
     self.pipeline.destroy(Arc::clone(&device));
     self.double_pipeline.destroy(Arc::clone(&device));
+    self.instanced_pipeline.destroy(Arc::clone(&device));
+    self.instanced_double_pipeline.destroy(Arc::clone(&device));
+    
     for descriptor in &self.descriptor_sets {
       descriptor.destroy(Arc::clone(&device));
     }
     
     self.vertex_shader.destroy(Arc::clone(&device));
     self.fragment_shader.destroy(Arc::clone(&device));
+    self.vertex_shader_instanced.destroy(Arc::clone(&device));
+    self.fragment_shader_instanced.destroy(Arc::clone(&device));
     
     for framebuffer in &self.framebuffers {
      framebuffer.destroy(Arc::clone(&device));
