@@ -213,7 +213,8 @@ impl Camera {
     screen_coords.y /= screen_coords.w;
     screen_coords.z /= screen_coords.w;
     screen_coords.w = 1.0;
-    //println!("coords: {:?}", screen_coords);
+    screen_coords.x *= aspect*aspect;
+    println!("coords: {:?}", screen_coords);
     
     // full aspect 0.396875 x -6 to 6    // 1/12
     // wind aspect 0.5625 x -3 to 3      // 1/6
@@ -239,7 +240,8 @@ impl Camera {
     
     //aspect 1 = 0.5
     let scaled_aspect = (aspect*(aspect*0.5));
-    let x = ((screen_coords.x+3.0)*window_dim.x)*/*scaled_aspect;*/0.296296284*aspect;
+   // let x = ((screen_coords.x+3.0)*window_dim.x)*/*scaled_aspect;*/0.296296284*aspect;
+    let x = ((screen_coords.x+1.0)*window_dim.x)*0.5;
     let y = ((screen_coords.y-1.0)*window_dim.y)*-0.5;
     //println!("aspect {}", aspect);
     Vector2::new(x,y)

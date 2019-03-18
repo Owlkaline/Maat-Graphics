@@ -9,7 +9,8 @@ layout(location = 4) in vec4 tangent;
 // Instanced Data
 layout(location = 5) in vec4 model; // x, y, z, x_scale
 layout(location = 6) in vec4 rotation; // x_rot, y_rot, z_rot, y_scale
-layout(location = 7) in vec4 hologram_scanline; // hologram_enabled, scanline, _, z_scale
+layout(location = 7) in vec4 overwrite_colour; // r, g, b, a
+layout(location = 8) in vec4 hologram_scanline; // hologram_enabled, scanline, _, z_scale
 
 layout(location = 0) out vec2 uvs;
 layout(location = 1) out vec4 v_colour;
@@ -19,6 +20,7 @@ layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_to_light[2];
 layout(location = 7) out vec3 v_scanline;
 layout(location = 8) out vec4 v_use_textures;
+layout(location = 9) out vec4 v_overwrite_colour;
 
 layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 use_textures; //base, metallic_roughness, normal, occlusion
@@ -143,6 +145,7 @@ void main() {
   
   v_use_textures = uniforms.use_textures;
   v_scanline = vec3(hologram_scanline.y, local_pos.y, hologram_scanline.x);
+  v_overwrite_colour = overwrite_colour;
   
   gl_Position = projection * view * vec4(local_pos, 1.0);
 }

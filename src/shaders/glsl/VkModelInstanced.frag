@@ -8,6 +8,7 @@ layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_to_light[2];
 layout(location = 7) in vec3 v_scanline;
 layout(location = 8) in vec4 v_use_textures;
+layout(location = 9) in vec4 v_overwrite_colour;
 
 layout(location = 0) out vec4 outColour;
 
@@ -18,6 +19,10 @@ const vec3 light_colour = vec3(0.5, 0.5, 0.5);
 
 vec4 when_gt(vec4 x, vec4 y) {
   return max(sign(x - y), 0.0);
+}
+
+vec4 when_lt(vec4 x, vec4 y) {
+  return max(sign(y - x), 0.0);
 }
 
 vec4 not(vec4 a) {
@@ -75,6 +80,10 @@ void main() {
   
   alpha = use_scanline.a      * halpha + 
           not(use_scanline).a * alpha;
+  
+  vec4 overwrite_colour = when_lt(vec4(v_overwrite_colour.a), vec4(0.0));
+  base_colour = overwrite_colour.xyz      * v_overwrite_colour.xyz +
+                not(overwrite_colour).xyz * base_colour;
   
   outColour = vec4(base_colour, alpha);
 }

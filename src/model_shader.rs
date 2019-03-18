@@ -19,6 +19,7 @@ use std::mem;
 use std::sync::Arc;
 
 const MAX_INSTANCES: usize = 2048;
+const INSTANCED_SIZE: usize = 16;
 
 #[derive(Clone)]
 pub struct ModelVertex {
@@ -33,6 +34,7 @@ pub struct ModelVertex {
 pub struct ModelInstanceData {
   model: Vector4<f32>,
   rotation: Vector4<f32>,
+  colour: Vector4<f32>,
   hologram: Vector4<f32>,
 }
 
@@ -140,6 +142,15 @@ impl ModelInstanceData {
     vertex_input_attribute_descriptions.push(
       vk::VertexInputAttributeDescription {
         location: 7,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(ModelInstanceData, colour) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 8,
         binding: 1,
         format: vk::FORMAT_R32G32B32A32_SFLOAT,
         offset: offset_of!(ModelInstanceData, hologram) as u32,
@@ -532,14 +543,6 @@ impl ModelShader {
     let index_buffer = ModelShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
     let mut camera = camera::Camera::default_vk();
-    /*
-    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
-    for _ in 0..(MAX_INSTANCES*12) {
-      instanced_data.push(0.0);
-    }
-    
-    let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, 0, instanced_data);*/
     
     ModelShader {
       renderpass: render_pass,
@@ -559,8 +562,8 @@ impl ModelShader {
       double_pipeline,
       instanced_pipeline,
       instanced_double_pipeline,
-      instanced_cpu_buffers: Vec::new(),//instanced_cpu_buffer,
-      instanced_cpu_data: Vec::new(),//UniformData::with_capacity(MAX_INSTANCES*12),
+      instanced_cpu_buffers: Vec::new(),
+      instanced_cpu_data: Vec::new(),
       
       vertex_shader,
       fragment_shader,
@@ -850,8 +853,8 @@ impl ModelShader {
   
   pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, model_reference: String) {
         
-    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
-    for _ in 0..(MAX_INSTANCES*12) {
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*16);
+    for _ in 0..(MAX_INSTANCES*16) {
       instanced_data.push(0.0);
     }
     
@@ -922,7 +925,7 @@ impl ModelShader {
     cmd
   }
   
-  pub fn add_instanced_model(&mut self, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, model_reference: String, hologram: bool) {
+  pub fn add_instanced_model(&mut self, position: Vector3<f32>, scale: Vector3<f32>, rotation: Vector3<f32>, colour: Vector4<f32>, model_reference: String, hologram: bool) {
     if self.models.len() == 0 {
       return;
     }
@@ -934,6 +937,7 @@ impl ModelShader {
       
       let model              = Vector4::new(position.x, position.y, position.z, scale.x);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.y);
+      let colour             = colour;
       let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, scale.z);
       
       let mut details = self.instanced_cpu_data[i].clone();
@@ -941,6 +945,7 @@ impl ModelShader {
       self.instanced_cpu_data[i] = data
                                     .add_vector4(model)
                                     .add_vector4(rotation)
+                                    .add_vector4(colour)
                                     .add_vector4(hologram);
     }
   }
@@ -965,7 +970,7 @@ impl ModelShader {
     let mut instanced_data = self.instanced_cpu_data[idx].clone();
     
     let data = instanced_data.build();
-    let num_instances = (data.len() as f32 / 12.0) as u32;
+    let num_instances = (data.len() as f32 / 16.0) as u32;
     
     if num_instances == 0 {
       return cmd;

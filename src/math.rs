@@ -54,6 +54,10 @@ pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
   (x_rot, z_rot)
 }
 
+pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
+  a + t * (b-a)
+}
+
 pub fn array2_to_vec2<T: Clone>(array: [T; 2]) -> Vector2<T> {
   Vector2::new(array[0].clone(), array[1].clone())
 }

@@ -551,8 +551,8 @@ impl CoreRender for CoreMaat {
             cmd = self.model_shader.draw_model(Arc::clone(&device), cmd, *position, *scale, *rotation, reference.to_string(), *hologram, window_size.width as f32, window_size.height as f32, delta_time);
           },
           DrawType::AddInstancedModel(ref info) => {
-            let (reference, position, scale, rotation, hologram) = info;
-            self.model_shader.add_instanced_model(*position, *scale, *rotation, reference.to_string(), *hologram);
+            let (reference, position, scale, rotation, colour, hologram) = info;
+            self.model_shader.add_instanced_model(*position, *scale, *rotation, *colour, reference.to_string(), *hologram);
           },
           DrawType::DrawInstancedModel(ref reference) => {
             cmd = self.model_shader.draw_instanced(Arc::clone(&device), cmd, reference.to_string(), window_size.width as f32, window_size.height as f32, delta_time);
