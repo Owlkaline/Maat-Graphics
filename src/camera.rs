@@ -214,7 +214,7 @@ impl Camera {
     screen_coords.z /= screen_coords.w;
     screen_coords.w = 1.0;
     screen_coords.x *= aspect*aspect;
-    println!("coords: {:?}", screen_coords);
+    //println!("coords: {:?}", screen_coords);
     
     // full aspect 0.396875 x -6 to 6    // 1/12
     // wind aspect 0.5625 x -3 to 3      // 1/6
