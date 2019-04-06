@@ -206,7 +206,7 @@ impl ResourceManager {
   pub fn get_texture(&mut self, reference: String) -> Option<ImageAttachment> {
     let mut result = None;
     
-    for object in &self.objects {
+    for object in self.objects.iter().rev() {
       if object.reference == reference {
         match object.object_type {
           ObjectType::Texture(ref _data, ref image) => {
@@ -301,7 +301,7 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn _insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
+  pub fn insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
     println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -348,6 +348,27 @@ impl ResourceManager {
       self.load_texture(reference, location);
     } else {
       println!("Object {} already loaded", reference);
+    }
+  }
+  
+  /**
+  ** Unloads textures.
+  **/
+  pub fn unload_texture_from_reference(&mut self, device: Arc<Device>, reference: String) {
+   // debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
+    for i in 0..self.objects.len() {
+      if self.objects[i].reference == reference {
+        match &self.objects[i].object_type {
+          ObjectType::Texture(_data, some_image) => {
+            if let Some(image) = some_image {
+              image.destroy(Arc::clone(&device));
+            }
+            self.objects.remove(i);
+            break;
+          },
+          _ => {}
+        }
+      }
     }
   }
   

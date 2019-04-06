@@ -1,7 +1,7 @@
 use vk;
 
 use crate::vulkan::{Instance, Device};
-use crate::vulkan::buffer::{Buffer, BufferUsage, CommandBuffer};
+use crate::vulkan::buffer::{Buffer, BufferUsage, CommandBuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{CommandPool};
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageLayout, ImageTiling, ImageAspect, SampleCount, 
                              ImageUsage, SharingMode, PipelineStage, Access, MemoryProperty, ComponentSwizzle};
@@ -162,6 +162,38 @@ impl ImageAttachment {
     }
   }
   
+  pub fn create_texture_from_command_buffer(instance: Arc<Instance>, device: Arc<Device>, width: u32, height: u32, image: ImageAttachment, tiling: &ImageTiling, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ImageAttachment {
+    let image_usage = ImageUsage::transfer_dst_sampled();
+    let memory_property = MemoryProperty::DeviceLocal;
+    
+    let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, &ImageType::Type2D, tiling, &image_usage, &ImageLayout::Undefined, &SampleCount::OneBit, &format, width, height);
+    let texture_image_view: vk::ImageView;
+    
+    ImageAttachment::transition_layout(Arc::clone(&device), &image.get_image(), ImageLayout::Undefined, ImageLayout::TransferSrcOptimal, &command_pool, graphics_queue);
+    
+    ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
+    
+    let cmd = CommandBuffer::begin_single_time_command(Arc::clone(&device), &command_pool);
+    cmd.copy_image(Arc::clone(&device),  width, height, 
+                   &image, ImageLayout::TransferSrcOptimal, ImageAspect::Colour, 
+                   &texture_image, ImageLayout::TransferDstOptimal, ImageAspect::Colour);
+    cmd.end_single_time_command(Arc::clone(&device), &command_pool, graphics_queue);
+     
+     ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
+     
+    let texture_image_view = ImageAttachment::create_image_view(Arc::clone(&device), &texture_image, &format, 
+                                                                &ImageAspect::Colour, image_view_type);
+    
+    ImageAttachment {
+      image: texture_image,
+      image_view: texture_image_view,
+      memory: texture_memory,
+      format: format,
+      width,
+      height,
+    }
+  }
+  
   pub fn get_size(&self) -> (u32, u32) {
     (self.width, self.height)
   }
@@ -220,6 +252,12 @@ impl ImageAttachment {
       
       src_stage = PipelineStage::TopOfPipe;
       dst_stage = PipelineStage::ColorAttachmentOutput;
+    } else if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::TransferSrcOptimal {
+      //src_access = Some(Access::ColourAttachmentRead);
+      dst_access = Access::TransferRead;
+      
+      src_stage = PipelineStage::FragmentShader;
+      dst_stage = PipelineStage::Transfer;
     } else {
       panic!("Error image transition not supported!");
     }

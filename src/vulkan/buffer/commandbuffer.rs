@@ -14,7 +14,7 @@ use crate::vulkan::check_errors;
 use crate::vulkan::buffer::UniformData;
 
 use crate::vulkan::vkenums::{PipelineStage, ImageAspect, ImageLayout, ShaderStage, CommandBufferLevel,
-                             PipelineBindPoint, SubpassContents, IndexType, Access};
+                             PipelineBindPoint, SubpassContents, IndexType, Access, SampleCount};
 
 use std::mem;
 use std::ptr;
@@ -278,6 +278,36 @@ impl CommandBuffer {
     
     unsafe {
       vk.CmdDispatch(self.command_buffer, x, y, z);
+    }
+  }
+  
+  pub fn copy_image(&self, device: Arc<Device>, width: u32, height: u32, src_image: &ImageAttachment, src_layout: ImageLayout, src_image_aspect: ImageAspect, dst_image: &vk::Image, dst_layout: ImageLayout, dst_image_aspect: ImageAspect) {
+    
+    let src_image_subresource_layers = vk::ImageSubresourceLayers {
+      aspectMask: src_image_aspect.to_bits(),
+      mipLevel: 0,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let dst_image_subresource_layers = vk::ImageSubresourceLayers {
+      aspectMask: dst_image_aspect.to_bits(),
+      mipLevel: 0,
+      baseArrayLayer: 0,
+      layerCount: 1,
+    };
+    
+    let region = vk::ImageCopy {
+      srcSubresource: src_image_subresource_layers,
+      srcOffset: vk::Offset3D { x: 0, y: 0, z: 0 },
+      dstSubresource: dst_image_subresource_layers,
+      dstOffset: vk::Offset3D { x: 0, y: 0, z: 0 },
+      extent: vk::Extent3D { width, height, depth: 1 },
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdCopyImage(self.command_buffer, src_image.get_image(), src_layout.to_bits(), *dst_image, dst_layout.to_bits(), SampleCount::OneBit.to_bits(), &region);
     }
   }
   

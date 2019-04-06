@@ -109,29 +109,39 @@ mat4 create_rotation_matrix(vec3 deg_rotation) {
                     vec4(0.0, 0.0, 1.0, 0.0), 
                     vec4(0.0, 0.0, 0.0, 1.0));
   
-  mat4 rotation_matrix = rot_x*rot_y*rot_z;
+  mat4 rotation_matrix = rot_y*rot_x*rot_z;
   
   return rotation_matrix;
 }
 
-mat4 create_translation_matrix(vec3 pos, vec3 scale) {
-  mat4 translate_matrix = mat4(vec4(scale.x, 0.0,     0.0,     0.0), 
-                               vec4(0.0,     scale.y, 0.0,     0.0), 
-                               vec4(0.0,     0.0,     scale.z, 0.0), 
+mat4 create_translation_matrix(vec3 pos) {
+  mat4 translate_matrix = mat4(vec4(1.0, 0.0,     0.0,     0.0), 
+                               vec4(0.0,     1.0, 0.0,     0.0), 
+                               vec4(0.0,     0.0,     1.0, 0.0), 
                                vec4(pos,                       1.0));
   
   return translate_matrix;
 }
 
+mat4 create_scale_matrix(vec3 scale) {
+  mat4 scale_matrix = mat4(vec4(scale.x, 0.0,     0.0,     0.0), 
+                               vec4(0.0,     scale.y, 0.0,     0.0), 
+                               vec4(0.0,     0.0,     scale.z, 0.0), 
+                               vec4(0.0,     0.0,     0.0,     1.0));
+  
+  return scale_matrix;
+}
+
 void main() {
   vec3 model_scale = vec3(model.w, rotation.w, hologram_scanline.w);
   
-  mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 256.0);
+  mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 1024.0);
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
-  mat4 model = create_translation_matrix(model.xyz, model_scale);
+  mat4 model = create_translation_matrix(model.xyz);
+  mat4 scale = create_scale_matrix(model_scale);
   mat4 rotation = create_rotation_matrix(rotation.xyz);
   
-  vec3 local_pos = vec3((model * rotation) * vec4(position, 1.0));
+  vec3 local_pos = vec3(model * rotation * scale * vec4(position, 1.0));
   
   vec4 rotated_normal = /*model */ rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
   

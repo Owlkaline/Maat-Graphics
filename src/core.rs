@@ -59,6 +59,8 @@ pub struct CoreMaat {
   
   current_frame: usize,
   max_frames: usize,
+  
+  image_from_draw: Option<ImageAttachment>,
 }
 
 impl CoreMaat {
@@ -227,6 +229,8 @@ impl CoreMaat {
       
       current_frame: 0,
       max_frames,
+      
+      image_from_draw: None,
     }
   }
   
@@ -609,6 +613,16 @@ impl CoreRender for CoreMaat {
       },
       e => { check_errors(e); },
     }
+    
+    // render to texture
+  //  if self.image_from_draw.is_none() {
+  //  self.fences[self.current_frame].wait(Arc::clone(&device));
+  //    let texture_image = self.model_shader.get_texture(self.current_frame);
+  //    let image = ImageAttachment::create_texture_from_command_buffer(Arc::clone(&instance), Arc::clone(&device), window_size.width, window_size.height, texture_image, &ImageTiling::Optimal, &ImageViewType::Type2D, self.window.swapchain_format(), &self.command_pool, self.window.get_graphics_queue());
+     // self.resources.unload_texture_from_reference(Arc::clone(&device), "TempModel".to_string());
+  //    self.image_from_draw = Some(image.clone());
+  //    self.resources.insert_texture("TempModel".to_string(), image);
+ //   }
     
     self.current_frame = (self.current_frame+1)%self.max_frames;
   }

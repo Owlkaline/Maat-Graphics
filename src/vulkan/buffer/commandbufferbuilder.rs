@@ -30,6 +30,11 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn copy_image_to_image(self, device: Arc<Device>, width: u32, height: u32, src_image: &ImageAttachment, src_layout: ImageLayout, src_image_aspect: ImageAspect, dst_image: &vk::Image, dst_layout: ImageLayout, dst_image_aspect: ImageAspect) -> CommandBufferBuilder {
+    self.command_buffer.copy_image(Arc::clone(&device), width, height, src_image, src_layout, src_image_aspect, dst_image, dst_layout, dst_image_aspect);
+    self
+  }
+  
   pub fn copy_buffer_to_buffer<T: Clone, U: Clone>(self, device: Arc<Device>, src_buffer: &Buffer<T>, dst_buffer: &Buffer<U>, current_buffer: usize) -> CommandBufferBuilder {
     self.command_buffer.copy_buffer(Arc::clone(&device), src_buffer, dst_buffer, current_buffer);
     self
