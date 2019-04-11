@@ -101,6 +101,8 @@
 
 const ENGINE_VERSION: u32 = (0 as u32) << 22 | (6 as u32) << 12 | (0 as u32);
 
+extern crate imgui_sys;
+
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;

@@ -14,7 +14,7 @@ base64 = "*"
 shared_library = "0.1.7"
 lazy_static = "1.2.0"
 libc = "0.2.44"
-
+imgui-sys = "0.0.22"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))'.dependencies]
 wayland-client = "=0.21.7"

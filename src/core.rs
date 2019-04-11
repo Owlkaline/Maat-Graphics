@@ -3,6 +3,8 @@ use winit;
 use cgmath::{Vector4};
 use winit::dpi::LogicalSize;
 
+use crate::imgui_sys;
+
 use crate::ResourceManager;
 use crate::camera::Camera;
 use crate::drawcalls::DrawCall; 
@@ -95,6 +97,12 @@ impl CoreMaat {
     
     let mut compute_shader = None;
     
+    unsafe {
+     // imgui_sys::igCreateContext();
+     // let im_gui = imgui_sys::igSetCurrentContext();
+    //  let im_gui = imgui_sys::init();
+      //let mut io = imgui_sys::igGetIO();
+    }
     {
       let instance = window.instance();
       let device = window.device();

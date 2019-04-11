@@ -109,7 +109,7 @@ mat4 create_rotation_matrix(vec3 deg_rotation) {
                     vec4(0.0, 0.0, 1.0, 0.0), 
                     vec4(0.0, 0.0, 0.0, 1.0));
   
-  mat4 rotation_matrix = rot_y*rot_x*rot_z;
+  mat4 rotation_matrix = rot_z*rot_y*rot_x;
   
   return rotation_matrix;
 }
