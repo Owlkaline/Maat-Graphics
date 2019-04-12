@@ -3,7 +3,10 @@ use winit;
 use cgmath::{Vector4};
 use winit::dpi::LogicalSize;
 
-use crate::imgui_sys;
+//use crate::imgui_sys;
+//use crate::imgui::{ImGui, Ui, ImFontConfig};
+use crate::imgui::*;
+use crate::imgui_winit_support;
 
 use crate::ResourceManager;
 use crate::camera::Camera;
@@ -28,6 +31,7 @@ use crate::vulkan::check_errors;
 
 use cgmath::{Vector2, Vector3};
 
+use std::mem;
 use std::ptr;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -63,6 +67,8 @@ pub struct CoreMaat {
   max_frames: usize,
   
   image_from_draw: Option<ImageAttachment>,
+  
+  imgui: Option<ImGui>,
 }
 
 impl CoreMaat {
@@ -97,12 +103,6 @@ impl CoreMaat {
     
     let mut compute_shader = None;
     
-    unsafe {
-     // imgui_sys::igCreateContext();
-     // let im_gui = imgui_sys::igSetCurrentContext();
-    //  let im_gui = imgui_sys::init();
-      //let mut io = imgui_sys::igGetIO();
-    }
     {
       let instance = window.instance();
       let device = window.device();
@@ -239,7 +239,53 @@ impl CoreMaat {
       max_frames,
       
       image_from_draw: None,
+      
+      imgui: None,
     }
+  }
+  
+  pub fn use_imgui(mut self) -> CoreMaat {
+    let instance = self.window.instance();
+    let device = self.window.device();
+    let graphics_queue = self.window.get_graphics_queue();
+    
+    let mut imgui = ImGui::init();
+    {
+      fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
+        let x = col.x.powf(2.2);
+        let y = col.y.powf(2.2);
+        let z = col.z.powf(2.2);
+        let w = 1.0 - (1.0 - col.w).powf(2.2);
+        
+        ImVec4::new(x, y, z, w)
+      }
+      
+      let style = imgui.style_mut();
+      for col in 0..style.colors.len() {
+        style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
+      }
+    }
+    
+    imgui.set_ini_filename(None);
+    
+    imgui.fonts().add_default_font_with_config(
+        ImFontConfig::new()
+            .oversample_h(1)
+            .pixel_snap_h(true)
+            .size_pixels(13.0),
+    );
+    
+    imgui.set_font_global_scale(1.0);
+    
+    self.texture_shader.load_imgui(Arc::clone(&device));
+    
+    self.resources.load_imgui(Arc::clone(&instance), Arc::clone(&device), &mut imgui, &self.command_pool, *graphics_queue);
+    
+    imgui_winit_support::configure_keys(&mut imgui);
+    
+    self.imgui = Some(imgui);
+    
+    self
   }
   
   pub fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
@@ -441,36 +487,37 @@ impl CoreRender for CoreMaat {
       return;
     }
     
-    let device = self.window.device();
-    let instance = self.window.instance();
-    let swapchain = self.window.get_swapchain();
-    let graphics_queue = self.window.get_graphics_queue();
-    let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
-    self.fences[self.current_frame].wait(Arc::clone(&device));
-    self.fences[self.current_frame].reset(Arc::clone(&device));
-    
-    self.model_shader.update_scanline(delta_time);
-    
-    let mut model_draw_calls = Vec::new();
-    
-    //
-    // Actually Draw stuff
-    //
-    let (result, image_index) = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available[self.current_frame]);
-    
-    match result {
-      vk::ERROR_OUT_OF_DATE_KHR => {
-        self.recreate_swapchain = true;
-        return;
-      },
-      e => {
-        check_errors(e);
-      }
-    }
-    
     let i = self.current_frame;
-    
-      let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
+    let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
+    let mut model_draw_calls = Vec::new();
+    let mut image_index = 0;
+    {
+      let device = self.window.device();
+      let instance = self.window.instance();
+      let graphics_queue = self.window.get_graphics_queue();
+      let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
+      self.fences[self.current_frame].wait(Arc::clone(&device));
+      self.fences[self.current_frame].reset(Arc::clone(&device));
+      
+      self.model_shader.update_scanline(delta_time);
+      
+      //
+      // Actually Draw stuff
+      //
+      let (result, local_image_index) = self.window.aquire_next_image(Arc::clone(&device), &self.semaphore_image_available[self.current_frame]);
+      
+      match result {
+        vk::ERROR_OUT_OF_DATE_KHR => {
+          self.recreate_swapchain = true;
+          return;
+        },
+        e => {
+          check_errors(e);
+        }
+      }
+      
+      image_index = local_image_index;
+      
       cmd = cmd.begin_command_buffer(Arc::clone(&device));
       cmd = self.texture_shader.fill_buffers(Arc::clone(&instance), Arc::clone(&device), cmd, i);
       cmd = self.texture_shader.begin_renderpass(Arc::clone(&device), cmd, &self.texture_clear_colour, &window_size, i);
@@ -548,6 +595,39 @@ impl CoreRender for CoreMaat {
           }
         }
       }
+      }
+      {
+        let device = self.window.device();
+        let instance = self.window.instance();
+        let dpi = self.get_dpi_scale() as f32;
+        if let Some(imgui) = &mut self.imgui {
+          let frame_size = self.window.imgui_window(imgui);
+          
+          let mut ui = imgui.frame(frame_size, delta_time);
+          ui.show_default_style_editor();
+          ui.show_demo_window(&mut true);
+          ui.window(im_str!("Hello world"))
+            .size((300.0, 100.0), ImGuiCond::FirstUseEver)
+            .build(|| {
+                ui.text(im_str!("Hello world!"));
+                ui.text(im_str!("This...is...imgui-rs!"));
+                ui.separator();
+                let mouse_pos = ui.imgui().mouse_pos();
+                ui.text(im_str!(
+                    "Mouse Position: ({:.1},{:.1})",
+                    mouse_pos.0,
+                    mouse_pos.1
+                ));
+          });
+          cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, ui, dpi);
+        }
+      }
+      
+      let device = self.window.device();
+      let instance = self.window.instance();
+      let graphics_queue = self.window.get_graphics_queue();
+      let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
+      
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Model Shader
@@ -614,8 +694,8 @@ impl CoreRender for CoreMaat {
       
       cmd = cmd.end_render_pass(Arc::clone(&device));
       cmd.end_command_buffer(Arc::clone(&device));
-    
-    match self.command_buffers[self.current_frame].submit(Arc::clone(&device), swapchain, image_index as u32, &self.semaphore_image_available[self.current_frame], &self.semaphore_render_finished[self.current_frame], &self.fences[self.current_frame], &graphics_queue) {
+      let swapchain = self.window.get_swapchain();
+      match self.command_buffers[self.current_frame].submit(Arc::clone(&device), swapchain, image_index as u32, &self.semaphore_image_available[self.current_frame], &self.semaphore_render_finished[self.current_frame], &self.fences[self.current_frame], &graphics_queue) {
       vk::ERROR_OUT_OF_DATE_KHR => {
         self.recreate_swapchain = true;
       },

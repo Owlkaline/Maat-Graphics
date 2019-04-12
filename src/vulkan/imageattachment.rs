@@ -123,6 +123,40 @@ impl ImageAttachment {
     }
   }
   
+  pub fn create_texture_from_pixels(instance: Arc<Instance>, device: Arc<Device>, image_data: std::vec::Vec<u8>, width: u32, height: u32, image_type: &ImageType, tiling: &ImageTiling, samples: &SampleCount, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ImageAttachment {
+     let texture_image_view: vk::ImageView;
+    
+    let staging_usage = BufferUsage::transfer_src_buffer();
+    let image_usage = ImageUsage::transfer_dst_sampled();
+    
+    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
+    
+    let memory_property = MemoryProperty::DeviceLocal;
+    let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, image_type, tiling, &image_usage, &ImageLayout::Undefined, samples, &format, width, height);
+    
+    ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
+    
+    let cmd = CommandBuffer::begin_single_time_command(Arc::clone(&device), &command_pool);
+    cmd.copy_buffer_to_image(Arc::clone(&device), &staging_buffer, texture_image, ImageAspect::Colour, width, height, 0);
+    cmd.end_single_time_command(Arc::clone(&device), &command_pool, graphics_queue);
+    
+    ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
+    
+    staging_buffer.destroy(Arc::clone(&device));
+    
+    texture_image_view = ImageAttachment::create_image_view(Arc::clone(&device), &texture_image, &format, 
+                                                            &ImageAspect::Colour, image_view_type);
+    
+    ImageAttachment {
+      image: texture_image,
+      image_view: texture_image_view,
+      memory: texture_memory,
+      format: format,
+      width,
+      height,
+    }
+  }
+  
   pub fn create_dummy_texture(instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, tiling: &ImageTiling, samples: &SampleCount, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ImageAttachment {
     let width = 2;
     let height = 2;

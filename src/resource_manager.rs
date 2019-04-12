@@ -12,6 +12,8 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
+use crate::imgui::ImGui;
+
 use cgmath::Vector3;
 
 use std::time;
@@ -436,6 +438,15 @@ impl ResourceManager {
     } else {
       println!("Object {} already loaded", reference);
     }
+  }
+  
+  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, imgui: &mut ImGui, command_pool: &CommandPool, graphics_queue: vk::Queue) {
+    imgui.prepare_texture(|handle| {
+      //println!("{:?}", handle.pixels);
+      let raw_pixels = handle.pixels.iter().map(|p| *p as u8).collect::<Vec<u8>>();
+      let texture = ImageAttachment::create_texture_from_pixels(Arc::clone(&instance), Arc::clone(&device), raw_pixels, handle.width, handle.height, &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);
+      self.insert_texture("imgui".to_string(), texture);
+    });
   }
   
   /**
