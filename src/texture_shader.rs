@@ -196,6 +196,8 @@ pub struct TextureShader {
   
   vertex_shader_imgui: Option<Shader>,
   fragment_shader_imgui: Option<Shader>,
+  imgui_vertex_buffer: Option<Buffer<ImGuiVertex>>,
+  imgui_index_buffer: Option<Buffer<u32>>,
   
   msaa: SampleCount,
   scale: f32,
@@ -351,6 +353,8 @@ impl TextureShader {
       
       vertex_shader_imgui: None,
       fragment_shader_imgui: None,
+      imgui_vertex_buffer: None,
+      imgui_index_buffer: None,
       
       msaa: *msaa,
       scale: 1.0,
@@ -364,7 +368,7 @@ impl TextureShader {
     }
   }
   
-  pub fn load_imgui(&mut self, device: Arc<Device>) {
+  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) {
     let vertex_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkImGuiVert.spv"));
     let fragment_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkImGuiFrag.spv"));
     
@@ -390,6 +394,9 @@ impl TextureShader {
     self.vertex_shader_imgui = Some(vertex_shader_imgui);
     self.fragment_shader_imgui = Some(fragment_shader_imgui);
     self.imgui_pipeline = Some(imgui_pipeline);
+    
+    self.imgui_vertex_buffer = Some(Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), num_sets, 1));
+    self.imgui_index_buffer = Some(Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), num_sets, 1));
   }
   
   pub fn set_scale(&mut self, new_scale: f32) {
@@ -463,15 +470,13 @@ impl TextureShader {
   }
   
   pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, reference: String) {
-    //  let usage = BufferUsage::vertex_transfer_dst_buffer();
-    //  let instanced_buffer = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views.len() as u32, instanced_data.clone());
     let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
     for _ in 0..(MAX_INSTANCES*12) {
       instanced_data.push(0.0);
     }
     
     let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
     self.instanced_cpu_buffers.insert(reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer));
   }
   
@@ -535,19 +540,8 @@ impl TextureShader {
   pub fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
     let indices = vec!(0, 1, 2, 2, 3, 0);
     
-    let usage_src = BufferUsage::index_transfer_src_buffer();
-    let usage_dst = BufferUsage::index_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, indices.clone());
-    let buffer: Buffer<u32> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, indices);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::index_buffer();
+    Buffer::<u32>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, indices)
   }
   
   pub fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
@@ -558,19 +552,8 @@ impl TextureShader {
       Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(0.99, 0.99) },
     );
     
-    let usage_src = BufferUsage::vertex_transfer_src_buffer();
-    let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<Vertex> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, triangle.clone());
-    let buffer: Buffer<Vertex> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, triangle);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::vertex_buffer();
+    Buffer::<Vertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, triangle)
   }
   
   fn create_frame_buffers(instance: Arc<Instance>, device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, format: &vk::Format, msaa: &SampleCount, num_image_views: usize, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<Framebuffer>) {
@@ -714,56 +697,102 @@ impl TextureShader {
     cmd
   }
   
-  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, ui: Ui, dpi_factor: f32) -> CommandBufferBuilder {
+  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, max_buffer: usize, ui: Ui, dpi_factor: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&"imgui".to_string()) {
       return cmd
     }
     
-    let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
-    
     let frame_size = ui.frame_size();
     if !(frame_size.logical_size.0 > 0.0 || frame_size.logical_size.1 > 0.0) {
       return cmd
     }
     
+    let mut vertex_data = Vec::new();
+    let mut index_data = Vec::new();
+    let mut index_bases = Vec::new();
+    let mut index_counts = Vec::new();
+    let mut index_base = 0;
+    let mut vertex_offsets = Vec::new();
+    
+    let good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
+      draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
+      
+      let mut verticies = 0;
+      
+      for draw_list in &draw_data {
+        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
+        let mut vtx = draw_list.vtx_buffer.iter().map(|vtx| {
+          let colour =  vtx.col.to_be_bytes();
+          
+          ImGuiVertex { pos: Vector2::new(vtx.pos.x, vtx.pos.y), uvs: Vector2::new(vtx.uv.x, vtx.uv.y), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
+        }).collect::<Vec<ImGuiVertex>>();
+        let index_count = idx.len() as u32;
+        let vertex_count = vtx.len() as u32;
+        vertex_data.append(&mut vtx);
+        index_data.append(&mut idx);
+        index_bases.push(index_base);
+        index_counts.push(index_count);
+        vertex_offsets.push(verticies as u64 * mem::size_of::<ImGuiVertex>() as u64);
+        index_base += index_count as i32;
+        verticies += vertex_count;
+      }
+      
+      Ok(())
+    });
+    
+    let mut resize_buffer = false;
+    if let Some(index_buffer) = &mut self.imgui_index_buffer {
+      if index_buffer.max_size() <= (index_data.len()*mem::size_of::<u32>()) as u64 {
+        resize_buffer = true;
+        // TODO: Work out better solution
+        device.wait();
+        index_buffer.destroy(Arc::clone(&device));
+      }
+    }
+    
+    if resize_buffer {
+      resize_buffer = false;
+      self.imgui_index_buffer = Some(Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), max_buffer as u32, index_data));
+    } else {
+      if let Some(index_buffer) = &mut self.imgui_index_buffer {
+        index_buffer.fill_partial_buffer(Arc::clone(&device), current_buffer, 0, index_data);
+      }
+    }
+    
+    if let Some(vertex_buffer) = &mut self.imgui_vertex_buffer {
+      if vertex_buffer.max_size() <= (vertex_data.len()*mem::size_of::<ImGuiVertex>()) as u64 {
+        resize_buffer = true;
+        // TODO: Work out better solution
+        device.wait();
+        vertex_buffer.destroy(Arc::clone(&device));
+      }
+    }
+    
+    if resize_buffer {
+      self.imgui_vertex_buffer = Some(Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), max_buffer as u32, vertex_data));
+    } else {
+      if let Some(vertex_buffer) = &mut self.imgui_vertex_buffer {
+        vertex_buffer.fill_partial_buffer(Arc::clone(&device), current_buffer, 0, vertex_data);
+      }
+    }
+    
+    
+    
     if let Some(pipeline) = &self.imgui_pipeline {
       let push_constant_data = UniformData::new()
                                  .add_vector4(Vector4::new(frame_size.logical_size.0 as f32, frame_size.logical_size.1 as f32, 0.0, 0.0));
-      
       cmd = cmd.push_constants(Arc::clone(&device), &pipeline, ShaderStage::Vertex, push_constant_data);
+      let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
       
-      let mut draws = Vec::new();
-      
-      let good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
-        draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
-        
-        for draw_list in &draw_data {
-          let idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32).collect::<Vec<u32>>();
-          let vtx = draw_list.vtx_buffer.iter().map(|vtx| {
-            let colour =  vtx.col.to_be_bytes();
-            
-            ImGuiVertex { pos: Vector2::new(vtx.pos.x, vtx.pos.y), uvs: Vector2::new(vtx.uv.x, vtx.uv.y), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
-          }).collect::<Vec<ImGuiVertex>>();
-          
-          let index_count = idx.len() as f32 as u32;
-          let index_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, idx);
-          let vertex_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vtx);
-          draws.push((vertex_buffer, index_buffer, index_count))
+      if let Some(index_buffer) = &self.imgui_index_buffer {
+        if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
+           cmd = cmd.draw_indexed(Arc::clone(&device), &vertex_buffer.internal_object(current_buffer),
+                                 &index_buffer.internal_object(current_buffer),
+                                 index_base as u32, &pipeline,
+                                 vec!(*descriptor.set(0)))
         }
-        Ok(())
-      });
-      
-      for draw in &draws {
-        let (vertex_buffer, index_buffer, index_count) = draw;
-        
-        cmd = cmd.draw_indexed(Arc::clone(&device), &vertex_buffer.internal_object(0),
-                                   &index_buffer.internal_object(0),
-                                   *index_count, &pipeline,
-                                   vec!(*descriptor.set(0)));
-        //vertex_buffer.destroy(Arc::clone(&device));
-        //index_buffer.destroy(Arc::clone(&device));
       }
     }
     cmd
@@ -805,7 +834,7 @@ impl TextureShader {
         return cmd;
       }
       
-      buffer.fill_buffer(Arc::clone(&device), current_buffer, data);
+      buffer.fill_entire_buffer_single_frame(Arc::clone(&device), current_buffer, data);
       
       let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&texture_reference).unwrap();
       
@@ -870,6 +899,14 @@ impl TextureShader {
           buffer.destroy(Arc::clone(&device));
         }
       }
+    }
+    
+    if let Some(index_buffer) = &self.imgui_index_buffer {
+      index_buffer.destroy(Arc::clone(&device));
+    }
+    
+    if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
+      vertex_buffer.destroy(Arc::clone(&device));
     }
     
     self.texture_pipeline.destroy(Arc::clone(&device));

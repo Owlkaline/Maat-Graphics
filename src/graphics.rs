@@ -4,7 +4,7 @@ use crate::font::GenericFont;
 use crate::camera::Camera;
 use crate::graphics;
 
-use cgmath::Vector3;
+use cgmath::{Vector2, Vector3};
 
 use winit;
 use winit::dpi::LogicalSize;
@@ -55,13 +55,14 @@ pub trait CoreRender {
   fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;
   fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
   fn post_draw(&self);
-  fn screen_resized(&mut self);
   
   // Getters and setters
-  fn get_dimensions(&self) -> LogicalSize;
-  fn get_events(&mut self) -> &mut winit::EventsLoop;
+  fn get_physical_dimensions(&self) -> Vector2<f32>;
+  fn get_virtual_dimensions(&self) -> Vector2<f32>;
+  fn get_events(&mut self) -> Vec<winit::Event>;
+  fn get_mouse_position(&mut self) -> Vector2<f32>;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
-  fn get_dpi_scale(&self) -> f64;
+  fn get_dpi_scale(&self) -> f32;
   fn is_ready(&self) -> bool;
   fn set_cursor_position(&mut self, x: f32, y: f32);
   fn show_cursor(&mut self);

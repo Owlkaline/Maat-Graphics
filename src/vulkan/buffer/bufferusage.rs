@@ -61,6 +61,10 @@ impl BufferUsage {
     flags
   }
   
+  pub fn set_as_transfer_dst(&mut self) {
+    self.transfer_dst = true;
+  }
+  
   pub fn transfer_src_buffer() -> BufferUsage {
     BufferUsage {
       transfer_src: true,

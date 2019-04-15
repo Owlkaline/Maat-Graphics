@@ -69,6 +69,9 @@ pub struct CoreMaat {
   image_from_draw: Option<ImageAttachment>,
   
   imgui: Option<ImGui>,
+  
+  mouse_position: Vector2<f32>,
+  dpi: f32,
 }
 
 impl CoreMaat {
@@ -241,6 +244,8 @@ impl CoreMaat {
       image_from_draw: None,
       
       imgui: None,
+      mouse_position: Vector2::new(0.0, 0.0),
+      dpi: 1.0,
     }
   }
   
@@ -270,14 +275,14 @@ impl CoreMaat {
     
     imgui.fonts().add_default_font_with_config(
         ImFontConfig::new()
-            .oversample_h(1)
-            .pixel_snap_h(true)
-            .size_pixels(13.0),
+          //  .oversample_h(1)
+          //  .pixel_snap_h(true)
+           // .size_pixels(13.0),
     );
     
-    imgui.set_font_global_scale(1.0);
+    imgui.set_font_global_scale(1.2);
     
-    self.texture_shader.load_imgui(Arc::clone(&device));
+    self.texture_shader.load_imgui(Arc::clone(&instance), Arc::clone(&device), self.max_frames as u32);
     
     self.resources.load_imgui(Arc::clone(&instance), Arc::clone(&device), &mut imgui, &self.command_pool, *graphics_queue);
     
@@ -286,39 +291,6 @@ impl CoreMaat {
     self.imgui = Some(imgui);
     
     self
-  }
-  
-  pub fn begin_single_time_command(device: Arc<Device>, command_pool: &CommandPool) -> CommandBuffer {
-    let command_buffer = CommandBuffer::primary(Arc::clone(&device), command_pool);
-    command_buffer.begin_command_buffer(Arc::clone(&device), CommandBufferLevel::Primary.to_bits());
-    command_buffer
-  }
-  
-  pub fn end_single_time_command(device: Arc<Device>, command_buffer: CommandBuffer, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
-    let submit_info = {
-      vk::SubmitInfo {
-        sType: vk::STRUCTURE_TYPE_SUBMIT_INFO,
-        pNext: ptr::null(),
-        waitSemaphoreCount: 0,
-        pWaitSemaphores: ptr::null(),
-        pWaitDstStageMask: ptr::null(),
-        commandBufferCount: 1,
-        pCommandBuffers: command_buffer.internal_object(),
-        signalSemaphoreCount: 0,
-        pSignalSemaphores: ptr::null(),
-      }
-    };
-    
-    command_buffer.end_command_buffer(Arc::clone(&device));
-    
-    unsafe {
-      let vk = device.pointers();
-      let device = device.internal_object();
-      let command_pool = command_pool.local_command_pool();
-      vk.QueueSubmit(*graphics_queue, 1, &submit_info, 0);
-      vk.QueueWaitIdle(*graphics_queue);
-      vk.FreeCommandBuffers(*device, *command_pool, 1, command_buffer.internal_object());
-    }
   }
   
   fn create_fences(device: Arc<Device>, num_fences: u32) -> Vec<Fence> {
@@ -619,7 +591,7 @@ impl CoreRender for CoreMaat {
                     mouse_pos.1
                 ));
           });
-          cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, ui, dpi);
+          cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
         }
       }
       
@@ -719,24 +691,71 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn screen_resized(&mut self) {
-    self.recreate_swapchain = true;
+  fn get_physical_dimensions(&self) -> Vector2<f32> {
+    Vector2::new(self.window_dimensions.width as f32, self.window_dimensions.height as f32)
   }
   
-  fn get_dimensions(&self) -> LogicalSize {
-    LogicalSize::new(self.window_dimensions.width as f64, self.window_dimensions.height as f64)
+  fn get_virtual_dimensions(&self) -> Vector2<f32> {
+    Vector2::new(self.window_dimensions.width as f32 * self.dpi, self.window_dimensions.height as f32 * self.dpi)
   }
   
-  fn get_events(&mut self) -> &mut winit::EventsLoop {
-    self.window.get_events()
+  fn get_events(&mut self) -> Vec<winit::Event> {
+    let mut events = Vec::new();
+    
+    let mut recreate = false;
+    let mut mouse_pos = self.mouse_position;
+    let mut new_dpi = self.dpi;
+    let dimensions = self.get_virtual_dimensions();
+    
+    let all_events = self.window.get_events();
+    
+    all_events.poll_events(|ev| {
+      match &ev {
+        winit::Event::WindowEvent{ event, .. } => {
+          match event {
+            winit::WindowEvent::Resized(_new_size) => {
+              recreate = true;
+            },
+            winit::WindowEvent::CursorMoved{device_id: _, position, modifiers: _} => {
+              mouse_pos = Vector2::new(position.x as f32, dimensions.y / new_dpi - position.y as f32);
+            },
+            winit::WindowEvent::HiDpiFactorChanged(event_dpi) => {
+              new_dpi = *event_dpi as f32;
+            },
+            _ => {}
+          }
+        },
+        _ => {}
+      }
+      
+      events.push(ev);
+    });
+    
+    self.mouse_position = mouse_pos;
+    self.dpi = new_dpi;
+    if recreate {
+      self.recreate_swapchain = true;
+    }
+    
+    for ev in &events {
+      if let Some(imgui) = &mut self.imgui {
+        imgui_winit_support::handle_event(imgui, ev, new_dpi as f64, new_dpi as f64);
+      }
+    }
+    
+    events
+  }
+  
+  fn get_mouse_position(&mut self) -> Vector2<f32> {
+    self.mouse_position
   }
   
   fn get_fonts(&self) -> HashMap<String, GenericFont> {
     HashMap::new()
   }
   
-  fn get_dpi_scale(&self) -> f64 {
-    1.0
+  fn get_dpi_scale(&self) -> f32 {
+    self.dpi
   }
   
   fn is_ready(&self) -> bool {

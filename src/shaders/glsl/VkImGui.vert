@@ -12,7 +12,7 @@ layout(location = 0) out vec2 uvs;
 layout(location = 1) out vec4 colours;
 
 mat4 create_imgui_matrix() {
-  vec2 size = push_constants.model.xy;
+  vec2 size = vec2(1280.0, 720.0);//push_constants.model.xy;
   
   mat4 imgui_matrix = mat4(
     vec4(2.0/size.x, 0.0, 0.0, 0.0),

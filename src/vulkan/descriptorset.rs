@@ -49,7 +49,7 @@ impl<'a> UpdateDescriptorSets<'a> {
   
   pub fn add_uniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
-    uniform_buffer.fill_entire_buffer(device, data.build());
+    uniform_buffer.fill_entire_buffer_all_frames(device, data.build());
     self.uniform_buffers.push((binding, uniform_buffer));
     self
   }
@@ -75,7 +75,7 @@ impl<'a> UpdateDescriptorSets<'a> {
           vk::DescriptorBufferInfo {
             buffer: *uniform_buffer.internal_object(j),
             offset: 0,
-            range: uniform_buffer.size(),
+            range: uniform_buffer.max_size(),
           }
         };
         
@@ -340,7 +340,7 @@ impl DescriptorSet {
         vk::DescriptorBufferInfo {
           buffer: *uniform_buffer.internal_object(i),
           offset: 0,
-          range: uniform_buffer.size(),
+          range: uniform_buffer.max_size(),
         }
       };
       

@@ -178,19 +178,8 @@ impl FinalShader {
   pub fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
     let indices = vec!(0, 1, 2, 2, 3, 0);
     
-    let usage_src = BufferUsage::index_transfer_src_buffer();
-    let usage_dst = BufferUsage::index_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, indices.clone());
-    let buffer: Buffer<u32> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, indices);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::index_buffer();
+    Buffer::<u32>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, indices)
   }
   
   pub fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<FinalVertex> {
@@ -201,19 +190,8 @@ impl FinalShader {
       FinalVertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(0.99, 0.99) },
     );
     
-    let usage_src = BufferUsage::vertex_transfer_src_buffer();
-    let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<FinalVertex> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, square.clone());
-    let buffer: Buffer<FinalVertex> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, square);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::vertex_buffer();
+    Buffer::<FinalVertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, square)
   }
   
   fn create_frame_buffers(device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<Framebuffer> {

@@ -307,7 +307,7 @@ impl Model {
                            .add_vector4(Vector4::new(emissive_factor.x, emissive_factor.y, emissive_factor.z, 0.0))
                            .build();
       
-      uniform_buffer.fill_entire_buffer(Arc::clone(&device), uniform_data);
+      uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), uniform_data);
       
       let descriptor_set;
       descriptor_set = DescriptorSetBuilder::new()
@@ -371,38 +371,17 @@ impl Model {
   }
   
   fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, indexs: Vec<u32>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Buffer<u32>, u32) {
-    let usage_src = BufferUsage::index_transfer_src_buffer();
-    let usage_dst = BufferUsage::index_transfer_dst_buffer();
-    
     let num_index = indexs.len() as u32;
     
-    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, indexs.clone());
-    let buffer: Buffer<u32> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, indexs);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
+    let usage = BufferUsage::index_buffer();
+    let buffer: Buffer<u32> = Buffer::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, indexs);
     
     (buffer, num_index)
   }
   
   fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, vertexs: Vec<ModelVertex>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<ModelVertex> {
-    
-    let usage_src = BufferUsage::vertex_transfer_src_buffer();
-    let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<ModelVertex> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, vertexs.clone());
-    let buffer: Buffer<ModelVertex> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, vertexs);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::vertex_buffer();
+    Buffer::<ModelVertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, vertexs)
   }
 }
 
@@ -667,7 +646,6 @@ impl ModelShader {
                   .multisample(msaa)
                   .topology_triangle_list()
                   .polygon_mode_fill()
-                  //.enable_depth_clamp()
                   .enable_depth_write()
                   .enable_depth_test()
                   .cull_mode_back()
@@ -715,7 +693,6 @@ impl ModelShader {
                   .multisample(msaa)
                   .topology_triangle_list()
                   .polygon_mode_fill()
-                  //.enable_depth_clamp()
                   .enable_depth_write()
                   .enable_depth_test()
                   .cull_mode_back()
@@ -754,19 +731,8 @@ impl ModelShader {
                        2, 7, 6, 7, 2, 3  // bottom side
                   );
     
-    let usage_src = BufferUsage::index_transfer_src_buffer();
-    let usage_dst = BufferUsage::index_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<u32> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, indices.clone());
-    let buffer: Buffer<u32> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, indices);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::index_buffer();
+    Buffer::<u32>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, indices)
   }
   
   pub fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<ModelVertex> {
@@ -796,19 +762,8 @@ impl ModelShader {
                     uvs: Vector2::new(0.99, 0.0), colour: Vector4::new(1.0, 0.0, 0.0, 1.0), 
                     tangent: Vector4::new(0.0, 0.0, 0.0, 0.0) },    );
     
-    let usage_src = BufferUsage::vertex_transfer_src_buffer();
-    let usage_dst = BufferUsage::vertex_transfer_dst_buffer();
-    
-    let staging_buffer: Buffer<ModelVertex> = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage_src, 1, cube.clone());
-    let buffer: Buffer<ModelVertex> = Buffer::device_local_buffer(Arc::clone(&instance), Arc::clone(&device), usage_dst, 1, cube);
-    
-    let command_buffer = CoreMaat::begin_single_time_command(Arc::clone(&device), &command_pool);
-    command_buffer.copy_buffer(Arc::clone(&device), &staging_buffer, &buffer, 0);
-    CoreMaat::end_single_time_command(Arc::clone(&device), command_buffer, &command_pool, graphics_queue);
-    
-    staging_buffer.destroy(Arc::clone(&device));
-    
-    buffer
+    let usage = BufferUsage::vertex_buffer();
+    Buffer::<ModelVertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, cube)
   }
   
   fn create_frame_buffers(instance: Arc<Instance>, device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, format: &vk::Format, msaa: &SampleCount, num_image_views: usize, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<Framebuffer>) {
@@ -859,7 +814,7 @@ impl ModelShader {
     }
     
     let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
     
     self.instanced_cpu_buffers.push((model_reference, instanced_cpu_buffer));
     self.instanced_cpu_data.push(UniformData::new());
@@ -976,7 +931,7 @@ impl ModelShader {
       return cmd;
     }
     
-    buffer.fill_buffer(Arc::clone(&device), 0, data);
+    buffer.fill_entire_buffer_single_frame(Arc::clone(&device), 0, data);
     
     for i in 0..self.models.len() {
       if self.models[i].reference != model_reference {

@@ -13,18 +13,20 @@ pub struct Device {
   vk: vk::DevicePointers,
   device: vk::Device,
   phys_device: vk::PhysicalDevice,
+  min_alignment: u64,
   _extensions: Vec<CString>,
 }
 
 impl Device {
   pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> Arc<Device> {
-    let (device, phys_device, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
+    let (device, phys_device, min_alignment, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
     let vk = Device::create_device_instance(Arc::clone(&instance), &device);
     
     Arc::new(Device {
-      vk: vk,
-      device: device,
-      phys_device: phys_device,
+      vk,
+      device,
+      phys_device,
+      min_alignment,
       _extensions: extensions,
     })
   }
@@ -35,6 +37,10 @@ impl Device {
   
   pub fn internal_object(&self) -> &vk::Device {
     &self.device
+  }
+  
+  pub fn get_min_alignment(&self) -> u64 {
+    self.min_alignment
   }
   
   pub fn physical_device(&self) -> &vk::PhysicalDevice {
@@ -98,7 +104,7 @@ impl Device {
   
   pub fn wait(&self) {
     unsafe {
-      println!("Waiting for device to idle");
+   //   println!("Waiting for device to idle");
       self.vk.DeviceWaitIdle(self.device);
     }
   }
@@ -119,7 +125,7 @@ impl Device {
     vk_device
   }
   
-  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, Vec<CString>) {
+  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, u64, Vec<CString>) {
     let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
@@ -284,7 +290,15 @@ impl Device {
       }
     }
     
-    (device, physical_devices[physical_device_index], device_available_extensions)
+    
+    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+    
+    unsafe {
+      instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
+    }
+    let mut min_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
+    
+    (device, physical_devices[physical_device_index], min_alignment, device_available_extensions)
   }
   
   fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>) {

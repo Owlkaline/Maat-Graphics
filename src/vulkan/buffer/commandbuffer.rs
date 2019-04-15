@@ -200,19 +200,21 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_vertex_buffer(&self, device: Arc<Device>, set_id: u32, vertex_buffer: &vk::Buffer) {
+  pub fn bind_vertex_buffer(&self, device: Arc<Device>, set_id: u32, offset: u64, vertex_buffer: &vk::Buffer) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindVertexBuffers(self.command_buffer, set_id, 1, vertex_buffer, &0);
+       let mut offsets = Vec::with_capacity(1);
+       offsets.push(offset);
+      vk.CmdBindVertexBuffers(self.command_buffer, set_id, 1, vertex_buffer, offsets.as_ptr());
     }
   }
   
-  pub fn bind_index_buffer(&self, device: Arc<Device>, index_buffer: &vk::Buffer) {
+  pub fn bind_index_buffer(&self, device: Arc<Device>, offset: u64, index_buffer: &vk::Buffer) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindIndexBuffer(self.command_buffer, *index_buffer, 0, IndexType::Uint32.to_bits());
+      vk.CmdBindIndexBuffer(self.command_buffer, *index_buffer, offset, IndexType::Uint32.to_bits());
     }
   }
   
@@ -261,15 +263,15 @@ impl CommandBuffer {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdDraw(self.command_buffer, vertex_count, instance_count, 0, 0, );
+      vk.CmdDraw(self.command_buffer, vertex_count, instance_count, 0, 0);
     }
   }
   
-  pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, instance_count: u32) {
+  pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, index_base: i32, instance_count: u32) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdDrawIndexed(self.command_buffer, index_count, instance_count, 0, 0, 0);
+      vk.CmdDrawIndexed(self.command_buffer, index_count, instance_count, 0, index_base, 0);
     }
   }
   
@@ -317,7 +319,7 @@ impl CommandBuffer {
         vk::BufferCopy {
           srcOffset: 0,
           dstOffset: 0,
-          size: src_buffer.size(),
+          size: src_buffer.max_size(),
         }
       };
     

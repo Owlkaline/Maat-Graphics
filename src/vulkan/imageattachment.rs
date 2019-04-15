@@ -95,7 +95,7 @@ impl ImageAttachment {
     let staging_usage = BufferUsage::transfer_src_buffer();
     let image_usage = ImageUsage::transfer_dst_sampled();
     
-    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
+    let staging_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
     
     let memory_property = MemoryProperty::DeviceLocal;
     let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, image_type, tiling, &image_usage, &ImageLayout::Undefined, samples, &format, width, height);
@@ -129,7 +129,7 @@ impl ImageAttachment {
     let staging_usage = BufferUsage::transfer_src_buffer();
     let image_usage = ImageUsage::transfer_dst_sampled();
     
-    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
+    let staging_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
     
     let memory_property = MemoryProperty::DeviceLocal;
     let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, image_type, tiling, &image_usage, &ImageLayout::Undefined, samples, &format, width, height);
@@ -168,7 +168,7 @@ impl ImageAttachment {
     let staging_usage = BufferUsage::transfer_src_buffer();
     let image_usage = ImageUsage::transfer_dst_sampled();
     
-    let staging_buffer = Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
+    let staging_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), staging_usage, 1, image_data);
     
     let memory_property = MemoryProperty::DeviceLocal;
     let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, image_type, tiling, &image_usage, &ImageLayout::Undefined, samples, &format, width, height);

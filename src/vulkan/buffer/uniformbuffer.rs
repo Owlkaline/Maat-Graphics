@@ -255,7 +255,7 @@ impl UniformBufferBuilder {
       data.push(0.0);
     }
     
-    let uniform_buffer: Buffer<f32> = Buffer::cpu_buffer(instance, device, usage, num_sets, data);
+    let uniform_buffer: Buffer<f32> = Buffer::cpu_buffer_with_data(instance, device, usage, num_sets, data);
     uniform_buffer
   }
 }
