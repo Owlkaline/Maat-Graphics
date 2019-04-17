@@ -48,6 +48,11 @@ vec4 not(vec4 a) {
 }
 
 void main() {
+  outColour = texture(texture_image, uvs);
+}
+
+/*
+void main() {
   vec4 tex = texture(texture_image, uvs);
   vec4 model = texture(model_image, uvs);
   
@@ -65,7 +70,7 @@ void main() {
   outColour = and(not(draw_model), draw_tex)      * tex + 
               and(not(draw_tex), draw_model)      * model +
               and(draw_model, draw_tex) * vec4(mix(tex.rgb, model.rgb, 1.0-tex.a), 1.0);
-}
+}*/
 
 /*
 //Human readable version

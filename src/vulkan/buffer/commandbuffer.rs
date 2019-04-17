@@ -20,6 +20,8 @@ use std::mem;
 use std::ptr;
 use std::sync::Arc;
 
+use cgmath::Vector4;
+
 pub struct CommandBuffer {
   command_buffer: vk::CommandBuffer,
 }
@@ -248,6 +250,26 @@ impl CommandBuffer {
     }
   }
   
+  pub fn set_scissors(&self, device: Arc<Device>, scissors: Vec<Vector4<u32>>) {
+    let vk = device.pointers();
+    
+    
+    let mut scissor_rects = Vec::with_capacity(scissors.len());
+    
+    for scissor in scissors {
+      scissor_rects.push(
+        vk::Rect2D {
+          offset: vk::Offset2D { x: scissor.x as i32, y: scissor.y as i32 },
+          extent: vk::Extent2D { width: scissor.z, height: scissor.w },
+        }
+      );
+    }
+    
+    unsafe {
+      vk.CmdSetScissor(self.command_buffer, 0, scissor_rects.len() as u32, scissor_rects.as_ptr());
+    }
+  }
+  
   pub fn push_constants(&self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStage, push_constant_data: UniformData) {
     let mut push_constant_data = push_constant_data;
     let size = push_constant_data.size();
@@ -267,11 +289,11 @@ impl CommandBuffer {
     }
   }
   
-  pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, index_base: i32, instance_count: u32) {
+  pub fn draw_indexed(&self, device: Arc<Device>, index_count: u32, index_offset: u32, vertex_offset: i32, instance_count: u32) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdDrawIndexed(self.command_buffer, index_count, instance_count, 0, index_base, 0);
+      vk.CmdDrawIndexed(self.command_buffer, index_count, instance_count, index_offset, vertex_offset, 0);
     }
   }
   

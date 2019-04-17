@@ -4,6 +4,8 @@ use crate::vulkan::{Device, RenderPass, Pipeline, ClearValues, ImageAttachment};
 use crate::vulkan::buffer::{CommandBuffer, UniformData, Buffer};
 use crate::vulkan::vkenums::{ShaderStage, CommandBufferUsage, Access, ImageLayout, ImageAspect, PipelineStage};
 
+use cgmath::Vector4;
+
 use std::sync::Arc;
 
 pub struct CommandBufferBuilder {
@@ -50,6 +52,11 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn set_scissors(self, device: Arc<Device>, scissors: Vec<Vector4<u32>>) -> CommandBufferBuilder {
+    self.command_buffer.set_scissors(Arc::clone(&device), scissors);
+    self
+  }
+  
   pub fn push_constants(self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStage, push_constant_data: UniformData) -> CommandBufferBuilder {
     self.command_buffer.push_constants(Arc::clone(&device), pipeline, shader_stage, push_constant_data);
     
@@ -74,26 +81,53 @@ impl CommandBufferBuilder {
     
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, 0, vertex_buffer);
     self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, index_buffer);
-    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 0, 1);
+    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 0, 0, 1);
     
     self
   }
   
-  pub fn draw_indexed_offsets(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, vertex_offsets: Vec<u64>, index_buffer: &vk::Buffer, index_bases: Vec<i32>, index_counts: Vec<u32>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
+  pub fn draw_indexed_offsets(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, index_buffer: &vk::Buffer, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>, cmd_list_count: u32, cmd_buffer_size: Vec<i32>, pcmd: Vec<(u32, Vector4<u32>, i32)>) -> CommandBufferBuilder {
+    self.command_buffer.bind_graphics_pipeline(Arc::clone(&device), pipeline);
+    
+    self.command_buffer.bind_graphics_descriptor_set(Arc::clone(&device), pipeline, descriptor_set);
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, 0, vertex_buffer);
+    self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, index_buffer);
+    
+    
+    let mut vertex_offset: i32 = 0;
+    let mut index_offset: u32 = 0;
+    
+    for i in 0..cmd_list_count as usize {
+      let mut vertex_size = 0;
+      for j in 0..cmd_buffer_size[i] as usize {
+        let (elem_count, scissor, vtx_size) = pcmd[j*i];
+        vertex_size = vtx_size;
+        self.command_buffer.set_scissor(Arc::clone(&device), scissor.x as i32, scissor.y as i32, scissor.z, scissor.w);
+        
+        self.command_buffer.draw_indexed(Arc::clone(&device), elem_count, index_offset, vertex_offset, 1);
+        index_offset += elem_count;
+      }
+      vertex_offset += vertex_size;
+    }
+    
+    self
+  }
+  /*
+  pub fn draw_indexed_offsets(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, vertex_offsets: u32, index_buffer: &vk::Buffer, index_bases: Vec<i32>, index_counts: Vec<u32>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_graphics_pipeline(Arc::clone(&device), pipeline);
     
     self.command_buffer.bind_graphics_descriptor_set(Arc::clone(&device), pipeline, descriptor_set);
     
     
     self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, index_buffer);
+    self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, 0, vertex_buffer);
     
     for i in 0..index_bases.len() {
-      self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, 0, vertex_buffer);
       self.command_buffer.draw_indexed(Arc::clone(&device), index_counts[i], index_bases[i], 1);
     }
     
     self
-  }
+  }*/
   
   pub fn draw_instanced(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, instance_buffer: &vk::Buffer, vertex_count: u32, instance_count: u32, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_graphics_pipeline(Arc::clone(&device), pipeline);
@@ -116,7 +150,7 @@ impl CommandBufferBuilder {
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 1, 0, instance_buffer);
     self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, index_buffer);
     
-    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 0, instance_count);
+    self.command_buffer.draw_indexed(Arc::clone(&device), index_count, 0, 0, instance_count);
     
     self
   }

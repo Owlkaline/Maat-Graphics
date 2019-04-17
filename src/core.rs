@@ -21,7 +21,7 @@ use crate::graphics;
 use crate::Settings;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
-                             MipmapMode, VkBool, CommandBufferLevel};
+                             MipmapMode, VkBool, CommandBufferLevel, BorderColour};
 
 use crate::vulkan::{ClearValues, VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
 use crate::vulkan::pool::{CommandPool, DescriptorPool, DescriptorPoolBuilder};
@@ -68,6 +68,7 @@ pub struct CoreMaat {
   
   image_from_draw: Option<ImageAttachment>,
   
+  imgui_sampler: Option<Sampler>,
   imgui: Option<ImGui>,
   
   mouse_position: Vector2<f32>,
@@ -243,6 +244,7 @@ impl CoreMaat {
       
       image_from_draw: None,
       
+      imgui_sampler: None,
       imgui: None,
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
@@ -266,6 +268,12 @@ impl CoreMaat {
       }
       
       let style = imgui.style_mut();
+      style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
+      style.colors[11] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.8 };
+      style.colors[12] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
+      style.colors[24] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
+      style.colors[18] = ImVec4{ x: 0.0, y: 1.0, z: 0.0, w: 1.0 };
+      
       for col in 0..style.colors.len() {
         style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
       }
@@ -279,7 +287,7 @@ impl CoreMaat {
           //  .pixel_snap_h(true)
            // .size_pixels(13.0),
     );
-    
+    //imgui.igStyleColorsDark();
     imgui.set_font_global_scale(1.2);
     
     self.texture_shader.load_imgui(Arc::clone(&instance), Arc::clone(&device), self.max_frames as u32);
@@ -288,8 +296,17 @@ impl CoreMaat {
     
     imgui_winit_support::configure_keys(&mut imgui);
     
-    self.imgui = Some(imgui);
+    let sampler = SamplerBuilder::new()
+                       .min_filter(Filter::Linear)
+                       .mag_filter(Filter::Linear)
+                       .address_mode(AddressMode::ClampToEdge)
+                       .mipmap_mode(MipmapMode::Linear)
+                       .anisotropy(VkBool::False)
+                       .max_anisotropy(1.0)
+                       .border_colour(BorderColour::FloatOpaqueWhite)
+                       .build(Arc::clone(&device));
     
+    self.imgui = Some(imgui);
     self
   }
   
@@ -382,7 +399,13 @@ impl CoreRender for CoreMaat {
       
       for (reference, size) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
-          self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
+          if reference.to_string() == "imgui".to_string() {
+            if let Some(sampler) = &self.imgui_sampler {
+              self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, sampler);
+            }
+          } else {
+            self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
+          }
         }
         if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
@@ -578,7 +601,7 @@ impl CoreRender for CoreMaat {
           let mut ui = imgui.frame(frame_size, delta_time);
           ui.show_default_style_editor();
           ui.show_demo_window(&mut true);
-          ui.window(im_str!("Hello world"))
+          /*ui.window(im_str!("Hello world"))
             .size((300.0, 100.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 ui.text(im_str!("Hello world!"));
@@ -590,7 +613,7 @@ impl CoreRender for CoreMaat {
                     mouse_pos.0,
                     mouse_pos.1
                 ));
-          });
+          });*/
           cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
         }
       }

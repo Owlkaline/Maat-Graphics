@@ -35,6 +35,7 @@ pub struct PipelineBuilder {
   sample_shader: u32,
   alpha_to_coverage: u32,
   alpha_to_one: u32,
+  blend_enabled: VkBool,
   has_push_constant: bool,
   push_constant_size: u32,
   push_constant_shader_stage: ShaderStage,
@@ -66,6 +67,7 @@ impl PipelineBuilder {
       sample_shader: vk::FALSE,
       alpha_to_coverage: vk::FALSE,
       alpha_to_one: vk::FALSE,
+      blend_enabled: VkBool::True, 
       has_push_constant: false,
       push_constant_size: 0,
       push_constant_shader_stage: ShaderStage::Vertex,
@@ -74,6 +76,11 @@ impl PipelineBuilder {
       vertex_binding: None,
       vertex_attributes: None,
     }
+  }
+  
+  pub fn disable_blend(mut self) -> PipelineBuilder {
+    self.blend_enabled = VkBool::False;
+    self
   }
   
   pub fn push_constants(mut self, shader_stage: ShaderStage, size: u32) -> PipelineBuilder {
@@ -616,11 +623,11 @@ impl PipelineBuilder {
     
     let pipeline_color_blend_attachments = {
       vk::PipelineColorBlendAttachmentState {
-        blendEnable: VkBool::True.to_bits(),
+        blendEnable: self.blend_enabled.to_bits(),
         srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
         dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
         colorBlendOp: BlendOp::Add.to_bits(),
-        srcAlphaBlendFactor: BlendFactor::One.to_bits(),
+        srcAlphaBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
         dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
         alphaBlendOp: BlendOp::Add.to_bits(),
         colorWriteMask: ColourComponent::R.to_bits() | ColourComponent::G.to_bits() | ColourComponent::B.to_bits() | ColourComponent::A.to_bits(),

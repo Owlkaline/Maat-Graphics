@@ -66,6 +66,12 @@ impl SamplerBuilder {
     }
   }
   
+  pub fn border_colour(mut self, border: BorderColour) -> SamplerBuilder { 
+    self.border_colour = border;
+    
+    self
+  }
+  
   pub fn min_filter(mut self, filter: Filter) -> SamplerBuilder {
     self.min_filter = filter;
     self

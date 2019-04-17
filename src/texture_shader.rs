@@ -385,6 +385,9 @@ impl TextureShader {
                           .vertex_binding(vec!(ImGuiVertex::vertex_input_binding()))
                           .vertex_attributes(ImGuiVertex::vertex_input_attributes())
                           .multisample(&self.msaa)
+                          //.disable_blend()
+                          //.alpha_to_one()
+                          //.alpha_to_coverage()
                           .topology_triangle_list()
                           .polygon_mode_fill()
                           .cull_mode_none()
@@ -709,6 +712,12 @@ impl TextureShader {
       return cmd
     }
     
+    let mut cmd_list_count = 0;
+    let mut cmd_buffer_size = Vec::new();
+    let mut pcmd = Vec::new();
+    
+    let mut scissors = Vec::new();
+    
     let mut vertex_data = Vec::new();
     let mut index_data = Vec::new();
     let mut index_bases = Vec::new();
@@ -722,7 +731,21 @@ impl TextureShader {
       let mut verticies = 0;
       
       for draw_list in &draw_data {
-        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
+        cmd_list_count += 1;
+        let cmd_buffer = draw_list.cmd_buffer;
+        cmd_buffer_size.push(cmd_buffer.len() as i32);
+        for buff in cmd_buffer {
+          let elem_count = buff.elem_count;
+          let rect = buff.clip_rect;
+          scissors.push(
+            Vector4::new(rect.x.max(0.0) as u32, rect.y.max(0.0) as u32, rect.z as u32, rect.w as u32)
+          );
+          
+          pcmd.push((elem_count, Vector4::new(rect.x.max(0.0) as u32, rect.y.max(0.0) as u32, rect.z as u32, rect.w as u32), draw_list.vtx_buffer.len() as i32));
+        }
+        
+        
+        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32).collect::<Vec<u32>>();
         let mut vtx = draw_list.vtx_buffer.iter().map(|vtx| {
           let colour =  vtx.col.to_be_bytes();
           
@@ -778,20 +801,27 @@ impl TextureShader {
       }
     }
     
-    
-    
     if let Some(pipeline) = &self.imgui_pipeline {
       let push_constant_data = UniformData::new()
                                  .add_vector4(Vector4::new(frame_size.logical_size.0 as f32, frame_size.logical_size.1 as f32, 0.0, 0.0));
       cmd = cmd.push_constants(Arc::clone(&device), &pipeline, ShaderStage::Vertex, push_constant_data);
+      
       let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
       
       if let Some(index_buffer) = &self.imgui_index_buffer {
         if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
+          cmd = cmd.draw_indexed_offsets(Arc::clone(&device), 
+                                        &vertex_buffer.internal_object(current_buffer),
+                                         &index_buffer.internal_object(current_buffer),
+                                         &pipeline,
+                                         vec!(*descriptor.set(0)),
+                                         cmd_list_count, cmd_buffer_size, pcmd);
+         /*
+           cmd = cmd.set_scissors(Arc::clone(&device), scissors);
            cmd = cmd.draw_indexed(Arc::clone(&device), &vertex_buffer.internal_object(current_buffer),
                                  &index_buffer.internal_object(current_buffer),
                                  index_base as u32, &pipeline,
-                                 vec!(*descriptor.set(0)))
+                                 vec!(*descriptor.set(0)))*/
         }
       }
     }
