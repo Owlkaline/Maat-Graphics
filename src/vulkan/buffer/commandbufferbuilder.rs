@@ -112,22 +112,21 @@ impl CommandBufferBuilder {
     
     self
   }
-  /*
-  pub fn draw_indexed_offsets(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, vertex_offsets: u32, index_buffer: &vk::Buffer, index_bases: Vec<i32>, index_counts: Vec<u32>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
+  
+  pub fn draw_imgui(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, index_buffers: &Vec<vk::Buffer>, index_counts: Vec<u32>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_graphics_pipeline(Arc::clone(&device), pipeline);
     
     self.command_buffer.bind_graphics_descriptor_set(Arc::clone(&device), pipeline, descriptor_set);
     
-    
-    self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, index_buffer);
     self.command_buffer.bind_vertex_buffer(Arc::clone(&device), 0, 0, vertex_buffer);
     
-    for i in 0..index_bases.len() {
-      self.command_buffer.draw_indexed(Arc::clone(&device), index_counts[i], index_bases[i], 1);
+    for i in 0..index_buffers.len() {
+      self.command_buffer.bind_index_buffer(Arc::clone(&device), 0, &index_buffers[i]);
+      self.command_buffer.draw_indexed(Arc::clone(&device), index_counts[i], 0, 0, 1);
     }
     
     self
-  }*/
+  }
   
   pub fn draw_instanced(self, device: Arc<Device>, vertex_buffer: &vk::Buffer, instance_buffer: &vk::Buffer, vertex_count: u32, instance_count: u32, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) -> CommandBufferBuilder {
     self.command_buffer.bind_graphics_pipeline(Arc::clone(&device), pipeline);
