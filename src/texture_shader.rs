@@ -196,8 +196,8 @@ pub struct TextureShader {
   
   vertex_shader_imgui: Option<Shader>,
   fragment_shader_imgui: Option<Shader>,
-  imgui_vertex_buffer: Option<Buffer<ImGuiVertex>>,
-  imgui_index_buffer: Option<Buffer<u32>>,
+  imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
+  imgui_index_buffer: Option<Vec<Buffer<u32>>>,
   
   msaa: SampleCount,
   scale: f32,
@@ -398,8 +398,19 @@ impl TextureShader {
     self.fragment_shader_imgui = Some(fragment_shader_imgui);
     self.imgui_pipeline = Some(imgui_pipeline);
     
-    self.imgui_vertex_buffer = Some(Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), num_sets, 1));
-    self.imgui_index_buffer = Some(Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), num_sets, 1));
+    let vertex_buffers = {
+      (0..num_sets).map(|i| 
+        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), num_sets, 1)
+      ).collect::<Vec<Buffer<ImGuiVertex>>>()
+    };
+    let index_buffers = {
+      (0..num_sets).map(|i|
+        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), num_sets, 1)
+        ).collect::<Vec<Buffer<u32>>>()
+    };
+    
+    self.imgui_vertex_buffer = Some(vertex_buffers);
+    self.imgui_index_buffer = Some(index_buffers);
   }
   
   pub fn set_scale(&mut self, new_scale: f32) {
@@ -745,7 +756,7 @@ impl TextureShader {
         }
         
         
-        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32).collect::<Vec<u32>>();
+        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
         let mut vtx = draw_list.vtx_buffer.iter().map(|vtx| {
           let colour =  vtx.col.to_be_bytes();
           
@@ -764,7 +775,7 @@ impl TextureShader {
       
       Ok(())
     });
-    
+    /*
     let mut resize_buffer = false;
     if let Some(index_buffer) = &mut self.imgui_index_buffer {
       if index_buffer.max_size() <= (index_data.len()*mem::size_of::<u32>()) as u64 {
@@ -800,6 +811,8 @@ impl TextureShader {
         vertex_buffer.fill_partial_buffer(Arc::clone(&device), current_buffer, 0, vertex_data);
       }
     }
+    */
+    
     
     if let Some(pipeline) = &self.imgui_pipeline {
       let push_constant_data = UniformData::new()
@@ -808,14 +821,24 @@ impl TextureShader {
       
       let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
       
-      if let Some(index_buffer) = &self.imgui_index_buffer {
-        if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
-          cmd = cmd.draw_indexed_offsets(Arc::clone(&device), 
+      if let Some(index_buffers) = &mut self.imgui_index_buffer {
+        if let Some(vertex_buffers) = &mut self.imgui_vertex_buffer {
+          vertex_buffers[current_buffer].destroy(Arc::clone(&device));
+          index_buffers[current_buffer].destroy(Arc::clone(&device));
+          vertex_buffers[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vertex_data);
+          index_buffers[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, index_data);
+          cmd = cmd.draw_indexed(Arc::clone(&device),
+                                vertex_buffers[current_buffer].internal_object(0),
+                                index_buffers[current_buffer].internal_object(0),
+                                index_base as u32,
+                                &pipeline,
+                                vec!(*descriptor.set(0)));
+    /*      cmd = cmd.draw_indexed_offsets(Arc::clone(&device), 
                                         &vertex_buffer.internal_object(current_buffer),
                                          &index_buffer.internal_object(current_buffer),
                                          &pipeline,
                                          vec!(*descriptor.set(0)),
-                                         cmd_list_count, cmd_buffer_size, pcmd);
+                                         cmd_list_count, cmd_buffer_size, pcmd);*/
          /*
            cmd = cmd.set_scissors(Arc::clone(&device), scissors);
            cmd = cmd.draw_indexed(Arc::clone(&device), &vertex_buffer.internal_object(current_buffer),
@@ -931,12 +954,16 @@ impl TextureShader {
       }
     }
     
-    if let Some(index_buffer) = &self.imgui_index_buffer {
-      index_buffer.destroy(Arc::clone(&device));
+    if let Some(index_buffers) = &self.imgui_index_buffer {
+      for index_buffer in index_buffers {
+        index_buffer.destroy(Arc::clone(&device));
+      }
     }
     
-    if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
-      vertex_buffer.destroy(Arc::clone(&device));
+    if let Some(vertex_buffers) = &self.imgui_vertex_buffer {
+      for vertex_buffer in vertex_buffers {
+        vertex_buffer.destroy(Arc::clone(&device));
+      }
     }
     
     self.texture_pipeline.destroy(Arc::clone(&device));
