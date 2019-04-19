@@ -197,7 +197,7 @@ pub struct TextureShader {
   vertex_shader_imgui: Option<Shader>,
   fragment_shader_imgui: Option<Shader>,
   imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
-  imgui_index_buffer: Option<Vec<Vec<Buffer<u32>>>>,
+  imgui_index_buffer: Option<Vec<Buffer<u32>>>,
   
   msaa: SampleCount,
   scale: f32,
@@ -400,17 +400,17 @@ impl TextureShader {
     
     let vertex_buffers = {
       (0..num_sets).map(|i| 
-        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), num_sets, 1)
+        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, 1)
       ).collect::<Vec<Buffer<ImGuiVertex>>>()
     };
     let index_buffers = {
       (0..num_sets).map(|i|
-        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), num_sets, 1)
+        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, 1)
         ).collect::<Vec<Buffer<u32>>>()
     };
     
     self.imgui_vertex_buffer = Some(vertex_buffers);
-    self.imgui_index_buffer = Some(Vec::with_capacity(num_sets as usize));
+    self.imgui_index_buffer = Some(index_buffers);
   }
   
   pub fn set_scale(&mut self, new_scale: f32) {
@@ -723,19 +723,9 @@ impl TextureShader {
       return cmd
     }
     
-    let mut cmd_list_count = 0;
-    let mut cmd_buffer_size = Vec::new();
-    let mut pcmd = Vec::new();
-    
-    let mut scissors = Vec::new();
-    
     let mut vertex_data = Vec::new();
     let mut index_data = Vec::new();
-    let mut index_data_index = 0;
-    //let mut index_bases = Vec::new();
-    let mut index_counts = Vec::new();
-   // let mut index_base = 0;
-    let mut vertex_offsets = Vec::new();
+    let mut index_base = 0;
     
     let good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
       draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
@@ -743,71 +733,47 @@ impl TextureShader {
       let mut verticies = 0;
       
       for draw_list in &draw_data {
-        cmd_list_count += 1;
-        let cmd_buffer = draw_list.cmd_buffer;
-        cmd_buffer_size.push(cmd_buffer.len() as i32);
-        index_data.push(Vec::with_capacity(cmd_buffer.len()));
-        for buff in cmd_buffer {
-          let elem_count = buff.elem_count;
-          
-          
-          let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
-          let index_count = idx.len() as u32;
-          index_data[index_data_index].push(idx);
-          index_counts.push(index_count);
-          let rect = buff.clip_rect;
-          scissors.push(
-            Vector4::new(rect.x.max(0.0) as u32, rect.y.max(0.0) as u32, rect.z as u32, rect.w as u32)
-          );
-          
-          pcmd.push((elem_count, Vector4::new(rect.x.max(0.0) as u32, rect.y.max(0.0) as u32, rect.z as u32, rect.w as u32), draw_list.vtx_buffer.len() as i32));
-        }
-        
+        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
         let mut vtx = draw_list.vtx_buffer.iter().map(|vtx| {
           let colour =  vtx.col.to_be_bytes();
           
           ImGuiVertex { pos: Vector2::new(vtx.pos.x, vtx.pos.y), uvs: Vector2::new(vtx.uv.x, vtx.uv.y), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
         }).collect::<Vec<ImGuiVertex>>();
-        
+        let index_count = idx.len() as u32;
         let vertex_count = vtx.len() as u32;
         vertex_data.append(&mut vtx);
-     //   index_bases.push(index_base);
-        
-        vertex_offsets.push(verticies as u64 * mem::size_of::<ImGuiVertex>() as u64);
-     //   index_base += index_count as i32;
+        index_data.append(&mut idx);
+        index_base += index_count as i32;
         verticies += vertex_count;
       }
       
       Ok(())
     });
     
+    if let Some(index_buffer) = &mut self.imgui_index_buffer {
+      if index_buffer[current_buffer].internal_data().len() != index_data.len() {
+        index_buffer[current_buffer].destroy(Arc::clone(&device));
+        index_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, index_data);
+        if let Some(vertex_buffer) = &mut self.imgui_vertex_buffer {
+          vertex_buffer[current_buffer].destroy(Arc::clone(&device));
+          vertex_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vertex_data);
+        }
+      }
+    }
+    
     if let Some(pipeline) = &self.imgui_pipeline {
       let push_constant_data = UniformData::new()
                                  .add_vector4(Vector4::new(frame_size.logical_size.0 as f32, frame_size.logical_size.1 as f32, 0.0, 0.0));
       cmd = cmd.push_constants(Arc::clone(&device), &pipeline, ShaderStage::Vertex, push_constant_data);
-      
       let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
-      if let Some(vertex_buffers) = &mut self.imgui_vertex_buffer {
-        if let Some(index_buffers) = &mut self.imgui_index_buffer {
-          let mut raw_index_buffers = Vec::new();
-          let mut data_index = 0;
-          for index_buffer in index_buffers[current_buffer] {
-            if index_data.len() != index_buffer.internal_data().len() {
-              vertex_buffers[current_buffer].destroy(Arc::clone(&device));
-              index_buffer.destroy(Arc::clone(&device));
-              vertex_buffers[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vertex_data);
-              index_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, index_data[data_index]);
-            }
-            data_index += 1;
-            raw_index_buffers.push(index_buffer.internal_object(0))
-          }
-          
-          cmd = cmd.draw_imgui(Arc::clone(&device),
-                                vertex_buffers[current_buffer].internal_object(0),
-                                raw_index_buffers,
-                                index_counts,
-                                &pipeline,
-                                vec!(*descriptor.set(0)));
+      
+      if let Some(index_buffer) = &self.imgui_index_buffer {
+        if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
+           cmd = cmd.draw_indexed(Arc::clone(&device), 
+                                  &vertex_buffer[current_buffer].internal_object(0),
+                                  &index_buffer[current_buffer].internal_object(0),
+                                  index_base as u32, &pipeline,
+                                  vec!(*descriptor.set(0)))
         }
       }
     }
