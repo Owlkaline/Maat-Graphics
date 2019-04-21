@@ -196,36 +196,40 @@ impl ImageAttachment {
     }
   }
   
-  pub fn create_texture_from_command_buffer(instance: Arc<Instance>, device: Arc<Device>, width: u32, height: u32, image: ImageAttachment, tiling: &ImageTiling, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> ImageAttachment {
+  pub fn create_texture_from_command_buffer(instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, width: u32, height: u32, image: ImageAttachment, tiling: &ImageTiling, image_view_type: &ImageViewType, format: vk::Format, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (CommandBufferBuilder, ImageAttachment) {
     let image_usage = ImageUsage::transfer_dst_sampled();
     let memory_property = MemoryProperty::DeviceLocal;
     
     let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, &ImageType::Type2D, tiling, &image_usage, &ImageLayout::Undefined, &SampleCount::OneBit, &format, width, height);
     let texture_image_view: vk::ImageView;
     
-    ImageAttachment::transition_layout(Arc::clone(&device), &image.get_image(), ImageLayout::Undefined, ImageLayout::TransferSrcOptimal, &command_pool, graphics_queue);
+    ImageAttachment::transition_layout(Arc::clone(&device), &image.get_image(), ImageLayout::ColourAttachmentOptimal, ImageLayout::TransferSrcOptimal, &command_pool, graphics_queue);
     
     ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::Undefined, ImageLayout::TransferDstOptimal, &command_pool, graphics_queue);
     
-    let cmd = CommandBuffer::begin_single_time_command(Arc::clone(&device), &command_pool);
-    cmd.copy_image(Arc::clone(&device),  width, height, 
+    //let cmd = CommandBuffer::begin_single_time_command(Arc::clone(&device), &command_pool);
+   /* cmd.copy_image(Arc::clone(&device),  width, height, 
                    &image, ImageLayout::TransferSrcOptimal, ImageAspect::Colour, 
-                   &texture_image, ImageLayout::TransferDstOptimal, ImageAspect::Colour);
-    cmd.end_single_time_command(Arc::clone(&device), &command_pool, graphics_queue);
+                   &texture_image, ImageLayout::TransferDstOptimal, ImageAspect::Colour);*/
+    let mut cmd = cmd;
+    cmd = cmd.copy_image_to_image(Arc::clone(&device), width, height, 
+                            &image, ImageLayout::TransferSrcOptimal, ImageAspect::Colour, 
+                            &texture_image, ImageLayout::TransferDstOptimal, ImageAspect::Colour);
+    //cmd.end_single_time_command(Arc::clone(&device), &command_pool, graphics_queue);
      
-     ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
+    // ImageAttachment::transition_layout(Arc::clone(&device), &texture_image, ImageLayout::TransferDstOptimal, ImageLayout::ShaderReadOnlyOptimal, &command_pool, graphics_queue);
      
     let texture_image_view = ImageAttachment::create_image_view(Arc::clone(&device), &texture_image, &format, 
                                                                 &ImageAspect::Colour, image_view_type);
     
-    ImageAttachment {
+    (cmd , ImageAttachment {
       image: texture_image,
       image_view: texture_image_view,
       memory: texture_memory,
       format: format,
       width,
       height,
-    }
+    })
   }
   
   pub fn get_size(&self) -> (u32, u32) {
@@ -253,6 +257,12 @@ impl ImageAttachment {
       vk.DestroyImage(*device, self.image, ptr::null());
       vk.FreeMemory(*device, self.memory, ptr::null());
     }
+  }
+  
+  pub fn transition_image_layout(&mut self, device: Arc<Device>, old_layout: ImageLayout, new_layout: ImageLayout,  command_pool: &CommandPool, graphics_queue: &vk::Queue) {
+    ImageAttachment::transition_layout(Arc::clone(&device), &self.image, old_layout, new_layout, command_pool, graphics_queue);
+     self.image_view = ImageAttachment::create_image_view(Arc::clone(&device), &self.image, &self.format, 
+                                                                &ImageAspect::Colour, &ImageViewType::Type2D);
   }
   
   fn transition_layout(device: Arc<Device>, image: &vk::Image, old_layout: ImageLayout, new_layout: ImageLayout, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
@@ -292,6 +302,18 @@ impl ImageAttachment {
       
       src_stage = PipelineStage::FragmentShader;
       dst_stage = PipelineStage::Transfer;
+    } else if old_layout == ImageLayout::ColourAttachmentOptimal && new_layout == ImageLayout::TransferSrcOptimal {
+     src_access = Some(Access::ColourAttachmentReadAndWrite);
+      dst_access = Access::TransferRead;
+      
+      src_stage = PipelineStage::ColorAttachmentOutput;
+      dst_stage = PipelineStage::Transfer;
+    } else if old_layout == ImageLayout::TransferSrcOptimal && new_layout == ImageLayout::ColourAttachmentOptimal {
+      src_access = Some(Access::TransferRead);
+      dst_access = Access::ColourAttachmentReadAndWrite;
+      
+      src_stage = PipelineStage::Transfer;
+      dst_stage = PipelineStage::ColorAttachmentOutput;
     } else {
       panic!("Error image transition not supported!");
     }

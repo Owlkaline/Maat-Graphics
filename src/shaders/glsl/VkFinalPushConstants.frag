@@ -5,7 +5,6 @@ layout(location = 0) in vec2 uvs;
 layout(location = 0) out vec4 outColour;
 
 layout(set = 0, binding = 0) uniform sampler2D texture_image;
-layout(set = 1, binding = 0) uniform sampler2D model_image;
 
 vec4 when_eq(vec4 x, vec4 y) {
   return 1.0 - abs(sign(x - y));

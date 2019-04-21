@@ -17,6 +17,8 @@ pub struct Vertex2d { pub position: [f32; 2], pub uv: [f32; 2] }
 #[derive(Clone, PartialEq)]
 pub struct Vertex3d { pub position: [f32; 3], pub normal: [f32; 3], pub tangent: [f32; 4], pub uv: [f32; 2], pub colour: [f32; 4] }
 
+use crate::imgui::*;
+
 pub const DEFAULT_TEXTURE: &str = "Arial";
 
 pub trait CoreRender {
@@ -53,8 +55,10 @@ pub trait CoreRender {
   
   // Standard draw calls that should be called in 98% of cases
   fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, ui: Option<Ui>, delta_time: f32);
   fn post_draw(&self);
+  
+  fn imgui_ui(&mut self, delta_time: f32);
   
   // Getters and setters
   fn get_physical_dimensions(&self) -> Vector2<f32>;

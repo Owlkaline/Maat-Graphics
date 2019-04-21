@@ -627,7 +627,7 @@ impl PipelineBuilder {
         srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
         dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
         colorBlendOp: BlendOp::Add.to_bits(),
-        srcAlphaBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
+        srcAlphaBlendFactor: BlendFactor::SrcAlpha.to_bits(),
         dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
         alphaBlendOp: BlendOp::Add.to_bits(),
         colorWriteMask: ColourComponent::R.to_bits() | ColourComponent::G.to_bits() | ColourComponent::B.to_bits() | ColourComponent::A.to_bits(),

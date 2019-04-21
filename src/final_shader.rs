@@ -100,7 +100,7 @@ impl FinalShader {
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
       UpdateDescriptorSets::new()
-       .add_sampled_image(0, texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
+       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
        
       ds.push(DescriptorSetBuilder::new()
@@ -108,7 +108,7 @@ impl FinalShader {
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
       UpdateDescriptorSets::new()
-       .add_sampled_image(0, texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
+       .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
        .finish_update(Arc::clone(&device), &ds[i]);
     }
     
@@ -143,10 +143,10 @@ impl FinalShader {
     for i in 0..image_views.len() {
       self.framebuffers.push(Framebuffer::new(Arc::clone(&device), &self.renderpass, &new_extent, &image_views[i]));
       UpdateDescriptorSets::new()
-         .add_sampled_image(0, &textures[0].1, ImageLayout::ColourAttachmentOptimal, sampler)
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.descriptor_sets[i]);
       UpdateDescriptorSets::new()
-         .add_sampled_image(0, &textures[0].1, ImageLayout::ColourAttachmentOptimal, sampler)
+         .add_sampled_image(0, &textures[0].1, ImageLayout::ShaderReadOnlyOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.ds[i]);
     }
   }
@@ -163,7 +163,7 @@ impl FinalShader {
                   .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
                   .descriptor_set_layout(descriptor_set.layouts_clone())
-                  .descriptor_set_layout(ds.layouts_clone())
+                  //.descriptor_set_layout(ds.layouts_clone())
                   .vertex_binding(vec!(FinalVertex::vertex_input_binding()))
                   .vertex_attributes(FinalVertex::vertex_input_attributes())
                   .topology_triangle_list()
@@ -210,16 +210,18 @@ impl FinalShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: ImageAttachment, model_image: ImageAttachment, sampler: &Sampler, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
+  pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: &ImageAttachment, sampler: &Sampler, window_width: f32, window_height: f32, current_buffer: usize, is_model_texture: bool) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    UpdateDescriptorSets::new()
-       .add_sampled_image(0, &texture_image, ImageLayout::ColourAttachmentOptimal, sampler)
-       .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
-    
-    UpdateDescriptorSets::new()
-       .add_sampled_image(0, &model_image, ImageLayout::ColourAttachmentOptimal, sampler)
-       .finish_update(Arc::clone(&device), &self.ds[current_buffer]);
+    if is_model_texture {
+      UpdateDescriptorSets::new()
+         .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
+    } else {
+      UpdateDescriptorSets::new()
+         .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
+         .finish_update(Arc::clone(&device), &self.ds[current_buffer]);
+    }
     
     let model = Vector4::new(window_width*0.5, window_height*0.5, window_width, window_height);
     
@@ -238,7 +240,12 @@ impl FinalShader {
     cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
                              &self.index_buffer.internal_object(0),
                              index_count, &self.pipeline,
-                             vec!(*self.descriptor_sets[current_buffer].set(0), *self.ds[current_buffer].set(0)))
+                             vec!(if is_model_texture { 
+                                    *self.descriptor_sets[current_buffer].set(0) 
+                                  } else {
+                                    *self.ds[current_buffer].set(0)
+                                  })
+                    )
   }
   
   pub fn destroy(&mut self, device: Arc<Device>) {

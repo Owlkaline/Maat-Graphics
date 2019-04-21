@@ -919,6 +919,16 @@ impl ImageUsage {
     }
   }
   
+  pub fn transfer_src_colour_input_attachment_sampled() -> ImageUsage {
+    ImageUsage {
+      sampled: true,
+      colour_attachment: true,
+      transfer_src: true,
+      input_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
   pub fn transfer_src_colour_attachment_sampled_storage() -> ImageUsage {
     ImageUsage {
       storage: true,
@@ -939,6 +949,15 @@ impl ImageUsage {
   pub fn transient_colour_attachment() -> ImageUsage {
     ImageUsage {
       transient_attachment: true,
+      colour_attachment: true,
+      .. ImageUsage::none()
+    }
+  }
+  
+  pub fn transient_colour_input_attachment() -> ImageUsage {
+    ImageUsage {
+      transient_attachment: true,
+      input_attachment: true,
       colour_attachment: true,
       .. ImageUsage::none()
     }

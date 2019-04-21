@@ -511,7 +511,7 @@ impl ModelShader {
       
       UpdateDescriptorSets::new()
         .add_uniformbuffer(Arc::clone(&device), 0, &mut uniform_buffer, uniform_data)
-        .add_sampled_image(1, &texture_image, ImageLayout::ColourAttachmentOptimal, &sampler)
+        .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
     }
     

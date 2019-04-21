@@ -231,7 +231,7 @@ impl TextureShader {
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
                                 .initial_layout(ImageLayout::Undefined)
-                                .final_layout(ImageLayout::ColourAttachmentOptimal)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
                                 .image_usage(ImageLayout::ColourAttachmentOptimal);
     
     let msaa_attachment = AttachmentInfo::new()
@@ -242,7 +242,7 @@ impl TextureShader {
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
                                 .initial_layout(ImageLayout::Undefined)
-                                .final_layout(ImageLayout::ColourAttachmentOptimal)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
                                 .image_usage(ImageLayout::ColourAttachmentOptimal);
     
     let mut subpass = SubpassInfo::new().add_colour_attachment(0);
@@ -430,6 +430,8 @@ impl TextureShader {
   }
   
   pub fn get_texture(&mut self, current_buffer: usize) -> ImageAttachment {
+  //  self.framebuffer_colour_images[current_buffer].transition_image_layout(Arc::clone(&device), ImageLayout::ColourAttachmentOptimal, ImageLayout::ShaderReadOnlyOptimal, command_pool, graphics_queue);
+    
     self.framebuffer_colour_images[current_buffer].clone()
   }
   
@@ -576,10 +578,10 @@ impl TextureShader {
     let mut framebuffer_msaa_images = Vec::with_capacity(num_image_views);
     
     for _ in 0..num_image_views {
-      framebuffer_colour_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
+      framebuffer_colour_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_input_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
       
       if msaa != &SampleCount::OneBit {
-        framebuffer_msaa_images.push(ImageAttachment::create_image_msaa_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transient_colour_attachment(), &ImageLayout::Undefined, &ImageLayout::ColourAttachmentOptimal, &ImageAspect::Colour, msaa, &ImageViewType::Type2D, format, command_pool, graphics_queue, swapchain_extent.width as u32, swapchain_extent.height as u32));
+        framebuffer_msaa_images.push(ImageAttachment::create_image_msaa_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transient_colour_input_attachment(), &ImageLayout::Undefined, &ImageLayout::ColourAttachmentOptimal, &ImageAspect::Colour, msaa, &ImageViewType::Type2D, format, command_pool, graphics_queue, swapchain_extent.width as u32, swapchain_extent.height as u32));
       }
     }
     
