@@ -5,7 +5,6 @@ use crate::vulkan::Device;
 use crate::vulkan::RenderPass;
 use crate::vulkan::Pipeline;
 use crate::vulkan::Swapchain;
-use crate::vulkan::ClearValues;
 use crate::vulkan::sync::Semaphore;
 use crate::vulkan::sync::Fence;
 use crate::vulkan::pool::CommandPool;

@@ -60,7 +60,7 @@ impl<T: Clone> Buffer<T> {
       memorys.push(memory);
     }
     
-    let mut buffer = Buffer {
+    let buffer = Buffer {
       buffer: buffers,
       memory: memorys,
       usage,

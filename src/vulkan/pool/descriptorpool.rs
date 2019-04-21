@@ -1,9 +1,7 @@
 use vk;
 
 use crate::vulkan::Device;
-use crate::vulkan::ownage::check_errors; 
 
-use std::mem;
 use std::ptr;
 use std::sync::Arc;
 

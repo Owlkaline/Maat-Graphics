@@ -239,7 +239,7 @@ impl Camera {
     //x = 0.5
     
     //aspect 1 = 0.5
-    let scaled_aspect = (aspect*(aspect*0.5));
+    //// let scaled_aspect = aspect*(aspect*0.5);
    // let x = ((screen_coords.x+3.0)*window_dim.x)*/*scaled_aspect;*/0.296296284*aspect;
     let x = ((screen_coords.x+1.0)*window_dim.x)*0.5;
     let y = ((screen_coords.y-1.0)*window_dim.y)*-0.5;
@@ -271,7 +271,7 @@ impl Camera {
     let x = (2.0*mouse.x) / window_dim.x - 1.0;
     let y = -(2.0*mouse.y) / window_dim.y + 1.0;
     
-    let mut clip_coords = Vector4::new(x, y, -1.0, 1.0);
+    let clip_coords = Vector4::new(x, y, -1.0, 1.0);
     
     // clip to eye space
     let eye_matrix = invt_perspective * clip_coords;

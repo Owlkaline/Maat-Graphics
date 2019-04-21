@@ -1,19 +1,17 @@
 use vk;
 
-use crate::math;
 use crate::drawcalls;
 use crate::font::GenericFont; 
 use crate::OrthoCamera;
-use crate::imgui::{ImGui, Ui};
+use crate::imgui::{Ui};
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageAspect, ShaderStage, VertexInputRate};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, ClearValues};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
-use crate::CoreMaat;
 
-use cgmath::{Vector2, Vector3, Vector4, Matrix4, SquareMatrix};
+use cgmath::{Vector2, Vector3, Vector4};
 
 use std::mem;
 use std::sync::Arc;
@@ -221,8 +219,6 @@ impl TextureShader {
     let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureInstancedVert.spv"));
     let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureInstancedFrag.spv"));
     
-    let colour_attachment_load = if msaa != &SampleCount::OneBit { AttachmentLoadOp::DontCare } else { AttachmentLoadOp::Clear };
-    
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
@@ -399,12 +395,12 @@ impl TextureShader {
     self.imgui_pipeline = Some(imgui_pipeline);
     
     let vertex_buffers = {
-      (0..num_sets).map(|i| 
+      (0..num_sets).map(|_| 
         Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, 1)
       ).collect::<Vec<Buffer<ImGuiVertex>>>()
     };
     let index_buffers = {
-      (0..num_sets).map(|i|
+      (0..num_sets).map(|_|
         Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, 1)
         ).collect::<Vec<Buffer<u32>>>()
     };
@@ -614,7 +610,7 @@ impl TextureShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
+  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, _rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&texture_reference) {
@@ -713,7 +709,7 @@ impl TextureShader {
     cmd
   }
   
-  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, max_buffer: usize, ui: Ui, dpi_factor: f32) -> CommandBufferBuilder {
+  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, _max_buffer: usize, ui: Ui, _dpi_factor: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&"imgui".to_string()) {
@@ -729,7 +725,7 @@ impl TextureShader {
     let mut index_data = Vec::new();
     let mut index_base = 0;
     
-    let good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
+    let _good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
       draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
       
       let mut verticies = 0;

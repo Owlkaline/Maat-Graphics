@@ -1,14 +1,9 @@
 use vk;
 
 use crate::vulkan::Device;
-use crate::vulkan::DescriptorSet;
-use crate::vulkan::RenderPass;
-use crate::vulkan::check_errors;
 
-use std::mem;
 use std::ptr;
 use std::sync::Arc;
-use std::ffi::CString;
 
 pub struct PipelineInfo {
   pub vertex_shader: vk::ShaderModule,

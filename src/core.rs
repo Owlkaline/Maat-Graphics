@@ -1,10 +1,7 @@
 use vk;
 use winit;
 use cgmath::{Vector4};
-use winit::dpi::LogicalSize;
 
-//use crate::imgui_sys;
-//use crate::imgui::{ImGui, Ui, ImFontConfig};
 use crate::imgui::*;
 use crate::imgui_winit_support;
 
@@ -21,9 +18,9 @@ use crate::graphics;
 use crate::Settings;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
-                             MipmapMode, VkBool, CommandBufferLevel, BorderColour, ImageLayout};
+                             MipmapMode, VkBool, BorderColour};
 
-use crate::vulkan::{ClearValues, VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
+use crate::vulkan::{VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
 use crate::vulkan::pool::{CommandPool, DescriptorPool, DescriptorPoolBuilder};
 use crate::vulkan::sync::{Semaphore, Fence};
 use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
@@ -31,8 +28,6 @@ use crate::vulkan::check_errors;
 
 use cgmath::{Vector2, Vector3};
 
-use std::mem;
-use std::ptr;
 use std::sync::Arc;
 use std::collections::HashMap;
 
@@ -55,7 +50,7 @@ pub struct CoreMaat {
   
   sampler: Sampler,
   
-  compute_shader: Option<Compute>,
+  _compute_shader: Option<Compute>,
   texture_shader: TextureShader,
   model_shader: ModelShader,
   final_shader: FinalShader,
@@ -66,7 +61,7 @@ pub struct CoreMaat {
   current_frame: usize,
   max_frames: usize,
   
-  image_from_draw: Option<ImageAttachment>,
+  _image_from_draw: Option<ImageAttachment>,
   
   imgui_sampler: Option<Sampler>,
   imgui: Option<ImGui>,
@@ -105,7 +100,7 @@ impl CoreMaat {
     let texture_msaa;
     let model_msaa;
     
-    let mut compute_shader = None;
+    let compute_shader = None;
     
     {
       let instance = window.instance();
@@ -231,7 +226,7 @@ impl CoreMaat {
       dummy_image,
       sampler,
       
-      compute_shader,
+      _compute_shader: compute_shader,
       texture_shader,
       model_shader,
       final_shader,
@@ -242,7 +237,7 @@ impl CoreMaat {
       current_frame: 0,
       max_frames,
       
-      image_from_draw: None,
+      _image_from_draw: None,
       
       imgui_sampler: None,
       imgui: None,
@@ -474,7 +469,7 @@ impl CoreRender for CoreMaat {
     model_details
   }
   
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>, some_ui: Option<Ui>, delta_time: f32) {
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, _some_ui: Option<Ui>, delta_time: f32) {
     //
     // Build drawcalls
     //
@@ -485,11 +480,10 @@ impl CoreRender for CoreMaat {
     let i = self.current_frame;
     let mut cmd = CommandBufferBuilder::primary_one_time_submit(Arc::clone(&self.command_buffers[i]));
     let mut model_draw_calls = Vec::new();
-    let mut image_index = 0;
+    let image_index;
     {
       let device = self.window.device();
       let instance = self.window.instance();
-      let graphics_queue = self.window.get_graphics_queue();
       let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
       self.fences[self.current_frame].wait(Arc::clone(&device));
       self.fences[self.current_frame].reset(Arc::clone(&device));
@@ -591,38 +585,37 @@ impl CoreRender for CoreMaat {
           }
         }
       }
-      }
-      
-      let dpi = self.get_dpi_scale() as f32;
-     // if let Some(ui) = some_ui {
-        if let Some(imgui) = &mut self.imgui {
-        let device = self.window.device();
-        let instance = self.window.instance();
-        
-        let frame_size = self.window.imgui_window(imgui);
-     
-        let mut ui = imgui.frame(frame_size, delta_time);
-        ui.show_default_style_editor();
-        ui.show_demo_window(&mut true);
-        /*ui.window(im_str!("Hello world"))
-          .size((300.0, 100.0), ImGuiCond::FirstUseEver)
-           .build(|| {
-               ui.text(im_str!("Hello world!"));
-              ui.text(im_str!("This...is...imgui-rs!"));
-               ui.separator();
-               let mouse_pos = ui.imgui().mouse_pos();
-               ui.text(im_str!(
-                  "Mouse Position: ({:.1},{:.1})",
-                  mouse_pos.0,
-                  mouse_pos.1
-             ));
-          });*/
-          cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
-        }
-     // }
-      
+    }
+    
+    let dpi = self.get_dpi_scale() as f32;
+    // if let Some(ui) = some_ui {
+    if let Some(imgui) = &mut self.imgui {
       let device = self.window.device();
       let instance = self.window.instance();
+      
+      let frame_size = self.window.imgui_window(imgui);
+      
+      let ui = imgui.frame(frame_size, delta_time);
+      ui.show_default_style_editor();
+      ui.show_demo_window(&mut true);
+      /*ui.window(im_str!("Hello world"))
+        .size((300.0, 100.0), ImGuiCond::FirstUseEver)
+         .build(|| {
+             ui.text(im_str!("Hello world!"));
+            ui.text(im_str!("This...is...imgui-rs!"));
+             ui.separator();
+             let mouse_pos = ui.imgui().mouse_pos();
+             ui.text(im_str!(
+                "Mouse Position: ({:.1},{:.1})",
+                mouse_pos.0,
+                mouse_pos.1
+           ));
+        });*/
+        cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
+    }
+  // }
+      
+      let device = self.window.device();
       let graphics_queue = self.window.get_graphics_queue();
       let window_size = vk::Extent2D { width: self.window_dimensions.width, height: self.window_dimensions.height };
       
@@ -687,11 +680,10 @@ impl CoreRender for CoreMaat {
       cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
       
       let texture_image = self.texture_shader.get_texture(self.current_frame);
-      //let model_image = self.model_shader.get_texture(self.current_frame);
-      //if let Some(sampler) = &self.imgui_sampler {
+      let model_image = self.model_shader.get_texture(self.current_frame);
+      
+      cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd, &model_image, &self.sampler, window_size.width as f32, window_size.height as f32, self.current_frame, false);
       cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd, &texture_image, &self.sampler, window_size.width as f32, window_size.height as f32, self.current_frame, true);
-     // }
-    //  cmd = self.final_shader.draw_to_screen(Arc::clone(&device), cmd, model_image, &self.sampler, window_size.width as f32, window_size.height as f32, self.current_frame, false);
       
       cmd = cmd.end_render_pass(Arc::clone(&device));
       cmd.end_command_buffer(Arc::clone(&device));
@@ -719,13 +711,13 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn imgui_ui(&mut self, delta_time: f32) {
-    let mut ui = None;
-    if let Some(imgui) = &mut self.imgui {
-      let frame_size = self.window.imgui_window(imgui);
+  fn imgui_ui(&mut self, _delta_time: f32) {
+    //let mut ui = None;
+   // if let Some(imgui) = &mut self.imgui {
+   //   let frame_size = self.window.imgui_window(imgui);
      
-      ui = Some(imgui.frame(frame_size, delta_time));
-    }
+ //     ui = Some(imgui.frame(frame_size, delta_time));
+  //  }
   }
   
   fn get_physical_dimensions(&self) -> Vector2<f32> {

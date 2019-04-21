@@ -201,7 +201,6 @@ impl ImageAttachment {
     let memory_property = MemoryProperty::DeviceLocal;
     
     let (texture_image, texture_memory) = ImageAttachment::create_image(Arc::clone(&instance), Arc::clone(&device), &memory_property, &ImageType::Type2D, tiling, &image_usage, &ImageLayout::Undefined, &SampleCount::OneBit, &format, width, height);
-    let texture_image_view: vk::ImageView;
     
     ImageAttachment::transition_layout(Arc::clone(&device), &image.get_image(), ImageLayout::ColourAttachmentOptimal, ImageLayout::TransferSrcOptimal, &command_pool, graphics_queue);
     

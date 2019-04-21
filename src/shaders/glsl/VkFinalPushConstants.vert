@@ -4,10 +4,12 @@ layout(location = 0) in vec2 position;
 layout(location = 1) in vec2 uv;
 
 layout(location = 0) out vec2 uvs;
+layout(location = 1) out float drawing_ui;
 
 layout(push_constant) uniform PushConstants {
   vec4 model; // x, y, scale_x, scale_y
-  vec4 projection; // right, bottom, 
+  vec4 projection; // right, bottom, _, _
+  vec4 ui_enabled; // false < 0.5 < true, _, _, _
 } push_constants;
 
 mat4 create_translation_matrix(vec2 pos, vec2 scale) {
@@ -48,5 +50,6 @@ void main() {
   mat4 model = create_translation_matrix(vec2(x, y), vec2(scale_x, scale_y));
   
   uvs = uv;
+  drawing_ui = push_constants.ui_enabled.x;
   gl_Position = projection * model * vec4(position, 0.0, 1.0);
 }

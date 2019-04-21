@@ -7,7 +7,6 @@ use crate::graphics;
 use cgmath::{Vector2, Vector3};
 
 use winit;
-use winit::dpi::LogicalSize;
 
 use std::vec::Vec;
 

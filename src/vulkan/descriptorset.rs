@@ -41,7 +41,7 @@ impl<'a> UpdateDescriptorSets<'a> {
     }
   }
   
-  pub fn add_built_uniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>) -> UpdateDescriptorSets<'a> {
+  pub fn add_built_uniformbuffer(mut self, binding: u32, uniform_buffer: &'a mut Buffer<f32>) -> UpdateDescriptorSets<'a> {
     self.uniform_buffers.push((binding, uniform_buffer));
     self
   }

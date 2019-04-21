@@ -1,6 +1,7 @@
 #version 450
 
 layout(location = 0) in vec2 uvs;
+layout(location = 1) in float drawing_ui;
 
 layout(location = 0) out vec4 outColour;
 
@@ -47,7 +48,16 @@ vec4 not(vec4 a) {
 }
 
 void main() {
-  outColour = texture(texture_image, uvs);
+  vec4 final_colour = texture(texture_image, uvs);
+  if (final_colour == vec4(0.0)) {
+    discard;
+  }
+  
+  if (drawing_ui > 0.5) {
+    final_colour.a = 1.0;
+  }
+  
+  outColour = final_colour;
 }
 
 /*

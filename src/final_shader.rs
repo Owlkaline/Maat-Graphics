@@ -3,10 +3,9 @@ use vk;
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage,
                              VertexInputRate, SampleCount};
 
-use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, ClearValues};
+use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
-use crate::CoreMaat;
 
 use cgmath::{Vector2, Vector4};
 
@@ -151,8 +150,9 @@ impl FinalShader {
     }
   }
   
-  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, ds: &DescriptorSet) -> Pipeline {
+  fn create_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, _ds: &DescriptorSet) -> Pipeline {
     let push_constant_size = UniformData::new()
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size();
@@ -213,7 +213,10 @@ impl FinalShader {
   pub fn draw_to_screen(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, texture_image: &ImageAttachment, sampler: &Sampler, window_width: f32, window_height: f32, current_buffer: usize, is_model_texture: bool) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
+    let mut ui = 0.0;
+    
     if is_model_texture {
+      ui = 1.0;
       UpdateDescriptorSets::new()
          .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, sampler)
          .finish_update(Arc::clone(&device), &self.descriptor_sets[current_buffer]);
@@ -231,7 +234,8 @@ impl FinalShader {
     
     let push_constant_data = UniformData::new()
                                .add_vector4(model)
-                               .add_vector4(projection_details);
+                               .add_vector4(projection_details)
+                               .add_vector4(Vector4::new(ui, 0.0, 0.0, 0.0));
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
     

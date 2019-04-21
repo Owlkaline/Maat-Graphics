@@ -74,24 +74,11 @@ impl Device {
       queue_family_properties.set_len(num_queue_families as usize);
     }
     
-    let mut compute_queue_found = false;
     for i in 0..num_queue_families as usize {
       if Device::has_compute_bit(&queue_family_properties[i].queueFlags) && !Device::has_graphics_bit(&queue_family_properties[i].queueFlags) {
         compute_index = i as u32;
-        compute_queue_found = true;
         println!("Dedicated Compute queue found!");
         break;
-      }
-    }
-    
-    if !compute_queue_found {
-      for i in 0..num_queue_families as usize {
-        if Device::has_compute_bit(&queue_family_properties[i].queueFlags) {
-          compute_index = i as u32;
-          compute_queue_found = true;
-          println!("Shared Compute queue found!");
-          break;
-        }
       }
     }
     
@@ -296,7 +283,7 @@ impl Device {
     unsafe {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
     }
-    let mut min_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
+    let min_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     
     (device, physical_devices[physical_device_index], min_alignment, device_available_extensions)
   }

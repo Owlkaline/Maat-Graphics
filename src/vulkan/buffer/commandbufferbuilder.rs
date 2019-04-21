@@ -1,6 +1,6 @@
 use vk;
 
-use crate::vulkan::{Device, RenderPass, Pipeline, ClearValues, ImageAttachment};
+use crate::vulkan::{Device, RenderPass, Pipeline, ImageAttachment};
 use crate::vulkan::buffer::{CommandBuffer, UniformData, Buffer};
 use crate::vulkan::vkenums::{ShaderStage, CommandBufferUsage, Access, ImageLayout, ImageAspect, PipelineStage};
 

@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 pub struct Compute {
   queue: vk::Queue,
-  family: u32,
+  _family: u32,
   shader: Shader,
   command_pool: CommandPool,
   command_buffers: Vec<Arc<CommandBuffer>>,
@@ -22,7 +22,7 @@ pub struct Compute {
 }
 
 impl Compute {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, dummy_image: &ImageAttachment, descriptor_pool: &DescriptorPool, num_sets: u32) -> Compute {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, _dummy_image: &ImageAttachment, descriptor_pool: &DescriptorPool, num_sets: u32) -> Compute {
     
     let (compute_queue, compute_family) = device.get_compute_queue(Arc::clone(&instance));
     
@@ -56,7 +56,7 @@ impl Compute {
     
     Compute {
       queue: compute_queue,
-      family: compute_family,
+      _family: compute_family,
       shader: compute_shader,
       command_pool,
       command_buffers,

@@ -21,7 +21,7 @@ enum Message {
 }
 
 struct Worker {
-  id: usize,
+  _id: usize,
   thread: Option<thread::JoinHandle<()>>,
 }
 
@@ -47,7 +47,7 @@ impl Worker {
     });
     
     Worker {
-      id: id,
+      _id: id,
       thread: Some(thread),
     }
   }

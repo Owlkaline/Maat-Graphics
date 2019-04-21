@@ -356,7 +356,7 @@ impl ResourceManager {
   /**
   ** Unloads textures.
   **/
-  pub fn unload_texture_from_reference(&mut self, device: Arc<Device>, reference: String) {
+  pub fn _unload_texture_from_reference(&mut self, device: Arc<Device>, reference: String) {
    // debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
     for i in 0..self.objects.len() {
       if self.objects[i].reference == reference {

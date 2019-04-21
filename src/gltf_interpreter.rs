@@ -240,9 +240,9 @@ impl ModelDetails {
       animation: Animation,
   }*/
   
-    for animation in gltf.animations() {
-      println!("{}", animation.name().unwrap());
-      for channel in animation.channels() {
+    for _animation in gltf.animations() {
+      println!("{}", _animation.name().unwrap());
+      for _channel in _animation.channels() {
         
       }
     }
