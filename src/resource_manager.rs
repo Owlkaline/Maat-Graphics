@@ -374,6 +374,31 @@ impl ResourceManager {
     }
   }
   
+  /**
+  ** Unloads models.
+  **/
+  pub fn unload_model_from_reference(&mut self, device: Arc<Device>, reference: String) {
+    for i in 0..self.objects.len() {
+      let mut object_index: i32 = -1;
+      if self.objects[i].reference == reference {
+        match &self.objects[i].object_type {
+ObjectType::Model(_, images) => {
+          object_index = i as i32;
+          for some_image in images {
+            if let Some(image) = some_image {
+              image.destroy(Arc::clone(&device));
+            }
+          }
+        }
+        _ => {}
+        }
+      }
+      if object_index > -1 {
+        self.objects[object_index as usize].loaded = false;
+      }
+    }
+  }
+  
   
   /**
   ** Only way to laod new font, Forces thread to wait until resource is loaded into memory.
@@ -413,7 +438,11 @@ impl ResourceManager {
   ** Must call Load_model as a DrawCall in order to use
   **/
   pub fn insert_unloaded_model(&mut self, reference: String, location: String) {
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+   
+   if !self.check_object(reference.clone()) {
+     return;
+   }
+   
     println!("Inserting object: {}", reference);
     self.objects.push(
       LoadableObject {

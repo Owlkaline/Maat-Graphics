@@ -637,7 +637,7 @@ impl CoreRender for CoreMaat {
    //   let frame_size = self.window.imgui_window(imgui);
       
    //   let ui = imgui.frame(frame_size, delta_time);
-      ui.show_default_style_editor();
+     // ui.show_default_style_editor();
      // ui.show_demo_window(&mut true);
     // ui.show_user_guide();
         cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
@@ -695,6 +695,11 @@ impl CoreRender for CoreMaat {
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
             self.resources.load_model_from_reference(reference);
+          },
+          DrawType::UnloadModel(ref info) => {
+            let reference = info.clone();
+            self.resources.unload_model_from_reference(Arc::clone(&device), reference.to_string());
+            self.model_shader.remove_model(Arc::clone(&device), reference);
           },
           _ => {}
         }

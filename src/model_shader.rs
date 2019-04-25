@@ -592,6 +592,16 @@ impl ModelShader {
     self.models.push(Model::new(Arc::clone(&instance), Arc::clone(&device), reference, model, base_textures, dummy_texture, command_pool, descriptor_set_pool, sampler, graphics_queue));
   }
   
+  pub fn remove_model(&mut self, device: Arc<Device>, reference: String) {
+    for i in 0..self.models.len() {
+      if self.models[i].reference == reference {
+        self.models[i].destroy(Arc::clone(&device));
+        self.models.remove(i);
+        break;
+      }
+    }
+  }
+  
   pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, format: &vk::Format, image_views: &Vec<vk::ImageView>, new_extent: &vk::Extent2D, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));

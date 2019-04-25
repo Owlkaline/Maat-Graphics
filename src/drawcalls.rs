@@ -48,7 +48,7 @@ pub enum DrawType {
   LoadModel((String)),
   UnloadTexture((String)),
   UnloadFont((String)),
-  UnloadModel,
+  UnloadModel((String)),
   
   NewShape,
   UpdateShape((String, Vec<graphics::Vertex2d>, Vec<u32>)),
@@ -388,6 +388,13 @@ impl DrawCall {
   pub fn load_texture(reference: String) -> DrawCall {
     DrawCall {
       draw_type: DrawType::LoadTexture(reference),
+      coloured: true,
+    }
+  }
+  
+  pub fn unload_model(reference: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::UnloadModel(reference),
       coloured: true,
     }
   }
