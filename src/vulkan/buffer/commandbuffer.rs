@@ -271,8 +271,8 @@ impl CommandBuffer {
   
   pub fn push_constants(&self, device: Arc<Device>, pipeline: &Pipeline, shader_stage: ShaderStage, push_constant_data: UniformData) {
     let mut push_constant_data = push_constant_data;
-    let size = push_constant_data.size();
-    let data = push_constant_data.build();
+    let size = push_constant_data.size(Arc::clone(&device));
+    let data = push_constant_data.build(Arc::clone(&device));
     
     let vk = device.pointers();
     unsafe {

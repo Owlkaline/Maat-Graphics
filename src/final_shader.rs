@@ -155,7 +155,7 @@ impl FinalShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())

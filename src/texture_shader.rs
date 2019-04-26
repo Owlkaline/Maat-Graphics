@@ -275,7 +275,7 @@ impl TextureShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let texture_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader_texture.get_shader())
@@ -296,7 +296,7 @@ impl TextureShader {
     
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let mut attributes: Vec<vk::VertexInputAttributeDescription> = Vertex::vertex_input_attributes();
     attributes.append(&mut TextureInstanceData::vertex_input_attributes());
@@ -370,7 +370,7 @@ impl TextureShader {
     
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let imgui_pipeline = PipelineBuilder::new()
                           .vertex_shader(*vertex_shader_imgui.get_shader())
@@ -525,7 +525,7 @@ impl TextureShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
@@ -807,7 +807,7 @@ impl TextureShader {
     let mut cmd = cmd;
     
     if let Some((instanced_data, buffer)) = self.instanced_cpu_buffers.get_mut(&buffer_reference) {
-      let data = instanced_data.build();
+      let data = instanced_data.build(Arc::clone(&device));
       let num_instances = data.len() as u32 / 12;
       
       if num_instances == 0 {

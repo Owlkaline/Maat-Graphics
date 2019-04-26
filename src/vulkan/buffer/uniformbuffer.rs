@@ -122,17 +122,19 @@ impl UniformData {
     self.data.clone()
   }
   
-  pub fn size(&self) -> vk::DeviceSize {
+  pub fn size(&self, device: Arc<Device>) -> vk::DeviceSize {
     let mut size = self.data.len();
-    if size%4 != 0 {
+    let alignment = device.get_min_alignment();
+    if size as u64%alignment != 0 {
       size += 1;
     }
     
     (mem::size_of::<f32>() * size) as vk::DeviceSize
   }
   
-  pub fn build(&mut self) -> Vec<f32> {
-    while self.data.len()%4 != 0 {
+  pub fn build(&mut self, device: Arc<Device>) -> Vec<f32> {
+    let alignment = device.get_min_alignment();
+    while self.data.len() as u64%alignment != 0 {
       self.data.push(0.0);
     }
     
@@ -251,7 +253,8 @@ impl UniformBufferBuilder {
       }
     }
     
-    while data.len() % 4 != 0 {
+    let alignment = device.get_min_alignment();
+    while data.len() as u64% alignment != 0 {
       data.push(0.0);
     }
     

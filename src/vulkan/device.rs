@@ -43,6 +43,14 @@ impl Device {
     self.min_alignment
   }
   
+  pub fn min_buffer_align(&self, buffer: &vk::Buffer) -> u64 {
+//    let mem_req: Vec<> = unsafe { mem::uninitialized() }; 
+  //  self.vk.GetBufferMemoryRequirements(self.device, *buffer, mem_req.as_mut_ptr());
+    
+   // mem_req.size
+   0
+  }
+  
   pub fn physical_device(&self) -> &vk::PhysicalDevice {
     &self.phys_device
   }
@@ -283,6 +291,7 @@ impl Device {
     unsafe {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
     }
+    
     let min_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     
     (device, physical_devices[physical_device_index], min_alignment, device_available_extensions)

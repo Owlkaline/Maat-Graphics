@@ -304,7 +304,7 @@ impl Model {
                            .add_vector4(math::array4_to_vec4(base_colour_factor))
                            .add_vector4(Vector4::new(metallic_factor, roughness_factor, occlusion_strength, 0.0))
                            .add_vector4(Vector4::new(emissive_factor.x, emissive_factor.y, emissive_factor.z, 0.0))
-                           .build();
+                           .build(Arc::clone(&device));
       
       uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), uniform_data);
       
@@ -640,7 +640,7 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
@@ -684,7 +684,7 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size();
+                               .size(Arc::clone(&device));
     
     let mut attributes = ModelVertex::vertex_input_attributes();
     attributes.append(&mut ModelInstanceData::vertex_input_attributes());
@@ -931,7 +931,7 @@ impl ModelShader {
     let (model_reference, mut buffer) = self.instanced_cpu_buffers[idx].clone();
     let mut instanced_data = self.instanced_cpu_data[idx].clone();
     
-    let data = instanced_data.build();
+    let data = instanced_data.build(Arc::clone(&device));
     let num_instances = (data.len() as f32 / 16.0) as u32;
     
     if num_instances == 0 {

@@ -49,7 +49,7 @@ impl<'a> UpdateDescriptorSets<'a> {
   
   pub fn add_uniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
-    uniform_buffer.fill_entire_buffer_all_frames(device, data.build());
+    uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
     self.uniform_buffers.push((binding, uniform_buffer));
     self
   }
@@ -69,7 +69,8 @@ impl<'a> UpdateDescriptorSets<'a> {
     let sets = descriptor_set.all_sets();
     
     for j in 0..sets.len() {
-      for i in 0..self.uniform_buffers.len() {
+     // TODO ADD BACK IN
+     /* for i in 0..self.uniform_buffers.len() {
         let (binding, uniform_buffer) = self.uniform_buffers[i];
         let descriptor_buffer_info = {
           vk::DescriptorBufferInfo {
@@ -93,7 +94,7 @@ impl<'a> UpdateDescriptorSets<'a> {
             pTexelBufferView: ptr::null(),
           }
         );
-      }
+      }*/
       
      // let mut descriptor_image_info = Vec::new();
       for i in 0..self.images.len() {
