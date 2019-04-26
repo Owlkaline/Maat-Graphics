@@ -13,20 +13,22 @@ pub struct Device {
   vk: vk::DevicePointers,
   device: vk::Device,
   phys_device: vk::PhysicalDevice,
-  min_alignment: u64,
+  min_offset_alignment: u64,
+  non_coherent_atom_size: u64,
   _extensions: Vec<CString>,
 }
 
 impl Device {
   pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> Arc<Device> {
-    let (device, phys_device, min_alignment, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
+    let (device, phys_device, min_offset_alignment, non_coherent_atom_size, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
     let vk = Device::create_device_instance(Arc::clone(&instance), &device);
     
     Arc::new(Device {
       vk,
       device,
       phys_device,
-      min_alignment,
+      min_offset_alignment,
+      non_coherent_atom_size,
       _extensions: extensions,
     })
   }
@@ -39,8 +41,12 @@ impl Device {
     &self.device
   }
   
-  pub fn get_min_alignment(&self) -> u64 {
-    self.min_alignment
+  pub fn get_min_offset_alignment(&self) -> u64 {
+    self.min_offset_alignment
+  }
+  
+  pub fn get_non_coherent_atom_size(&self) -> u64 {
+    self.non_coherent_atom_size
   }
   
   pub fn min_buffer_align(&self, buffer: &vk::Buffer) -> u64 {
@@ -120,7 +126,7 @@ impl Device {
     vk_device
   }
   
-  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, u64, Vec<CString>) {
+  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
     let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
@@ -292,9 +298,10 @@ impl Device {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
     }
     
-    let min_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
+    let min_offset_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
+    let non_coherent_atom_size = device_prop.limits.nonCoherentAtomSize;
     
-    (device, physical_devices[physical_device_index], min_alignment, device_available_extensions)
+    (device, physical_devices[physical_device_index], min_offset_alignment, non_coherent_atom_size, device_available_extensions)
   }
   
   fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>) {

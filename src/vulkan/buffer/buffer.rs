@@ -28,7 +28,7 @@ impl<T: Clone> Buffer<T> {
   
   fn align_data(device: Arc<Device>, data: &mut Vec<T>) {
     let mut buffer_size = mem::size_of::<T>() * data.len();
-    let min_alignment = device.get_min_alignment();
+    let min_alignment = device.get_non_coherent_atom_size();
     
     while buffer_size as u64%min_alignment != 0 {
       let temp = data[data.len()-1].clone();
@@ -39,7 +39,7 @@ impl<T: Clone> Buffer<T> {
   
   fn align_phantom_data(device: Arc<Device>, data_len: &mut u64) {
     let mut buffer_size = mem::size_of::<T>() as u64 * *data_len;
-    let min_alignment = device.get_min_alignment();
+    let min_alignment = device.get_non_coherent_atom_size();
     
     while buffer_size as u64%min_alignment != 0 {
       *data_len += 1;
@@ -141,7 +141,7 @@ impl<T: Clone> Buffer<T> {
     buffer
   }
   
-  pub fn fill_partial_buffer(&mut self, device: Arc<Device>, current_buffer: usize, offset: u32, data: Vec<T>) {
+  pub fn _fill_partial_buffer(&mut self, device: Arc<Device>, current_buffer: usize, offset: u32, data: Vec<T>) {
     let mut data = data;
     Buffer::align_data(Arc::clone(&device), &mut data);
     if Buffer::illegal_size(&self.size, &data) {

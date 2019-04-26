@@ -124,7 +124,7 @@ impl UniformData {
   
   pub fn size(&self, device: Arc<Device>) -> vk::DeviceSize {
     let mut size = self.data.len();
-    let alignment = device.get_min_alignment();
+    let alignment = device.get_non_coherent_atom_size();
     if size as u64%alignment != 0 {
       size += 1;
     }
@@ -133,7 +133,7 @@ impl UniformData {
   }
   
   pub fn build(&mut self, device: Arc<Device>) -> Vec<f32> {
-    let alignment = device.get_min_alignment();
+    let alignment = device.get_non_coherent_atom_size();
     while self.data.len() as u64%alignment != 0 {
       self.data.push(0.0);
     }
@@ -253,7 +253,7 @@ impl UniformBufferBuilder {
       }
     }
     
-    let alignment = device.get_min_alignment();
+    let alignment = device.get_non_coherent_atom_size();
     while data.len() as u64% alignment != 0 {
       data.push(0.0);
     }

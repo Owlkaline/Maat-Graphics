@@ -68,17 +68,17 @@ impl<'a> UpdateDescriptorSets<'a> {
     let mut write_descriptor_sets: Vec<vk::WriteDescriptorSet> = Vec::new();
     let sets = descriptor_set.all_sets();
     
+    let mut descriptor_buffer_infos = Vec::new();
+    let mut descriptor_image_infos = Vec::new();
+    
     for j in 0..sets.len() {
-     // TODO ADD BACK IN
-     /* for i in 0..self.uniform_buffers.len() {
+     for i in 0..self.uniform_buffers.len() {
         let (binding, uniform_buffer) = self.uniform_buffers[i];
-        let descriptor_buffer_info = {
-          vk::DescriptorBufferInfo {
+       descriptor_buffer_infos.push(   vk::DescriptorBufferInfo {
             buffer: *uniform_buffer.internal_object(j),
             offset: 0,
             range: uniform_buffer.max_size(),
-          }
-        };
+          });
         
         write_descriptor_sets.push(
           vk::WriteDescriptorSet {
@@ -90,34 +90,31 @@ impl<'a> UpdateDescriptorSets<'a> {
             descriptorCount: 1,
             descriptorType: DescriptorType::UniformBuffer.to_bits(),
             pImageInfo: ptr::null(),
-            pBufferInfo: &descriptor_buffer_info,
+            pBufferInfo: &descriptor_buffer_infos[j*self.uniform_buffers.len()+i],
             pTexelBufferView: ptr::null(),
           }
         );
-      }*/
+      }
       
-     // let mut descriptor_image_info = Vec::new();
       for i in 0..self.images.len() {
         let (binding, ref image, ref layout, ref sampler, ref descriptor_type) = self.images[i];
         
-        let descriptor_image_info;
-        
         if sampler.is_some() {
-          descriptor_image_info = {
+          descriptor_image_infos.push(
             vk::DescriptorImageInfo {
               sampler: sampler.unwrap().internal_object(),
               imageView: image.get_image_view(),
               imageLayout: layout.to_bits(),
             }
-          };
+          );
         } else {
-          descriptor_image_info = {
+          descriptor_image_infos.push(
             vk::DescriptorImageInfo {
               sampler: 0,
               imageView: image.get_image_view(),
               imageLayout: layout.to_bits(),
             }
-          };
+          );
         }
         
         write_descriptor_sets.push(
@@ -129,7 +126,7 @@ impl<'a> UpdateDescriptorSets<'a> {
             dstArrayElement: 0,
             descriptorCount: 1,
             descriptorType: descriptor_type.to_bits(),
-            pImageInfo: &descriptor_image_info,
+            pImageInfo: &descriptor_image_infos[j*self.images.len()+i],
             pBufferInfo: ptr::null(),
             pTexelBufferView: ptr::null(),
           }
