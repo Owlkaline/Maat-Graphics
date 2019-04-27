@@ -466,6 +466,9 @@ impl VkWindow {
     let mut graphics_family: i32 = -1;
     let mut present_family: i32 = -1;
     
+    let mut valid_graphics_family: i32 = -1;
+    let mut valid_presents_family: i32 = -1;
+    
     for i in 0..queue_family_properties.len() {
       let queue_family = &queue_family_properties[i];
       if queue_family.queueCount > 0 && VkWindow::has_graphics_bit(&queue_family.queueFlags) {
@@ -479,6 +482,9 @@ impl VkWindow {
       }
       
       if graphics_family > 0 && present_family > 0 {
+        valid_graphics_family = graphics_family;
+        valid_presents_family = present_family;
+        
         // TODO REmove this if state to enable Concurrent graphics families
         if graphics_family == present_family {
           break;
@@ -486,83 +492,10 @@ impl VkWindow {
       }
     }
     
-    let graphics_queue: vk::Queue = device.get_device_queue(graphics_family as u32, 0);
-    let present_queue: vk::Queue = device.get_device_queue(present_family as u32, 0);
+    let graphics_queue: vk::Queue = device.get_device_queue(valid_graphics_family as u32, 0);
+    let present_queue: vk::Queue = device.get_device_queue(valid_present_family as u32, 0);
     
     (graphics_family as u32, present_family as u32, graphics_queue, present_queue)
-  }
-  
-  fn _create_instance(entry_points: &vk::EntryPoints, function_pointers: &OwnedOrRef<FunctionPointers<Box<dyn Loader + Sync + Send>>>, app_name: String, app_version: u32, should_debug: bool, supported_extensions: Vec<CString>) -> (vk::InstancePointers, vk::Instance, Vec<CString>, Vec<CString>) {
-    let app_name = CString::new(app_name).unwrap();
-    let engine_name = CString::new("Maat-Graphics").unwrap();
-    
-    let layer_names = {
-      if should_debug {
-        [CString::new("VK_LAYER_LUNARG_standard_validation").unwrap()]
-      } else {
-        [CString::new("").unwrap()]
-      }
-    };
-    let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
-    
-    let ideal_extension_names: [CString; 9] = [
-      CString::new("VK_KHR_surface").unwrap(),
-      CString::new("VK_KHR_xlib_surface").unwrap(),
-      CString::new("VK_KHR_xcb_surface").unwrap(),
-      CString::new("VK_KHR_wayland_surface").unwrap(),
-      CString::new("VK_KHR_android_surface").unwrap(),
-      CString::new("VK_KHR_win32_surface").unwrap(),
-      CString::new("VK_MVK_ios_surface").unwrap(),
-      CString::new("VK_MVK_macos_surface").unwrap(),
-      CString::new("VK_EXT_debug_utils").unwrap(),
-    ];
-    
-    let mut available_extensions = Vec::new();
-    for supported_extension in &supported_extensions {
-      for ideal_extension in &ideal_extension_names {
-        if ideal_extension == supported_extension {
-          available_extensions.push(supported_extension.clone());
-        }
-      }
-    }
-    
-    let available_extensions_raw: Vec<*const i8> = available_extensions.iter().map(|raw_name| raw_name.as_ptr()).collect();
-    
-    let appinfo = vk::ApplicationInfo {
-      pApplicationName: app_name.as_ptr(),
-      sType: vk::STRUCTURE_TYPE_APPLICATION_INFO,
-      pNext: ptr::null(),
-      applicationVersion: app_version,
-      pEngineName: engine_name.as_ptr(),
-      engineVersion: ENGINE_VERSION,
-      apiVersion: (1 as u32) << 22 | (0 as u32) << 12 | (5 as u32),
-    };
-    
-    let instance: vk::Instance = unsafe {
-      let mut output = mem::uninitialized();
-      let instance_info = vk::InstanceCreateInfo {
-        sType: vk::STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: Default::default(),
-        pApplicationInfo: &appinfo,
-        ppEnabledLayerNames: layers_names_raw.as_ptr(),
-        enabledLayerCount: layers_names_raw.len() as u32,
-        ppEnabledExtensionNames: available_extensions_raw.as_ptr(),
-        enabledExtensionCount: available_extensions_raw.len() as u32,
-      };
-      
-      check_errors(entry_points.CreateInstance(&instance_info, ptr::null(), &mut output));
-      
-      output
-    };
-    
-    let vk_instance = {
-      vk::InstancePointers::load(|name| unsafe {
-        mem::transmute(function_pointers.get_instance_proc_addr(instance, name.as_ptr()))
-      })
-    };
-    
-    (vk_instance, instance, available_extensions, layer_names.to_vec())
   }
   
   fn has_graphics_bit(queue_flags: &u32) -> bool {
