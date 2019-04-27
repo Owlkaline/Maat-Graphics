@@ -231,7 +231,7 @@ impl Device {
           largePoints: VkBool::False.to_bits(),
           alphaToOne: VkBool::True.to_bits(),
           multiViewport: VkBool::False.to_bits(),
-          samplerAnisotropy: VkBool::True.to_bits(),
+          samplerAnisotropy: VkBool::False.to_bits(),
           textureCompressionETC2: VkBool::False.to_bits(),
           textureCompressionASTC_LDR: VkBool::False.to_bits(),
           textureCompressionBC: VkBool::False.to_bits(),
