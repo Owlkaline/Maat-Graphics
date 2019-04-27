@@ -229,7 +229,7 @@ impl Device {
           depthBounds: VkBool::False.to_bits(),
           wideLines: VkBool::False.to_bits(),
           largePoints: VkBool::False.to_bits(),
-          alphaToOne: if device_features.alphaToOne { VkBool::True.to_bits() } else { VkBool::True.to_bits() },
+          alphaToOne: if device_features.alphaToOne == 1 { VkBool::True.to_bits() } else { VkBool::True.to_bits() },
           multiViewport: VkBool::False.to_bits(),
           samplerAnisotropy: VkBool::False.to_bits(),
           textureCompressionETC2: VkBool::False.to_bits(),
