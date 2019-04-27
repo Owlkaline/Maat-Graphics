@@ -188,15 +188,16 @@ impl Device {
         let device_available_extensions_raw: Vec<*const i8> = device_available_extensions.iter().map(|raw_name| raw_name.as_ptr()).collect();
         
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
+        
         for j in 0..family_properties.len() {
-          device_queue_infos.push( 
+          device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
               pNext: ptr::null(),
               flags: 0,//Default::default(),//queue_flags,
               queueFamilyIndex: j as u32,
               queueCount: family_properties.len().min(j.max(1)) as u32,
-              pQueuePriorities: &1.0,
+              pQueuePriorities: &0.5,
             }
           );
         }
@@ -231,7 +232,7 @@ impl Device {
           depthBounds: VkBool::False.to_bits(),
           wideLines: VkBool::False.to_bits(),
           largePoints: VkBool::False.to_bits(),
-          alphaToOne: if device_features.alphaToOne == 1 { VkBool::True.to_bits() } else { VkBool::False.to_bits() },
+          alphaToOne: VkBool::False.to_bits(),
           multiViewport: VkBool::False.to_bits(),
           samplerAnisotropy: VkBool::False.to_bits(),
           textureCompressionETC2: VkBool::False.to_bits(),
