@@ -152,8 +152,8 @@ impl CoreMaat {
                        .mag_filter(Filter::Linear)
                        .address_mode(AddressMode::ClampToEdge)
                        .mipmap_mode(MipmapMode::Nearest)
-                       .anisotropy(VkBool::True)
-                       .max_anisotropy(8.0)
+                       .anisotropy(VkBool::False)
+                       .max_anisotropy(1.0)
                        .build(Arc::clone(&device));
       
      // compute_shader = Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32);

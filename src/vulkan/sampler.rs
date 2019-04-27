@@ -186,7 +186,7 @@ impl Sampler {
         addressModeV: address_mode,
         addressModeW: address_mode,
         mipLodBias: 0.0,
-        anisotropyEnable: vk::False,
+        anisotropyEnable: vk::FALSE,
         maxAnisotropy: 1.0,
         compareEnable: vk::FALSE,
         compareOp: vk::COMPARE_OP_ALWAYS,
