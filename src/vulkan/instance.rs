@@ -272,8 +272,8 @@ impl Instance {
         pNext: ptr::null(),
         flags: Default::default(),
         pApplicationInfo: &appinfo,
-        ppEnabledLayerNames: layers_names_raw.as_ptr(),
-        enabledLayerCount: layers_names_raw.len() as u32,
+        ppEnabledLayerNames: if should_debug { layers_names_raw.as_ptr() } else { ptr::null() },
+        enabledLayerCount: if should_debug { layers_names_raw.len() as u32 } else { 0 },
         ppEnabledExtensionNames: available_extensions_raw.as_ptr(),
         enabledExtensionCount: available_extensions_raw.len() as u32,
       };

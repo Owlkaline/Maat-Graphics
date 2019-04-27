@@ -479,7 +479,10 @@ impl VkWindow {
       }
       
       if graphics_family > 0 && present_family > 0 {
-        break;
+        // TODO REmove this if state to enable Concurrent graphics families
+        if graphics_family == present_family {
+          break;
+        }
       }
     }
     
