@@ -210,6 +210,8 @@ impl Device {
           _ => {println!("Dynamic indexing not supported :(");}
         }
         
+        println!("feature alpha to one {}", device_features.alphaToOne);
+        
         // Need to fix
         let features = vk::PhysicalDeviceFeatures {
           robustBufferAccess: VkBool::False.to_bits(),
