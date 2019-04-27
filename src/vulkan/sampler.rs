@@ -56,7 +56,7 @@ impl SamplerBuilder {
       address_mode_w: AddressMode::ClampToEdge,
       mip_lod_bias: 0.0,
       anisotropy: VkBool::False,
-      max_anisotropy: 16.0,
+      max_anisotropy: 1.0,
       compare: VkBool::False,
       compare_op: CompareOp::Always,
       min_lod: 0.0,
