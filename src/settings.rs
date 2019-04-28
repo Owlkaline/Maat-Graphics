@@ -39,8 +39,8 @@ impl Settings {
   pub fn load(minimum_resolution: Vector2<i32>, default_resolution: Vector2<i32>) -> Settings {
     let mut vsync = true;
     let mut triple_buffer = false;
-    let mut texture_msaa = 4;
-    let mut model_msaa = 4;
+    let mut texture_msaa = 1;
+    let mut model_msaa = 1;
     let mut is_fullscreen = false;
     let mut resolution = default_resolution;//[1280, 720];
     let mut force_dpi = false;
