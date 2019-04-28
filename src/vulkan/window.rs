@@ -484,16 +484,17 @@ impl VkWindow {
       if graphics_family > 0 && present_family > 0 {
         valid_graphics_family = graphics_family;
         valid_presents_family = present_family;
-        
+        let graphics_queue: vk::Queue = device.get_device_queue(graphics_family as u32, 0);
+        let present_queue: vk::Queue = device.get_device_queue(present_family as u32, 0);
         // TODO REmove this if state to enable Concurrent graphics families
-        if graphics_family == present_family {
+        if graphics_queue == present_queue {
           break;
         }
       }
     }
     
-    let graphics_queue: vk::Queue = device.get_device_queue(valid_graphics_family as u32, 0);
-    let present_queue: vk::Queue = device.get_device_queue(valid_present_family as u32, 0);
+    let graphics_queue: vk::Queue = device.get_device_queue(graphics_family as u32, 0);
+    let present_queue: vk::Queue = device.get_device_queue(present_family as u32, 0);
     
     (graphics_family as u32, present_family as u32, graphics_queue, present_queue)
   }

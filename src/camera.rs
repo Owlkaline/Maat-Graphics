@@ -103,6 +103,22 @@ impl Camera {
     self.update_camera_vector();
   }
   
+  fn update_camera_vector_around_point(&mut self, point: Vector3<f32>) {
+    self.update_camera_vector();
+    
+    let radius = (self.position.xz() - point.xz()).magnitude();
+    
+    let front = self.get_front()*-1.0;
+    
+    self.position.x = point.x;
+    self.position.z = point.z;
+    
+    while (self.position.xz()-point.xz()).magnitude() < radius {
+      self.position.x += front.x;
+      self.position.z += front.z;
+    }
+  }
+  
   fn update_camera_vector(&mut self) {
     let mut front = Vector3::new(0.0, 0.0, 0.0);
       
@@ -131,6 +147,25 @@ impl Camera {
     }
     
     self.update_camera_vector();
+  }
+  
+  pub fn process_mouse_movement_around_point(&mut self, x_offset: f32, y_offset: f32, point: Vector3<f32>) {
+    let x_offset = x_offset * self.mouse_sensitivity;
+    let y_offset = y_offset * self.mouse_sensitivity;
+    
+    self.yaw += x_offset;
+    self.pitch += y_offset;
+    
+    // constrain pitch
+    if self.pitch > 89.0 {
+      self.pitch = 89.0;
+    }
+    if self.pitch < -89.0 {
+      self.pitch = -89.0;
+    }
+    
+    //self.update_camera_vector();
+    self.update_camera_vector_around_point(point);
   }
   
   pub fn process_movement(&mut self, direction: Direction, delta_time: f32) {
