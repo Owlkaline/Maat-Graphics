@@ -4,10 +4,12 @@ version = "0.6.0"
 authors = ["Lilith645 <lilith@inet-sys.com>"]
 edition = '2018'
 
+[lib]
+crate-type = ["dylib", "rlib"]
+
 [dependencies]
 vk = { version = "0.4.0", package = "vk-sys" }
 gltf = "0.11.3"
-cgmath = "0.17.0"
 image = "0.21.0"
 winit = "0.19.1"
 base64 = "*"
@@ -17,6 +19,10 @@ libc = "0.2.44"
 imgui-sys = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
 imgui = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
 imgui-winit-support = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
+
+[dependencies.cgmath]
+version = "0.17.0"
+features = ["swizzle"]
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))'.dependencies]
 wayland-client = "=0.21.7"
