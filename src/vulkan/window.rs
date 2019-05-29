@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use std::borrow::Borrow;
 
-use winit::dpi::LogicalSize;
+use winit::dpi::{LogicalSize, LogicalPosition};
 
 use crate::vulkan::ownage::OwnedOrRef;
 use crate::vulkan::ownage::check_errors;
@@ -342,6 +342,10 @@ impl VkWindow {
     let dpi = self.window.get_hidpi_factor();
     
     dpi as f32
+  }
+  
+  pub fn set_cursor_position(&self, new_pos: LogicalPosition) {
+    self.window.set_cursor_position(new_pos);
   }
   
   pub fn get_current_extent(&self) -> vk::Extent2D {

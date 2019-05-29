@@ -2,7 +2,7 @@ use crate::math;
 
 use cgmath;
 use cgmath::{dot, InnerSpace, SquareMatrix, PerspectiveFov, Deg, Vector2, Vector3, Vector4, Point3, Angle, 
-             EuclideanSpace, Matrix4};
+             EuclideanSpace, Matrix3, Matrix4};
 
 #[derive(Clone, PartialEq)]
 pub enum Direction {
@@ -38,6 +38,9 @@ pub struct Camera {
   move_speed: f32,
   mouse_sensitivity: f32,
   zoom: f32,
+  
+  target: Vector3<f32>,
+  horz_angle: f32,
 }
 
 impl Camera {
@@ -56,6 +59,9 @@ impl Camera {
       move_speed: move_speed,
       mouse_sensitivity: mouse_sensitivity,
       zoom: 90.0,
+      
+      target: Vector3::new(0.0, 0.0, 0.0),
+      horz_angle: 0.0,
     }
   }
   
@@ -73,6 +79,8 @@ impl Camera {
       move_speed: 5.0,
       mouse_sensitivity: 1.0,
       zoom: 90.0,
+      target: Vector3::new(0.0, 0.0, 0.0),
+      horz_angle: 0.0,
     }
   }
   
@@ -103,21 +111,81 @@ impl Camera {
     self.update_camera_vector();
   }
   
-  fn update_camera_vector_around_point(&mut self, point: Vector3<f32>) {
-    self.update_camera_vector();
-    
-    let radius = (self.position.xz() - point.xz()).magnitude();
-    
-    let front = self.get_front()*-1.0;
-    
-    self.position.x = point.x;
-    self.position.z = point.z;
-    
-    while (self.position.xz()-point.xz()).magnitude() < radius {
-      self.position.x += front.x;
-      self.position.z += front.z;
+  // Orbiting Camera stuff
+  //
+  //
+  
+  pub fn set_target(&mut self, point: Vector3<f32>) {
+    self.target = point;
+  }
+  
+  pub fn change_zoom(&mut self, zoom_delta: f32, delta_time: f32) {
+    self.zoom += zoom_delta*delta_time;
+    if self.zoom < 0.0 {
+      self.zoom = 0.0;
     }
   }
+  
+  pub fn process_orbiting_camera_movement(&mut self, x_offset: f32, y_offset: f32) {
+    let x_offset = x_offset * self.mouse_sensitivity;
+    let y_offset = y_offset * self.mouse_sensitivity;
+    
+    self.rotate_camera_horizontally(x_offset);
+    self.rotate_camera_vertically(y_offset);
+  }
+  
+  pub fn rotate_camera_horizontally(&mut self, angle_delta: f32) {
+    let rotation_matrix = Matrix4::from_axis_angle(Vector3::new(0.0, -1.0, 0.0), Deg(angle_delta));
+    
+    self.horz_angle += angle_delta;
+    self.front = Vector3::new(
+                   self.front.x * rotation_matrix[0][0] + self.front.y * rotation_matrix[0][1] + self.front.z*rotation_matrix[0][2],
+                   self.front.x * rotation_matrix[1][0] + self.front.y * rotation_matrix[1][1] + self.front.z*rotation_matrix[1][2],
+                   self.front.x * rotation_matrix[2][0] + self.front.y * rotation_matrix[2][1] + self.front.z*rotation_matrix[2][2]
+                   );
+    self.up = Vector3::new(
+                   self.up.x * rotation_matrix[0][0] + self.up.y * rotation_matrix[0][1] + self.up.z*rotation_matrix[0][2],
+                   self.up.x * rotation_matrix[1][0] + self.up.y * rotation_matrix[1][1] + self.up.z*rotation_matrix[1][2],
+                   self.up.x * rotation_matrix[2][0] + self.up.y * rotation_matrix[2][1] + self.up.z*rotation_matrix[2][2]
+                   );
+    self.right = Vector3::new(
+                   self.right.x * rotation_matrix[0][0] + self.right.y * rotation_matrix[0][1] + self.right.z*rotation_matrix[0][2],
+                   self.right.x * rotation_matrix[1][0] + self.right.y * rotation_matrix[1][1] + self.right.z*rotation_matrix[1][2],
+                   self.right.x * rotation_matrix[2][0] + self.right.y * rotation_matrix[2][1] + self.right.z*rotation_matrix[2][2]
+                   );
+    self.position = self.target - self.zoom * self.front;
+  }
+  
+  pub fn rotate_camera_vertically(&mut self, mut angle_delta: f32) {
+    let old_angle = self.pitch;
+    self.pitch += angle_delta;
+    if self.pitch > 89.0 {
+      self.pitch = 89.0;
+      angle_delta = 89.0 - old_angle;
+    }
+    if self.pitch < -89.0 {
+      self.pitch = -89.0;
+      angle_delta = -89.0 - old_angle;
+    }
+    
+    let rotation_matrix = Matrix4::from_axis_angle(self.right.normalize(), Deg(angle_delta));
+    
+    self.front = Vector3::new(
+                   self.front.x * rotation_matrix[0][0] + self.front.y * rotation_matrix[0][1] + self.front.z*rotation_matrix[0][2],
+                   self.front.x * rotation_matrix[1][0] + self.front.y * rotation_matrix[1][1] + self.front.z*rotation_matrix[1][2],
+                   self.front.x * rotation_matrix[2][0] + self.front.y * rotation_matrix[2][1] + self.front.z*rotation_matrix[2][2]
+                   );
+    self.up = Vector3::new(
+                   self.up.x * rotation_matrix[0][0] + self.up.y * rotation_matrix[0][1] + self.up.z*rotation_matrix[0][2],
+                   self.up.x * rotation_matrix[1][0] + self.up.y * rotation_matrix[1][1] + self.up.z*rotation_matrix[1][2],
+                   self.up.x * rotation_matrix[2][0] + self.up.y * rotation_matrix[2][1] + self.up.z*rotation_matrix[2][2]
+                   );
+    self.position = self.target - self.zoom * self.front;
+  }
+  
+  // First Person Camera
+  //
+  //
   
   fn update_camera_vector(&mut self) {
     let mut front = Vector3::new(0.0, 0.0, 0.0);
@@ -147,25 +215,6 @@ impl Camera {
     }
     
     self.update_camera_vector();
-  }
-  
-  pub fn process_mouse_movement_around_point(&mut self, x_offset: f32, y_offset: f32, point: Vector3<f32>) {
-    let x_offset = x_offset * self.mouse_sensitivity;
-    let y_offset = y_offset * self.mouse_sensitivity;
-    
-    self.yaw += x_offset;
-    self.pitch += y_offset;
-    
-    // constrain pitch
-    if self.pitch > 89.0 {
-      self.pitch = 89.0;
-    }
-    if self.pitch < -89.0 {
-      self.pitch = -89.0;
-    }
-    
-    //self.update_camera_vector();
-    self.update_camera_vector_around_point(point);
   }
   
   pub fn process_movement(&mut self, direction: Direction, delta_time: f32) {
@@ -232,6 +281,10 @@ impl Camera {
       }
     }
   }
+  
+  // Useful camera functions
+  //
+  //
   
   // Fix world to screen size at different aspect ratios
   pub fn world_to_screen_coords(&self, position: Vector3<f32>, window_dim: Vector2<f32>) -> Vector2<f32> {

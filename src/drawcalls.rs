@@ -67,6 +67,7 @@ pub enum DrawType {
   EnableFullscreen(bool),
   ScissorRender(Vector4<f32>),
   ResetScissorRender,
+  SetCursorPosition((f32, f32)),
   
   // Some(x offset, y offset), Some(right and top size), velocity to lerp
   OrthoCamera((Option<Vector2<f32>>, Option<Vector2<f32>>, Vector2<f32>)),
@@ -424,6 +425,13 @@ impl DrawCall {
     DrawCall {
       draw_type: DrawType::UpdateShape((shape, vertices, indices)),
       coloured: true,
+    }
+  }
+  
+  pub fn set_cursor_position(x: f32, y: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::SetCursorPosition((x,y)),
+      coloured: false,
     }
   }
   

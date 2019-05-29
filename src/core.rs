@@ -28,6 +28,7 @@ use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
 use crate::vulkan::check_errors;
 
 use cgmath::{Vector2, Vector3};
+use winit::dpi::LogicalPosition;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -620,6 +621,10 @@ impl CoreRender for CoreMaat {
               self.texture_shader.reset_camera(window_size.width as f32, window_size.height as f32);
             }
           },
+          DrawType::SetCursorPosition(ref pos) => {
+            let (x,y) = pos.clone();
+            self.set_cursor_position(x,y);
+          }
           draw => {
             model_draw_calls.push(draw);
           }
@@ -816,8 +821,8 @@ impl CoreRender for CoreMaat {
     self.resources.pending_objects_loaded()
   }
   
-  fn set_cursor_position(&mut self, _x: f32, _y: f32) {
-    
+  fn set_cursor_position(&mut self, x: f32, y: f32) {
+    self.window.set_cursor_position(LogicalPosition::new(x as f64, y as f64));
   }
   
   fn show_cursor(&mut self) {
