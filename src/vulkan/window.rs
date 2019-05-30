@@ -4,8 +4,6 @@ use winit;
 use crate::math;
 use crate::Settings;
 
-use crate::vulkan::loader::Loader;
-use crate::vulkan::loader::FunctionPointers;
 use crate::vulkan::sync::Semaphore;
 use crate::vulkan::Swapchain;
 use crate::vulkan::Instance;
@@ -25,7 +23,6 @@ use std::borrow::Borrow;
 
 use winit::dpi::{LogicalSize, LogicalPosition};
 
-use crate::vulkan::ownage::OwnedOrRef;
 use crate::vulkan::ownage::check_errors;
 
 #[cfg(target_os = "macos")]
@@ -36,8 +33,6 @@ use cocoa::base::id as cocoa_id;
 use metal::CoreAnimationLayer;
 #[cfg(target_os = "macos")]
 use objc::runtime::YES;
-
-use crate::ENGINE_VERSION;
 
 #[cfg(target_os = "android")]
 unsafe fn create_surface(
@@ -345,7 +340,10 @@ impl VkWindow {
   }
   
   pub fn set_cursor_position(&self, new_pos: LogicalPosition) {
-    self.window.set_cursor_position(new_pos);
+    if let Err(e) = self.window.set_cursor_position(new_pos) {
+      // TODO: Turn into real error
+      println!("Error: {}", e.to_string());
+    }
   }
   
   pub fn get_current_extent(&self) -> vk::Extent2D {
@@ -470,9 +468,6 @@ impl VkWindow {
     let mut graphics_family: i32 = -1;
     let mut present_family: i32 = -1;
     
-    let mut valid_graphics_family: i32 = -1;
-    let mut valid_presents_family: i32 = -1;
-    
     for i in 0..queue_family_properties.len() {
       let queue_family = &queue_family_properties[i];
       if queue_family.queueCount > 0 && VkWindow::has_graphics_bit(&queue_family.queueFlags) {
@@ -489,6 +484,9 @@ impl VkWindow {
         break;
       }
       /*
+      let mut valid_graphics_family: i32 = -1;
+      let mut valid_presents_family: i32 = -1;
+      
       println!("queue_family {}: flags: {}, gq: {}, pq: {}", i, queue_family.queueFlags, graphics_family, present_family);
       if graphics_family > 0 && present_family > 0 {
         valid_graphics_family = graphics_family;

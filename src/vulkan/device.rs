@@ -49,7 +49,7 @@ impl Device {
     self.non_coherent_atom_size
   }
   
-  pub fn min_buffer_align(&self, buffer: &vk::Buffer) -> u64 {
+  pub fn min_buffer_align(&self, _buffer: &vk::Buffer) -> u64 {
 //    let mem_req: Vec<> = unsafe { mem::uninitialized() }; 
   //  self.vk.GetBufferMemoryRequirements(self.device, *buffer, mem_req.as_mut_ptr());
     

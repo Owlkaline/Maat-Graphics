@@ -2,7 +2,7 @@ use crate::math;
 
 use cgmath;
 use cgmath::{dot, InnerSpace, SquareMatrix, PerspectiveFov, Deg, Vector2, Vector3, Vector4, Point3, Angle, 
-             EuclideanSpace, Matrix3, Matrix4};
+             EuclideanSpace, Matrix4};
 
 #[derive(Clone, PartialEq)]
 pub enum Direction {

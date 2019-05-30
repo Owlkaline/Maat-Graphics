@@ -252,6 +252,7 @@ impl CoreMaat {
     let graphics_queue = self.window.get_graphics_queue();
     
     {
+    /*
       fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
         let x = col.x.powf(2.2);
         let y = col.y.powf(2.2);
@@ -259,7 +260,7 @@ impl CoreMaat {
         let w = 1.0 - (1.0 - col.w).powf(2.2);
         
         ImVec4::new(x, y, z, w)
-      }
+      }*/
       
       let style = imgui.style_mut();
   /*   style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
@@ -311,9 +312,9 @@ impl CoreMaat {
       style.colors[ImGuiCol::NavWindowingDimBg as usize]      = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 0.20};
       style.colors[ImGuiCol::ModalWindowDimBg as usize]       = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 0.35};
 
-      for col in 0..style.colors.len() {
+     // for col in 0..style.colors.len() {
       //  style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-      }
+      //}
     }
     
     imgui.set_ini_filename(None);
@@ -633,7 +634,6 @@ impl CoreRender for CoreMaat {
     }
     
     let dpi = self.get_dpi_scale() as f32;
-    let position_input = true;
     
     if let Some(ui) = ui {
       let device = self.window.device();

@@ -1,10 +1,5 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
-//use std::io::prelude::*;
-//use std::path::Path;
-//use std::str::FromStr;
-
-//use std::fs;
 
 use std::env;
 use cgmath::Vector2;
