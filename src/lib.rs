@@ -99,7 +99,7 @@
 //! 
 //! 
 
-const ENGINE_VERSION: u32 = (0 as u32) << 22 | (6 as u32) << 12 | (0 as u32);
+const ENGINE_VERSION: u32 = (0 as u32) << 22 | (2 as u32) << 12 | (0 as u32);
 
 extern crate imgui_sys;
 pub extern crate imgui;
