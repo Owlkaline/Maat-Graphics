@@ -117,6 +117,7 @@ impl Camera {
   
   pub fn set_target(&mut self, point: Vector3<f32>) {
     self.target = point;
+    self.update_orbiting_camera();
   }
   
   pub fn change_zoom(&mut self, zoom_delta: f32, delta_time: f32) {
@@ -124,6 +125,11 @@ impl Camera {
     if self.zoom < 0.0 {
       self.zoom = 0.0;
     }
+    self.update_orbiting_camera();
+  }
+  
+  pub fn update_orbiting_camera(&mut self) {
+    self.position = self.target - self.zoom * self.front;
   }
   
   pub fn process_orbiting_camera_movement(&mut self, x_offset: f32, y_offset: f32) {
@@ -132,6 +138,8 @@ impl Camera {
     
     self.rotate_camera_horizontally(x_offset);
     self.rotate_camera_vertically(y_offset);
+    
+    self.update_orbiting_camera();
   }
   
   pub fn rotate_camera_horizontally(&mut self, angle_delta: f32) {
@@ -153,7 +161,6 @@ impl Camera {
                    self.right.x * rotation_matrix[1][0] + self.right.y * rotation_matrix[1][1] + self.right.z*rotation_matrix[1][2],
                    self.right.x * rotation_matrix[2][0] + self.right.y * rotation_matrix[2][1] + self.right.z*rotation_matrix[2][2]
                    );
-    self.position = self.target - self.zoom * self.front;
   }
   
   pub fn rotate_camera_vertically(&mut self, mut angle_delta: f32) {
@@ -180,7 +187,6 @@ impl Camera {
                    self.up.x * rotation_matrix[1][0] + self.up.y * rotation_matrix[1][1] + self.up.z*rotation_matrix[1][2],
                    self.up.x * rotation_matrix[2][0] + self.up.y * rotation_matrix[2][1] + self.up.z*rotation_matrix[2][2]
                    );
-    self.position = self.target - self.zoom * self.front;
   }
   
   // First Person Camera

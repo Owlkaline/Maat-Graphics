@@ -196,6 +196,7 @@ pub struct TextureShader {
   fragment_shader_imgui: Option<Shader>,
   imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
   imgui_index_buffer: Option<Vec<Buffer<u32>>>,
+  imgui_update_timer: i32,
   
   msaa: SampleCount,
   scale: f32,
@@ -351,6 +352,7 @@ impl TextureShader {
       fragment_shader_imgui: None,
       imgui_vertex_buffer: None,
       imgui_index_buffer: None,
+      imgui_update_timer: 0,
       
       msaa: *msaa,
       scale: 1.0,
@@ -749,13 +751,15 @@ impl TextureShader {
     });
     
     if let Some(index_buffer) = &mut self.imgui_index_buffer {
-      if index_buffer[current_buffer].internal_data().len() != index_data.len() {
+      self.imgui_update_timer += 1;
+      if index_buffer[current_buffer].internal_data().len() != index_data.len() || self.imgui_update_timer < 0 {
         index_buffer[current_buffer].destroy(Arc::clone(&device));
         index_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, index_data);
         if let Some(vertex_buffer) = &mut self.imgui_vertex_buffer {
           vertex_buffer[current_buffer].destroy(Arc::clone(&device));
           vertex_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vertex_data);
         }
+        self.imgui_update_timer = -(index_buffer.len() as i32);
       }
     }
     
