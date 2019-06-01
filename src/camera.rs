@@ -120,6 +120,11 @@ impl Camera {
     self.update_orbiting_camera();
   }
   
+  pub fn set_zoom(&mut self, new_zoom: f32) {
+    self.zoom = new_zoom;
+    self.update_orbiting_camera();
+  }
+  
   pub fn change_zoom(&mut self, zoom_delta: f32, delta_time: f32) {
     self.zoom += zoom_delta*delta_time;
     if self.zoom < 0.0 {

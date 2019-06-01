@@ -53,7 +53,7 @@ void main() {
     discard;
   }
   
-  if (drawing_ui > 0.5) {
+  if (drawing_ui > 0.0) {
     final_colour.a = 1.0;
   }
   
