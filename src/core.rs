@@ -715,6 +715,10 @@ impl CoreRender for CoreMaat {
             self.resources.unload_model_from_reference(Arc::clone(&device), reference.to_string());
             self.model_shader.remove_model(Arc::clone(&device), reference);
           },
+          DrawType::SetLight(ref info) => {
+            let (position, colour, intensity) = info.clone();
+            self.model_shader.set_light(position, colour, intensity);
+          }
           _ => {}
         }
       }

@@ -58,6 +58,8 @@ pub enum DrawType {
   DrawDrawcallSet,
   RemoveDrawcallSet,
   
+  SetLight((Vector3<f32>, Vector3<f32>, f32)),
+  
   SetTextureScale(f32),
   
   NewResolution(Vector2<i32>),
@@ -285,6 +287,13 @@ impl DrawCall {
     DrawCall {
       draw_type: DrawType::DrawFont((font, display_text, position, scale, colour, outline_colour, edge_width, true, wrap_length, centered)),
       coloured: true,
+    }
+  }
+  
+  pub fn set_light(position: Vector3<f32>, colour: Vector3<f32>, intensity: f32) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::SetLight((position, colour, intensity)),
+      coloured: false,
     }
   }
   

@@ -105,6 +105,8 @@ extern crate imgui_sys;
 pub extern crate imgui;
 extern crate imgui_winit_support;
 
+pub extern crate winit;
+
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;

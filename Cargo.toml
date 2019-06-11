@@ -9,7 +9,6 @@ crate-type = ["dylib", "rlib"]
 
 [dependencies]
 vk = { version = "0.4.0", package = "vk-sys" }
-gltf = "0.11.3"
 image = "0.21.0"
 winit = "0.19.1"
 base64 = "*"
@@ -19,6 +18,10 @@ libc = "0.2.44"
 imgui-sys = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
 imgui = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
 imgui-winit-support = { version = "0.0.24-pre", git = "https://github.com/Gekkio/imgui-rs" }
+
+[dependencies.gltf]
+version = "0.12"
+features = ["extras", "names"]
 
 [dependencies.cgmath]
 version = "0.17.0"

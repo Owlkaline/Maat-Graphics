@@ -21,6 +21,29 @@ const MAX_INSTANCES: usize = 2048;
 const _INSTANCED_SIZE: usize = 16;
 
 #[derive(Clone)]
+pub struct Light {
+  pos: Vector3<f32>,
+  colour: Vector3<f32>,
+  intensity: f32,
+}
+
+impl Light {
+  pub fn new() -> Light {
+    Light {
+      pos: Vector3::new(0.0, 0.0, 0.0),
+      colour: Vector3::new(1.0, 1.0, 1.0),
+      intensity: 100.0,
+    }
+  }
+  
+  pub fn update(&mut self, position: Vector3<f32>, colour: Vector3<f32>, intensity: f32) {
+    self.pos = position;
+    self.colour = colour;
+    self.intensity = intensity;
+  }
+}
+
+#[derive(Clone)]
 pub struct ModelVertex {
   pos: Vector3<f32>,
   normal: Vector3<f32>,
@@ -414,17 +437,18 @@ pub struct ModelShader {
   camera: camera::Camera,
   
   scanline: f32,
+  light: Light,
 }
 
 impl ModelShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue, msaa: &SampleCount) -> ModelShader {
-    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
-    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
+    //let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
+    //let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
     let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedVert.spv"));
     let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedFrag.spv"));
     
-    //let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingVert.spv"));
-    //let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingFrag.spv"));
+    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingVert.spv"));
+    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
@@ -550,6 +574,7 @@ impl ModelShader {
       camera,
       
       scanline: 0.0,
+      light: Light::new(),
     }
   }
   
@@ -558,6 +583,10 @@ impl ModelShader {
     if self.scanline > 10000.0 {
       self.scanline = 0.0;
     }
+  }
+  
+  pub fn set_light(&mut self, position: Vector3<f32>, colour: Vector3<f32>, intensity: f32) {
+    self.light.update(position, colour, intensity);
   }
   
   pub fn set_camera(&mut self, camera: camera::Camera) {
@@ -640,6 +669,8 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size(Arc::clone(&device));
     
     let pipeline = PipelineBuilder::new()
@@ -681,6 +712,11 @@ impl ModelShader {
   
   fn create_instanced_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, msaa: &SampleCount) -> (Pipeline, Pipeline) {
     let push_constant_size = UniformData::new()
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -849,6 +885,8 @@ impl ModelShader {
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
       let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, 0.0);
+      let light_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, 0.0);
+      let light_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, self.light.intensity);
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -866,7 +904,9 @@ impl ModelShader {
                                  .add_vector4(camera_up)
                                  .add_vector4(model)
                                  .add_vector4(rotation)
-                                 .add_vector4(hologram);
+                                 .add_vector4(hologram)
+                                 .add_vector4(light_position)
+                                 .add_vector4(light_colour);
         
         cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
         
@@ -952,6 +992,11 @@ impl ModelShader {
       let camera_position    = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
       let camera_center      = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
       let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0);
+      let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, 0.0);
+      let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, self.light.intensity);
+      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 0.0);
+      let light2_colour       = Vector4::new(0.0, 0.0, 0.0, 0.0);
+      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 0.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -966,7 +1011,12 @@ impl ModelShader {
         let push_constant_data = UniformData::new()
                                  .add_vector4(camera_position)
                                  .add_vector4(camera_center)
-                                 .add_vector4(camera_up);
+                                 .add_vector4(camera_up)
+                                 .add_vector4(light1_position)
+                                 .add_vector4(light1_colour)
+                                 .add_vector4(light2_position)
+                                 .add_vector4(light2_colour)
+                                 .add_vector4(light3_position);
         
         cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
         
