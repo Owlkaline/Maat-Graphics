@@ -850,7 +850,13 @@ impl ModelShader {
   }
   
   pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, model_reference: String) {
-        
+    
+    for i in 0..self.instanced_cpu_buffers.len() {
+      if self.instanced_cpu_buffers[i].0 == model_reference.to_string() {
+        return;
+      }
+    }
+    
     let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*16);
     for _ in 0..(MAX_INSTANCES*16) {
       instanced_data.push(0.0);

@@ -706,6 +706,12 @@ impl CoreRender for CoreMaat {
               self.model_shader.set_mouse_sensitivity(*mouse_sensitivity);
             }
           },
+          DrawType::AddInstancedModelBuffer(ref info) => {
+            let reference = info.clone();
+            let instance = self.window.instance();
+            let num_frames = self.fences.len() as u32;
+            self.model_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
+          },
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
             self.resources.load_model_from_reference(reference);

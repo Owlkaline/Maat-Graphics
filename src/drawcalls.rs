@@ -27,6 +27,7 @@ pub enum DrawType {
   // Ref, position, scale, colour, rotation
   DrawCustomShapeColoured((String, Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   
+  AddInstancedModelBuffer((String)),
   AddInstancedColoured,
   // Ref, Position, Scale, Rotation
   AddInstancedTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
@@ -196,6 +197,13 @@ impl DrawCall {
     DrawCall {
       draw_type: DrawType::DrawInstanced((buffer_reference, texture_reference)),
       coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_model_buffer(reference: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedModelBuffer(reference),
+      coloured: false,
     }
   }
   
