@@ -19,7 +19,7 @@ layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_world_pos;
 layout(location = 6) out vec3 v_camera_pos;
-layout(location = 7) out vec4 v_light_pos[3];
+layout(location = 7) out vec3 v_light_pos[3];
 layout(location = 10) out vec4 v_light_col[3];
 layout(location = 13) out vec3 v_to_light[3];
 layout(location = 16) out vec3 v_scanline;
@@ -38,10 +38,10 @@ layout(set = 0, binding = 0) uniform UniformBuffer {
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, aspect
-  vec4 c_up;       // x, y, z, 
-  vec4 light1_position; // x, y, z, intensity
+  vec4 c_up;       // x, y, z, intensity3
+  vec4 light1_position; // x, y, z, intensity1
   vec4 light1_colour; // r, g, b, light3_col_r
-  vec4 light2_position; // x,y,z, intensity
+  vec4 light2_position; // x,y,z, intensity2
   vec4 light2_colour; // r, g, b, light3_col_g
   vec4 light3_position; // x,y,z, light3_col_b
 } push_constants;
@@ -163,12 +163,12 @@ void main() {
   v_to_light[0] = push_constants.light1_position.xyz - local_pos;
   v_to_light[1] = push_constants.light2_position.xyz - local_pos;
   v_to_light[2] = push_constants.light3_position.xyz - local_pos;
-  v_light_pos[0] = push_constants.light1_position;
-  v_light_pos[1] = push_constants.light3_position;
-  v_light_pos[2] = push_constants.light3_position;
-  v_light_col[0] = push_constants.light1_colour;
-  v_light_col[1] = push_constants.light2_colour;
-  v_light_col[2] = vec4(push_constants.light1_colour.w, push_constants.light2_colour.w, push_constants.light3_position.w, 0.0);
+  v_light_pos[0] = push_constants.light1_position.xyz;
+  v_light_pos[1] = push_constants.light2_position.xyz;
+  v_light_pos[2] = push_constants.light3_position.xyz;
+  v_light_col[0] = vec4(push_constants.light1_colour.xyz, push_constants.light1_position.w);
+  v_light_col[1] = vec4(push_constants.light2_colour.xyz, push_constants.light2_position.w);
+  v_light_col[2] = vec4(push_constants.light1_colour.w, push_constants.light2_colour.w, push_constants.light3_position.w, push_constants.c_up.w);
   
   v_camera_pos = push_constants.c_position.rgb;
   

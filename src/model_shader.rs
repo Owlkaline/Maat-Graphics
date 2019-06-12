@@ -997,12 +997,12 @@ impl ModelShader {
       
       let camera_position    = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
       let camera_center      = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
-      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0);
-      let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, 0.0);
-      let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, self.light.intensity);
-      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 0.0);
-      let light2_colour       = Vector4::new(0.0, 0.0, 0.0, 0.0);
-      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 0.0);
+      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0); // x, y, z, intensity3
+      let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, self.light.intensity); //xyz1 intensity1
+      let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, 1.0); // rgb1, r3
+      let light2_position     = Vector4::new(1.0, 1.0, 1.0, 1.0); // xyz2 intensity2
+      let light2_colour       = Vector4::new(1.0, 1.0, 1.0, 1.0); // rgb2, g3
+      let light3_position     = Vector4::new(1.0, 1.0, 1.0, 1.0);//xyz3, b3
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];

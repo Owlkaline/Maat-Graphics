@@ -7,7 +7,7 @@ layout(location = 3) in vec4 v_alpha_cutoff;
 layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_world_pos;
 layout(location = 6) in vec3 v_camera_pos;
-layout(location = 7) in vec4 v_light_pos[3];
+layout(location = 7) in vec3 v_light_pos[3];
 layout(location = 10) in vec4 v_light_col[3];
 layout(location = 13) in vec3 v_to_light[3];
 layout(location = 16) in vec3 v_scanline;
@@ -119,7 +119,7 @@ void main() {
   L[1] = normalize(v_to_light[1]);
   L[2] = normalize(v_to_light[2]);
   
-  vec3 base_colour = vec3(0.0);
+  vec3 base_colour = vec3(1.0);
   float alpha = v_colour.a;
   
   vec4 use_base_texture = when_gt(vec4(v_use_textures.x), vec4(0.0));
@@ -146,9 +146,10 @@ void main() {
     }
   }
   
-  for(int i = 0; i < 4; ++i) {
-    Lo += BRDF(L[i], V, N, v_mr.x, v_mr.y, v_light_pos[i].xyz, v_light_col[i].xyz, v_light_pos[i].w);
-  }
+  Lo += BRDF(L[0], V, N, v_mr.x, v_mr.y, v_light_pos[0], v_light_col[0].xyz, v_light_col[0].w);
+ /* for(int i = 0; i < 3; ++i) {
+    Lo += BRDF(L[i], V, N, v_mr.x, v_mr.y, v_light_pos[i], v_light_col[i].xyz, v_light_pos[i].w);
+  }*/
   
   base_colour *= 0.02;
   base_colour += Lo;
