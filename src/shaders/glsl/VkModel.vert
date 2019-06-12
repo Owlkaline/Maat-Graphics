@@ -27,7 +27,16 @@ layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 mro_factors; // metallic_factor, roughness_factor, occlusion_string, _
   vec4 emissive_factor; // r, g, b, _
 } uniforms;
-
+/*
+layout(set = 0, binding = 1) uniform UniformBuffer {
+  vec4 light1_position; // x, y, z, intensity1
+  vec4 light1_colour; // r, g, b, 
+  vec4 light2_position; // x,y,z, intensity2
+  vec4 light2_colour; // r, g, b, 
+  vec4 light3_position; // x,y,z, intensity3
+  vec4 light3_colour; // r,g,b, 
+} light_uniforms;
+*/
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, aspect

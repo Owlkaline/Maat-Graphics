@@ -36,6 +36,14 @@ impl Light {
     }
   }
   
+  pub fn off() -> Light {
+    Light {
+      pos: Vector3::new(0.0, 0.0, 0.0),
+      colour: Vector3::new(0.0, 0.0, 0.0),
+      intensity: 0.0,
+    }
+  }
+  
   pub fn update(&mut self, position: Vector3<f32>, colour: Vector3<f32>, intensity: f32) {
     self.pos = position;
     self.colour = colour;
@@ -201,7 +209,7 @@ struct Model {
 }
 
 impl Model {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) -> Model {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, light_uniform_buffer: &mut Buffer<f32>, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) -> Model {
     let num_models = model.num_models();
     
     let mut vertex_buffers = Vec::with_capacity(num_models);
@@ -334,16 +342,19 @@ impl Model {
       let descriptor_set;
       descriptor_set = DescriptorSetBuilder::new()
                            .vertex_uniform_buffer(0)
+                         //  .vertex_uniform_buffer(1)
                            .fragment_combined_image_sampler(1)
                            .build(Arc::clone(&device), &descriptor_set_pool, 1);
       if let Some(ref texture) = &base_textures[i] {
         UpdateDescriptorSets::new()
              .add_built_uniformbuffer(0, &mut uniform_buffer)
+          //   .add_built_uniformbuffer(1, light_uniform_buffer)
              .add_sampled_image(1, &texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
              .finish_update(Arc::clone(&device), &descriptor_set);
       } else {
         UpdateDescriptorSets::new()
              .add_built_uniformbuffer(0, &mut uniform_buffer)
+          //   .add_built_uniformbuffer(1, light_uniform_buffer)
              .add_sampled_image(1, &dummy_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
              .finish_update(Arc::clone(&device), &descriptor_set);
       }
@@ -415,6 +426,8 @@ pub struct ModelShader {
   framebuffer_depth_images: Vec<ImageAttachment>,
   descriptor_sets: Vec<DescriptorSet>,
   dummy_uniform_buffer: Buffer<f32>,
+  
+  light_uniform_buffer: Buffer<f32>,
   
   models: Vec<Model>,
   
@@ -504,6 +517,26 @@ impl ModelShader {
       ModelShader::create_frame_buffers(Arc::clone(&instance), Arc::clone(&device), &render_pass, 
                                         current_extent, format, msaa, image_views.len(), command_pool, 
                                         graphics_queue);
+    let mut light_uniform_buffer = UniformBufferBuilder::new().add_vector4().build(Arc::clone(&instance), Arc::clone(&device), 1);
+     light_uniform_buffer.destroy(Arc::clone(&device));
+    light_uniform_buffer = UniformBufferBuilder::new()
+        .set_binding(1)
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .add_vector4()
+        .build(Arc::clone(&instance), Arc::clone(&device), 1);
+         
+      let mut light_uniform_data = UniformData::new()
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 200.0))
+                           .add_vector4(Vector4::new(1.0, 0.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 200.0))
+                           .add_vector4(Vector4::new(0.0, 1.0, 0.0, 0.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 0.0, 200.0))
+                           .add_vector4(Vector4::new(0.0, 0.0, 1.0, 0.0));
+    light_uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), light_uniform_data.build(Arc::clone(&device)));
     
     let mut descriptor_sets = Vec::new();
     let mut uniform_buffer = UniformBufferBuilder::new().add_vector4().build(Arc::clone(&instance), Arc::clone(&device), 1);
@@ -522,7 +555,7 @@ impl ModelShader {
         .add_vector4()
         .add_vector4()
         .build(Arc::clone(&instance), Arc::clone(&device), 1);
-         
+      
       let uniform_data = UniformData::new()
                            .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                            .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -532,6 +565,7 @@ impl ModelShader {
       
       UpdateDescriptorSets::new()
         .add_uniformbuffer(Arc::clone(&device), 0, &mut uniform_buffer, uniform_data)
+       // .add_built_uniformbuffer(1, &mut light_uniform_buffer)
         .add_sampled_image(1, &texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
        .finish_update(Arc::clone(&device), &descriptor_sets[i]);
     }
@@ -552,6 +586,8 @@ impl ModelShader {
       framebuffer_depth_images,
       descriptor_sets,
       dummy_uniform_buffer: uniform_buffer,
+      
+      light_uniform_buffer: light_uniform_buffer,
       
       models: Vec::new(),
       
@@ -618,7 +654,7 @@ impl ModelShader {
   }
   
   pub fn add_model(&mut self, instance: Arc<Instance>, device: Arc<Device>, reference: String, model: ModelDetails, base_textures: Vec<Option<ImageAttachment>>, dummy_texture: &ImageAttachment, command_pool: &CommandPool, descriptor_set_pool: &DescriptorPool, sampler: &Sampler, graphics_queue: &vk::Queue) {
-    self.models.push(Model::new(Arc::clone(&instance), Arc::clone(&device), reference, model, base_textures, dummy_texture, command_pool, descriptor_set_pool, sampler, graphics_queue));
+    self.models.push(Model::new(Arc::clone(&instance), Arc::clone(&device), reference, model, &mut self.light_uniform_buffer, base_textures, dummy_texture, command_pool, descriptor_set_pool, sampler, graphics_queue));
   }
   
   pub fn remove_model(&mut self, device: Arc<Device>, reference: String) {
@@ -891,8 +927,10 @@ impl ModelShader {
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
       let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, 0.0);
-      let light_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, 0.0);
-      let light_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, self.light.intensity);
+      //let light_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, 0.0);
+      //let light_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, self.light.intensity);
+      let light_position    = Vector4::new(0.0, 0.0, 0.0, 0.0);
+      let light_colour    = Vector4::new(1.0, 0.0, 0.0, 200.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -997,12 +1035,14 @@ impl ModelShader {
       
       let camera_position    = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
       let camera_center      = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
-      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0); // x, y, z, intensity3
-      let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, self.light.intensity); //xyz1 intensity1
-      let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, 1.0); // rgb1, r3
-      let light2_position     = Vector4::new(1.0, 1.0, 1.0, 1.0); // xyz2 intensity2
-      let light2_colour       = Vector4::new(1.0, 1.0, 1.0, 1.0); // rgb2, g3
-      let light3_position     = Vector4::new(1.0, 1.0, 1.0, 1.0);//xyz3, b3
+      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     200.0); // x, y, z, intensity3
+     // let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, self.light.intensity); //xyz1 intensity1
+     // let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, 0.0); // rgb1, r3
+      let light1_position     = Vector4::new(0.0, 0.0, 0.0, 200.0);
+      let light1_colour       = Vector4::new(1.0, 0.0, 0.0, 0.0);
+      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 200.0); // xyz2 intensity2
+      let light2_colour       = Vector4::new(0.0, 1.0, 0.0, 0.0); // rgb2, g3
+      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 1.0);//xyz3, b3
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];

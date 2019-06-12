@@ -146,10 +146,10 @@ void main() {
     }
   }
   
-  Lo += BRDF(L[0], V, N, v_mr.x, v_mr.y, v_light_pos[0], v_light_col[0].xyz, v_light_col[0].w);
- /* for(int i = 0; i < 3; ++i) {
-    Lo += BRDF(L[i], V, N, v_mr.x, v_mr.y, v_light_pos[i], v_light_col[i].xyz, v_light_pos[i].w);
-  }*/
+ // Lo += BRDF(L[0], V, N, v_mr.x, v_mr.y, v_light_pos[0], v_light_col[0].xyz, v_light_col[0].w);
+  for(int i = 0; i < 3; ++i) {
+    Lo += BRDF(L[i], V, N, v_mr.x, v_mr.y, v_light_pos[i], v_light_col[i].xyz, v_light_col[i].w);
+  }
   
   base_colour *= 0.02;
   base_colour += Lo;
