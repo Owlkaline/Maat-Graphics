@@ -185,12 +185,30 @@ impl CoreMaat {
           color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
         },
         vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
           depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
         }
         
       )
     } else {
       vec!(
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
         vk::ClearValue {
           color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
         },

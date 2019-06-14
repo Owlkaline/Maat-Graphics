@@ -621,18 +621,25 @@ impl PipelineBuilder {
       }
     };
     
-    let pipeline_color_blend_attachments = {
-      vk::PipelineColorBlendAttachmentState {
-        blendEnable: self.blend_enabled.to_bits(),
-        srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
-        dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
-        colorBlendOp: BlendOp::Add.to_bits(),
-        srcAlphaBlendFactor: BlendFactor::SrcAlpha.to_bits(),
-        dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
-        alphaBlendOp: BlendOp::Add.to_bits(),
-        colorWriteMask: ColourComponent::R.to_bits() | ColourComponent::G.to_bits() | ColourComponent::B.to_bits() | ColourComponent::A.to_bits(),
-      }
-    };
+    let num_attachments = if let Some(renderpass) = &self.render_pass { renderpass.get_num_colour_attachments() } else { 1 };
+    
+    let mut pipeline_colour_blend_attachments: Vec<vk::PipelineColorBlendAttachmentState> = Vec::with_capacity(num_attachments as usize);
+    
+    
+    for i in 0..num_attachments {
+      pipeline_colour_blend_attachments.push(
+        vk::PipelineColorBlendAttachmentState {
+          blendEnable: self.blend_enabled.to_bits(),
+          srcColorBlendFactor: BlendFactor::SrcAlpha.to_bits(),
+          dstColorBlendFactor: BlendFactor::OneMinusSrcAlpha.to_bits(),
+          colorBlendOp: BlendOp::Add.to_bits(),
+          srcAlphaBlendFactor: BlendFactor::SrcAlpha.to_bits(),
+          dstAlphaBlendFactor: BlendFactor::Zero.to_bits(),
+          alphaBlendOp: BlendOp::Add.to_bits(),
+          colorWriteMask: ColourComponent::R.to_bits() | ColourComponent::G.to_bits() | ColourComponent::B.to_bits() | ColourComponent::A.to_bits(),
+        }
+      );
+    }
     
     let pipeline_colour_blend_state_create_info = {
       vk::PipelineColorBlendStateCreateInfo {
@@ -641,8 +648,8 @@ impl PipelineBuilder {
         flags: 0,
         logicOpEnable: vk::FALSE,
         logicOp: LogicOp::Copy.to_bits(),
-        attachmentCount: 1,
-        pAttachments: &pipeline_color_blend_attachments,
+        attachmentCount: num_attachments as u32,
+        pAttachments: pipeline_colour_blend_attachments.as_ptr(),
         blendConstants: self.blend_constants,
       }
     };

@@ -659,7 +659,8 @@ impl TextureShader {
     cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
                              &self.index_buffer.internal_object(0),
                              index_count, &self.texture_pipeline,
-                             vec!(*descriptor.set(0)))
+                             vec!(*descriptor.set(0)),
+                             Vec::with_capacity(0))
   }
   
   pub fn draw_text(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, display_text: String, font: String, position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, wrap_length: u32, centered: bool, font_details: GenericFont, window_width: f32, window_height: f32) -> CommandBufferBuilder {
@@ -705,7 +706,8 @@ impl TextureShader {
       cmd = cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
                                &self.index_buffer.internal_object(0),
                                index_count, &self.text_pipeline,
-                               vec!(*descriptor.set(0)))
+                               vec!(*descriptor.set(0)),
+                                 Vec::with_capacity(0))
     }
     
     cmd
@@ -775,7 +777,8 @@ impl TextureShader {
                                   &vertex_buffer[current_buffer].internal_object(0),
                                   &index_buffer[current_buffer].internal_object(0),
                                   index_base as u32, &pipeline,
-                                  vec!(*descriptor.set(0)))
+                                  vec!(*descriptor.set(0)),
+                                 Vec::with_capacity(0))
         }
       }
     }

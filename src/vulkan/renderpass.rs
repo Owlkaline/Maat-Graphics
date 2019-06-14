@@ -12,13 +12,15 @@ use std::sync::Arc;
 pub struct RenderPass {
   render_pass: vk::RenderPass,
   num_attachments: u32,
+  num_colour_attachments: u32,
 }
 
 impl RenderPass {
-  pub fn new_from_renderpass(render_pass: vk::RenderPass, num_attachments: u32) -> RenderPass {
+  pub fn new_from_renderpass(render_pass: vk::RenderPass, num_attachments: u32, num_colour_attachments: u32) -> RenderPass {
     RenderPass {
       render_pass,
       num_attachments,
+      num_colour_attachments,
     }
   }
   
@@ -110,7 +112,8 @@ impl RenderPass {
     
     RenderPass {
       render_pass,
-      num_attachments: 1,
+      num_attachments: colour_attachments.len() as u32,
+      num_colour_attachments: colour_attachments.len() as u32,
     }
   }
   
@@ -120,6 +123,10 @@ impl RenderPass {
   
   pub fn get_num_attachments(&self) -> u32 {
     self.num_attachments
+  }
+  
+  pub fn get_num_colour_attachments(&self) -> u32 {
+    self.num_colour_attachments
   }
   
   pub fn destroy(&self, device: Arc<Device>) {

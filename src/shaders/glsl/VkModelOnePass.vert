@@ -27,11 +27,11 @@ layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 mro_factors; // metallic_factor, roughness_factor, occlusion_string, _
   vec4 emissive_factor; // r, g, b, _
 } uniforms;
-/*
+
 layout(set = 0, binding = 1) uniform UniformBuffer {
   vec4 light1_position[50]; // x, y, z, intensity1
   vec4 light1_colour[50]; // r, g, b, 
-} light_uniforms;*/
+} light_uniforms;
 
 /*
 layout(set = 0, binding = 1) uniform UniformBuffer {

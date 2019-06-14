@@ -15,11 +15,8 @@ layout(location = 11) in vec4 v_use_textures;
 layout(location = 12) in vec2 v_mr;
 
 layout(location = 0) out vec4 outColour;
-layout(location = 1) out vec4 outMro;
-layout(location = 2) out vec4 outEmissive;
-layout(location = 3) out vec4 outNormal;
 
-layout(set = 0, binding = 1) uniform sampler2D base_texture;
+layout(set = 0, binding = 2) uniform sampler2D base_texture;
 
 const float M_PI = 3.141592653589793;
 
@@ -156,9 +153,6 @@ void main() {
           not(use_scanline).a * alpha;
   
   outColour = vec4(base_colour, alpha);
-  outMro = vec4(v_mr.x, v_mr.y, 0.0, 1.0);
-  outEmissive = vec4(0.0, 0.0, 0.0, 0.0);
-  outNormal = vec4(normalize(v_normal), 1.0);
   /*
   vec3 base_colour = vec3(1.0);
   float alpha = v_colour.a;

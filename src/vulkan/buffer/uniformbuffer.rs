@@ -211,6 +211,11 @@ impl UniformBufferBuilder {
   
   pub fn build(&self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) -> Buffer<f32> {
     let usage = BufferUsage::uniform_buffer();
+    let uniform_buffer = self.build_buffer(Arc::clone(&instance), Arc::clone(&device), usage, num_sets);
+    uniform_buffer
+  }
+  
+  fn build_buffer(&self, instance: Arc<Instance>, device: Arc<Device>, usage: BufferUsage, num_sets: u32) -> Buffer<f32> {
     let mut data: Vec<f32> = Vec::new();
     for ty in &self.uniform_ty {
       match ty {

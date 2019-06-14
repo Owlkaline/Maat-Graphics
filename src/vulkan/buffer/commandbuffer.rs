@@ -169,11 +169,14 @@ impl CommandBuffer {
     }
   }
   
-  pub fn bind_graphics_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>) {
+  pub fn bind_graphics_descriptor_set(&self, device: Arc<Device>, pipeline: &Pipeline, descriptor_set: Vec<vk::DescriptorSet>, dynamic_offsets: Vec<u32>) {
     let vk = device.pointers();
     
     unsafe {
-      vk.CmdBindDescriptorSets(self.command_buffer, PipelineBindPoint::Graphics.to_bits(), *pipeline.layout(), 0, descriptor_set.len() as u32, descriptor_set.as_ptr(), 0, ptr::null());
+      vk.CmdBindDescriptorSets(self.command_buffer, PipelineBindPoint::Graphics.to_bits(), *pipeline.layout(), 0,
+                               descriptor_set.len() as u32, descriptor_set.as_ptr(), 
+                               dynamic_offsets.len() as u32, 
+                               if dynamic_offsets.len() == 0 { ptr::null() } else { dynamic_offsets.as_ptr() });
     }
   }
   

@@ -30,6 +30,7 @@ pub struct DescriptorSetBuilder {
 
 pub struct UpdateDescriptorSets<'a> {
   uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
+  dynamic_uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
   images: Vec<(u32, &'a ImageAttachment, ImageLayout, Option<&'a Sampler>, DescriptorType)>,
 }
 
@@ -37,6 +38,7 @@ impl<'a> UpdateDescriptorSets<'a> {
   pub fn new() -> UpdateDescriptorSets<'a> {
     UpdateDescriptorSets {
       uniform_buffers: Vec::new(),
+      dynamic_uniform_buffers: Vec::new(),
       images: Vec::new(),
     }
   }
@@ -51,6 +53,19 @@ impl<'a> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
     self.uniform_buffers.push((binding, uniform_buffer));
+    self
+  }
+  
+  pub fn add_built_dynamicuniformbuffer(mut self, binding: u32, uniform_buffer: &'a mut Buffer<f32>) -> UpdateDescriptorSets<'a> {
+    self.dynamic_uniform_buffers.push((binding, uniform_buffer));
+    self
+  }
+  
+  
+  pub fn add_dyanmicuniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
+    let mut data = data;
+    uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
+    self.dynamic_uniform_buffers.push((binding, uniform_buffer));
     self
   }
   
@@ -77,7 +92,7 @@ impl<'a> UpdateDescriptorSets<'a> {
        descriptor_buffer_infos.push(   vk::DescriptorBufferInfo {
             buffer: *uniform_buffer.internal_object(j),
             offset: 0,
-            range: uniform_buffer.max_size(),
+            range: vk::WHOLE_SIZE,
           });
         
         write_descriptor_sets.push(
@@ -91,6 +106,30 @@ impl<'a> UpdateDescriptorSets<'a> {
             descriptorType: DescriptorType::UniformBuffer.to_bits(),
             pImageInfo: ptr::null(),
             pBufferInfo: &descriptor_buffer_infos[j*self.uniform_buffers.len()+i],
+            pTexelBufferView: ptr::null(),
+          }
+        );
+      }
+      
+      for i in 0..self.dynamic_uniform_buffers.len() {
+        let (binding, uniform_buffer) = self.dynamic_uniform_buffers[i];
+       descriptor_buffer_infos.push(   vk::DescriptorBufferInfo {
+            buffer: *uniform_buffer.internal_object(j),
+            offset: 0,
+            range: vk::WHOLE_SIZE,
+          });
+        
+        write_descriptor_sets.push(
+          vk::WriteDescriptorSet {
+            sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            pNext: ptr::null(),
+            dstSet: sets[j],
+            dstBinding: binding,
+            dstArrayElement: 0,
+            descriptorCount: 1,
+            descriptorType: DescriptorType::UniformBufferDynamic.to_bits(),
+            pImageInfo: ptr::null(),
+            pBufferInfo: &descriptor_buffer_infos[j*self.dynamic_uniform_buffers.len()+i],
             pTexelBufferView: ptr::null(),
           }
         );
@@ -172,6 +211,28 @@ impl DescriptorSetBuilder {
       DescriptorSetLayoutInfo {
         binding: binding_location,
         descriptor_type: DescriptorType::UniformBuffer,
+        shader_stage: ShaderStage::Fragment,
+      }
+    );
+    self
+  }
+  
+  pub fn vertex_dynamic_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::UniformBufferDynamic,
+        shader_stage: ShaderStage::Vertex,
+      }
+    );
+    self
+  }
+  
+  pub fn fragment_dyanmic_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::UniformBufferDynamic,
         shader_stage: ShaderStage::Fragment,
       }
     );

@@ -422,6 +422,9 @@ pub struct ModelShader {
   renderpass: RenderPass,
   framebuffers: Vec<Framebuffer>,
   framebuffer_colour_images: Vec<ImageAttachment>,
+  framebuffer_mro_images: Vec<ImageAttachment>,
+  framebuffer_emissive_images: Vec<ImageAttachment>,
+  framebuffer_normal_images: Vec<ImageAttachment>,
   framebuffer_msaa_images: Vec<ImageAttachment>,
   framebuffer_depth_images: Vec<ImageAttachment>,
   descriptor_sets: Vec<DescriptorSet>,
@@ -460,10 +463,42 @@ impl ModelShader {
     let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedVert.spv"));
     let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedFrag.spv"));
     
-    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingVert.spv"));
-    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelLightingFrag.spv"));
+    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
+    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
+                                .format(*format)
+                                .multisample(&SampleCount::OneBit)
+                                .load(AttachmentLoadOp::Clear)
+                                .store(AttachmentStoreOp::Store)
+                                .stencil_load(AttachmentLoadOp::DontCare)
+                                .stencil_store(AttachmentStoreOp::DontCare)
+                                .initial_layout(ImageLayout::Undefined)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
+                                .image_usage(ImageLayout::ColourAttachmentOptimal);
+    
+    let mro_attachment = AttachmentInfo::new()
+                                .format(*format)
+                                .multisample(&SampleCount::OneBit)
+                                .load(AttachmentLoadOp::Clear)
+                                .store(AttachmentStoreOp::Store)
+                                .stencil_load(AttachmentLoadOp::DontCare)
+                                .stencil_store(AttachmentStoreOp::DontCare)
+                                .initial_layout(ImageLayout::Undefined)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
+                                .image_usage(ImageLayout::ColourAttachmentOptimal);
+    let emissive_attachment = AttachmentInfo::new()
+                                .format(*format)
+                                .multisample(&SampleCount::OneBit)
+                                .load(AttachmentLoadOp::Clear)
+                                .store(AttachmentStoreOp::Store)
+                                .stencil_load(AttachmentLoadOp::DontCare)
+                                .stencil_store(AttachmentStoreOp::DontCare)
+                                .initial_layout(ImageLayout::Undefined)
+                                .final_layout(ImageLayout::ShaderReadOnlyOptimal)
+                                .image_usage(ImageLayout::ColourAttachmentOptimal);
+                                
+    let normal_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
                                 .load(AttachmentLoadOp::Clear)
@@ -496,24 +531,28 @@ impl ModelShader {
                                 .final_layout(ImageLayout::DepthStencilAttachmentOptimal)
                                 .image_usage(ImageLayout::DepthStencilAttachmentOptimal);
     
-    let mut subpass = SubpassInfo::new().add_colour_attachment(0);
+    let mut subpass = SubpassInfo::new().add_colour_attachment(0).add_colour_attachment(1).add_colour_attachment(2).add_colour_attachment(3);
     let mut render_pass = RenderPassBuilder::new();
     
-    let mut depth_index = 1;
+    let mut depth_index = 4;
     
     if msaa != &SampleCount::OneBit {
-      subpass = subpass.add_resolve_attachment(1);
+      subpass = subpass.add_resolve_attachment(4);
       render_pass = render_pass.add_attachment(msaa_attachment);
-      depth_index = 2;
+      depth_index = 5;
     }
     
     let subpass = subpass.add_depth_stencil(depth_index);
     let render_pass = render_pass.add_attachment(colour_attachment)
+                                 .add_attachment(mro_attachment)
+                                 .add_attachment(emissive_attachment)
+                                 .add_attachment(normal_attachment)
                                  .add_attachment(depth_attachment)
                                  .add_subpass(subpass)
                                  .build(Arc::clone(&device));
     
-    let (framebuffer_colour_images, framebuffer_msaa_images, framebuffer_depth_images, framebuffers) = 
+    let (framebuffer_colour_images, framebuffer_mro_images, framebuffer_emissive_images, framebuffer_normal_images,
+         framebuffer_msaa_images, framebuffer_depth_images, framebuffers) = 
       ModelShader::create_frame_buffers(Arc::clone(&instance), Arc::clone(&device), &render_pass, 
                                         current_extent, format, msaa, image_views.len(), command_pool, 
                                         graphics_queue);
@@ -582,6 +621,9 @@ impl ModelShader {
       renderpass: render_pass,
       framebuffers,
       framebuffer_colour_images,
+      framebuffer_mro_images,
+      framebuffer_emissive_images,
+      framebuffer_normal_images,
       framebuffer_msaa_images,
       framebuffer_depth_images,
       descriptor_sets,
@@ -671,6 +713,9 @@ impl ModelShader {
     for i in 0..self.framebuffers.len() {
       self.framebuffers[i].destroy(Arc::clone(&device));
       self.framebuffer_colour_images[i].destroy(Arc::clone(&device));
+      self.framebuffer_mro_images[i].destroy(Arc::clone(&device));
+      self.framebuffer_emissive_images[i].destroy(Arc::clone(&device));
+      self.framebuffer_normal_images[i].destroy(Arc::clone(&device));
       self.framebuffer_depth_images[i].destroy(Arc::clone(&device));
       
       if self.msaa != SampleCount::OneBit {
@@ -680,10 +725,16 @@ impl ModelShader {
     
     self.framebuffers.clear();
     self.framebuffer_colour_images.clear();
+    self.framebuffer_mro_images.clear();
+    self.framebuffer_emissive_images.clear();
+    self.framebuffer_normal_images.clear();
     self.framebuffer_msaa_images.clear();
     self.framebuffer_depth_images.clear();
     
-    let (framebuffer_colour_images, 
+    let (framebuffer_colour_images,
+         framebuffer_mro_images,
+         framebuffer_emissive_images,
+         framebuffer_normal_images,
          framebuffer_msaa_images, 
          framebuffer_depth_images, 
          framebuffers) = ModelShader::create_frame_buffers(Arc::clone(&instance), Arc::clone(&device), 
@@ -693,6 +744,9 @@ impl ModelShader {
     
     self.framebuffers = framebuffers;
     self.framebuffer_colour_images = framebuffer_colour_images;
+    self.framebuffer_mro_images = framebuffer_mro_images;
+    self.framebuffer_emissive_images = framebuffer_emissive_images;
+    self.framebuffer_normal_images = framebuffer_normal_images;
     self.framebuffer_msaa_images = framebuffer_msaa_images;
     self.framebuffer_depth_images = framebuffer_depth_images;
   }
@@ -845,14 +899,23 @@ impl ModelShader {
     Buffer::<ModelVertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, cube)
   }
   
-  fn create_frame_buffers(instance: Arc<Instance>, device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, format: &vk::Format, msaa: &SampleCount, num_image_views: usize, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<Framebuffer>) {
+  fn create_frame_buffers(instance: Arc<Instance>, device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, format: &vk::Format, msaa: &SampleCount, num_image_views: usize, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<Framebuffer>) {
     
     let mut framebuffer_colour_images = Vec::with_capacity(num_image_views);
+    let mut framebuffer_mro_images = Vec::with_capacity(num_image_views);
+    let mut framebuffer_emissive_images = Vec::with_capacity(num_image_views);
+    let mut framebuffer_normal_images = Vec::with_capacity(num_image_views);
     let mut framebuffer_msaa_images = Vec::with_capacity(num_image_views);
     let mut framebuffer_depth_images = Vec::with_capacity(num_image_views);
     
     for _ in 0..num_image_views {
       framebuffer_colour_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_input_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
+      
+      framebuffer_mro_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_input_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
+      
+      framebuffer_emissive_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_input_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
+      
+      framebuffer_normal_images.push(ImageAttachment::create_image_colour_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::transfer_src_colour_input_attachment_sampled(), &ImageLayout::Undefined, &SampleCount::OneBit, &ImageViewType::Type2D, format, swapchain_extent.width as u32, swapchain_extent.height as u32));
       
       framebuffer_depth_images.push(ImageAttachment::create_image_depth_attachment(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &ImageUsage::depth_stencil_attachment(), &ImageLayout::Undefined, msaa, &ImageViewType::Type2D, &vk::FORMAT_D32_SFLOAT, swapchain_extent.width as u32, swapchain_extent.height as u32));
       
@@ -861,7 +924,7 @@ impl ModelShader {
       }
     }
     
-    let mut framebuffers: Vec<Framebuffer> = Vec::with_capacity(framebuffer_colour_images.len());
+    let mut framebuffers: Vec<Framebuffer> = Vec::with_capacity(framebuffer_colour_images.len() + framebuffer_emissive_images.len() + framebuffer_mro_images.len() + framebuffer_normal_images.len());
     
     for i in 0..framebuffer_colour_images.len() {
       let mut temp_image_views = Vec::new();
@@ -871,6 +934,9 @@ impl ModelShader {
       }
       
       temp_image_views.push(framebuffer_colour_images[i].get_image_view().clone());
+      temp_image_views.push(framebuffer_mro_images[i].get_image_view().clone());
+      temp_image_views.push(framebuffer_emissive_images[i].get_image_view().clone());
+      temp_image_views.push(framebuffer_normal_images[i].get_image_view().clone());
       temp_image_views.push(framebuffer_depth_images[i].get_image_view().clone());
       
       let framebuffer: Framebuffer = Framebuffer::new_with_imageviews(Arc::clone(&device), render_pass, swapchain_extent, temp_image_views);
@@ -878,7 +944,8 @@ impl ModelShader {
       framebuffers.push(framebuffer)
     }
     
-    (framebuffer_colour_images, framebuffer_msaa_images, framebuffer_depth_images, framebuffers)
+    (framebuffer_colour_images, framebuffer_mro_images, framebuffer_emissive_images, framebuffer_normal_images,
+     framebuffer_msaa_images, framebuffer_depth_images, framebuffers)
   }
   
   pub fn begin_renderpass(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, clear_value: &Vec<vk::ClearValue>, window_size: &vk::Extent2D, current_buffer: usize) -> CommandBufferBuilder {
@@ -957,13 +1024,15 @@ impl ModelShader {
         if index_count == 0 {
           cmd = cmd.draw(Arc::clone(&device), &vertex.internal_object(0), vertex_count, 
                                  if double_sided { &self.double_pipeline } else { &self.pipeline },
-                                 vec!(*descriptor.set(0)));
+                                 vec!(*descriptor.set(0)),
+                                 Vec::with_capacity(0));
         } else {
           cmd = cmd.draw_indexed(Arc::clone(&device), &vertex.internal_object(0),
                                  &index.internal_object(0),
                                  index_count, 
                                  if double_sided { &self.double_pipeline } else { &self.pipeline },
-                                 vec!(*descriptor.set(0)));
+                                 vec!(*descriptor.set(0)),
+                                 Vec::with_capacity(0));
         }
       }
     }
@@ -1129,6 +1198,18 @@ impl ModelShader {
     }
     
     for images in &self.framebuffer_colour_images {
+      images.destroy(Arc::clone(&device));
+    }
+    
+    for images in &self.framebuffer_mro_images {
+      images.destroy(Arc::clone(&device));
+    }
+    
+    for images in &self.framebuffer_emissive_images {
+      images.destroy(Arc::clone(&device));
+    }
+    
+    for images in &self.framebuffer_normal_images {
       images.destroy(Arc::clone(&device));
     }
     

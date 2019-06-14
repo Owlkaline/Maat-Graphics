@@ -248,7 +248,8 @@ impl FinalShader {
                                     *self.descriptor_sets[current_buffer].set(0) 
                                   } else {
                                     *self.ds[current_buffer].set(0)
-                                  })
+                                  }),
+                                 Vec::with_capacity(0)
                     )
   }
   
