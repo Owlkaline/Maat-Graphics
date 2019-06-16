@@ -7,9 +7,6 @@ layout(location = 3) in vec4 v_alpha_cutoff;
 layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_world_pos;
 layout(location = 6) in vec3 v_camera_pos;
-layout(location = 7) in vec3 v_light_pos;
-layout(location = 8) in vec4 v_light_col;
-layout(location = 9) in vec3 v_to_light;
 layout(location = 10) in vec3 v_scanline;
 layout(location = 11) in vec4 v_use_textures;
 layout(location = 12) in vec2 v_mr;
@@ -48,73 +45,7 @@ float hologram_alpha(float scanline, float y_offset) {
   return alpha;
 }
 
-float D_GGX(float dotNH, float roughness) {
-  float alpha = roughness * roughness;
-  float alpha2 = alpha * alpha;
-  float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
-  return (alpha2)/(M_PI * denom*denom); 
-}
-
-float G_SchlicksmithGGX(float dotNL, float dotNV, float roughness) {
-  float r = (roughness + 1.0);
-  float k = (r*r) / 8.0;
-  float GL = dotNL / (dotNL * (1.0 - k) + k);
-  float GV = dotNV / (dotNV * (1.0 - k) + k);
-  
-  return GL * GV;
-}
-
-vec3 F_Schlick(float cosTheta, float metallic) {
-  vec3 F0 = mix(vec3(0.04), vec3(0.2, 0.2, 0.2), metallic);
-  vec3 F = F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0); 
-  
-  return F; 
-}
-
-vec3 BRDF(vec3 L, vec3 V, vec3 N, float metallic, float roughness, vec3 light_colour) {
-  vec3 H = normalize(V+L);
-  float dotNV = clamp(dot(N, V), 0.0, 1.0);
-  float dotNL = clamp(dot(N, L), 0.0, 1.0);
-  float dotLH = clamp(dot(L, H), 0.0, 1.0);
-  float dotNH = clamp(dot(N, H), 0.0, 1.0);
-  
-  vec3 colour = vec3(0.0);
-  
-  float distance = length(v_light_pos-v_world_pos);//abs(length(v_to_light));
-  
-  float intensity = v_light_col.w;
-  float attenuation = 1.0;
-  attenuation *= 1.0 / max(distance * distance, 0.01*0.01);
-  
-  vec3 radiance = light_colour * intensity * attenuation;
-  
-  if (dotNL > 0.0) {
-    float rr = max(0.05, roughness);
-    
-    float D = D_GGX(dotNH, roughness);
-    
-    float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
-    
-    vec3 F = F_Schlick(dotNV, metallic);
-    
-    vec3 spec = D *F * G / (4.0 * dotNL * dotNV);
-    
-    colour += spec * radiance * dotNL; // * light_colour;
-  }
-  
-  return colour;
-}
-
 void main() {
-  //vec3 light_pos = vec3(0.0, 0.0, 0.0);
-  
-  vec3 N = normalize(v_normal);
-  vec3 V = normalize(v_camera_pos - v_world_pos);
-  
-  vec3 Lo = vec3(0.0);
-  
-  vec3 L = normalize(v_to_light);//light_pos - v_world_pos);
-  
   vec3 base_colour = vec3(1.0);
   float alpha = v_colour.a;
   
@@ -142,12 +73,7 @@ void main() {
     }
   }
   
-  Lo += BRDF(L, V, N, v_mr.x, v_mr.y, v_light_col.xyz);
-  
   base_colour *= 0.02;
-  base_colour += Lo;
-  
-  base_colour = pow(base_colour, vec3(0.4545));
   
   float halpha = hologram_alpha(v_scanline.x, v_scanline.y);
   vec4 use_scanline = when_gt(vec4(v_scanline.z), vec4(0.0));
@@ -159,15 +85,4 @@ void main() {
   outMro = vec4(v_mr.x, v_mr.y, 0.0, 1.0);
   outEmissive = vec4(0.0, 0.0, 0.0, 0.0);
   outNormal = vec4(normalize(v_normal), 1.0);
-  /*
-  vec3 base_colour = vec3(1.0);
-  float alpha = v_colour.a;
-  
-  if (v_colour.a < -0.0) {
-    base_colour *= texture(base_texture, uvs).rgb;
-    alpha += 1.1;
-    alpha *= texture(base_texture, uvs).a;
-  }
-  
-  outColour = vec4(base_colour, alpha);*/
 }

@@ -144,6 +144,7 @@ impl CoreMaat {
                               .add_combined_image_samplers(80)
                               .add_uniform_buffers(80)
                               .add_storage_images(2)
+                              .add_input_attachments(5)
                               .build(Arc::clone(&device), image_views.len() as u32);
       
       dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
@@ -747,6 +748,8 @@ impl CoreRender for CoreMaat {
         }
       }
       
+      cmd = cmd.next_subpass(Arc::clone(&device));
+      cmd = self.model_shader.draw_deffered(Arc::clone(&device), cmd, window_size.width as f32, window_size.height as f32, image_index);
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Final Shader

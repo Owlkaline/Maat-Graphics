@@ -13,9 +13,6 @@ layout(location = 3) out vec4 v_alpha_cutoff;
 layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_world_pos;
 layout(location = 6) out vec3 v_camera_pos;
-layout(location = 7) out vec3 v_light_pos;
-layout(location = 8) out vec4 v_light_col;
-layout(location = 9) out vec3 v_to_light;
 layout(location = 10) out vec3 v_scanline;
 layout(location = 11) out vec4 v_use_textures;
 layout(location = 12) out vec2 v_mr;
@@ -43,6 +40,7 @@ layout(set = 0, binding = 1) uniform UniformBuffer {
   vec4 light3_colour; // r,g,b, 
 } light_uniforms;
 */
+
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, aspect
@@ -50,13 +48,9 @@ layout(push_constant) uniform PushConstants {
   vec4 model;      // x, y, z, y_scale
   vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
   vec4 hologram_scanline; // hologram_enabled, scanline, _, _
-  vec4 light_position; // 4, 19, 47, 3
-  vec4 light_colour; //r, g, b, intensity
 } push_constants;
 
 const float M_PI = 3.141592653589793;
-
-const vec3 sun_pos = vec3(-40.0, 20.0, -40.0);
 
 float cot(float value) {
   return 1.0 / tan(value);
@@ -168,9 +162,6 @@ void main() {
   v_base_colour_factor = uniforms.base_colour_factor;
   v_world_pos = local_pos;
   v_normal = rotated_normal.xyz; //mat3(model) * vec3(normal.x, normal.y, -normal.z);
-  v_to_light = push_constants.light_position.xyz - local_pos;
-  v_light_pos = push_constants.light_position.xyz;
-  v_light_col = push_constants.light_colour;
   
   v_camera_pos = push_constants.c_position.rgb;
   

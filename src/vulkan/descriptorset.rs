@@ -80,83 +80,91 @@ impl<'a> UpdateDescriptorSets<'a> {
   }
   
   pub fn finish_update(self, device: Arc<Device>, descriptor_set: &DescriptorSet) {
-    let mut write_descriptor_sets: Vec<vk::WriteDescriptorSet> = Vec::new();
     let sets = descriptor_set.all_sets();
-    
-    let mut descriptor_buffer_infos = Vec::new();
-    let mut descriptor_image_infos = Vec::new();
-    
+
     for j in 0..sets.len() {
      for i in 0..self.uniform_buffers.len() {
-        let (binding, uniform_buffer) = self.uniform_buffers[i];
-       descriptor_buffer_infos.push(   vk::DescriptorBufferInfo {
+       let (binding, uniform_buffer) = &self.uniform_buffers[i];
+       let descriptor_buffer_info = vk::DescriptorBufferInfo {
             buffer: *uniform_buffer.internal_object(j),
             offset: 0,
             range: vk::WHOLE_SIZE,
-          });
+         };
         
-        write_descriptor_sets.push(
+        let write_descriptor_set = 
           vk::WriteDescriptorSet {
             sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             pNext: ptr::null(),
             dstSet: sets[j],
-            dstBinding: binding,
+            dstBinding: *binding,
             dstArrayElement: 0,
             descriptorCount: 1,
             descriptorType: DescriptorType::UniformBuffer.to_bits(),
             pImageInfo: ptr::null(),
-            pBufferInfo: &descriptor_buffer_infos[j*self.uniform_buffers.len()+i],
+            pBufferInfo: &descriptor_buffer_info,
             pTexelBufferView: ptr::null(),
-          }
-        );
+          };
+        
+        let vk = device.pointers();
+        let device = device.internal_object();
+        unsafe {
+          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
+        }
       }
       
       for i in 0..self.dynamic_uniform_buffers.len() {
-        let (binding, uniform_buffer) = self.dynamic_uniform_buffers[i];
-       descriptor_buffer_infos.push(   vk::DescriptorBufferInfo {
+        let (binding, uniform_buffer) = &self.dynamic_uniform_buffers[i];
+        let descriptor_buffer_info =  vk::DescriptorBufferInfo {
             buffer: *uniform_buffer.internal_object(j),
             offset: 0,
             range: vk::WHOLE_SIZE,
-          });
+          };
         
-        write_descriptor_sets.push(
+        let write_descriptor_set =
           vk::WriteDescriptorSet {
             sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             pNext: ptr::null(),
             dstSet: sets[j],
-            dstBinding: binding,
+            dstBinding: *binding,
             dstArrayElement: 0,
             descriptorCount: 1,
             descriptorType: DescriptorType::UniformBufferDynamic.to_bits(),
             pImageInfo: ptr::null(),
-            pBufferInfo: &descriptor_buffer_infos[j*self.dynamic_uniform_buffers.len()+i],
+            pBufferInfo: &descriptor_buffer_info,
             pTexelBufferView: ptr::null(),
-          }
-        );
+          };
+        
+        
+        let vk = device.pointers();
+        let device = device.internal_object();
+        unsafe {
+          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
+        }
       }
       
       for i in 0..self.images.len() {
         let (binding, ref image, ref layout, ref sampler, ref descriptor_type) = self.images[i];
         
+        let descriptor_image_info;
+        
         if sampler.is_some() {
-          descriptor_image_infos.push(
+          descriptor_image_info = 
             vk::DescriptorImageInfo {
               sampler: sampler.unwrap().internal_object(),
               imageView: image.get_image_view(),
               imageLayout: layout.to_bits(),
-            }
-          );
+            };
+          
         } else {
-          descriptor_image_infos.push(
+          descriptor_image_info =
             vk::DescriptorImageInfo {
               sampler: 0,
               imageView: image.get_image_view(),
               imageLayout: layout.to_bits(),
-            }
-          );
+            };
         }
         
-        write_descriptor_sets.push(
+        let write_descriptor_set = 
           vk::WriteDescriptorSet {
             sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             pNext: ptr::null(),
@@ -165,23 +173,15 @@ impl<'a> UpdateDescriptorSets<'a> {
             dstArrayElement: 0,
             descriptorCount: 1,
             descriptorType: descriptor_type.to_bits(),
-            pImageInfo: &descriptor_image_infos[j*self.images.len()+i],
+            pImageInfo: &descriptor_image_info,
             pBufferInfo: ptr::null(),
             pTexelBufferView: ptr::null(),
-          }
-        );
-      }
-      
-      let vk = device.pointers();
-      let device = device.internal_object();
-      
-     /* unsafe {
-        vk.UpdateDescriptorSets(*device, write_descriptor_sets.len() as u32, write_descriptor_sets.as_ptr(), 0, ptr::null());
-      }*/
-      
-      for i in 0..write_descriptor_sets.len() {
+        };
+        
+        let vk = device.pointers();
+        let device = device.internal_object();
         unsafe {
-          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_sets[i], 0, ptr::null());
+          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
         }
       }
     }
@@ -193,6 +193,18 @@ impl DescriptorSetBuilder {
     DescriptorSetBuilder {
       descriptor_set_layout_info: Vec::new(),
     }
+  }
+  
+  pub fn fragment_input_attachment(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::InputAttachment,
+        shader_stage: ShaderStage::Fragment,
+      }
+    );
+    
+    self
   }
   
   pub fn vertex_uniform_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
@@ -357,16 +369,6 @@ impl DescriptorSetBuilder {
 }
 
 impl DescriptorSet {
-  pub fn new(device: Arc<Device>, set_pool: Arc<DescriptorPool>, num_sets: u32) -> DescriptorSet {
-    let layouts = DescriptorSet::create_layouts(Arc::clone(&device), num_sets);
-    let sets = DescriptorSet::create_sets(Arc::clone(&device), &layouts, set_pool, num_sets);
-    
-    DescriptorSet {
-      sets,
-      layouts,
-    }
-  }
-  
   pub fn new_with_internals(sets: Vec<vk::DescriptorSet>, layouts: Vec<vk::DescriptorSetLayout>) -> DescriptorSet {
     DescriptorSet {
       sets,
@@ -388,119 +390,6 @@ impl DescriptorSet {
   
   pub fn layouts_clone(&self) -> Vec<vk::DescriptorSetLayout> {
     (*self.layouts).to_vec()
-  } 
-  
-  pub fn update_sets<T: Clone>(&self, device: Arc<Device>, uniform_buffer: &Buffer<T>) {
-    let vk = device.pointers();
-    let device = device.internal_object();
-    
-    for i in 0..self.sets.len() {
-      let descriptor_buffer_info = {
-        vk::DescriptorBufferInfo {
-          buffer: *uniform_buffer.internal_object(i),
-          offset: 0,
-          range: uniform_buffer.max_size(),
-        }
-      };
-      
-      let write_descriptor_set = {
-        vk::WriteDescriptorSet {
-          sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-          pNext: ptr::null(),
-          dstSet: self.sets[i],
-          dstBinding: 0,
-          dstArrayElement: 0,
-          descriptorCount: 1,
-          descriptorType: DescriptorType::UniformBuffer.to_bits(),
-          pImageInfo: ptr::null(),
-          pBufferInfo: &descriptor_buffer_info,
-          pTexelBufferView: ptr::null(),
-        }
-      };
-      
-      unsafe {
-        vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
-      }
-    }
-  }
-  
-  fn create_sets(device: Arc<Device>, layouts: &Vec<vk::DescriptorSetLayout>, set_pool: Arc<DescriptorPool>, num_sets: u32) -> Vec<vk::DescriptorSet> {
-    let mut descriptor_sets: Vec<vk::DescriptorSet> = Vec::with_capacity(num_sets as usize);
-    
-    for i in 0..num_sets as usize {
-      let mut descriptor_set: vk::DescriptorSet = unsafe { mem::uninitialized() };
-      let descriptor_set_allocate_info = {
-        vk::DescriptorSetAllocateInfo {
-          sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-          pNext: ptr::null(),
-          descriptorPool: *set_pool.local_pool(),
-          descriptorSetCount: 1,//layouts.len() as u32,
-          pSetLayouts: &layouts[i],
-        }
-      };
-      
-      let vk = device.pointers();
-      let device = device.internal_object();
-      
-      unsafe {
-        check_errors(vk.AllocateDescriptorSets(*device, &descriptor_set_allocate_info, &mut descriptor_set));
-      }
-      
-      descriptor_sets.push(descriptor_set);
-    }
-    
-    descriptor_sets
-  }
-  
-  fn create_layouts(device: Arc<Device>, num_sets: u32) -> Vec<vk::DescriptorSetLayout> {
-    let mut layouts: Vec<vk::DescriptorSetLayout> = Vec::with_capacity(num_sets as usize);
-    let mut bindings: Vec<vk::DescriptorSetLayoutBinding> = Vec::with_capacity(num_sets as usize);
-    
-    bindings.push(
-      vk::DescriptorSetLayoutBinding {
-        binding: 0,
-        descriptorType: DescriptorType::UniformBuffer.to_bits(),
-        descriptorCount: 1,
-        stageFlags: ShaderStage::Vertex.to_bits(),
-        pImmutableSamplers: ptr::null(),
-      }
-    );
-    
-    // WAS COMMENTED OUT BUT STILL WORKED SO IDK IF THIS SAHOULD BE IN HERE
-    bindings.push(
-      vk::DescriptorSetLayoutBinding {
-        binding: 1,
-        descriptorType: DescriptorType::CombinedImageSampler.to_bits(),
-        descriptorCount: 1,
-        stageFlags: ShaderStage::Fragment.to_bits(),
-        pImmutableSamplers: ptr::null(),
-      }
-    );
-    
-    
-    let descriptor_set_layout_create_info = {
-      vk::DescriptorSetLayoutCreateInfo {
-        sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        pNext: ptr::null(),
-        flags: 0,
-        bindingCount: bindings.len() as u32,
-        pBindings: bindings.as_ptr(),
-      }
-    };
-    
-    let vk = device.pointers();
-    let device = device.internal_object();
-    
-    for _ in 0..num_sets as usize {
-      let mut layout = unsafe { mem::uninitialized() };
-      unsafe {
-        vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
-      }
-      
-      layouts.push(layout);
-    }
-    
-    layouts
   }
   
   pub fn destroy(&self, device: Arc<Device>) {

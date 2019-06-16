@@ -112,6 +112,7 @@ use self::resource_manager::ResourceManager;
 use self::texture_shader::TextureShader;
 use self::model_shader::ModelShader;
 use self::final_shader::FinalShader;
+use self::final_shader::FinalVertex;
 use self::ortho_camera::OrthoCamera;
 use self::settings::Settings;
 

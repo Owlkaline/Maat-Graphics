@@ -838,6 +838,13 @@ impl ImageUsage {
     }
   }
   
+  pub fn depth_stencil_input_attachment() -> ImageUsage {
+    ImageUsage {
+      input_attachment: true,
+      .. ImageUsage::depth_stencil_attachment()
+    }
+  }
+  
   pub fn transfer_src() -> ImageUsage {
     ImageUsage {
       transfer_src: true,
@@ -901,12 +908,17 @@ impl ImageUsage {
     }
   }
   
+  pub fn colour_input_attachment_sampled() -> ImageUsage {
+    ImageUsage {
+      input_attachment: true,
+      .. ImageUsage::colour_attachment_sampled()
+    }
+  }
+  
   pub fn colour_attachment_storage_sampled() -> ImageUsage {
     ImageUsage {
       sampled: true,
-      storage: true,
-      colour_attachment: true,
-      .. ImageUsage::none()
+      .. ImageUsage::colour_attachment_sampled()
     }
   }
   

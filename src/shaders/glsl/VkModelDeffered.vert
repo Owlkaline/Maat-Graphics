@@ -1,9 +1,9 @@
 #version 450
 
 layout(location = 0) in vec2 position;
-layout(location = 2) in vec2 uv;
+layout(location = 1) in vec2 uv;
 
-layout(set = 0, binding = 0) uniform UniformBuffer {
+layout(set = 0, binding = 4) uniform UniformBuffer {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, width
   vec4 c_up;       // x, y, z, height
@@ -22,43 +22,15 @@ layout(push_constant) uniform PushConstants {
   vec4 sun_colour; // rgb intensity
 } push_constants;
 
-layout(set = 0, binding = 1) uniform sampler2D depth_texture;
-
 layout(location = 0) out vec2 uvs;
-layout(location = 1) out vec3 v_world_pos;
-layout(location = 2) out vec3 v_camera_pos;
-layout(location = 3) out vec3 v_light_positions[3];
-layout(location = 6) out vec3 v_light_colours[3];
-layout(location = 9) out float v_light_intensity[3];
-layout(location = 12) out vec3 v_sun_direction;
-layout(location = 13) out vec4 v_sun_colour;
-
-const float M_PI = 3.141592653589793;
-
-float cot(float value) {
-  return 1.0 / tan(value);
-}
-
-float to_radians(float degree) {
-  return degree * (M_PI/180.0);
-}
-
-vec3 to_radians(vec3 degrees) {
-  return vec3(to_radians(degrees.x), to_radians(degrees.y), to_radians(degrees.z));
-}
-
-mat4 create_perspective_matrix(float fov, float aspect, float near, float far) {
-  float f = cot(to_radians(fov) / 2.0);
-  
-  mat4 perspective = mat4(
-                      vec4(f / aspect, 0.0,   0.0,                               0.0),
-                      vec4(0.0,        f,     0.0,                               0.0),
-                      vec4(0.0,        0.0,   (far + near) / (near - far),      -1.0),
-                      vec4(0.0,        0.0,   (2.0 * far * near) / (near - far), 0.0)
-                    );
-                
-  return perspective;
-}
+layout(location = 1) out vec4 v_camera_pos;
+layout(location = 2) out vec4 v_camera_center;
+layout(location = 3) out vec4 v_camera_up;
+layout(location = 4) out vec3 v_light_positions[3];
+layout(location = 7) out vec3 v_light_colours[3];
+layout(location = 10) out float v_light_intensity[3];
+layout(location = 13) out vec3 v_sun_direction;
+layout(location = 14) out vec4 v_sun_colour;
 
 // center is a point not a direction
 mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
@@ -90,29 +62,11 @@ mat4 create_ortho_projection(float near, float far, float right, float bottom) {
   return ortho;
 }
 
-vec3 depth_to_world_position(float depth_value, mat4 invProjection, mat4 invView) {
-  
-  vec4 clip_space = vec4(uv * 2.0 - 1.0, depth_value, 1.0);
-  vec4 view_space = invProjection * clip_space;
-  
-  vec4 world_pos = invView * view_space;
-  
-  return world_pos.xyz;
-}
-
 void main() {
-  float aspect = uniforms.c_up.w/uniforms.c_center.w;
-  mat4 projection = create_perspective_matrix(uniforms.c_position.w, aspect, 0.1, 256.0);
-  mat4 view = create_view_matrix(uniforms.c_position.xyz, uniforms.c_center.xyz, uniforms.c_up.xyz);
-  mat4 invProjection = inverse(projection);
-  mat4 invView = inverse(view);
-  
-  float depth = texture(depth_texture, uv).r;
-  
   uvs = uv;
-  
-  v_world_pos = depth_to_world_position(depth, invProjection, invView);
-  v_camera_pos = uniforms.c_position.xyz;
+  v_camera_pos = uniforms.c_position;
+  v_camera_center = uniforms.c_center;
+  v_camera_up = uniforms.c_up;
   v_light_positions[0] = push_constants.light1_position.xyz;
   v_light_positions[1] = push_constants.light2_position.xyz;
   v_light_positions[2] = push_constants.light3_position.xyz;

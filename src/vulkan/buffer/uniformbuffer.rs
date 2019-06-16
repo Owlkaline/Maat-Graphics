@@ -140,6 +140,16 @@ impl UniformData {
     
     self.data.clone()
   }
+  
+  pub fn build_uniform_data(&mut self, device: Arc<Device>) -> Vec<f32> {
+    let alignment = device.get_min_uniformbuffer_offset_alignment();
+    
+    while self.data.len() as u64%alignment != 0 {
+      self.data.push(0.0);
+    }
+    
+    self.data.clone()
+  }
 }
 /*
 pub struct UniformBuffer {

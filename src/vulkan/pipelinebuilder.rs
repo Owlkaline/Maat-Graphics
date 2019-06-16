@@ -20,6 +20,7 @@ pub struct PipelineBuilder {
   fragment_shader: Option<vk::ShaderModule>,
   compute_shader: Option<vk::ShaderModule>,
   render_pass: Option<RenderPass>,
+  subpass: u32,
   topology: Topology,
   polygon_mode: PolygonMode,
   cull_mode: CullMode,
@@ -52,6 +53,7 @@ impl PipelineBuilder {
       fragment_shader: None,
       compute_shader: None,
       render_pass: None,
+      subpass: 0,
       topology: Topology::TriangleList,
       polygon_mode: PolygonMode::Fill,
       cull_mode: CullMode::Back,
@@ -103,6 +105,11 @@ impl PipelineBuilder {
   
   pub fn compute_shader(mut self, shader: vk::ShaderModule) -> PipelineBuilder {
     self.compute_shader = Some(shader);
+    self
+  }
+  
+  pub fn subpass(mut self, subpass_num: u32) -> PipelineBuilder {
+    self.subpass = subpass_num;
     self
   }
   
@@ -621,7 +628,7 @@ impl PipelineBuilder {
       }
     };
     
-    let num_attachments = if let Some(renderpass) = &self.render_pass { renderpass.get_num_colour_attachments() } else { 1 };
+    let num_attachments = if let Some(renderpass) = &self.render_pass { renderpass.get_num_colour_attachments_in_subpass(self.subpass) } else { 1 };
     
     let mut pipeline_colour_blend_attachments: Vec<vk::PipelineColorBlendAttachmentState> = Vec::with_capacity(num_attachments as usize);
     
@@ -715,7 +722,7 @@ impl PipelineBuilder {
         pDynamicState: &dynamic_state_create_info,
         layout: layout,
         renderPass: *self.render_pass.unwrap().internal_object(),
-        subpass: 0,
+        subpass: self.subpass,
         basePipelineHandle: 0,
         basePipelineIndex: -1,
       }

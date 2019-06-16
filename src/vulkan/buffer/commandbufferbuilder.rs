@@ -2,7 +2,8 @@ use vk;
 
 use crate::vulkan::{Device, RenderPass, Pipeline, ImageAttachment};
 use crate::vulkan::buffer::{CommandBuffer, UniformData, Buffer};
-use crate::vulkan::vkenums::{ShaderStage, CommandBufferUsage, Access, ImageLayout, ImageAspect, PipelineStage};
+use crate::vulkan::vkenums::{ShaderStage, CommandBufferUsage, Access, ImageLayout, ImageAspect, 
+                             PipelineStage, SubpassContents};
 
 use cgmath::Vector4;
 
@@ -29,6 +30,16 @@ impl CommandBufferBuilder {
   pub fn begin_render_pass(self, device: Arc<Device>, clear_values: &Vec<vk::ClearValue>, render_pass: &RenderPass, framebuffer: &vk::Framebuffer, render_area: &vk::Extent2D) -> CommandBufferBuilder {
     self.command_buffer.begin_render_pass(Arc::clone(&device), render_pass, framebuffer, clear_values, render_area.width, render_area.height);
     
+    self
+  }
+  
+  pub fn next_subpass(self, device: Arc<Device>) -> CommandBufferBuilder {
+    self.command_buffer.next_subpass(Arc::clone(&device), SubpassContents::Inline);
+    self
+  }
+  
+  pub fn next_subpass_secondary(self, device: Arc<Device>) -> CommandBufferBuilder {
+    self.command_buffer.next_subpass(Arc::clone(&device), SubpassContents::SecondaryCommandBuffers);
     self
   }
   

@@ -161,6 +161,14 @@ impl CommandBuffer {
     }
   }
   
+  pub fn next_subpass(&self, device: Arc<Device>, subpass_contents: SubpassContents) {
+    let vk = device.pointers();
+    
+    unsafe {
+      vk.CmdNextSubpass(self.command_buffer, subpass_contents.to_bits());
+    }
+  }
+  
   pub fn end_command_buffer(&self, device: Arc<Device>) {
     let vk = device.pointers();
     
