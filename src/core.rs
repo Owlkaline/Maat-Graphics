@@ -214,8 +214,17 @@ impl CoreMaat {
           color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
         },
         vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        vk::ClearValue {
           depthStencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
-        }
+        },
+        vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },
+        /*vk::ClearValue {
+          color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+        },*/
       )
     };
     
@@ -749,7 +758,7 @@ impl CoreRender for CoreMaat {
       }
       
       cmd = cmd.next_subpass(Arc::clone(&device));
-      cmd = self.model_shader.draw_deffered(Arc::clone(&device), cmd, window_size.width as f32, window_size.height as f32, image_index);
+      cmd = self.model_shader.draw_deffered(Arc::clone(&device), cmd, &self.command_pool, &graphics_queue, window_size.width as f32, window_size.height as f32, image_index);
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Final Shader

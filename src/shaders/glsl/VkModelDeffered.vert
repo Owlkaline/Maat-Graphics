@@ -3,7 +3,7 @@
 layout(location = 0) in vec2 position;
 layout(location = 1) in vec2 uv;
 
-layout(set = 0, binding = 4) uniform UniformBuffer {
+layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 c_position; // x, y, z, fov
   vec4 c_center;   // x, y, z, width
   vec4 c_up;       // x, y, z, height
@@ -48,25 +48,10 @@ mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
   return look_at_matrix;
 }
 
-mat4 create_ortho_projection(float near, float far, float right, float bottom) {
-  float left = 0.0;
-  float top = 0.0;
-  right += left;
-  bottom += top;
-  
-  mat4 ortho = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
-                    vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
-                    vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
-                    vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
-  
-  return ortho;
-}
-
 void main() {
-  uvs = uv;
-  v_camera_pos = uniforms.c_position;
-  v_camera_center = uniforms.c_center;
-  v_camera_up = uniforms.c_up;
+  v_camera_pos = uniforms.c_position;//vec4(3.93659, 1.21074, -15.50323, 60.0);//
+  v_camera_center = uniforms.c_center;//vec4(2.7219, 0.94058, -14.56466, 1280.0);//;
+  v_camera_up = uniforms.c_up;//vec4(0.06024, 0.96281, -0.26336, 1080.0);//
   v_light_positions[0] = push_constants.light1_position.xyz;
   v_light_positions[1] = push_constants.light2_position.xyz;
   v_light_positions[2] = push_constants.light3_position.xyz;
@@ -79,12 +64,6 @@ void main() {
   v_sun_direction = push_constants.sun_direction.xyz;
   v_sun_colour = push_constants.sun_colour;
   
-  float near   = 1.0;
-  float far    = -1.0;
-  float right  = uniforms.c_center.w;
-  float bottom = uniforms.c_up.w; 
-  
-  mat4 ortho_projection = create_ortho_projection(near, far, right, bottom);
-  
-  gl_Position = ortho_projection * vec4(position, 0.0, 1.0);
+  uvs = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+  gl_Position = vec4(uvs * 2.0f - 1.0f, 0.0f, 1.0f);
 }

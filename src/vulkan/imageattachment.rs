@@ -279,6 +279,41 @@ impl ImageAttachment {
     let mut src_access: Option<Access> = None;
     let dst_access: Access;
     
+    match old_layout {
+      ImageLayout::Undefined => {
+        src_stage = PipelineStage::TopOfPipe;
+      },
+      ImageLayout::TransferDstOptimal => {
+        src_access = Some(Access::TransferWrite);
+        src_stage = PipelineStage::Transfer;
+      },
+      ImageLayout::ColourAttachmentOptimal => {
+        src_access = Some(Access::ColourAttachmentReadAndWrite);
+        src_stage = PipelineStage::ColorAttachmentOutput;
+      },
+      _ => { panic!("Error image transition old layout not supported!"); },
+    }
+    
+    match new_layout {
+      ImageLayout::TransferSrcOptimal => {
+        dst_access = Access::TransferRead;
+        dst_stage = PipelineStage::Transfer;
+      },
+      ImageLayout::TransferDstOptimal => {
+        dst_access = Access::TransferWrite;
+        dst_stage = PipelineStage::Transfer;
+      },
+      ImageLayout::ShaderReadOnlyOptimal => {
+        dst_access = Access::ShaderRead;
+        dst_stage = PipelineStage::FragmentShader;
+      },
+      ImageLayout::ColourAttachmentOptimal => {
+        dst_access = Access::ColourAttachmentReadAndWrite;
+        dst_stage = PipelineStage::ColorAttachmentOutput;
+      },
+      _ => { panic!("Error image transition new layout not supported!"); },
+    }
+    /*
     if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::TransferDstOptimal {
       dst_access = Access::TransferWrite;
       
@@ -313,9 +348,20 @@ impl ImageAttachment {
       
       src_stage = PipelineStage::Transfer;
       dst_stage = PipelineStage::ColorAttachmentOutput;
+    } else if old_layout == ImageLayout::ColourAttachmentOptimal && new_layout == ImageLayout::ShaderReadOnlyOptimal {
+      src_access = Some(Access::ColourAttachmentReadAndWrite);
+      dst_access = Access::ShaderRead;
+      
+      src_stage = PipelineStage::ColorAttachmentOutput;
+      dst_stage = PipelineStage::FragmentShader;
+    }  else if old_layout == ImageLayout::Undefined && new_layout == ImageLayout::ShaderReadOnlyOptimal {
+      dst_access = Access::ShaderRead;
+      
+      src_stage = PipelineStage::TopOfPipe;
+      dst_stage = PipelineStage::FragmentShader;
     } else {
       panic!("Error image transition not supported!");
-    }
+    }*/
     
     let barrier = vk::ImageMemoryBarrier {
       sType: vk::STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,

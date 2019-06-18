@@ -222,7 +222,7 @@ impl PipelineBuilder {
     self
   }
   
-  pub fn cull_mode_font(mut self) -> PipelineBuilder {
+  pub fn cull_mode_front(mut self) -> PipelineBuilder {
     self.cull_mode = CullMode::Front;
     self
   }

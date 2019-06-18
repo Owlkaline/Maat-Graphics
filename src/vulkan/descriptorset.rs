@@ -32,6 +32,7 @@ pub struct UpdateDescriptorSets<'a> {
   uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
   dynamic_uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
   images: Vec<(u32, &'a ImageAttachment, ImageLayout, Option<&'a Sampler>, DescriptorType)>,
+  input_images: Vec<(u32, &'a Vec<ImageAttachment>, ImageLayout, DescriptorType)>,
 }
 
 impl<'a> UpdateDescriptorSets<'a> {
@@ -40,6 +41,7 @@ impl<'a> UpdateDescriptorSets<'a> {
       uniform_buffers: Vec::new(),
       dynamic_uniform_buffers: Vec::new(),
       images: Vec::new(),
+      input_images: Vec::new(),
     }
   }
   
@@ -61,11 +63,16 @@ impl<'a> UpdateDescriptorSets<'a> {
     self
   }
   
-  
   pub fn add_dyanmicuniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
     self.dynamic_uniform_buffers.push((binding, uniform_buffer));
+    self
+  }
+  
+  pub fn add_input_attachment_image(mut self, binding: u32, image: &'a Vec<ImageAttachment>) -> UpdateDescriptorSets<'a> {
+    let index = self.input_images.len() as usize;
+    self.input_images.push((binding, image, ImageLayout::ShaderReadOnlyOptimal, DescriptorType::InputAttachment));
     self
   }
   
@@ -134,6 +141,39 @@ impl<'a> UpdateDescriptorSets<'a> {
             pTexelBufferView: ptr::null(),
           };
         
+        
+        let vk = device.pointers();
+        let device = device.internal_object();
+        unsafe {
+          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
+        }
+      }
+      
+       for i in 0..self.input_images.len() {
+        let (binding, ref images, ref layout, ref descriptor_type) = self.input_images[i];
+        
+        let descriptor_image_info;
+
+        descriptor_image_info =
+          vk::DescriptorImageInfo {
+            sampler: 0,
+            imageView: images[j].get_image_view(),
+            imageLayout: layout.to_bits(),
+        };
+        
+        let write_descriptor_set = 
+          vk::WriteDescriptorSet {
+            sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            pNext: ptr::null(),
+            dstSet: sets[j],
+            dstBinding: binding,
+            dstArrayElement: 0,
+            descriptorCount: 1,
+            descriptorType: descriptor_type.to_bits(),
+            pImageInfo: &descriptor_image_info,
+            pBufferInfo: ptr::null(),
+            pTexelBufferView: ptr::null(),
+        };
         
         let vk = device.pointers();
         let device = device.internal_object();

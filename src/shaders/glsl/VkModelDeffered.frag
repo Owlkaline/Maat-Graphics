@@ -12,11 +12,11 @@ layout(location = 14) in vec4 v_sun_colour;
 
 layout(location = 0) out vec4 outColour;
 
-layout (input_attachment_index = 0, binding = 0) uniform subpassInput colour_texture;
-layout (input_attachment_index = 0, binding = 1) uniform subpassInput depth_texture;
-layout (input_attachment_index = 1, binding = 1) uniform subpassInput mro_texture;
-layout (input_attachment_index = 2, binding = 2) uniform subpassInput emissive_texture;
-layout (input_attachment_index = 3, binding = 3) uniform subpassInput normal_texture;
+layout (input_attachment_index = 1, binding = 1) uniform subpassInput colour_texture;
+layout (input_attachment_index = 2, binding = 2) uniform subpassInput mro_texture;
+layout (input_attachment_index = 3, binding = 3) uniform subpassInput emissive_texture;
+layout (input_attachment_index = 4, binding = 4) uniform subpassInput normal_texture;
+layout (input_attachment_index = 5, binding = 5) uniform subpassInput depth_texture;
 
 const float M_PI = 3.141592653589793;
 
@@ -114,23 +114,23 @@ mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
 }
 
 vec3 depth_to_world_position(float depth_value, mat4 invProjection, mat4 invView) {
-  
-  vec4 clip_space = vec4(uvs * 2.0 - 1.0, depth_value, 1.0);
+  depth_value = depth_value * 2.0 -1.0;
+  vec4 clip_space = vec4(uvs, depth_value, 1.0);
   vec4 view_space = invProjection * clip_space;
   
-  vec4 world_pos = invView * view_space;
+  vec4 world_pos = view_space * invView;
   
-  return world_pos.xyz;
+  return world_pos.xyz/world_pos.w;
 }
 
 void main() {
-  float aspect = v_camera_up.w/v_camera_center.w;
+  float aspect = v_camera_center.w/v_camera_up.w;
   mat4 projection = create_perspective_matrix(v_camera_pos.w, aspect, 0.1, 256.0);
   mat4 view = create_view_matrix(v_camera_pos.xyz, v_camera_center.xyz, v_camera_up.xyz);
   mat4 invProjection = inverse(projection);
   mat4 invView = inverse(view);
   
-  float depth = subpassLoad(depth_texture).a;
+  float depth =  subpassLoad(depth_texture).x;
   
   vec3 world_pos = depth_to_world_position(depth, invProjection, invView);
   
@@ -139,17 +139,22 @@ void main() {
   
   vec3 Lo = vec3(0.0);
   
-  vec3 L = normalize(v_light_positions[0] - world_pos);
+  vec3 L[3];
+  L[0] = normalize(v_light_positions[0] - world_pos);
+  L[1] = normalize(v_light_positions[1] - world_pos);
+  L[2] = normalize(v_light_positions[2] - world_pos);
   
   vec4 base_colour = subpassLoad(colour_texture);
   vec4 mro_colour = subpassLoad(mro_texture);
   
-  Lo += BRDF(L, V, N, mro_colour.x, mro_colour.y, v_light_positions[0], v_light_colours[0].xyz, v_light_intensity[0], world_pos);
+  for(int i = 0; i < 3; ++i) {
+    Lo += BRDF(L[i], V, N, mro_colour.x, mro_colour.y, v_light_positions[i], v_light_colours[i], v_light_intensity[i], world_pos);
+  }
   
   base_colour *= 0.02;
   base_colour.rgb += Lo;
   
   base_colour.rgb = pow(base_colour.rgb, vec3(0.4545));
   
-  outColour = base_colour;
+  outColour = vec4(base_colour.rgb, 1.0);
 }
