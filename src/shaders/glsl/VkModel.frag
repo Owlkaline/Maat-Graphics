@@ -16,6 +16,7 @@ layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec4 outMro;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out vec4 outNormal;
+layout(location = 5) out vec4 outPosition;
 
 layout(set = 0, binding = 1) uniform sampler2D base_texture;
 
@@ -82,9 +83,10 @@ void main() {
   alpha = use_scanline.a      * halpha + 
           not(use_scanline).a * alpha;
   
-  outColour = vec4(v_world_pos.x, v_world_pos.y, v_world_pos.z, 1.0);
+  outColour = vec4(0.0);//v_world_pos.x, v_world_pos.y, v_world_pos.z, 1.0);
   outAlbedo = vec4(base_colour, alpha);
   outMro = vec4(v_mr.x, v_mr.y, 0.0, 1.0);
   outEmissive = vec4(0.0, 0.0, 0.0, 0.0);
   outNormal = vec4(normalize(v_normal), 1.0);
+  outPosition = vec4(v_world_pos.x, v_world_pos.y, v_world_pos.z, 1.0);
 }

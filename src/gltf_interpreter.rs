@@ -6,6 +6,9 @@ use crate::vulkan::vkenums::{AddressMode, Filter};
 use base64;
 
 use gltf;
+use gltf::accessor::Dimensions;
+use gltf::json::Value;
+use gltf::animation;
 use gltf::material::AlphaMode;
 use gltf::texture::MagFilter;
 use gltf::texture::MinFilter;
@@ -14,6 +17,7 @@ use gltf::texture::WrappingMode;
 //use gltf_importer;
 //use gltf_importer::config::ValidationStrategy;
 
+use cgmath::Vector2;
 use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::Matrix4;
@@ -23,6 +27,77 @@ use image;
 use image::ImageFormat::{JPEG, PNG};
 
 use std::mem;
+
+pub enum Interpolation {
+  Linear,
+  Step,
+  CatmullRomSpline,
+  CubicSpline,
+}
+
+#[derive(Clone)]
+pub enum Property {
+  Translation,
+  Rotation,
+  Scale,
+  MorphTargetWeights,
+}
+
+pub struct Animation {
+  interpolation: Interpolation,
+  property: Property,
+  inputs: Vector2<f32>,
+  outputs: Vector2<Vector4<f32>>,
+}
+
+impl Animation {
+  pub fn new(interpolation: Interpolation, property: Property, inputs: Vector2<f32>, outputs: Vector2<Vector4<f32>>) -> Animation {
+    Animation {
+      interpolation,
+      property,
+      inputs,
+      outputs,
+    }
+  }
+}
+
+impl Interpolation {
+  pub fn from_gltf(interpolation: animation::Interpolation) -> Interpolation {
+    match interpolation {
+      animation::Interpolation::Linear => {
+        Interpolation::Linear
+      },
+      animation::Interpolation::Step => {
+        Interpolation::Step
+      },
+      animation::Interpolation::CatmullRomSpline => {
+        Interpolation::CatmullRomSpline
+      },
+      animation::Interpolation::CubicSpline => {
+        Interpolation::CubicSpline
+      }
+    }
+  }
+}
+
+impl Property {
+  pub fn from_gltf(property: animation::Property) -> Property {
+    match property {
+      animation::Property::Translation => {
+        Property::Translation
+      },
+      animation::Property::Rotation => {
+        Property::Rotation
+      },
+      animation::Property::Scale => {
+        Property::Scale
+      },
+      animation::Property::MorphTargetWeights => {
+        Property::MorphTargetWeights
+      }
+    }
+  }
+}
 
 #[derive(Clone)]
 pub enum Topology {
@@ -185,6 +260,26 @@ impl Sampler {
   }
 }*/
 
+fn serde_to_f32(value: Option<Value>) -> Vector4<f32> {
+  let floats = value.and_then(|value| { 
+    value.as_array().map(|v_array| {
+      v_array.iter().map(|v| {
+        v.as_f64().map(|f| {
+         f as f32 
+        })
+      }).flatten().collect::<Vec<f32>>()
+    })
+  }).unwrap_or(Vec::new());
+  
+  let mut serde_values = Vector4::new(0.0, 0.0, 0.0, 0.0);
+  
+  for i in 0..floats.len().min(4) {
+    serde_values[i] = floats[i];
+  }
+  
+  serde_values
+}
+
 impl ModelDetails {
   pub fn new(source: String) -> ModelDetails {
     let source = &source;
@@ -239,11 +334,50 @@ impl ModelDetails {
       material_ref: String,
       animation: Animation,
   }*/
-  
-    for _animation in gltf.animations() {
-      println!("{}", _animation.name().unwrap());
-      for _channel in _animation.channels() {
+    
+    let mut animations: Vec<Animation> = Vec::new();
+    
+    for animation in gltf.animations() {
+      print!("Animation Name: ");
+      if let Some(anim_name) = animation.name() {
+        println!("{}", anim_name.to_string());
+      } else {
+        println!("NoName");
+      }
+      
+      let mut properties: Vec<Property> = Vec::new(); 
+      
+      for channel in animation.channels() {
+        println!("Property {:?}", channel.target().property());
+        let property = Property::from_gltf(channel.target().property());
         
+        properties.push(property);
+      }
+      
+      let mut i = 0;
+      for sampler in animation.samplers() {
+        let input_min: f32 = serde_to_f32(sampler.input().min()).x;
+        let input_max: f32 = serde_to_f32(sampler.input().max()).x;
+        let output_min: Vector4<f32> = serde_to_f32(sampler.output().min());
+        let output_max: Vector4<f32> = serde_to_f32(sampler.output().max());
+        
+        let interpolation = Interpolation::from_gltf(sampler.interpolation());
+        
+        println!("Interpolation: {:?}", sampler.interpolation());
+        println!("in min: {:?}, expected: {:?}", input_min, sampler.input().min());
+        println!("out min: {:?}, expected: {:?}", output_min, sampler.output().min());
+        println!("");
+        println!("in max: {:?}, expected: {:?}", input_max, sampler.input().max());
+        println!("out max: {:?}, expected: {:?}", output_max, sampler.output().max());
+        println!("");
+        println!("");
+        
+        let mut inputs: Vector2<f32> = Vector2::new(input_min, input_max);
+        let mut outputs: Vector2<Vector4<f32>> = Vector2::new(output_min, output_max);
+        
+        animations.push(Animation::new(interpolation, properties[i].clone(), inputs, outputs));
+        
+        i += 1;
       }
     }
     

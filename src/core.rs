@@ -101,7 +101,7 @@ impl CoreMaat {
     let texture_msaa;
     let model_msaa;
     
-    let compute_shader = None;
+    let mut compute_shader = None;
     
     {
       let instance = window.instance();
@@ -141,10 +141,10 @@ impl CoreMaat {
       command_buffers = command_pool.create_command_buffers(Arc::clone(&device), image_views.len() as u32);
       
       descriptor_set_pool = DescriptorPoolBuilder::new()
-                              .add_combined_image_samplers(80)
+                              .add_combined_image_samplers(100)
                               .add_uniform_buffers(80)
                               .add_storage_images(2)
-                              .add_input_attachments(5)
+                              .add_input_attachments(100)
                               .build(Arc::clone(&device), image_views.len() as u32);
       
       dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
@@ -158,17 +158,20 @@ impl CoreMaat {
                        .max_anisotropy(1.0)
                        .build(Arc::clone(&device));
       
-     // compute_shader = Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32);
+      //compute_shader = Some(Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32));
       
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
       final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
-      
+      /*
       let mut model_images = Vec::with_capacity(image_views.len());
       for i in 0..image_views.len() {
         model_images.push(model_shader.get_texture_ref(i));
       }
-      //compute_shader.build(Arc::clone(&device), *graphics_queue as u32, model_images);
+      
+      if let Some(compute) = &mut compute_shader {
+        compute.build(Arc::clone(&device), *graphics_queue as u32, model_images);
+      } */
     }
     
     let max_frames = fences.len();

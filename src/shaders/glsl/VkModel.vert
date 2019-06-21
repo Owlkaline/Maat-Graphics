@@ -154,13 +154,13 @@ void main() {
   
   vec3 local_pos = vec3(model * rotation * scale * vec4(position, 1.0));
   
-  vec4 rotated_normal = /*model */ rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
+  vec4 rotated_normal = rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
   
   uvs = uv;
   v_colour = colour;
   v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);
   v_base_colour_factor = uniforms.base_colour_factor;
-  v_world_pos = local_pos;
+  v_world_pos = local_pos;//vec3(view * vec4(local_pos, 1.0));
   v_normal = rotated_normal.xyz; //mat3(model) * vec3(normal.x, normal.y, -normal.z);
   
   v_camera_pos = push_constants.c_position.rgb;

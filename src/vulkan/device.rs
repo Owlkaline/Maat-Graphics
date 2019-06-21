@@ -303,6 +303,8 @@ impl Device {
     
     let min_uniformbuffer_offset_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     let non_coherent_atom_size = device_prop.limits.nonCoherentAtomSize;
+    println!("Max fragment shader outputs: {}", device_prop.limits.maxFragmentOutputAttachments);
+    println!("Max fragment shader inputs: {}", device_prop.limits.maxDescriptorSetInputAttachments);
     
     (device, physical_devices[physical_device_index], min_uniformbuffer_offset_alignment, non_coherent_atom_size, device_available_extensions)
   }
