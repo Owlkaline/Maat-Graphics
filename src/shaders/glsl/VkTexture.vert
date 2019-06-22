@@ -89,7 +89,7 @@ void main() {
   float y_offset = push_constants.projection_details.y;
   float right = push_constants.projection_details.z;
   float bottom = push_constants.projection_details.w;
-  mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(0.0, 0.0));
+  mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(x_offset, y_offset));
   mat4 model = create_translation_matrix(push_constants.model.xy, push_constants.model.zw);
   mat4 rot_z = create_rotation_matrix(rotation);
   mat4 scale_matrix = create_scale_matrix(matrix_zoom);

@@ -70,7 +70,7 @@ void main() {
   float block_y = sprite_sheet.y;
   float matrix_zoom = push_constants.matrix_zoom.x;
   
-  vec2 texture_pos = model.xy;
+  vec2 texture_pos = model.xy; 
   vec2 texture_scale = model.zw;
   float rotation = sprite_sheet.w;
   
@@ -87,11 +87,9 @@ void main() {
   float y_offset = push_constants.projection.y;
   float near = 1.0;
   float far = -1.0;
-  float right = x_offset + push_constants.projection.z;
-  float left = x_offset;
-  float bottom = y_offset + push_constants.projection.w;
-  float top = y_offset;
-  mat4 projection = create_ortho_projection(near, far, right, bottom, vec2(0.0));
+  float right = push_constants.projection.z;
+  float bottom = push_constants.projection.w;
+  mat4 projection = create_ortho_projection(near, far, right, bottom, vec2(x_offset, y_offset));
   
   mat4 rot_z = create_rotation_matrix(rotation);
   
