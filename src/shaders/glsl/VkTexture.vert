@@ -11,9 +11,37 @@ layout(location = 2) out float use_texture;
 layout(push_constant) uniform PushConstants {
   vec4 model; // position.x, position.y, scale x, scale y
   vec4 colour;
-  vec4 sprite_sheet; // block_x, block_y, num_of_rows, image_scale?
+  vec4 sprite_sheet; // block_x, block_y, num_of_rows, texture_scale
   vec4 projection_details;
+  vec4 rotation; // rot, _, _, _
 } push_constants;
+
+const float M_PI = 3.141592653589793;
+
+float to_radians(float degree) {
+  return degree * (M_PI/180.0);
+} 
+
+mat4 create_scale_matrix(float scale) {
+  mat4 matrix_scale = mat4(vec4(scale,  0.0,   0.0, 0.0), 
+                    vec4(0.0, scale, 0.0, 0.0), 
+                    vec4(0.0, 0.0,   1.0, 0.0), 
+                    vec4(0.0, 0.0,   0.0, 1.0));
+  
+  return matrix_scale;
+}
+
+mat4 create_rotation_matrix(float rotation) {
+  float s = sin(to_radians(rotation));
+  float c = cos(to_radians(rotation));
+  
+  mat4 rot_z = mat4(vec4(c,   s,   0.0, 0.0), 
+                    vec4(-s,  c,   0.0, 0.0), 
+                    vec4(0.0, 0.0, 1.0, 0.0), 
+                    vec4(0.0, 0.0, 0.0, 1.0));
+  
+  return rot_z;
+}
 
 mat4 create_translation_matrix(vec2 pos, vec2 scale) {
   mat4 translate_matrix = mat4(vec4(scale.x, 0.0,   0.0, 0.0), 
@@ -42,6 +70,8 @@ void main() {
   float num_rows = push_constants.sprite_sheet.z;
   float block_x = push_constants.sprite_sheet.x;
   float block_y = push_constants.sprite_sheet.y;
+  float matrix_zoom = push_constants.sprite_sheet.w;
+  float rotation = push_constants.rotation.x;
   
   if (num_rows < 0.0) {
     num_rows *= -1;
@@ -55,17 +85,14 @@ void main() {
   new_colour = push_constants.colour;
   use_texture = push_constants.sprite_sheet.z;
   
-  //mat4 scale_matrix = mat4(vec4(scale, 0.0, 0.0, 0.0), 
-  //                         vec4(0.0, scale, 0.0, 0.0), 
-  //                         vec4(0.0, 0.0, scale, 0.0), 
-  //                         vec4(0.0, 0.0, 0.0, 1.0));
-  
   float x_offset = push_constants.projection_details.x;
   float y_offset = push_constants.projection_details.y;
   float right = push_constants.projection_details.z;
   float bottom = push_constants.projection_details.w;
   mat4 projection = create_ortho_projection(1.0, -1.0, right, bottom, vec2(0.0, 0.0));
   mat4 model = create_translation_matrix(push_constants.model.xy, push_constants.model.zw);
+  mat4 rot_z = create_rotation_matrix(rotation);
+  mat4 scale_matrix = create_scale_matrix(matrix_zoom);
   
-  gl_Position = projection * model * vec4(position, 0.0, 1.0);
+  gl_Position = projection * model * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
 }

@@ -276,6 +276,7 @@ impl TextureShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size(Arc::clone(&device));
     
     let texture_pipeline = PipelineBuilder::new()
@@ -296,6 +297,7 @@ impl TextureShader {
     let text_pipeline = TextureShader::create_text_pipline(Arc::clone(&device), &vertex_shader_text, &fragment_shader_text, &render_pass, msaa, &descriptor_sets);
     
     let push_constant_size = UniformData::new()
+                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .size(Arc::clone(&device));
     
@@ -612,7 +614,7 @@ impl TextureShader {
     cmd.begin_render_pass(Arc::clone(&device), clear_value, &self.renderpass, &self.framebuffers[current_buffer].internal_object(), &window_size)
   }
   
-  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, _rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
+  pub fn draw_texture(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Option<Vector4<f32>>, use_texture: bool, texture_reference: String) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&texture_reference) {
@@ -645,12 +647,14 @@ impl TextureShader {
     let pos = self.camera.get_position();
     let projection_details = Vector4::new(pos.x, pos.y, right, top);
     let model = Vector4::new(position.x, position.y, scale.x, scale.y);
+    let rotation = Vector4::new(rotation, 0.0, 0.0, 0.0);
     
     let push_constant_data = UniformData::new()
                                .add_vector4(model)
                                .add_vector4(draw_colour)
                                .add_vector4(sprite)
-                               .add_vector4(projection_details);
+                               .add_vector4(projection_details)
+                               .add_vector4(rotation);
     
     cmd = cmd.push_constants(Arc::clone(&device), &self.texture_pipeline, ShaderStage::Vertex, push_constant_data);
     
@@ -786,12 +790,12 @@ impl TextureShader {
   }
   
   pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Vector4<f32>, use_texture: bool, buffer_reference: String) {
-    let model = Vector4::new(position.x, position.y, scale.x, -rotation-180.0);
+    let model = Vector4::new(position.x, position.y, scale.x, scale.y);
     
     let mut sprite = {
-      let mut tex_view = Vector4::new(0.0, 0.0, 1.0, self.scale);
+      let mut tex_view = Vector4::new(0.0, 0.0, 1.0, rotation);
       if let Some(details) = sprite_details {
-        tex_view = Vector4::new(details.x as f32, details.y as f32, details.z as f32, self.scale);
+        tex_view = Vector4::new(details.x as f32, details.y as f32, details.z as f32, rotation);
       }
       tex_view
     };
@@ -829,9 +833,11 @@ impl TextureShader {
       let right = self.camera.get_right();
       let pos = self.camera.get_position();
       let projection = Vector4::new(pos.x, pos.y, right, top);
+      let matrix_zoom = Vector4::new(self.scale, 0.0, 0.0, 0.0);
       
       let push_constant_data = UniformData::new()
-                                .add_vector4(projection);
+                                .add_vector4(projection)
+                                .add_vector4(matrix_zoom);
       
       cmd = cmd.push_constants(Arc::clone(&device), &self.instanced_pipeline, ShaderStage::Vertex, push_constant_data);
       

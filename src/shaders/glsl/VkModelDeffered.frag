@@ -61,12 +61,12 @@ vec3 BRDF(vec3 L, vec3 V, vec3 N, float metallic, float roughness, vec3 light_po
   
   vec3 colour = vec3(0.0);
   
-  float distance = length(light_position-world_pos);
+  float distance = length(v_light_positions[0] - world_pos);//length(light_position-world_pos);
   
   float attenuation = 1.0;
   attenuation *= 1.0 / max(distance * distance, 0.01*0.01);
   
-  vec3 radiance = light_colour * intensity * attenuation;
+  vec3 radiance = light_colour * intensity;// * attenuation;
   
   if (dotNL > 0.0) {
     float rr = max(0.05, roughness);
@@ -114,7 +114,7 @@ mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
   return look_at_matrix;
 }
 
-vec3 depth_to_world_position(float depth_value, mat4 invProjection, mat4 invView) {
+vec3 depth_to_world_position(float depth_value, vec3 camera_ray, mat4 invProjection, mat4 invView) {
   /*float x = uvs.x;
   float y = -uvs.y;
   
@@ -130,10 +130,13 @@ vec3 depth_to_world_position(float depth_value, mat4 invProjection, mat4 invView
   return world_pos;*/
   
   vec4 position = subpassLoad(position_texture);
-  vec4 clip_space = vec4(uvs.x* 0.5 + 0.5, uvs.y* 0.5 + 0.5, depth_value, 1.0);
+  vec3 cam_facing = normalize(camera_ray);
+  vec3 depth_dir = cam_facing * (depth_value * 2.0 - 1.0);
+  
+  vec4 clip_space = vec4(vec3(uvs.x* 2.0 - 1.0, -1.0*uvs.y* 2.0 - 1.0, 0.0) + depth_dir, 1.0);
   
   vec4 unproject = clip_space * invProjection;
-  //vec4 unview = unproject * invView;
+  vec4 unview = unproject * invView;
   
   vec3 world_pos = unproject.xyz / unproject.w;
   
@@ -142,6 +145,12 @@ vec3 depth_to_world_position(float depth_value, mat4 invProjection, mat4 invView
 
 
 void main() {
+  vec4 base_colour = subpassLoad(colour_texture);
+  
+  if (base_colour.a == 0.0) {
+    discard;
+  }
+  
   float aspect = v_camera_center.w/v_camera_up.w;
   mat4 projection = create_perspective_matrix(v_camera_pos.w, aspect, 0.1, 256.0);
   mat4 view = create_view_matrix(v_camera_pos.xyz, v_camera_center.xyz, v_camera_up.xyz);
@@ -150,9 +159,11 @@ void main() {
   
   float depth =  subpassLoad(depth_texture).x;
   
-  vec3 world_pos = depth_to_world_position(depth, invProjection, invView);
+  vec3 camera_ray = v_camera_pos.xyz - v_camera_center.xyz;
   
-  vec3 N = vec3(subpassLoad(normal_texture).rgb);
+  vec3 world_pos = depth_to_world_position(depth, camera_ray, invProjection, invView);
+  //vec3 world_pos = subpassLoad(position_texture).rgb * 100.0 - 100.0;
+  vec3 N = vec3(subpassLoad(normal_texture).rgb) * 2.0 - 1.0;
   vec3 V = normalize(v_camera_pos.xyz - world_pos);
   
   vec3 Lo = vec3(0.0);
@@ -162,19 +173,19 @@ void main() {
   L[1] = normalize(v_light_positions[1] - world_pos);
   L[2] = normalize(v_light_positions[2] - world_pos);
   
-  vec4 base_colour = subpassLoad(colour_texture);
+  
   vec4 mro_colour = subpassLoad(mro_texture);
   
   for(int i = 0; i < 3; ++i) {
     Lo += BRDF(L[i], V, N, mro_colour.x, mro_colour.y, v_light_positions[i], v_light_colours[i], v_light_intensity[i], world_pos);
   }
   
-  base_colour *= 0.02;
+  base_colour.rgb *= 0.02;
   base_colour.rgb += Lo;
   
   base_colour.rgb = pow(base_colour.rgb, vec3(0.4545));
   
-  outColour = vec4(base_colour.rgb, 1.0);
+  outColour = base_colour;
 }
 
 /*
