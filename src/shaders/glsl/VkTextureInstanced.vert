@@ -21,9 +21,9 @@ float to_radians(float degree) {
   return degree * (M_PI/180.0);
 }
 
-mat4 create_scale_matrix(float scale) {
-  mat4 matrix_scale = mat4(vec4(scale,  0.0,   0.0, 0.0), 
-                    vec4(0.0, scale, 0.0, 0.0), 
+mat4 create_scale_matrix(vec2 scale) {
+  mat4 matrix_scale = mat4(vec4(scale.x,  0.0,   0.0, 0.0), 
+                    vec4(0.0, scale.y, 0.0, 0.0), 
                     vec4(0.0, 0.0,   1.0, 0.0), 
                     vec4(0.0, 0.0,   0.0, 1.0));
   
@@ -42,8 +42,8 @@ mat4 create_rotation_matrix(float rotation) {
 }
 
 mat4 create_translation_matrix(vec2 pos, vec2 scale) {
-  mat4 translate_matrix = mat4(vec4(scale.x, 0.0,   0.0, 0.0), 
-                               vec4(0.0,   scale.y, 0.0, 0.0), 
+  mat4 translate_matrix = mat4(vec4(1.0, 0.0,   0.0, 0.0), 
+                               vec4(0.0,   1.0, 0.0, 0.0), 
                                vec4(0.0,   0.0,   1.0, 0.0), 
                                vec4(pos,          0.0, 1.0));
   
@@ -95,7 +95,8 @@ void main() {
   
   mat4 model_matrix = create_translation_matrix(texture_pos, texture_scale);
                               
-  mat4 scale_matrix = create_scale_matrix(matrix_zoom);
+  mat4 zoom_matrix = create_scale_matrix(vec2(matrix_zoom));
+  mat4 scale_matrix = create_scale_matrix(texture_scale);
   
-  gl_Position = projection * model_matrix * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
+  gl_Position = projection * model_matrix * zoom_matrix * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
 }

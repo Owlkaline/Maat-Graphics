@@ -75,7 +75,7 @@ pub fn to_radians(degree: f32) -> f32 {
 }
 
 pub fn to_degrees(radian: f32) -> f32 {
-  radian *  180.0 / PI as f32
+  radian * 180.0 / PI as f32
 }
 
 pub fn squared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
@@ -84,6 +84,15 @@ pub fn squared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
 
 pub fn unsquared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
   (origin.x-point.x)*(origin.x-point.x) + (origin.y-point.y)*(origin.y-point.y)
+}
+
+pub fn rotate_vector2(direction: Vector2<f32>, angle: f32) -> Vector2<f32> {
+  let radians = to_radians(angle);
+  
+  let cos = radians.cos();
+  let sin = radians.sin();
+  
+  Vector2::new(direction.x*cos - direction.y*sin, direction.x*sin + direction.y*cos)
 }
 
 pub fn aabb_circle_collision(circle: Vector3<f32>, square: Vector4<f32>, inner_radius: f32, outer_radius: f32) -> bool {
