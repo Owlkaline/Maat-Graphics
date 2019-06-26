@@ -106,6 +106,7 @@ pub extern crate imgui;
 extern crate imgui_winit_support;
 
 pub extern crate winit;
+pub extern crate cgmath;
 
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
@@ -128,7 +129,6 @@ mod gltf_interpreter;
 mod font;
 mod threadpool;
 mod resource_manager;
-
 
 #[cfg(test)]
 mod tests {
