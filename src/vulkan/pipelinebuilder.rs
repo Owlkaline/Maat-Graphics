@@ -633,7 +633,7 @@ impl PipelineBuilder {
     let mut pipeline_colour_blend_attachments: Vec<vk::PipelineColorBlendAttachmentState> = Vec::with_capacity(num_attachments as usize);
     
     
-    for i in 0..num_attachments {
+    for _ in 0..num_attachments {
       pipeline_colour_blend_attachments.push(
         vk::PipelineColorBlendAttachmentState {
           blendEnable: self.blend_enabled.to_bits(),

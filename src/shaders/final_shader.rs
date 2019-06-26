@@ -69,8 +69,8 @@ pub struct FinalShader {
 
 impl FinalShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> FinalShader {
-    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkFinalVert.spv"));
-    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkFinalFrag.spv"));
+    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkFinalVert.spv"));
+    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkFinalFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)

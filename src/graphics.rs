@@ -1,7 +1,7 @@
 use crate::drawcalls::DrawCall;
 use std::collections::HashMap;
 use crate::font::GenericFont;
-use crate::camera::Camera;
+use crate::camera::PerspectiveCamera;
 use crate::graphics;
 use crate::imgui::*;
 
@@ -69,8 +69,8 @@ pub trait CoreRender {
   fn show_cursor(&mut self);
   fn hide_cursor(&mut self);
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32);
-  fn set_camera(&mut self, camera: Camera);
-  fn get_camera(&self) -> Camera;
+  fn set_camera(&mut self, camera: PerspectiveCamera);
+  fn get_camera(&self) -> PerspectiveCamera;
   fn num_drawcalls(&self) -> u32;
 }
 

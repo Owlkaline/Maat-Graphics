@@ -521,7 +521,7 @@ impl RenderPassBuilder {
       vk.CreateRenderPass(*device, &render_pass_create_info, ptr::null(), &mut render_pass);
     }
     
-    let mut num_colour_attachments: Vec<u32> = self.subpasses.iter().map(|s| { s.num_colour_attachments() as u32 }).collect::<Vec<u32>>();
+    let num_colour_attachments: Vec<u32> = self.subpasses.iter().map(|s| { s.num_colour_attachments() as u32 }).collect::<Vec<u32>>();
     
     /*
     let mut num_colour_attachments: u32 = self.subpasses.iter().map(|s| { s.num_colour_attachments() as u32 }).sum();

@@ -3,7 +3,8 @@ use vk;
 use gltf::material::AlphaMode;
 
 use crate::math;
-use crate::camera;
+use crate::camera::PerspectiveCamera;
+use crate::camera::PerspectiveCameraDirection;
 use crate::gltf_interpreter::ModelDetails;
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageAspect, ShaderStage, VertexInputRate, AddressMode, MipmapMode, VkBool};
@@ -11,8 +12,8 @@ use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, 
 use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuilder, DescriptorSet, UpdateDescriptorSets, DescriptorSetBuilder, ImageAttachment, AttachmentInfo, SubpassInfo, RenderPassBuilder, Sampler, SamplerBuilder};
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformBufferBuilder, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
-use crate::FinalShader;
-use crate::FinalVertex;
+use crate::shaders::FinalShader;
+use crate::shaders::FinalVertex;
 
 use cgmath::{Vector2, Vector3, Vector4};
 
@@ -54,12 +55,6 @@ impl Light {
 }
 
 #[derive(Clone)]
-pub struct DefferedVertex {
-  pos: Vector2<f32>,
-  uvs: Vector2<f32>,
-}
-
-#[derive(Clone)]
 pub struct ModelVertex {
   pos: Vector3<f32>,
   normal: Vector3<f32>,
@@ -74,40 +69,6 @@ pub struct ModelInstanceData {
   rotation: Vector4<f32>,
   colour: Vector4<f32>,
   hologram: Vector4<f32>,
-}
-
-impl DefferedVertex {
-  pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
-    vk::VertexInputBindingDescription {
-      binding: 0,
-      stride: (mem::size_of::<DefferedVertex>()) as u32,
-      inputRate: VertexInputRate::Vertex.to_bits(),
-    }
-  }
-  
-  pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
-    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(2);
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 0,
-        binding: 0,
-        format: vk::FORMAT_R32G32B32_SFLOAT,
-        offset: offset_of!(DefferedVertex, pos) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 1,
-        binding: 0,
-        format: vk::FORMAT_R32G32_SFLOAT,
-        offset: offset_of!(DefferedVertex, uvs) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions
-  }
 }
 
 impl ModelVertex {
@@ -268,7 +229,7 @@ impl Model {
     let mut uniform_buffers = Vec::with_capacity(num_models);
     
     for i in 0..num_models {
-      let mut position = model.vertex(i); //vec3
+      let position = model.vertex(i); //vec3
       let normal = model.normal(i); //vec3
       let uv = model.texcoords(i); // vec2
       let colour = model.colours(i); // vec4 
@@ -496,7 +457,7 @@ pub struct ModelShader {
   fragment_shader_instanced: Shader,
   
   msaa: SampleCount,
-  camera: camera::Camera,
+  camera: PerspectiveCamera,
   
   scanline: f32,
   light: Light,
@@ -506,13 +467,13 @@ impl ModelShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue, msaa: &SampleCount) -> ModelShader {
     //let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
     //let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
-    let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedVert.spv"));
-    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelInstancedFrag.spv"));
+    let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelInstancedVert.spv"));
+    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelInstancedFrag.spv"));
     
-    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelVert.spv"));
-    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelFrag.spv"));
-    let vertex_shader_deffered = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelDefferedVert.spv"));
-    let fragment_shader_deffered = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkModelDefferedFrag.spv"));
+    let vertex_shader = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelVert.spv"));
+    let fragment_shader = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelFrag.spv"));
+    let vertex_shader_deffered = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelDefferedVert.spv"));
+    let fragment_shader_deffered = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkModelDefferedFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
@@ -623,7 +584,7 @@ impl ModelShader {
                                 .final_layout(ImageLayout::ColourAttachmentOptimal)
                                 .image_usage(ImageLayout::ColourAttachmentOptimal);*/
                                 
-    let mut subpass = SubpassInfo::new().add_colour_attachment(0)
+    let subpass = SubpassInfo::new().add_colour_attachment(0)
                                         .add_colour_attachment(1)
                                         .add_colour_attachment(2)
                                         .add_colour_attachment(3)
@@ -642,7 +603,7 @@ impl ModelShader {
     
     let subpass = subpass.add_depth_stencil(depth_index).add_colour_attachment(depth_index+1);
     
-    let mut second_subpass = SubpassInfo::new().add_colour_attachment(0)
+    let second_subpass = SubpassInfo::new().add_colour_attachment(0)
                                                .add_input_attachment(1)
                                                .add_input_attachment(2)
                                                .add_input_attachment(3)
@@ -701,7 +662,7 @@ impl ModelShader {
     }
     
         
-    let camera = camera::Camera::default_vk();
+    let camera = PerspectiveCamera::default_vk();
     
     let mut deffered_uniform_buffer = UniformBufferBuilder::new()
         .set_binding(5)
@@ -806,7 +767,7 @@ impl ModelShader {
     self.light.update(position, colour, intensity);
   }
   
-  pub fn set_camera(&mut self, camera: camera::Camera) {
+  pub fn set_camera(&mut self, camera: PerspectiveCamera) {
     self.camera = camera;
   }
   
@@ -818,7 +779,7 @@ impl ModelShader {
     self.camera.set_mouse_sensitivity(sensitivity);
   }
   
-  pub fn move_camera(&mut self, direction: camera::Direction, delta_time: f32) {
+  pub fn move_camera(&mut self, direction: PerspectiveCameraDirection, delta_time: f32) {
     self.camera.process_movement(direction, delta_time);
   }
   
@@ -830,7 +791,7 @@ impl ModelShader {
     self.framebuffer_colour_images[current_buffer].clone()
   }
   
-  pub fn get_texture_ref(&self, current_buffer: usize) -> &ImageAttachment {
+  pub fn _get_texture_ref(&self, current_buffer: usize) -> &ImageAttachment {
     &self.framebuffer_colour_images[current_buffer]
   }
   
@@ -1052,7 +1013,7 @@ impl ModelShader {
     
     (pipeline, double_pipeline)
   }
-  
+  /*
   pub fn create_index_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<u32> {
     let indices = vec!(0, 3, 2, 2, 1, 0, // back side
                        7, 3, 4, 4, 3, 0, // right side
@@ -1095,7 +1056,7 @@ impl ModelShader {
     
     let usage = BufferUsage::vertex_buffer();
     Buffer::<ModelVertex>::device_local_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), command_pool, graphics_queue, usage, cube)
-  }
+  }*/
   
   fn create_frame_buffers(instance: Arc<Instance>, device: Arc<Device>, render_pass: &RenderPass, swapchain_extent: &vk::Extent2D, format: &vk::Format, msaa: &SampleCount, num_image_views: usize, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> (Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<ImageAttachment>, Vec<Framebuffer>) {
     

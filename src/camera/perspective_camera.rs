@@ -25,7 +25,7 @@ pub enum Direction {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct Camera {
+pub struct PerspectiveCamera {
   position: Vector3<f32>,
   front: Vector3<f32>,
   up: Vector3<f32>,
@@ -43,10 +43,10 @@ pub struct Camera {
   horz_angle: f32,
 }
 
-impl Camera {
+impl PerspectiveCamera {
   pub fn new(position: Vector3<f32>, front: Vector3<f32>, up: Vector3<f32>,
-             move_speed: f32, mouse_sensitivity: f32) -> Camera {
-    Camera {
+             move_speed: f32, mouse_sensitivity: f32) -> PerspectiveCamera {
+    PerspectiveCamera {
       position: position,
       front: front,
       up: up,
@@ -65,8 +65,8 @@ impl Camera {
     }
   }
   
-  pub fn default_vk() -> Camera {
-    Camera {
+  pub fn default_vk() -> PerspectiveCamera {
+    PerspectiveCamera {
       position: Vector3::new(0.0, 0.0, 0.0),
       front: Vector3::new(0.0, 0.0, 1.0),
       up: Vector3::new(0.0, -1.0, 0.0),
@@ -303,7 +303,7 @@ impl Camera {
     
     let position = Vector4::new(position.x, position.y, position.z,1.0);
    // let view = self.get_view_matrix();
-    let view = Camera::create_view_matrix(self.position, self.position +
+    let view = PerspectiveCamera::create_view_matrix(self.position, self.position +
                      self.front, self.up);
     let perspective = self.get_perspective_matrix(aspect);
     

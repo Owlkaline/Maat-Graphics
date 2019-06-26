@@ -7,14 +7,14 @@ use crate::imgui::*;
 use crate::imgui_winit_support;
 
 use crate::ResourceManager;
-use crate::camera::Camera;
+use crate::camera::PerspectiveCamera;
 use crate::drawcalls::DrawCall; 
 use crate::drawcalls::DrawType;
 use crate::graphics::CoreRender;
 use crate::font::GenericFont;
-use crate::TextureShader;
-use crate::ModelShader;
-use crate::FinalShader;
+use crate::shaders::TextureShader;
+use crate::shaders::ModelShader;
+use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
 
@@ -101,7 +101,7 @@ impl CoreMaat {
     let texture_msaa;
     let model_msaa;
     
-    let mut compute_shader = None;
+    let compute_shader = None;
     
     {
       let instance = window.instance();
@@ -293,8 +293,8 @@ impl CoreMaat {
         ImVec4::new(x, y, z, w)
       }*/
       
-      let style = imgui.style_mut();
-  /*   style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
+   /*  let style = imgui.style_mut();
+      style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
       style.colors[11] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.8 };
       style.colors[12] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
       style.colors[24] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
@@ -652,9 +652,11 @@ impl CoreRender for CoreMaat {
             cmd = cmd.set_scissor(Arc::clone(&device), 0, 0, window_size.width, window_size.height);
           },
           DrawType::OrthoCamera(ref info) => {
-            let (position, size, vel) = info.clone();
+            let (some_camera, position, size, vel) = info.clone();
             
-            if let Some(goal_pos) = position {
+            if let Some(camera) = some_camera {
+              self.texture_shader.replace_ortho_camera(camera);
+            } else if let Some(goal_pos) = position {
               self.texture_shader.lerp_camera(goal_pos, vel);
             } else if let Some(goal_size) = size {
               self.texture_shader.lerp_camera_to_size(goal_size, vel);
@@ -902,12 +904,12 @@ impl CoreRender for CoreMaat {
     );
   }
   
-  fn set_camera(&mut self, _camera: Camera) {
+  fn set_camera(&mut self, _camera: PerspectiveCamera) {
     
   }
   
-  fn get_camera(&self) -> Camera {
-    Camera::default_vk()
+  fn get_camera(&self) -> PerspectiveCamera {
+    PerspectiveCamera::default_vk()
   }
   
   fn num_drawcalls(&self) -> u32 {

@@ -109,32 +109,26 @@ pub extern crate winit;
 
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
-use self::texture_shader::TextureShader;
-use self::model_shader::ModelShader;
-use self::final_shader::FinalShader;
-use self::final_shader::FinalVertex;
-use self::ortho_camera::OrthoCamera;
+
 use self::settings::Settings;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
 
 pub mod graphics;
-mod settings;
-pub mod camera;
+pub mod shaders;
 pub mod vulkan;
+pub mod camera;
 pub mod math;
+
+mod settings;
 mod drawcalls;
 mod core;
-#[macro_use]
-mod texture_shader;
-mod model_shader;
-mod final_shader;
 mod gltf_interpreter;
 mod font;
 mod threadpool;
 mod resource_manager;
-mod ortho_camera;
+
 
 #[cfg(test)]
 mod tests {

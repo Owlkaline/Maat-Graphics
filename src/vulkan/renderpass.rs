@@ -1,10 +1,7 @@
 use vk;
 
-use crate::vulkan::vkenums::{SampleCount, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, PipelineBindPoint, PipelineStage, Access, Dependency};
-
 use crate::vulkan::Device;
 
-use std::mem;
 use std::ptr;
 use std::sync::Arc;
 

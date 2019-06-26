@@ -495,7 +495,7 @@ ObjectType::Model(_, images) => {
       let mut data = data.lock().unwrap();
       let texture_start_time = time::Instant::now();
       let texture = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba();
-      
+      println!("Texture is loading: {}", location);
    //   if location.to_string() == "./resources/Textures/Logo.png".to_string() {
        // println!("{:?}", texture);
     //  }

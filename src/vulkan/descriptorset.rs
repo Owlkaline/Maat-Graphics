@@ -71,7 +71,6 @@ impl<'a> UpdateDescriptorSets<'a> {
   }
   
   pub fn add_input_attachment_image(mut self, binding: u32, image: &'a Vec<ImageAttachment>) -> UpdateDescriptorSets<'a> {
-    let index = self.input_images.len() as usize;
     self.input_images.push((binding, image, ImageLayout::ShaderReadOnlyOptimal, DescriptorType::InputAttachment));
     self
   }

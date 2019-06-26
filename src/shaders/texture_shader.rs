@@ -2,7 +2,7 @@ use vk;
 
 use crate::drawcalls;
 use crate::font::GenericFont; 
-use crate::OrthoCamera;
+use crate::camera::OrthoCamera;
 use crate::imgui::{Ui};
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageAspect, ShaderStage, VertexInputRate};
@@ -213,12 +213,12 @@ pub struct TextureShader {
 
 impl TextureShader {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, current_extent: &vk::Extent2D, format: &vk::Format, sampler: &Sampler, image_views: &Vec<vk::ImageView>, texture_image: &ImageAttachment, descriptor_set_pool: &DescriptorPool, command_pool: &CommandPool, graphics_queue: &vk::Queue, msaa: &SampleCount) -> TextureShader {
-    let vertex_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureVert.spv"));
-    let fragment_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureFrag.spv"));
-    let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextVert.spv"));
-    let fragment_shader_text = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextFrag.spv"));
-    let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureInstancedVert.spv"));
-    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkTextureInstancedFrag.spv"));
+    let vertex_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureVert.spv"));
+    let fragment_shader_texture = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureFrag.spv"));
+    let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextVert.spv"));
+    let fragment_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextFrag.spv"));
+    let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureInstancedVert.spv"));
+    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureInstancedFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(*format)
@@ -369,8 +369,8 @@ impl TextureShader {
   }
   
   pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) {
-    let vertex_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkImGuiVert.spv"));
-    let fragment_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("shaders/sprv/VkImGuiFrag.spv"));
+    let vertex_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiVert.spv"));
+    let fragment_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiFrag.spv"));
     
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -427,6 +427,10 @@ impl TextureShader {
   
   pub fn reset_camera(&mut self, width: f32, height: f32) {
     self.camera.reset(width, height);
+  }
+  
+  pub fn replace_ortho_camera(&mut self, camera: OrthoCamera) {
+    self.camera = camera;
   }
   
   pub fn get_texture(&mut self, current_buffer: usize) -> ImageAttachment {
@@ -497,6 +501,7 @@ impl TextureShader {
   }
   
   pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &ImageAttachment, sampler: &Sampler) {
+   println!("Adding texture: {}", texture_reference);
    if !self.descriptor_sets.contains_key(&texture_reference) {
       let descriptor = DescriptorSetBuilder::new()
                            .fragment_combined_image_sampler(0)
@@ -823,6 +828,9 @@ impl TextureShader {
       
       if num_instances == 0 {
         return cmd;
+      }
+      if !self.descriptor_sets.contains_key(&texture_reference) {
+        return cmd
       }
       
       buffer.fill_entire_buffer_single_frame(Arc::clone(&device), current_buffer, data);
