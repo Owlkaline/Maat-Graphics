@@ -58,6 +58,16 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
   a + t * (b-a)
 }
 
+// Cause fucking cgmath gives nan at 0.0, 0.0 situation
+pub fn normalise_vector2(mut some_vec: Vector2<f32>) -> Vector2<f32> {
+  if some_vec == Vector2::new(0.0, 0.0) || some_vec.x.is_nan() || some_vec.y.is_nan() || some_vec.x.is_infinite() || some_vec.y.is_infinite() {
+    return Vector2::new(0.0,0.0);
+  }
+  
+  some_vec = some_vec.normalize();
+  some_vec
+}
+
 pub fn array2_to_vec2<T: Clone>(array: [T; 2]) -> Vector2<T> {
   Vector2::new(array[0].clone(), array[1].clone())
 }

@@ -17,6 +17,7 @@ use crate::shaders::ModelShader;
 use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
+use crate::math;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool, BorderColour};
@@ -57,7 +58,6 @@ pub struct CoreMaat {
   model_shader: ModelShader,
   final_shader: FinalShader,
   
-  settings: Settings,
   resources: ResourceManager,
   
   current_frame: usize,
@@ -231,6 +231,8 @@ impl CoreMaat {
       )
     };
     
+    settings.save();
+    
     CoreMaat {
       window: window,
       window_dimensions: current_extent,
@@ -262,7 +264,6 @@ impl CoreMaat {
       model_shader,
       final_shader,
       
-      settings,
       resources: resource_manager,
       
       current_frame: 0,
@@ -498,6 +499,7 @@ impl CoreRender for CoreMaat {
       return model_details;
     }
     
+    
     println!("Reszing window");
     self.recreate_swapchain = false;
     
@@ -509,7 +511,11 @@ impl CoreRender for CoreMaat {
       fence.destroy(Arc::clone(&device));
     }
     
-    self.window.recreate_swapchain(&self.settings);
+    let resolution = Vector2::new(self.window_dimensions.width, self.window_dimensions.height);
+    let old_resolution = resolution;
+    let settings = Settings::load(Vector2::new(resolution.x as i32, resolution.y as i32),
+                                   Vector2::new(resolution.x as i32, resolution.y as i32));
+    self.window.recreate_swapchain(&settings);
     self.window_dimensions = self.window.get_current_extent();
     
     for i in 0..self.command_buffers.len() {
@@ -546,6 +552,10 @@ impl CoreRender for CoreMaat {
     self.draw(&Vec::new(), None, 0.0);
     
     self.window.device().wait();
+    
+    if Vector2::new(self.window_dimensions.width, self.window_dimensions.height) != old_resolution {
+      self.recreate_swapchain = true;
+    }
     println!("Finished resize");
     
     model_details
@@ -894,8 +904,6 @@ impl CoreRender for CoreMaat {
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     println!("SETTING CLEAR COLOUR");
     println!("Clear Colour: {}, {}, {}, {}", r, g, b, a);
-    let model_msaa = self.settings.get_model_msaa();
-    println!("model msaa: {}", model_msaa);
     
     self.final_clear_colour = vec!(
       vk::ClearValue {
@@ -920,8 +928,6 @@ impl CoreRender for CoreMaat {
 
 impl Drop for CoreMaat {
   fn drop(&mut self) {
-    self.settings.save();
-    
     self.window.device().wait();
     
     println!("Destroying Fences");

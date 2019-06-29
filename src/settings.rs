@@ -244,7 +244,7 @@ impl Settings {
     self.fullscreen
   }
   
-  pub fn _get_minimum_resolution(&self) -> [u32; 2] {
+  pub fn get_minimum_resolution(&self) -> [u32; 2] {
     self._minimum_resolution
   }
   
@@ -260,11 +260,11 @@ impl Settings {
     self.force_dpi = enable;
   }
   
-  pub fn _enable_vsync(&mut self, enable: bool) {
+  pub fn set_vsync(&mut self, enable: bool) {
     self.vsync = enable;
   }
   
-  pub fn _enable_fullscreen(&mut self, enable: bool) {
+  pub fn enable_fullscreen(&mut self, enable: bool) {
     self.fullscreen = enable;
   }
   

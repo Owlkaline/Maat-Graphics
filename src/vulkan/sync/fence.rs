@@ -36,6 +36,23 @@ impl Fence {
     &self.fence
   }
   
+  pub fn ready(&self, device: Arc<Device>) -> bool {
+    let vk = device.pointers();
+    let device = device.internal_object();
+    
+    let result;
+    
+    unsafe {
+      result = vk.GetFenceStatus(*device, self.fence);
+    }
+    
+    match result {
+      vk::SUCCESS => true,
+      vk::NOT_READY => false,
+      _ => {true}
+    }
+  }
+  
   pub fn reset(&self, device: Arc<Device>) {
     let vk = device.pointers();
     let device = device.internal_object();

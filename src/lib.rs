@@ -111,7 +111,7 @@ pub extern crate cgmath;
 use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 
-use self::settings::Settings;
+pub use self::settings::Settings;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
