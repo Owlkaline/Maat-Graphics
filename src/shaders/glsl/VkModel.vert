@@ -130,7 +130,7 @@ mat4 create_scale_matrix(vec3 scale) {
 void main() {
   vec3 model_scale = vec3(push_constants.c_up.w, push_constants.model.w, push_constants.rotation.w);
   
-  mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 256.0);
+  mat4 projection = create_perspective_matrix(push_constants.c_position.w, push_constants.c_center.w, 0.1, 1080.0);
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
   mat4 model = create_translation_matrix(push_constants.model.xyz);
   mat4 scale = create_scale_matrix(model_scale);

@@ -313,28 +313,16 @@ impl RenderPassBuilder {
       
       for j in 0..num_attchments as usize {
         let attachment_index = self.subpasses[i].get_colour_attachment_index(j);
-        let attachment_layout = self.attachments[attachment_index as usize].get_image_usage();/*if i == 0 { self.attachments[attachment_index as usize].get_image_usage() } else {
-          self.attachments[attachment_index as usize].get_final_layout()
-        };*/
-        let reference = vk::AttachmentReference {
-          attachment: attachment_index,
-          layout: attachment_layout.to_bits(),
-        };
-        
-        colour_attachments[i].push(reference);
+        let attachment_layout = self.attachments[attachment_index as usize].get_image_usage();
+        colour_attachments[i].push(attachment_layout.to_attachment_reference(attachment_index));
       }
       
       let num_resolve_attachments = self.subpasses[i].num_resolve_attachments();
+      
       for j in 0..num_resolve_attachments as usize {
         let attachment_index = self.subpasses[i].get_resolve_attachment_index(j);
-        let attachment_layout = if i == 0 { self.attachments[attachment_index as usize].get_image_usage() } else {
-          self.attachments[attachment_index as usize].get_final_layout() };
-        let reference = vk::AttachmentReference {
-          attachment: attachment_index,
-          layout: attachment_layout.to_bits(),
-        };
-        
-        resolve_attachments[i].push(reference);
+        let attachment_layout = self.attachments[attachment_index as usize].get_image_usage();
+        resolve_attachments[i].push(attachment_layout.to_attachment_reference(attachment_index));
       }
       
       if let Some(depth_stencil) = self.subpasses[i].get_depth_stencil_attachment_references() {
@@ -356,7 +344,7 @@ impl RenderPassBuilder {
           pipelineBindPoint: vk::PIPELINE_BIND_POINT_GRAPHICS,
           inputAttachmentCount: input_attachments[i].len() as u32,
           pInputAttachments: if input_attachments[i].len() == 0 { ptr::null() } else { input_attachments[i].as_ptr() },
-          colorAttachmentCount: colour_attachments[i].len() as u32/* + resolve_attachments.len() as u32*/,
+          colorAttachmentCount: colour_attachments[i].len() as u32,
           pColorAttachments: if colour_attachments[i].len() == 0 { ptr::null() } else { colour_attachments[i].as_ptr() },
           pResolveAttachments: if resolve_attachments[i].len() == 0 { ptr::null() } else { resolve_attachments[i].as_ptr() },
           pDepthStencilAttachment: if depth_stencil_attachments[i].len() == 0 { ptr::null() } else { depth_stencil_attachments[i].as_ptr() },
@@ -411,97 +399,6 @@ impl RenderPassBuilder {
               dependencyFlags: Dependency::ByRegion.to_bits(),
         });
     }
-    /*
-    for i in 0..self.subpasses.len() {
-      for j in 0..self.subpasses[i].num_colour_attachments() {
-        let num_resolve = self.subpasses[i].num_resolve_attachments();
-        if num_resolve > j {
-          // Colour Resolve
-          subpass_dependency.push(vk::SubpassDependency {
-            srcSubpass: i as u32,
-            dstSubpass: if i == self.subpasses.len()-1 { vk::SUBPASS_EXTERNAL } else { (i+1) as u32 },
-            srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-            dstStageMask: PipelineStage::BottomOfPipe.to_bits(),
-            srcAccessMask: Access::ColourAttachmentReadAndWrite.to_bits(),
-            dstAccessMask: Access::MemoryRead.to_bits(),
-            dependencyFlags: Dependency::ByRegion.to_bits(),
-          });
-        } else {
-          // Colour Attachemnt 
-          subpass_dependency.push(vk::SubpassDependency {
-            srcSubpass: if i == self.subpasses.len()-1 { i as u32 } else { vk::SUBPASS_EXTERNAL },
-            dstSubpass:  if i == self.subpasses.len()-1 { vk::SUBPASS_EXTERNAL } else { i as u32 },
-            srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-            dstStageMask: if i == self.subpasses.len()-1 { PipelineStage::BottomOfPipe.to_bits() } else { PipelineStage::ColorAttachmentOutput.to_bits() },
-            srcAccessMask: Access::ColourAttachmentRead.to_bits(),
-            dstAccessMask: if i == self.subpasses.len()-1 { Access::MemoryRead.to_bits() } else { 0 },//Access::ColourAttachmentReadAndWrite.to_bits(),
-            dependencyFlags: Dependency::ByRegion.to_bits(),
-          });
-        }
-      }
-      
-      for j in 0..self.subpasses[i].num_resolve_attachments() {
-        subpass_dependency.push(vk::SubpassDependency {
-          srcSubpass: vk::SUBPASS_EXTERNAL,
-          dstSubpass: i as u32,
-          srcStageMask: PipelineStage::BottomOfPipe.to_bits(),
-          dstStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          srcAccessMask: Access::MemoryRead.to_bits(),
-          dstAccessMask: Access::ColourAttachmentReadAndWrite.to_bits(),
-          dependencyFlags: Dependency::ByRegion.to_bits(),
-        });
-      }
-      
-      for j in 0..self.subpasses[i].num_input_attachments() {
-        subpass_dependency.push(vk::SubpassDependency {
-          srcSubpass: (i-1) as u32,
-          dstSubpass: i as u32,
-          srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          dstStageMask: PipelineStage::FragmentShader.to_bits(),
-          srcAccessMask: Access::ColourAttachmentWrite.to_bits(),
-          dstAccessMask: Access::ColourAttachmentRead.to_bits(),
-          dependencyFlags: Dependency::ByRegion.to_bits(),
-        });
-      }
-    }*/
-    
-    /*
-    let mut subpass_dependency: Vec<vk::SubpassDependency> = Vec::with_capacity(2);
-  
-      if resolve_attachments.len() == 0 {
-        subpass_dependency.push(vk::SubpassDependency {
-          srcSubpass: vk::SUBPASS_EXTERNAL,
-          dstSubpass: 0,
-          srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          dstStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          srcAccessMask: 0,
-          dstAccessMask: Access::ColourAttachmentRead.to_bits() | Access::ColourAttachmentWrite.to_bits(),
-          dependencyFlags: Dependency::ByRegion.to_bits(),
-        });
-      } else {
-        // MSAA
-        subpass_dependency.push(vk::SubpassDependency {
-          srcSubpass: vk::SUBPASS_EXTERNAL,
-          dstSubpass: 0,
-          srcStageMask: PipelineStage::BottomOfPipe.to_bits(),
-          dstStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          srcAccessMask: Access::MemoryRead.to_bits(),
-          dstAccessMask: Access::ColourAttachmentReadAndWrite.to_bits(),
-          dependencyFlags: Dependency::ByRegion.to_bits(),
-        });
-        
-        // Colour
-        subpass_dependency.push(vk::SubpassDependency {
-          srcSubpass: 0,
-          dstSubpass: vk::SUBPASS_EXTERNAL,
-          srcStageMask: PipelineStage::ColorAttachmentOutput.to_bits(),
-          dstStageMask: PipelineStage::BottomOfPipe.to_bits(),
-          srcAccessMask: Access::ColourAttachmentReadAndWrite.to_bits(),
-          dstAccessMask: Access::MemoryRead.to_bits(),
-          dependencyFlags: Dependency::ByRegion.to_bits(),
-        });
-      }
-      */
     
     let render_pass_create_info = vk::RenderPassCreateInfo {
       sType: vk::STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -523,9 +420,6 @@ impl RenderPassBuilder {
     
     let num_colour_attachments: Vec<u32> = self.subpasses.iter().map(|s| { s.num_colour_attachments() as u32 }).collect::<Vec<u32>>();
     
-    /*
-    let mut num_colour_attachments: u32 = self.subpasses.iter().map(|s| { s.num_colour_attachments() as u32 }).sum();
-    num_colour_attachments -= self.subpasses.iter().map(|s| { s.num_depth_attachments() as u32 }).sum::<u32>();*/
     let num_attachments = attachment_descriptions.len() as u32;
     
     RenderPass::new_from_renderpass(render_pass, num_attachments, num_colour_attachments)
