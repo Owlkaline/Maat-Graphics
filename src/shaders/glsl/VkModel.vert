@@ -24,22 +24,6 @@ layout(set = 0, binding = 0) uniform UniformBuffer {
   vec4 mro_factors; // metallic_factor, roughness_factor, occlusion_string, _
   vec4 emissive_factor; // r, g, b, _
 } uniforms;
-/*
-layout(set = 0, binding = 1) uniform UniformBuffer {
-  vec4 light1_position[50]; // x, y, z, intensity1
-  vec4 light1_colour[50]; // r, g, b, 
-} light_uniforms;*/
-
-/*
-layout(set = 0, binding = 1) uniform UniformBuffer {
-  vec4 light1_position; // x, y, z, intensity1
-  vec4 light1_colour; // r, g, b, 
-  vec4 light2_position; // x,y,z, intensity2
-  vec4 light2_colour; // r, g, b, 
-  vec4 light3_position; // x,y,z, intensity3
-  vec4 light3_colour; // r,g,b, 
-} light_uniforms;
-*/
 
 layout(push_constant) uniform PushConstants {
   vec4 c_position; // x, y, z, fov
@@ -160,8 +144,8 @@ void main() {
   v_colour = colour;
   v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);
   v_base_colour_factor = uniforms.base_colour_factor;
-  v_world_pos = local_pos;//vec3(view * vec4(local_pos, 1.0));
-  v_normal = rotated_normal.xyz; //mat3(model) * vec3(normal.x, normal.y, -normal.z);
+  v_world_pos = local_pos;
+  v_normal = rotated_normal.xyz;
   
   v_camera_pos = push_constants.c_position.rgb;
   

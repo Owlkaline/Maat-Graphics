@@ -810,13 +810,14 @@ impl TextureShader {
     }
     
     let draw_colour = colour;
-    let mut details = self.instanced_cpu_buffers.get_mut(&buffer_reference).unwrap();
-    
-    let data = details.0.clone();
-    details.0 = data
-                      .add_vector4(model)
-                      .add_vector4(draw_colour)
-                      .add_vector4(sprite);
+   // let mut details = self.instanced_cpu_buffers.get_mut(&buffer_reference).unwrap();
+    if let Some(details) = &mut self.instanced_cpu_buffers.get_mut(&buffer_reference) {
+      let data = details.0.clone();
+      details.0 = data
+                        .add_vector4(model)
+                        .add_vector4(draw_colour)
+                        .add_vector4(sprite);
+    }
   }
   
   pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, buffer_reference: String, texture_reference: String) -> CommandBufferBuilder {

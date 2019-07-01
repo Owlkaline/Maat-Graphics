@@ -75,18 +75,15 @@ void main() {
     }
   }
   
-  //base_colour *= 0.02;
-  
   float halpha = hologram_alpha(v_scanline.x, v_scanline.y);
   vec4 use_scanline = when_gt(vec4(v_scanline.z), vec4(0.0));
   
   alpha = use_scanline.a      * halpha + 
           not(use_scanline).a * alpha;
   
-  //outColour = vec4(0.0);//v_world_pos.x, v_world_pos.y, v_world_pos.z, 1.0);
   outAlbedo = vec4(base_colour, alpha);
   outMro = vec4(v_mr.x, v_mr.y, 0.0, 1.0);
   outEmissive = vec4(0.0, 0.0, 0.0, 0.0);
-  outNormal = vec4(normalize(v_normal) * 0.5 + 0.5, 1.0);
-  outPosition = vec4((v_world_pos.x+100.0)*0.01, (v_world_pos.y+100.0)*0.01, (v_world_pos.z+100.0)*0.01, 1.0);
+  outNormal = vec4(normalize(v_normal), 1.0);
+  outPosition = vec4(v_world_pos, 1.0);
 }
