@@ -50,6 +50,7 @@ pub struct CoreMaat {
   final_clear_colour: Vec<vk::ClearValue>,
   
   dummy_image: ImageAttachment,
+  dummy_image_snorm: ImageAttachment,
   
   sampler: Sampler,
   
@@ -94,6 +95,7 @@ impl CoreMaat {
     let current_extent = window.get_current_extent();
     
     let dummy_image;
+    let dummy_image_snorm;
     
     let desired_texture_msaa = settings.get_texture_msaa();
     let desired_model_msaa = settings.get_model_msaa();
@@ -148,6 +150,7 @@ impl CoreMaat {
                               .build(Arc::clone(&device), image_views.len() as u32);
       
       dummy_image = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, &command_pool, graphics_queue);
+      dummy_image_snorm = ImageAttachment::create_dummy_texture(Arc::clone(&instance), Arc::clone(&device), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_SNORM, &command_pool, graphics_queue);
       
       sampler = SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -162,7 +165,7 @@ impl CoreMaat {
       
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
-      final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue);
+      final_shader = FinalShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image_snorm, &descriptor_set_pool, &command_pool, graphics_queue);
       /*
       let mut model_images = Vec::with_capacity(image_views.len());
       for i in 0..image_views.len() {
@@ -267,16 +270,17 @@ impl CoreMaat {
       texture_clear_colour:
         vec!(
           vk::ClearValue {
-            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+            color: vk::ClearColorValue { float32: [-1.0, -1.0, -1.0, -1.0] }
           },
           vk::ClearValue {
-            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] }
+            color: vk::ClearColorValue { float32: [-1.0, -1.0, -1.0, -1.0] }
           },
         ),
       model_clear_colour,
       final_clear_colour: default_clear_colour,
       
       dummy_image,
+      dummy_image_snorm,
       sampler,
       
       _compute_shader: compute_shader,
@@ -304,7 +308,7 @@ impl CoreMaat {
     let graphics_queue = self.window.get_graphics_queue();
     
     {
-    /*
+    
       fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
         let x = col.x.powf(2.2);
         let y = col.y.powf(2.2);
@@ -312,40 +316,42 @@ impl CoreMaat {
         let w = 1.0 - (1.0 - col.w).powf(2.2);
         
         ImVec4::new(x, y, z, w)
-      }*/
+      }
       
-   /*  let style = imgui.style_mut();
-      style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
+     let style = imgui.style_mut();
+     /* style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
       style.colors[11] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.8 };
       style.colors[12] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
       style.colors[24] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
       style.colors[18] = ImVec4{ x: 0.0, y: 1.0, z: 0.0, w: 1.0 };*/
       
-      /*
-      style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
-      style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.50, y: 0.50, z: 0.50, w: 1.00};
       
-      for colour in &mut style.colors.iter_mut() {
-        colour.w = 0.0;
-      }
-      style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
-      style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.50, y: 0.50, z: 0.50, w: 1.00};
-      style.colors[ImGuiCol::WindowBg as usize]               = ImVec4{ x: 0.06, y: 0.06, z: 0.06, w: 1.00};
-      style.colors[ImGuiCol::ChildBg as usize]                = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::PopupBg as usize]                = ImVec4{ x: 0.08, y: 0.08, z: 0.08, w: 1.00};
-      style.colors[ImGuiCol::Border as usize]                 = ImVec4{ x: 0.43, y: 0.43, z: 0.50, w: 1.00};
-      style.colors[ImGuiCol::BorderShadow as usize]           = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::FrameBg as usize]                = ImVec4{ x: 0.16, y: 0.29, z: 0.48, w: 1.00};
-      style.colors[ImGuiCol::FrameBgHovered as usize]         = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::FrameBgActive as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::TitleBg as usize]                = ImVec4{ x: 0.04, y: 0.04, z: 0.04, w: 1.00};
-      style.colors[ImGuiCol::TitleBgActive as usize]          = ImVec4{ x: 0.16, y: 0.29, z: 0.48, w: 1.00};
-      style.colors[ImGuiCol::TitleBgCollapsed as usize]       = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::MenuBarBg as usize]              = ImVec4{ x: 0.14, y: 0.14, z: 0.14, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarBg as usize]            = ImVec4{ x: 0.02, y: 0.02, z: 0.02, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarGrab as usize]          = ImVec4{ x: 0.31, y: 0.31, z: 0.31, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarGrabHovered as usize]   = ImVec4{ x: 0.41, y: 0.41, z: 0.41, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarGrabActive as usize]    = ImVec4{ x: 0.51, y: 0.51, z: 0.51, w: 1.00};
+     // style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
+     // style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.50, y: 0.50, z: 0.50, w: 1.00};
+      
+      //for colour in &mut style.colors.iter_mut() {
+     //   colour.w = 0.0;
+    //  }
+      //style.Alpha = 1.0;
+      //style.FrameRounding = 3.0;
+      style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
+      style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.60, y: 0.60, z: 0.60, w: 1.00};
+      style.colors[ImGuiCol::WindowBg as usize]               = ImVec4{ x: 0.94, y: 0.94, z: 0.94, w: 0.94};
+      style.colors[ImGuiCol::ChildBg as usize]                = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 0.00};
+      style.colors[ImGuiCol::PopupBg as usize]                = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.94};
+      style.colors[ImGuiCol::Border as usize]                 = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 0.39};
+      style.colors[ImGuiCol::BorderShadow as usize]           = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.10};
+      style.colors[ImGuiCol::FrameBg as usize]                = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.94};
+      style.colors[ImGuiCol::FrameBgHovered as usize]         = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 0.40};
+      style.colors[ImGuiCol::FrameBgActive as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 0.67};
+      style.colors[ImGuiCol::TitleBg as usize]                = ImVec4{ x: 0.96, y: 0.96, z: 0.96, w: 1.00};
+      style.colors[ImGuiCol::TitleBgActive as usize]          = ImVec4{ x: 0.82, y: 0.82, z: 0.82, w: 1.00};
+      style.colors[ImGuiCol::TitleBgCollapsed as usize]       = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.51};
+      style.colors[ImGuiCol::MenuBarBg as usize]              = ImVec4{ x: 0.86, y: 0.86, z: 0.86, w: 1.00};
+      style.colors[ImGuiCol::ScrollbarBg as usize]            = ImVec4{ x: 0.98, y: 0.98, z: 0.98, w: 0.53};
+      style.colors[ImGuiCol::ScrollbarGrab as usize]          = ImVec4{ x: 0.69, y: 0.69, z: 0.69, w: 1.00};
+      style.colors[ImGuiCol::ScrollbarGrabHovered as usize]   = ImVec4{ x: 0.59, y: 0.59, z: 0.59, w: 1.00};
+      style.colors[ImGuiCol::ScrollbarGrabActive as usize]    = ImVec4{ x: 0.49, y: 0.49, z: 0.49, w: 1.00};
       style.colors[ImGuiCol::CheckMark as usize]              = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
       style.colors[ImGuiCol::SliderGrab as usize]             = ImVec4{ x: 0.24, y: 0.52, z: 0.88, w: 1.00};
       style.colors[ImGuiCol::SliderGrabActive as usize]       = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
@@ -355,27 +361,27 @@ impl CoreMaat {
       style.colors[ImGuiCol::Header as usize]                 = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
       style.colors[ImGuiCol::HeaderHovered as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
       style.colors[ImGuiCol::HeaderActive as usize]           = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::Separator as usize]              = ImVec4{ x: 0.43, y: 0.43, z: 0.50, w: 1.00};
-      style.colors[ImGuiCol::SeparatorHovered as usize]       = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
-      style.colors[ImGuiCol::SeparatorActive as usize]        = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
-      style.colors[ImGuiCol::ResizeGrip as usize]             = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
+      //style.colors[ImGuiCol::Separator as usize]              = ImVec4{ x: 0.43, y: 0.43, z: 0.50, w: 1.00};
+      //style.colors[ImGuiCol::SeparatorHovered as usize]       = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
+      //style.colors[ImGuiCol::SeparatorActive as usize]        = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
+      style.colors[ImGuiCol::ResizeGrip as usize]             = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.50};
       style.colors[ImGuiCol::ResizeGripHovered as usize]      = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
       style.colors[ImGuiCol::ResizeGripActive as usize]       = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::PlotLines as usize]              = ImVec4{ x: 0.61, y: 0.61, z: 0.61, w: 1.00};
+      style.colors[ImGuiCol::PlotLines as usize]              = ImVec4{ x: 0.39, y: 0.39, z: 0.39, w: 1.00};
       style.colors[ImGuiCol::PlotLinesHovered as usize]       = ImVec4{ x: 1.00, y: 0.43, z: 0.35, w: 1.00};
       style.colors[ImGuiCol::PlotHistogram as usize]          = ImVec4{ x: 0.90, y: 0.70, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::PlotHistogramHovered as usize]   = ImVec4{ x: 1.00, y: 0.60, z: 0.00, w: 1.00};
+      style.colors[ImGuiCol::PlotHistogramHovered as usize]   = ImVec4{ x: 1.00, y: 0.43, z: 0.35, w: 1.00};
       style.colors[ImGuiCol::TextSelectedBg as usize]         = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::DragDropTarget as usize]         = ImVec4{ x: 1.00, y: 1.00, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::NavHighlight as usize]           = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::NavWindowingHighlight as usize]  = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
-      style.colors[ImGuiCol::NavWindowingDimBg as usize]      = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 1.00};
-      style.colors[ImGuiCol::ModalWindowDimBg as usize]       = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 1.00};*/
+      //style.colors[ImGuiCol::DragDropTarget as usize]         = ImVec4{ x: 1.00, y: 1.00, z: 0.00, w: 1.00};
+      //style.colors[ImGuiCol::NavHighlight as usize]           = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
+     // style.colors[ImGuiCol::NavWindowingHighlight as usize]  = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
+      //style.colors[ImGuiCol::NavWindowingDimBg as usize]      = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 1.00};
+      style.colors[ImGuiCol::ModalWindowDimBg as usize]       = ImVec4{ x: 0.20, y: 0.20, z: 0.20, w: 0.35};
       //style.alpha = 1.0;
 
-     // for col in 0..style.colors.len() {
-      //  style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-      //}
+      for col in 0..style.colors.len() {
+       style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
+      }
     }
     
     imgui.set_ini_filename(None);
@@ -961,6 +967,7 @@ impl Drop for CoreMaat {
     
     self.resources.destroy(Arc::clone(&device));
     self.dummy_image.destroy(Arc::clone(&device));
+    self.dummy_image_snorm.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
     if let Some(sampler) = &self.imgui_sampler {

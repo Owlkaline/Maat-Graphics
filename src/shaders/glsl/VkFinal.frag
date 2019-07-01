@@ -49,10 +49,12 @@ vec4 not(vec4 a) {
 
 void main() {
   vec4 final_colour = texture(texture_image, uvs);
-  if (final_colour == vec4(0.0)) {
+  // Allows 3D to draw
+  if (final_colour.r < 0.0 && final_colour.g < 0.0 && final_colour.b < 0.0 && final_colour.a < 0.0) {
     discard;
   }
   
+  // Fixes 2D black transparency issue
   if (drawing_ui > 0.0) {
     final_colour.a = 1.0;
   }
