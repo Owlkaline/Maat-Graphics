@@ -946,9 +946,7 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size(Arc::clone(&device));
+                               .size_non_aligned();
     
     let pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader.get_shader())
@@ -994,7 +992,7 @@ impl ModelShader {
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size(Arc::clone(&device));
+                               .size_non_aligned();
     
     let deffered_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader_deffered.get_shader())
