@@ -3,7 +3,7 @@
 layout(location = 0) in vec2 uvs;
 layout(location = 1) in vec4 v_colour;
 layout(location = 2) in vec4 v_base_colour_factor;
-layout(location = 3) in vec4 v_alpha_cutoff;
+layout(location = 3) in vec4 v_alpha_cutoff; // alpha, cutoff, _, use emissive
 layout(location = 4) in vec3 v_normal;
 layout(location = 5) in vec3 v_world_pos;
 layout(location = 6) in vec3 v_camera_pos;
@@ -19,6 +19,10 @@ layout(location = 4) out vec4 outNormal;
 layout(location = 5) out vec4 outPosition;
 
 layout(set = 0, binding = 1) uniform sampler2D base_texture;
+layout(set = 0, binding = 2) uniform sampler2D mro_texture;
+layout(set = 0, binding = 3) uniform sampler2D normal_texture;
+layout(set = 0, binding = 4) uniform sampler2D occlusion_texture;
+layout(set = 0, binding = 5) uniform sampler2D emissive_texture;
 
 const float M_PI = 3.141592653589793;
 
@@ -50,8 +54,25 @@ float hologram_alpha(float scanline, float y_offset) {
 void main() {
   vec3 base_colour = vec3(1.0);
   float alpha = v_colour.a;
+  vec4 mro = vec4(1.0);
+  vec4 emissive = vec4(1.0);
+  vec4 normal = vec4(1.0);
   
   vec4 use_base_texture = when_gt(vec4(v_use_textures.x), vec4(0.0));
+  vec4 use_mro_texture = when_gt(vec4(v_use_textures.y), vec4(0.0));
+  vec4 use_normal_texture = when_gt(vec4(v_use_textures.z), vec4(0.0));
+  vec4 use_occlusion_texture = when_gt(vec4(v_use_textures.w), vec4(0.0));
+  vec4 use_emissive_texture = when_gt(vec4(v_alpha_cutoff.w), vec4(0.0));
+  
+  mro = use_mro_texture * texture(mro_texture, uvs) + 
+        not(use_mro_texture) * vec4(v_mr, 0.0, 0.0);
+  
+  emissive = use_emissive_texture * texture(emissive_texture, uvs) + 
+             not(use_emissive_texture) * vec4(0.0);
+  
+  normal = use_normal_texture * texture(normal_texture, uvs) + 
+           not(use_normal_texture) * v_normal;
+  
   base_colour = use_base_texture.rgb      * texture(base_texture, uvs).rgb + 
                 not(use_base_texture).rgb * base_colour;
   
@@ -82,8 +103,9 @@ void main() {
           not(use_scanline).a * alpha;
   
   outAlbedo = vec4(base_colour, alpha);
-  outMro = vec4(v_mr.x, v_mr.y, 0.0, 1.0);
-  outEmissive = vec4(0.0, 0.0, 0.0, 0.0);
-  outNormal = vec4(normalize(v_normal), 1.0);
+  outMro = mro;//vec4(v_mr.x, v_mr.y, 0.0, 1.0);
+  outEmissive = emissive; //vec4(0.0, 0.0, 0.0, 0.0);
+  outNormal = emissive;//vec4(normalize(v_normal), 1.0);
   outPosition = vec4(v_world_pos, 1.0);
+  // occlusion
 }

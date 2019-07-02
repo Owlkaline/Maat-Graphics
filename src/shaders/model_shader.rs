@@ -347,9 +347,34 @@ impl Model {
                            .vertex_uniform_buffer(0)
                          //  .vertex_uniform_buffer(1)
                            .fragment_combined_image_sampler(1)
+                           .fragment_combined_image_sampler(2)
+                           .fragment_combined_image_sampler(3)
+                           .fragment_combined_image_sampler(4)
+                           .fragment_combined_image_sampler(5)
                            .build(Arc::clone(&device), &descriptor_set_pool, 1);
-      if let Some(ref texture) = &base_textures[i] {
-        UpdateDescriptorSets::new()
+      
+      let mut base_texture = dummy_texture;
+      //let mut mro_texture = &dummy_texture;
+    //  let mut normal_texture = &dummy_texture;
+    //  let mut occlusion_texture = &dummy_texture;
+   //   let mut emissive_texture = &dummy_texture;
+      
+      if let Some(ref texture) = &base_textures[i*5 + 0] { // base texture
+        base_texture = texture;
+      }
+    /*  if let Some(ref texture) = &base_textures[i*5 + 1] { // mro texture
+        mro_texture = texture;
+      }
+      if let Some(ref texture) = &base_textures[i*5 + 2] { // normal texture
+        normal_texture = texture;
+      }
+      if let Some(ref texture) = &base_textures[i*5 + 3] { // occlusion texture
+        occlusion_texture = texture;
+      }
+      if let Some(ref texture) = &base_textures[i*5 + 4] { // emissive texture
+        emissive_texture = texture;
+      }*/
+      /* UpdateDescriptorSets::new()
              .add_built_uniformbuffer(0, &mut uniform_buffer)
              .add_sampled_image(1, &texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
              .finish_update(Arc::clone(&device), &descriptor_set);
@@ -358,7 +383,16 @@ impl Model {
              .add_built_uniformbuffer(0, &mut uniform_buffer)
              .add_sampled_image(1, &dummy_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
              .finish_update(Arc::clone(&device), &descriptor_set);
-      }
+      }*/
+      
+      UpdateDescriptorSets::new()
+             .add_built_uniformbuffer(0, &mut uniform_buffer)
+             .add_sampled_image(1, base_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+         //    .add_sampled_image(2, mro_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+          //   .add_sampled_image(3, normal_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+          //   .add_sampled_image(4, occlusion_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+          //   .add_sampled_image(5, emissive_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .finish_update(Arc::clone(&device), &descriptor_set);
       
       uniform_buffers.push(uniform_buffer);
       descriptor_sets.push(descriptor_set);

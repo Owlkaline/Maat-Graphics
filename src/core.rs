@@ -66,7 +66,7 @@ pub struct CoreMaat {
   
   _image_from_draw: Option<ImageAttachment>,
   
-  imgui_sampler: Option<Sampler>,
+ // imgui_sampler: Option<Sampler>,
   
   mouse_position: Vector2<f32>,
   dpi: f32,
@@ -295,7 +295,7 @@ impl CoreMaat {
       
       _image_from_draw: None,
       
-      imgui_sampler: None,
+     // imgui_sampler: None,
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
@@ -303,7 +303,7 @@ impl CoreMaat {
   }
   
   pub fn use_imgui(mut self, mut imgui: &mut ImGui) -> CoreMaat {
-    let instance = self.window.instance();
+/*    let instance = self.window.instance();
     let device = self.window.device();
     let graphics_queue = self.window.get_graphics_queue();
     
@@ -410,7 +410,7 @@ impl CoreMaat {
                        .max_anisotropy(1.0)
                        .border_colour(BorderColour::FloatTransparentBlack)//FloatOpaqueWhite)
                        .build(Arc::clone(&device)));
-    
+    */
     self
   }
   
@@ -503,13 +503,13 @@ impl CoreRender for CoreMaat {
       
       for (reference, size) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
-          if reference.to_string() == "imgui".to_string() {
+          /*if reference.to_string() == "imgui".to_string() {
             if let Some(sampler) = &self.imgui_sampler {
               self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, sampler);
             }
-          } else {
+          } else {*/
             self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
-          }
+         // }
         }
         if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
@@ -712,20 +712,12 @@ impl CoreRender for CoreMaat {
     }
     
     let dpi = self.get_dpi_scale() as f32;
-    
+    /*
     if let Some(ui) = ui {
       let device = self.window.device();
       let instance = self.window.instance();
-      
-   //   let frame_size = self.window.imgui_window(imgui);
-      
-   //   let ui = imgui.frame(frame_size, delta_time);
-     // ui.show_default_style_editor();
-     // ui.show_demo_window(&mut true);
-    // ui.show_user_guide();
         cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
-    }
-  // }
+    }*/
       
       let device = self.window.device();
       let graphics_queue = self.window.get_graphics_queue();
@@ -885,12 +877,12 @@ impl CoreRender for CoreMaat {
     if recreate {
       self.recreate_swapchain = true;
     }
-    
+    /*
     for ev in &events {
       if let Some(ref mut imgui) = imgui {
         imgui_winit_support::handle_event(imgui, ev, new_dpi as f64, new_dpi as f64);
       }
-    }
+    }*/
     
     events
   }
@@ -922,10 +914,10 @@ impl CoreRender for CoreMaat {
   fn hide_cursor(&mut self) {
     
   }
-  
+  /*
   fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize {
     self.window.imgui_window(imgui)
-  }
+  }*/
   
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     println!("SETTING CLEAR COLOUR");
@@ -970,9 +962,9 @@ impl Drop for CoreMaat {
     self.dummy_image_snorm.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
-    if let Some(sampler) = &self.imgui_sampler {
+   /* if let Some(sampler) = &self.imgui_sampler {
       sampler.destroy(Arc::clone(&device));
-    }
+    }*/
     
     //self.compute_shader.destroy(Arc::clone(&device));
     self.texture_shader.destroy(Arc::clone(&device));

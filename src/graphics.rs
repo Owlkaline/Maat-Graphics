@@ -50,7 +50,7 @@ pub trait CoreRender {
   
   // Initalises everything
   fn init(&self);
-  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize;
+//  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize;
   
   // Standard draw calls that should be called in 98% of cases
   fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;

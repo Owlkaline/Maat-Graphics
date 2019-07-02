@@ -9,7 +9,7 @@ layout(location = 4) in vec4 tangent;
 layout(location = 0) out vec2 uvs;
 layout(location = 1) out vec4 v_colour;
 layout(location = 2) out vec4 v_base_colour_factor;
-layout(location = 3) out vec4 v_alpha_cutoff;
+layout(location = 3) out vec4 v_alpha_cutoff; // alpha, cutoff, _, use emissive
 layout(location = 4) out vec3 v_normal;
 layout(location = 5) out vec3 v_world_pos;
 layout(location = 6) out vec3 v_camera_pos;
@@ -142,7 +142,7 @@ void main() {
   
   uvs = uv;
   v_colour = colour;
-  v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, 0.0);
+  v_alpha_cutoff = vec4(uniforms.emissive_alpha.z, uniforms.emissive_alpha.w, 0.0, uniforms.emissive_alpha.x);
   v_base_colour_factor = uniforms.base_colour_factor;
   v_world_pos = local_pos;
   v_normal = rotated_normal.xyz;

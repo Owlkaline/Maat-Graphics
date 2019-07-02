@@ -59,6 +59,38 @@ impl LoadableObject {
           } else {
             images.push(None);
           }
+          /*
+          if let Some(image_data) = model.metallic_roughness_texture(i) {
+            let image_data = image_data.to_rgba();
+            let base_image = Some(ImageAttachment::create_texture(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
+            images.push(base_image);
+          } else {
+            images.push(None);
+          }
+          
+          if let Some(image_data) = model.normal_colour_texture(i) {
+            let image_data = image_data.to_rgba();
+            let base_image = Some(ImageAttachment::create_texture(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
+            images.push(base_image);
+          } else {
+            images.push(None);
+          }
+          
+          if let Some(image_data) = model.occlusion_colour_texture(i) {
+            let image_data = image_data.to_rgba();
+            let base_image = Some(ImageAttachment::create_texture(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
+            images.push(base_image);
+          } else {
+            images.push(None);
+          }
+          
+          if let Some(image_data) = model.emissive_colour_texture(i) {
+            let image_data = image_data.to_rgba();
+            let base_image = Some(ImageAttachment::create_texture(Arc::clone(&instance), Arc::clone(&device), &image_data, image_type, tiling, samples, image_view_type, *format, command_pool, graphics_queue));
+            images.push(base_image);
+          } else {
+            images.push(None);
+          }*/
         }
         
         object = ObjectType::Model(Some(model.clone()), images);
@@ -470,12 +502,12 @@ ObjectType::Model(_, images) => {
   }
   
   pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, imgui: &mut ImGui, command_pool: &CommandPool, graphics_queue: vk::Queue) {
-    imgui.prepare_texture(|handle| {
+    /*imgui.prepare_texture(|handle| {
       //println!("{:?}", handle.pixels);
       let raw_pixels = handle.pixels.iter().map(|p| *p as u8).collect::<Vec<u8>>();
       let texture = ImageAttachment::create_texture_from_pixels(Arc::clone(&instance), Arc::clone(&device), raw_pixels, handle.width, handle.height, &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);
       self.insert_texture("imgui".to_string(), texture);
-    });
+    });*/
   }
   
   /**

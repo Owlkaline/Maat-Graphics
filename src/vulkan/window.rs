@@ -9,8 +9,8 @@ use crate::vulkan::Swapchain;
 use crate::vulkan::Instance;
 use crate::vulkan::Device;
 
-use crate::imgui::{ImGui, FrameSize};
-use crate::imgui_winit_support;
+//use crate::imgui::{ImGui, FrameSize};
+//use crate::imgui_winit_support;
 
 use std::ptr;
 use std::mem;
@@ -514,11 +514,11 @@ impl VkWindow {
   fn has_graphics_bit(queue_flags: &u32) -> bool {
     queue_flags % 2 != 0 
   }
-  
+  /*
   pub fn imgui_window(&mut self, imgui: &mut ImGui) -> FrameSize {
     imgui_winit_support::update_mouse_cursor(&imgui, &self.window);
     imgui_winit_support::get_frame_size(&self.window, self.get_hidpi_factor() as f64).unwrap()
-  }
+  }*/
 }
 
 impl Drop for VkWindow {
