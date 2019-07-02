@@ -189,6 +189,8 @@ impl Device {
         
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         
+        let priority = 1.0;
+        
         for j in 0..family_properties.len() {
           device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
@@ -197,7 +199,7 @@ impl Device {
               flags: 0,//Default::default(),//queue_flags,
               queueFamilyIndex: j as u32,
               queueCount: family_properties.len().min(j.max(1)) as u32,
-              pQueuePriorities: &1.0,
+              pQueuePriorities: &priority,
             }
           );
         }
