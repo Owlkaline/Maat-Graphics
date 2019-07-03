@@ -66,7 +66,8 @@ pub struct CoreMaat {
   
   _image_from_draw: Option<ImageAttachment>,
   
- // imgui_sampler: Option<Sampler>,
+  imgui_platform: Option<imgui_winit_support::WinitPlatform>,
+  imgui_sampler: Option<Sampler>,
   
   mouse_position: Vector2<f32>,
   dpi: f32,
@@ -295,7 +296,8 @@ impl CoreMaat {
       
       _image_from_draw: None,
       
-     // imgui_sampler: None,
+      imgui_platform: None,
+      imgui_sampler: None,
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
@@ -303,10 +305,10 @@ impl CoreMaat {
   }
   
   pub fn use_imgui(mut self, mut imgui: &mut ImGui) -> CoreMaat {
-/*    let instance = self.window.instance();
+    let instance = self.window.instance();
     let device = self.window.device();
     let graphics_queue = self.window.get_graphics_queue();
-    
+    /*
     {
     
       fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
@@ -382,16 +384,34 @@ impl CoreMaat {
       for col in 0..style.colors.len() {
        style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
       }
-    }
+    }*/
     
     imgui.set_ini_filename(None);
     
+    let mut platform = imgui_winit_support::WinitPlatform::init(&mut imgui);
+    platform.attach_window(imgui.io_mut(), self.window.ref_window(), imgui_winit_support::HiDpiMode::Default);
+    
+    let hidpi_factor = platform.hidpi_factor();
+    let font_size = (13.0 * hidpi_factor) as f32;
+    imgui.fonts().add_font(&[
+      FontSource::DefaultFontData {
+        config: Some(FontConfig {
+          size_pixels: font_size,
+          .. FontConfig::default()
+        }),
+      },
+    ]);
+    
+    imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
+    
+    let texture = imgui.fonts().build_rgba32_texture();
+    /*
     imgui.fonts().add_default_font_with_config(
         ImFontConfig::new()
             .oversample_h(1)
             .pixel_snap_h(true)
             .size_pixels(13.0),
-    );
+    );*/
     
     imgui.set_font_global_scale(1.2);
     
@@ -399,7 +419,7 @@ impl CoreMaat {
     
     self.resources.load_imgui(Arc::clone(&instance), Arc::clone(&device), &mut imgui, &self.command_pool, *graphics_queue);
     
-    imgui_winit_support::configure_keys(&mut imgui);
+    self.imgui_platform = Some(platform);
     
     self.imgui_sampler = Some(SamplerBuilder::new()
                        .min_filter(Filter::Linear)
@@ -410,7 +430,7 @@ impl CoreMaat {
                        .max_anisotropy(1.0)
                        .border_colour(BorderColour::FloatTransparentBlack)//FloatOpaqueWhite)
                        .build(Arc::clone(&device)));
-    */
+    
     self
   }
   
@@ -712,12 +732,17 @@ impl CoreRender for CoreMaat {
     }
     
     let dpi = self.get_dpi_scale() as f32;
-    /*
+    
     if let Some(ui) = ui {
+      if let Some(platform) = &mut self.imgui_platform {
+        platform.prepare_render(&ui, self.window.ref_window());
+      }
+      
       let device = self.window.device();
       let instance = self.window.instance();
-        cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
-    }*/
+  
+      cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
+    }
       
       let device = self.window.device();
       let graphics_queue = self.window.get_graphics_queue();
@@ -877,14 +902,25 @@ impl CoreRender for CoreMaat {
     if recreate {
       self.recreate_swapchain = true;
     }
-    /*
+    
     for ev in &events {
       if let Some(ref mut imgui) = imgui {
-        imgui_winit_support::handle_event(imgui, ev, new_dpi as f64, new_dpi as f64);
+        //imgui_winit_support::handle_event(imgui, ev, new_dpi as f64, new_dpi as f64);
+        if let Some(ref mut platform) = self.imgui_platform {
+          platform.handle_event(imgui.io_mut(), self.window.ref_window(), ev);
+        }
       }
-    }*/
+    }
     
     events
+  }
+  
+  fn prepare_imgui_ui(&mut self, mut imgui: Option<&mut ImGui>) {
+    if let Some(imgui) = imgui {
+      if let Some(platform) = &mut self.imgui_platform {
+        platform.prepare_frame(imgui.io_mut(), self.window.ref_window());
+      }
+    }
   }
   
   fn get_mouse_position(&mut self) -> Vector2<f32> {

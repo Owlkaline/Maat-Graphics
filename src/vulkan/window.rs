@@ -333,6 +333,10 @@ impl VkWindow {
     }
   }
   
+  pub fn ref_window(&self) -> &winit::Window {
+    &self.window
+  }
+  
   pub fn get_hidpi_factor(&self) -> f32 {
     let dpi = self.window.get_hidpi_factor();
     

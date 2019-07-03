@@ -184,7 +184,7 @@ pub struct TextureShader {
   
   texture_pipeline: Pipeline,
   text_pipeline: Pipeline,
-  //imgui_pipeline: Option<Pipeline>,
+  imgui_pipeline: Option<Pipeline>,
   
   vertex_shader_texture: Shader,
   fragment_shader_texture: Shader,
@@ -192,11 +192,11 @@ pub struct TextureShader {
   vertex_shader_text: Shader,
   fragment_shader_text: Shader,
   
-  //vertex_shader_imgui: Option<Shader>,
-  //fragment_shader_imgui: Option<Shader>,
-  //imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
-  //imgui_index_buffer: Option<Vec<Buffer<u32>>>,
-  //imgui_update_timer: i32,
+  vertex_shader_imgui: Option<Shader>,
+  fragment_shader_imgui: Option<Shader>,
+  imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
+  imgui_index_buffer: Option<Vec<Buffer<u32>>>,
+  imgui_update_timer: i32,
   
   msaa: SampleCount,
   scale: f32,
@@ -342,7 +342,7 @@ impl TextureShader {
       
       texture_pipeline,
       text_pipeline,
-    //  imgui_pipeline: None,
+      imgui_pipeline: None,
       
       vertex_shader_texture,
       fragment_shader_texture,
@@ -350,11 +350,11 @@ impl TextureShader {
       vertex_shader_text,
       fragment_shader_text,
       
-     // vertex_shader_imgui: None,
-     // fragment_shader_imgui: None,
-      //imgui_vertex_buffer: None,
-      //imgui_index_buffer: None,
-      //imgui_update_timer: 0,
+      vertex_shader_imgui: None,
+      fragment_shader_imgui: None,
+      imgui_vertex_buffer: None,
+      imgui_index_buffer: None,
+      imgui_update_timer: 0,
       
       msaa: *msaa,
       scale: 1.0,
@@ -367,7 +367,7 @@ impl TextureShader {
       instanced_pipeline,
     }
   }
-  /*
+  
   pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) {
     let vertex_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiVert.spv"));
     let fragment_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiFrag.spv"));
@@ -411,7 +411,7 @@ impl TextureShader {
     
     self.imgui_vertex_buffer = Some(vertex_buffers);
     self.imgui_index_buffer = Some(index_buffers);
-  }*/
+  }
   
   pub fn set_scale(&mut self, new_scale: f32) {
     self.scale = new_scale;
@@ -721,7 +721,7 @@ impl TextureShader {
     
     cmd
   }
-  /*
+  
   pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, _max_buffer: usize, ui: Ui, _dpi_factor: f32) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
@@ -729,26 +729,45 @@ impl TextureShader {
       return cmd
     }
     
-    let frame_size = ui.frame_size();
+    /*let frame_size = ui.frame_size();
     if !(frame_size.logical_size.0 > 0.0 || frame_size.logical_size.1 > 0.0) {
       return cmd
-    }
+    }*/
+    
+    let mut fb_width = 0.0;
+    let mut fb_height = 0.0;
     
     let mut vertex_data = Vec::new();
     let mut index_data = Vec::new();
     let mut index_base = 0;
     
-    let _good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
-      draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
+    let mut draw_data = ui.render();
+   // let _good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
+  // for draw_data in &mut draw_data {
+      let width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
+      let height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
+      if !(fb_width > 0.0 && fb_height > 0.0) {
+        return cmd;
+      }
+      if width > fb_width {
+        fb_width = width;
+      }
+      if height > fb_height {
+        fb_height = height;
+      }
+      
+      //let scale = ui.imgui().display_framebuffer_scale();
+      //draw_data.scale_clip_rects([scale.0, scale.1]);
+      //draw_data.scale_clip_rects([width, height]);
       
       let mut verticies = 0;
       
-      for draw_list in &draw_data {
-        let mut idx = draw_list.idx_buffer.iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
-        let mut vtx = draw_list.vtx_buffer.iter().map(|vtx| {
-          let colour =  vtx.col.to_be_bytes();
+      for draw_list in draw_data.draw_lists() {
+        let mut idx = draw_list.idx_buffer().iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
+        let mut vtx = draw_list.vtx_buffer().iter().map(|vtx| {
+        let colour =  vtx.col;//.to_be_bytes();
           
-          ImGuiVertex { pos: Vector2::new(vtx.pos.x, vtx.pos.y), uvs: Vector2::new(vtx.uv.x, vtx.uv.y), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
+          ImGuiVertex { pos: Vector2::new(vtx.pos[0], vtx.pos[1]), uvs: Vector2::new(vtx.uv[0], vtx.uv[1]), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
         }).collect::<Vec<ImGuiVertex>>();
         let index_count = idx.len() as u32;
         let vertex_count = vtx.len() as u32;
@@ -758,8 +777,9 @@ impl TextureShader {
         verticies += vertex_count;
       }
       
-      Ok(())
-    });
+     // Ok(())
+   // });
+   // }
     
     if let Some(index_buffer) = &mut self.imgui_index_buffer {
       self.imgui_update_timer += 1;
@@ -776,7 +796,7 @@ impl TextureShader {
     
     if let Some(pipeline) = &self.imgui_pipeline {
       let push_constant_data = UniformData::new()
-                                 .add_vector4(Vector4::new(frame_size.logical_size.0 as f32, frame_size.logical_size.1 as f32, 0.0, 0.0));
+                                 .add_vector4(Vector4::new(fb_width as f32, fb_height as f32, 0.0, 0.0));
       cmd = cmd.push_constants(Arc::clone(&device), &pipeline, ShaderStage::Vertex, push_constant_data);
       let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
       
@@ -792,7 +812,7 @@ impl TextureShader {
       }
     }
     cmd
-  }*/
+  }
   
   pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Vector4<f32>, use_texture: bool, buffer_reference: String) {
     let model = Vector4::new(position.x, position.y, scale.x, scale.y);
