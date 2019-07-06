@@ -248,7 +248,7 @@ impl Settings {
     self._minimum_resolution
   }
   
-  pub fn _set_resolution(&mut self, res: Vector2<i32>) {
+  pub fn set_resolution(&mut self, res: Vector2<i32>) {
     self.resolution = [res.x as u32, res.y as u32];
   }
   

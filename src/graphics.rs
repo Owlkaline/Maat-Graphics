@@ -73,5 +73,7 @@ pub trait CoreRender {
   fn set_camera(&mut self, camera: PerspectiveCamera);
   fn get_camera(&self) -> PerspectiveCamera;
   fn num_drawcalls(&self) -> u32;
+  
+  fn force_window_resize(&mut self, new_size: Vector2<f32>);
 }
 

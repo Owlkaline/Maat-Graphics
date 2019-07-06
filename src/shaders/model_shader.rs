@@ -276,8 +276,8 @@ impl Model {
                        .address_mode_v(sampler_info.t_wrap)
                        .address_mode_w(AddressMode::ClampToEdge)
                        .mipmap_mode(MipmapMode::Nearest)
-                       .anisotropy(VkBool::True)
-                       .max_anisotropy(8.0)
+                       .anisotropy(VkBool::False)
+                       .max_anisotropy(1.0)
                        .build(Arc::clone(&device));
         samplers.push(temp_sampler.clone());
         sampler = &temp_sampler;
@@ -354,15 +354,15 @@ impl Model {
                            .build(Arc::clone(&device), &descriptor_set_pool, 1);
       
       let mut base_texture = dummy_texture;
-      //let mut mro_texture = &dummy_texture;
-    //  let mut normal_texture = &dummy_texture;
-    //  let mut occlusion_texture = &dummy_texture;
-   //   let mut emissive_texture = &dummy_texture;
+      let mut mro_texture = dummy_texture;
+      let mut normal_texture = dummy_texture;
+      let mut occlusion_texture = dummy_texture;
+      let mut emissive_texture = dummy_texture;
       
       if let Some(ref texture) = &base_textures[i*5 + 0] { // base texture
         base_texture = texture;
       }
-    /*  if let Some(ref texture) = &base_textures[i*5 + 1] { // mro texture
+      if let Some(ref texture) = &base_textures[i*5 + 1] { // mro texture
         mro_texture = texture;
       }
       if let Some(ref texture) = &base_textures[i*5 + 2] { // normal texture
@@ -373,7 +373,7 @@ impl Model {
       }
       if let Some(ref texture) = &base_textures[i*5 + 4] { // emissive texture
         emissive_texture = texture;
-      }*/
+      }
       /* UpdateDescriptorSets::new()
              .add_built_uniformbuffer(0, &mut uniform_buffer)
              .add_sampled_image(1, &texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
@@ -388,10 +388,10 @@ impl Model {
       UpdateDescriptorSets::new()
              .add_built_uniformbuffer(0, &mut uniform_buffer)
              .add_sampled_image(1, base_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-         //    .add_sampled_image(2, mro_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-          //   .add_sampled_image(3, normal_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-          //   .add_sampled_image(4, occlusion_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-          //   .add_sampled_image(5, emissive_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .add_sampled_image(2, mro_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .add_sampled_image(3, normal_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .add_sampled_image(4, occlusion_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
+             .add_sampled_image(5, emissive_texture, ImageLayout::ShaderReadOnlyOptimal, &sampler)
              .finish_update(Arc::clone(&device), &descriptor_set);
       
       uniform_buffers.push(uniform_buffer);
@@ -721,6 +721,10 @@ impl ModelShader {
       descriptor_sets.push(DescriptorSetBuilder::new()
         .vertex_uniform_buffer(0)
         .fragment_combined_image_sampler(1)
+        .fragment_combined_image_sampler(2)
+        .fragment_combined_image_sampler(3)
+        .fragment_combined_image_sampler(4)
+        .fragment_combined_image_sampler(5)
         .build(Arc::clone(&device), &descriptor_set_pool, 1));
       
       uniform_buffer.destroy(Arc::clone(&device));
@@ -1015,11 +1019,6 @@ impl ModelShader {
   
   fn create_instanced_pipline(device: Arc<Device>, vertex_shader: &Shader, fragment_shader: &Shader, render_pass: &RenderPass, descriptor_set: &DescriptorSet, msaa: &SampleCount) -> (Pipeline, Pipeline) {
     let push_constant_size = UniformData::new()
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -1367,14 +1366,7 @@ impl ModelShader {
       
       let camera_position    = Vector4::new(c_pos.x,    c_pos.y,    c_pos.z,    fov);
       let camera_center      = Vector4::new(c_center.x, c_center.y, c_center.z, aspect);
-      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     200.0); // x, y, z, intensity3
-     // let light1_position     = Vector4::new(self.light.pos.x, self.light.pos.y, self.light.pos.z, self.light.intensity); //xyz1 intensity1
-     // let light1_colour       = Vector4::new(self.light.colour.x, self.light.colour.y, self.light.colour.z, 0.0); // rgb1, r3
-      let light1_position     = Vector4::new(0.0, 0.0, 0.0, 200.0);
-      let light1_colour       = Vector4::new(1.0, 0.0, 0.0, 0.0);
-      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 200.0); // xyz2 intensity2
-      let light2_colour       = Vector4::new(0.0, 1.0, 0.0, 0.0); // rgb2, g3
-      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 1.0);//xyz3, b3
+      let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     0.0); // x, y, z, 
       
       for j in 0..self.models[i].vertex_buffers.len() {
         let vertex = &self.models[i].vertex_buffers[j];
@@ -1389,12 +1381,7 @@ impl ModelShader {
         let push_constant_data = UniformData::new()
                                  .add_vector4(camera_position)
                                  .add_vector4(camera_center)
-                                 .add_vector4(camera_up)
-                                 .add_vector4(light1_position)
-                                 .add_vector4(light1_colour)
-                                 .add_vector4(light2_position)
-                                 .add_vector4(light2_colour)
-                                 .add_vector4(light3_position);
+                                 .add_vector4(camera_up);
         
         cmd = cmd.push_constants(Arc::clone(&device), &self.pipeline, ShaderStage::Vertex, push_constant_data);
         
@@ -1405,7 +1392,7 @@ impl ModelShader {
                                    &buffer.internal_object(0),
                                    vertex_count, 
                                    num_instances,
-                                 if double_sided { &self.double_pipeline } else { &self.pipeline },
+                                 if double_sided { &self.instanced_double_pipeline } else { &self.instanced_pipeline },
                                  vec!(*descriptor.set(0)));
           println!("Instanced draw Not indexed! Not Implemented!");
         } else {
@@ -1433,11 +1420,11 @@ impl ModelShader {
       
       let (c_pos, _, _) = self.camera.get_look_at();
       
-      let light1_position     = Vector4::new(0.0, 0.0, 0.0, 200.0); // x y z, intensity
+      let light1_position     = Vector4::new(0.0, 0.0, 0.0, 10.0); // x y z, intensity
       let light1_colour       = Vector4::new(1.0, 0.0, 0.0, c_pos.x); // r, g, b, cam_x
-      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 200.0); // x2 y2 z2 intensity2
+      let light2_position     = Vector4::new(0.0, 0.0, 0.0, 10.0); // x2 y2 z2 intensity2
       let light2_colour       = Vector4::new(0.0, 1.0, 0.0, c_pos.y); // r2 g2 b2, cam_y
-      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 200.0);//x3 y3 z3, intensity3
+      let light3_position     = Vector4::new(0.0, 0.0, 0.0, 10.0);//x3 y3 z3, intensity3
       let light3_colour       = Vector4::new(0.0, 0.0, 1.0, c_pos.z); // r3, g3, b3, cam_z
       
       let sun_direction       = Vector4::new(0.0, 0.0, 0.0, 0.0);

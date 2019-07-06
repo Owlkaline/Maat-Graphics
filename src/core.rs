@@ -29,7 +29,7 @@ use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
 use crate::vulkan::check_errors;
 
 use cgmath::{Vector2, Vector3};
-use winit::dpi::LogicalPosition;
+use winit::dpi::{LogicalSize, LogicalPosition};
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -308,16 +308,16 @@ impl CoreMaat {
     let instance = self.window.instance();
     let device = self.window.device();
     let graphics_queue = self.window.get_graphics_queue();
-    /*
-    {
     
-      fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
-        let x = col.x.powf(2.2);
-        let y = col.y.powf(2.2);
-        let z = col.z.powf(2.2);
-        let w = 1.0 - (1.0 - col.w).powf(2.2);
+    {
+    use imgui_sys::ImVec4;
+      fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
+        let x = col[0].powf(2.2);
+        let y = col[1].powf(2.2);
+        let z = col[2].powf(2.2);
+        let w = 1.0 - (1.0 - col[3]).powf(2.2);
         
-        ImVec4::new(x, y, z, w)
+        [x, y, z, w]
       }
       
      let style = imgui.style_mut();
@@ -336,7 +336,7 @@ impl CoreMaat {
     //  }
       //style.Alpha = 1.0;
       //style.FrameRounding = 3.0;
-      style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
+    /*  style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
       style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.60, y: 0.60, z: 0.60, w: 1.00};
       style.colors[ImGuiCol::WindowBg as usize]               = ImVec4{ x: 0.94, y: 0.94, z: 0.94, w: 0.94};
       style.colors[ImGuiCol::ChildBg as usize]                = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 0.00};
@@ -379,12 +379,12 @@ impl CoreMaat {
      // style.colors[ImGuiCol::NavWindowingHighlight as usize]  = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
       //style.colors[ImGuiCol::NavWindowingDimBg as usize]      = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 1.00};
       style.colors[ImGuiCol::ModalWindowDimBg as usize]       = ImVec4{ x: 0.20, y: 0.20, z: 0.20, w: 0.35};
-      //style.alpha = 1.0;
+      //style.alpha = 1.0;*/
 
       for col in 0..style.colors.len() {
        style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
       }
-    }*/
+    }
     
     imgui.set_ini_filename(None);
     
@@ -403,15 +403,6 @@ impl CoreMaat {
     ]);
     
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
-    
-    let texture = imgui.fonts().build_rgba32_texture();
-    /*
-    imgui.fonts().add_default_font_with_config(
-        ImFontConfig::new()
-            .oversample_h(1)
-            .pixel_snap_h(true)
-            .size_pixels(13.0),
-    );*/
     
     imgui.set_font_global_scale(1.2);
     
@@ -523,13 +514,13 @@ impl CoreRender for CoreMaat {
       
       for (reference, size) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
-          /*if reference.to_string() == "imgui".to_string() {
+          if reference.to_string() == "imgui".to_string() {
             if let Some(sampler) = &self.imgui_sampler {
               self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, sampler);
             }
-          } else {*/
+          } else {
             self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
-         // }
+          }
         }
         if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
@@ -602,6 +593,8 @@ impl CoreRender for CoreMaat {
     if Vector2::new(self.window_dimensions.width, self.window_dimensions.height) != old_resolution {
       self.recreate_swapchain = true;
     }
+    
+    self.window.set_resizable(false);
     println!("Finished resize");
     
     model_details
@@ -740,8 +733,9 @@ impl CoreRender for CoreMaat {
       
       let device = self.window.device();
       let instance = self.window.instance();
-  
-      cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi);
+      let window_size = Vector2::new(self.window_dimensions.width as f32, self.window_dimensions.height as f32);
+      
+      cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi, window_size);
     }
       
       let device = self.window.device();
@@ -977,6 +971,12 @@ impl CoreRender for CoreMaat {
   fn num_drawcalls(&self) -> u32 {
     0
   }
+  
+  fn force_window_resize(&mut self, new_size: Vector2<f32>) {
+    if self.window_dimensions.width != new_size.x as u32 || self.window_dimensions.height != new_size.y as u32 {
+      self.window.set_inner_size(LogicalSize::new(new_size.x as f64, new_size.y as f64));
+    }
+  }
 }
 
 
@@ -998,9 +998,9 @@ impl Drop for CoreMaat {
     self.dummy_image_snorm.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
     
-   /* if let Some(sampler) = &self.imgui_sampler {
+    if let Some(sampler) = &self.imgui_sampler {
       sampler.destroy(Arc::clone(&device));
-    }*/
+    }
     
     //self.compute_shader.destroy(Arc::clone(&device));
     self.texture_shader.destroy(Arc::clone(&device));

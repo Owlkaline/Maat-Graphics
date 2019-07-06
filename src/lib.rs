@@ -108,7 +108,7 @@ extern crate imgui_winit_support;
 pub extern crate winit;
 pub extern crate cgmath;
 
-use self::threadpool::ThreadPool;
+pub use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 
 pub use self::settings::Settings;

@@ -722,28 +722,22 @@ impl TextureShader {
     cmd
   }
   
-  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, _max_buffer: usize, ui: Ui, _dpi_factor: f32) -> CommandBufferBuilder {
+  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, _max_buffer: usize, ui: Ui, _dpi_factor: f32, window_size: Vector2<f32>) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
     if !self.descriptor_sets.contains_key(&"imgui".to_string()) {
       return cmd
     }
     
-    /*let frame_size = ui.frame_size();
-    if !(frame_size.logical_size.0 > 0.0 || frame_size.logical_size.1 > 0.0) {
-      return cmd
-    }*/
-    
-    let mut fb_width = 0.0;
-    let mut fb_height = 0.0;
+    let mut fb_width = window_size.x;
+    let mut fb_height = window_size.y;
     
     let mut vertex_data = Vec::new();
     let mut index_data = Vec::new();
     let mut index_base = 0;
     
     let mut draw_data = ui.render();
-   // let _good_result: Result<(), i32> = ui.render(|ui, mut draw_data| {
-  // for draw_data in &mut draw_data {
+    
       let width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
       let height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
       if !(fb_width > 0.0 && fb_height > 0.0) {
@@ -756,16 +750,12 @@ impl TextureShader {
         fb_height = height;
       }
       
-      //let scale = ui.imgui().display_framebuffer_scale();
-      //draw_data.scale_clip_rects([scale.0, scale.1]);
-      //draw_data.scale_clip_rects([width, height]);
-      
       let mut verticies = 0;
       
       for draw_list in draw_data.draw_lists() {
         let mut idx = draw_list.idx_buffer().iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
         let mut vtx = draw_list.vtx_buffer().iter().map(|vtx| {
-        let colour =  vtx.col;//.to_be_bytes();
+        let colour =  vtx.col;
           
           ImGuiVertex { pos: Vector2::new(vtx.pos[0], vtx.pos[1]), uvs: Vector2::new(vtx.uv[0], vtx.uv[1]), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
         }).collect::<Vec<ImGuiVertex>>();
@@ -776,10 +766,6 @@ impl TextureShader {
         index_base += index_count as i32;
         verticies += vertex_count;
       }
-      
-     // Ok(())
-   // });
-   // }
     
     if let Some(index_buffer) = &mut self.imgui_index_buffer {
       self.imgui_update_timer += 1;
@@ -914,7 +900,7 @@ impl TextureShader {
     
     self.index_buffer.destroy(Arc::clone(&device));
     self.vertex_buffer.destroy(Arc::clone(&device));
-   // self.instanced_buffer.destroy(Arc::clone(&device));
+    
     for instance_details in self.instanced_cpu_buffers.iter() {
       match instance_details {
         (_reference, (_data, buffer)) => {
@@ -923,7 +909,7 @@ impl TextureShader {
       }
     }
     
-   /* if let Some(index_buffers) = &self.imgui_index_buffer {
+    if let Some(index_buffers) = &self.imgui_index_buffer {
       for index_buffer in index_buffers {
         index_buffer.destroy(Arc::clone(&device));
       }
@@ -934,12 +920,12 @@ impl TextureShader {
         vertex_buffer.destroy(Arc::clone(&device));
       }
     }
-    */
+    
     self.texture_pipeline.destroy(Arc::clone(&device));
     self.text_pipeline.destroy(Arc::clone(&device));
-   /* if let Some(pipeline) = &self.imgui_pipeline {
+    if let Some(pipeline) = &self.imgui_pipeline {
       pipeline.destroy(Arc::clone(&device));
-    }*/
+    }
     self.instanced_pipeline.destroy(Arc::clone(&device));
     
     for (_reference, descriptor_set) in &self.descriptor_sets {
@@ -956,12 +942,12 @@ impl TextureShader {
     self.fragment_shader_text.destroy(Arc::clone(&device));
     self.vertex_shader_instanced.destroy(Arc::clone(&device));
     self.fragment_shader_instanced.destroy(Arc::clone(&device));
-   /* if let Some(vertex_shader) = &self.vertex_shader_imgui {
+    if let Some(vertex_shader) = &self.vertex_shader_imgui {
       vertex_shader.destroy(Arc::clone(&device));
     }
     if let Some(fragment_shader) = &self.fragment_shader_imgui {
       fragment_shader.destroy(Arc::clone(&device));
-    }*/
+    }
     
     for framebuffer in &self.framebuffers {
      framebuffer.destroy(Arc::clone(&device));

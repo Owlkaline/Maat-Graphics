@@ -14,7 +14,7 @@ layout(location = 12) in vec2 v_mr;
 layout(location = 0) out vec4 outColour;
 layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec4 outMro;
-layout(location = 3) out vec4 outEmissive;
+layout(location = 3) out vec4 outOcclusion;
 layout(location = 4) out vec4 outNormal;
 layout(location = 5) out vec4 outPosition;
 
@@ -65,13 +65,13 @@ void main() {
   vec4 use_emissive_texture = when_gt(vec4(v_alpha_cutoff.w), vec4(0.0));
   
   mro = use_mro_texture * texture(mro_texture, uvs) + 
-        not(use_mro_texture) * vec4(v_mr, 0.0, 0.0);
+        not(use_mro_texture) * vec4(0.0, v_mr.y, v_mr.x, 0.0);
   
   emissive = use_emissive_texture * texture(emissive_texture, uvs) + 
              not(use_emissive_texture) * vec4(0.0);
   
   normal = use_normal_texture * texture(normal_texture, uvs) + 
-           not(use_normal_texture) * v_normal;
+           not(use_normal_texture) * vec4(normalize(v_normal), 0.0);
   
   base_colour = use_base_texture.rgb      * texture(base_texture, uvs).rgb + 
                 not(use_base_texture).rgb * base_colour;
@@ -82,6 +82,8 @@ void main() {
   base_colour *= v_base_colour_factor.rgb;
   base_colour *= v_colour.rgb;
   alpha *= v_base_colour_factor.a;
+  base_colour *= 0.02;
+  base_colour += emissive.rgb;
   
   float alpha_cutoff = v_alpha_cutoff.x;
   float alpha_mask = v_alpha_cutoff.y;
@@ -103,9 +105,9 @@ void main() {
           not(use_scanline).a * alpha;
   
   outAlbedo = vec4(base_colour, alpha);
-  outMro = mro;//vec4(v_mr.x, v_mr.y, 0.0, 1.0);
-  outEmissive = emissive; //vec4(0.0, 0.0, 0.0, 0.0);
-  outNormal = emissive;//vec4(normalize(v_normal), 1.0);
+  outMro = mro;
+  outOcclusion = texture(occlusion_texture, uvs);
+  outNormal = normal;//vec4(normalize(v_normal), 1.0);
   outPosition = vec4(v_world_pos, 1.0);
   // occlusion
 }

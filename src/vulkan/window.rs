@@ -337,6 +337,15 @@ impl VkWindow {
     &self.window
   }
   
+  pub fn set_resizable(&mut self, resizable: bool) {
+    self.window.set_resizable(resizable);
+  }
+  
+  pub fn set_inner_size(&mut self, new_size: LogicalSize) {
+    self.set_resizable(true);
+    self.window.set_inner_size(new_size);
+  }
+  
   pub fn get_hidpi_factor(&self) -> f32 {
     let dpi = self.window.get_hidpi_factor();
     
@@ -450,12 +459,14 @@ impl VkWindow {
         winit::WindowBuilder::new()
                              .with_fullscreen(Some(monitor))
                              .with_title(app_name)
+                             .with_resizable(false)
                              //  .build_vk_surface(&events_loop, instance.clone())
                              .build(&events_loop).unwrap()
       } else {
         winit::WindowBuilder::new()
                               .with_title(app_name)
                               .with_dimensions(LogicalSize::new(width as f64, height as f64))
+                              .with_resizable(false)
                               .build(&events_loop).unwrap()
       }
     };

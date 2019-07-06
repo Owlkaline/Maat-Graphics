@@ -12,7 +12,7 @@ layout(location = 0) out vec4 outColour;
 
 layout (input_attachment_index = 1, binding = 1) uniform subpassInput colour_texture;
 layout (input_attachment_index = 2, binding = 2) uniform subpassInput mro_texture;
-layout (input_attachment_index = 3, binding = 3) uniform subpassInput emissive_texture;
+layout (input_attachment_index = 3, binding = 3) uniform subpassInput occlusion_texture;
 layout (input_attachment_index = 4, binding = 4) uniform subpassInput normal_texture;
 layout (input_attachment_index = 5, binding = 5) uniform subpassInput position_texture;
 
@@ -30,6 +30,7 @@ float D_GGX(float dotNH, float roughness) {
   float alpha = roughness * roughness;
   float alpha2 = alpha * alpha;
   float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+  //float denom = (dotNH * (alpha2) - dotNH) * dotNH + 1.0;
   return (alpha2)/(M_PI * denom*denom); 
 }
 
@@ -65,7 +66,7 @@ vec3 BRDF(vec3 L, vec3 V, vec3 N, float metallic, float roughness, vec3 light_po
   
   vec3 radiance = light_colour * intensity * attenuation;
   
-  if (dotNL > 0.0) {
+  if (dotNL > 0.0) { //&& dotNV > 0.0) {
     float rr = max(0.05, roughness);
     
     float D = D_GGX(dotNH, roughness);
@@ -81,6 +82,13 @@ vec3 BRDF(vec3 L, vec3 V, vec3 N, float metallic, float roughness, vec3 light_po
   
   return colour;
 }
+
+/*
+float getLinearDepth(vec2 coord) {
+    float depth = texture2D(gBufferTexture2, coord).r * 2.0 - 1.0;
+    return projection[3][2] / (depth * projection[2][3] - projection[2][2]);
+}
+*/
 
 void main() {
   vec4 base_colour = subpassLoad(colour_texture);
@@ -103,10 +111,9 @@ void main() {
   vec4 mro_colour = subpassLoad(mro_texture);
   
   for(int i = 0; i < 3; ++i) {
-    Lo += BRDF(L[i], V, N, mro_colour.x, mro_colour.y, v_light_positions[i], v_light_colours[i], v_light_intensity[i], world_pos);
+    Lo += BRDF(L[i], V, N, mro_colour.b, mro_colour.g, v_light_positions[i], v_light_colours[i], v_light_intensity[i], world_pos);
   }
   
-  base_colour.rgb *= 0.02;
   base_colour.rgb += Lo;
   
   base_colour.rgb = pow(base_colour.rgb, vec3(0.4545));
