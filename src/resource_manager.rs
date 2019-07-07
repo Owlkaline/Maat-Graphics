@@ -157,7 +157,7 @@ impl ResourceManager {
           let reference = object.reference.to_string();
           
           object.load_object(Arc::clone(&instance), Arc::clone(&device), &image_type, &image_view_type, &format, &samples, &tiling, &command_pool, &graphics_queue);
-          println!("Object recieved: {}", object.reference);
+          //println!("Object recieved: {}", object.reference);
           
           let mut size = None;
           match &object.object_type {
@@ -322,7 +322,7 @@ impl ResourceManager {
   **/
   pub fn insert_unloaded_texture(&mut self, reference: String, location: String) {
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    println!("Inserting object: {}", reference);
+   // println!("Inserting object: {}", reference);
     self.objects.push(
       LoadableObject {
         loaded: false,
@@ -337,7 +337,7 @@ impl ResourceManager {
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
   pub fn insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
-    println!("inserting texture");
+   // println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
     self.objects.push(
@@ -382,7 +382,7 @@ impl ResourceManager {
       
       self.load_texture(reference, location);
     } else {
-      println!("Object {} already loaded", reference);
+    //  println!("Object {} already loaded", reference);
     }
   }
   
@@ -476,7 +476,7 @@ ObjectType::Model(_, images) => {
      return;
    }
    
-    println!("Inserting object: {}", reference);
+    //println!("Inserting object: {}", reference);
     self.objects.push(
       LoadableObject {
         loaded: false,
@@ -498,7 +498,7 @@ ObjectType::Model(_, images) => {
       
       self.load_model(reference, location);
     } else {
-      println!("Object {} already loaded", reference);
+      //println!("Object {} already loaded", reference);
     }
   }
   
@@ -517,7 +517,7 @@ ObjectType::Model(_, images) => {
   pub fn load_texture(&mut self, reference: String, location: String) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
-    println!("loading texture");
+    //println!("loading texture");
     self.num_recv_objects += 1;
     let index = self.data.len();
     
@@ -528,7 +528,7 @@ ObjectType::Model(_, images) => {
       let mut data = data.lock().unwrap();
       let texture_start_time = time::Instant::now();
       let texture = image::open(&location.clone()).expect(&("No file or Directory at: ".to_string() + &location)).to_rgba();
-      println!("Texture is loading: {}", location);
+     // println!("Texture is loading: {}", location);
    //   if location.to_string() == "./resources/Textures/Logo.png".to_string() {
        // println!("{:?}", texture);
     //  }
@@ -576,7 +576,7 @@ ObjectType::Model(_, images) => {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
-    println!("loading model");
+   // println!("loading model");
     
     let model_start_time = time::Instant::now();
     let model = ModelDetails::new(location.to_string());
@@ -600,7 +600,7 @@ ObjectType::Model(_, images) => {
   pub fn load_model(&mut self, reference: String, location: String) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
-    println!("loading model");
+    //println!("loading model");
     self.num_recv_objects += 1;
     let index = self.data.len();
     

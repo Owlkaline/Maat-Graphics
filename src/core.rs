@@ -71,6 +71,8 @@ pub struct CoreMaat {
   
   mouse_position: Vector2<f32>,
   dpi: f32,
+  
+  goal_resolution: Option<Vector2<f32>>,
 }
 
 impl CoreMaat {
@@ -301,6 +303,8 @@ impl CoreMaat {
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
+      
+      goal_resolution: None,
     }
   }
   
@@ -533,9 +537,11 @@ impl CoreRender for CoreMaat {
     }
     
     if !self.recreate_swapchain {
+      self.window.set_resizable(false);
       return model_details;
     }
     
+    self.window.set_resizable(true);
     
     println!("Reszing window");
     self.recreate_swapchain = false;
@@ -560,6 +566,9 @@ impl CoreRender for CoreMaat {
       self.command_buffers[i].free(Arc::clone(&device), &self.command_pool)
     }
     self.command_buffers.clear();
+    
+    self.window.device().wait();
+    self.window_dimensions = self.window.get_current_extent();
     
     {
       let device = self.window.device();
@@ -586,15 +595,25 @@ impl CoreRender for CoreMaat {
       self.current_frame = 0;
     }
     
-    self.draw(&Vec::new(), None, 0.0);
-    
     self.window.device().wait();
+    self.window_dimensions = self.window.get_current_extent();
     
     if Vector2::new(self.window_dimensions.width, self.window_dimensions.height) != old_resolution {
       self.recreate_swapchain = true;
     }
+    /*
+    if let Some(goal_resolution) = &self.goal_resolution {
+      println!("goal resolution exists {:?}", goal_resolution);
+      if !(goal_resolution.x as u32 == self.window_dimensions.width && goal_resolution.y as u32 == self.window_dimensions.height) {
+        self.recreate_swapchain = true;
+      }
+    }
     
-    self.window.set_resizable(false);
+    if self.recreate_swapchain == false {
+      self.goal_resolution = None;
+    }*/
+    
+    
     println!("Finished resize");
     
     model_details
@@ -973,9 +992,12 @@ impl CoreRender for CoreMaat {
   }
   
   fn force_window_resize(&mut self, new_size: Vector2<f32>) {
-    if self.window_dimensions.width != new_size.x as u32 || self.window_dimensions.height != new_size.y as u32 {
+   // if self.window_dimensions.width != new_size.x as u32 && self.window_dimensions.height != new_size.y as u32 {
       self.window.set_inner_size(LogicalSize::new(new_size.x as f64, new_size.y as f64));
-    }
+     // self.goal_resolution = Some(new_size);
+      self.recreate_swapchain = true;
+     // println!("{:?}", self.goal_resolution);
+   // }
   }
 }
 

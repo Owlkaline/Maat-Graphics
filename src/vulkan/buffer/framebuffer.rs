@@ -101,8 +101,6 @@ impl Framebuffer {
   }
   
   pub fn destroy(&self, device: Arc<Device>) {
-    println!("Destroying Framebuffer");
-    
     let vk = device.pointers();
     let device = device.internal_object();
     unsafe {

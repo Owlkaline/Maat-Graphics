@@ -53,8 +53,6 @@ impl Pipeline {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    println!("Destroying Pipeline");
-    
     unsafe {
       vk.DestroyPipelineLayout(*device, self.layout, ptr::null());
       vk.DestroyPipelineCache(*device, self.cache, ptr::null());

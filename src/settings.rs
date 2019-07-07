@@ -18,6 +18,7 @@ const DPI: &str = "Dpi";
 const TRIPLE_BUFFERING: &str = "TripleBuffer";
 const RESOLUTION: &str = "Resolution";
 
+#[derive(Clone)]
 pub struct Settings {
   vsync: bool,
   triple_buffer: bool,

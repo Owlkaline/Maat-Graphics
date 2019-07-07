@@ -37,8 +37,6 @@ impl RenderPass {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    println!("Destroying RenderPass");
-    
     unsafe {
       vk.DestroyRenderPass(*device, self.render_pass, ptr::null());
     }

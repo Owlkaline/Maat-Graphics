@@ -435,8 +435,6 @@ impl DescriptorSet {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    println!("Destroying DescriptorSet Layout");
-    
     for layout in &self.layouts {
       unsafe {
         vk.DestroyDescriptorSetLayout(*device, *layout, ptr::null());

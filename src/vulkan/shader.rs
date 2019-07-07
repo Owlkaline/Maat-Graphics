@@ -44,7 +44,6 @@ impl Shader {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    println!("Destroying Shader");
     unsafe {
       vk.DestroyShaderModule(*device, self.module, ptr::null());
     }

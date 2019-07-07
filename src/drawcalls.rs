@@ -669,7 +669,6 @@ pub fn calculate_text_info(translation: Vector3<f32>, size: f32, c: &GenericChar
     if letter == '\'' as u8 ||
        letter == '\"' as u8 {
       temp = -size/16.333333333;
-      //println!("The letter is '");
     }
     
     if letter == 'p' as u8 ||
@@ -703,7 +702,6 @@ pub fn _calculate_text_model(translation: Vector3<f32>, size: f32, c: &GenericCh
     if letter == '\'' as u8 ||
        letter == '\"' as u8 {
       temp = -size/16.333333333;
-      //println!("The letter is '");
     }
     
     if letter == 'p' as u8 ||
