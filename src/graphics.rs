@@ -61,6 +61,7 @@ pub trait CoreRender {
   fn post_draw(&self);
   
   // Getters and setters
+  fn get_maximum_dimensions(&self) -> Vector2<f32>;
   fn get_physical_dimensions(&self) -> Vector2<f32>;
   fn get_virtual_dimensions(&self) -> Vector2<f32>;
   fn get_events(&mut self, imgui: Option<&mut ImGui>) -> Vec<winit::Event>;

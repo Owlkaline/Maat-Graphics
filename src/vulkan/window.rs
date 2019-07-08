@@ -9,6 +9,7 @@ use crate::vulkan::Swapchain;
 use crate::vulkan::Instance;
 use crate::vulkan::Device;
 
+use cgmath::Vector2;
 //use crate::imgui::{ImGui, FrameSize};
 //use crate::imgui_winit_support;
 
@@ -346,9 +347,12 @@ impl VkWindow {
     self.window.set_inner_size(new_size);
   }
   
+  // Borderless fullscreen
+  // self.window.set_decorations(false);
+  // self.window.set_maximized(true);
   pub fn set_fullscreen(&mut self, fullscreen: bool) {
     if fullscreen {
-      let monitor = self.window.get_primary_monitor();
+      let monitor = self.window.get_current_monitor();
       self.window.set_fullscreen(Some(monitor));
     } else {
       self.window.set_fullscreen(None);
@@ -363,6 +367,15 @@ impl VkWindow {
     if let Ok(icon) = some_icon {
       self.window.set_window_icon(Some(icon));
     }
+  }
+  
+  pub fn get_max_resolution(&self) -> Vector2<f32> {
+    let monitor = self.window.get_current_monitor();
+    
+    let max_dim = monitor.get_dimensions();
+    let dpi = monitor.get_hidpi_factor();
+    
+    Vector2::new(max_dim.width as f32*dpi as f32, max_dim.height as f32*dpi as f32)
   }
   
   pub fn get_hidpi_factor(&self) -> f32 {

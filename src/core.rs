@@ -76,8 +76,8 @@ pub struct CoreMaat {
 }
 
 impl CoreMaat {
-  pub fn new(app_name: String, app_version: u32, width: f32, height: f32, should_debug: bool) -> CoreMaat {
-    let mut settings = Settings::load(Vector2::new(800, 600), Vector2::new(width as i32, height as i32));
+  pub fn new(app_name: String, app_version: u32, _width: f32, _height: f32, should_debug: bool) -> CoreMaat {
+    let mut settings = Settings::load();
     let window = VkWindow::new(app_name, app_version, should_debug, &settings);
     
     let resource_manager = ResourceManager::new();
@@ -560,8 +560,11 @@ impl CoreRender for CoreMaat {
     
     let resolution = Vector2::new(self.window_dimensions.width, self.window_dimensions.height);
     let old_resolution = resolution;
-    let settings = Settings::load(Vector2::new(resolution.x as i32, resolution.y as i32),
-                                   Vector2::new(resolution.x as i32, resolution.y as i32));
+    let mut settings = Settings::load();
+    let max_montior_dim = self.window.get_max_resolution();
+    settings.set_max_monitor_resolution(Vector2::new(max_montior_dim.x as i32, max_montior_dim.y as i32));
+    settings.save();
+    
     self.window.recreate_swapchain(&settings);
     self.window_dimensions = self.window.get_current_extent();
     
@@ -860,6 +863,10 @@ impl CoreRender for CoreMaat {
   
   fn post_draw(&self) {
     
+  }
+  
+  fn get_maximum_dimensions(&self) -> Vector2<f32> {
+    self.window.get_max_resolution()
   }
   
   fn get_physical_dimensions(&self) -> Vector2<f32> {
