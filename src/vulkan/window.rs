@@ -346,6 +346,25 @@ impl VkWindow {
     self.window.set_inner_size(new_size);
   }
   
+  pub fn set_fullscreen(&mut self, fullscreen: bool) {
+    if fullscreen {
+      let monitor = self.window.get_primary_monitor();
+      self.window.set_fullscreen(Some(monitor));
+    } else {
+      self.window.set_fullscreen(None);
+    }
+  }
+  
+  pub fn set_icon(&mut self, location: String) {
+    let image = image::open(&location.clone()).expect(&("Icon not found: ".to_string() + &location)).to_rgba();
+    let (width, height) = image.dimensions();
+    let image_data = image.clone().into_raw();
+    let some_icon = winit::Icon::from_rgba(image_data, width, height);
+    if let Ok(icon) = some_icon {
+      self.window.set_window_icon(Some(icon));
+    }
+  }
+  
   pub fn get_hidpi_factor(&self) -> f32 {
     let dpi = self.window.get_hidpi_factor();
     

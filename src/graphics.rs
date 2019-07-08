@@ -34,6 +34,8 @@ pub trait CoreRender {
   fn preload_texture(&mut self, reference: String, location: String);
   fn add_texture(&mut self, reference: String, location: String);
   
+  fn set_icon(&mut self, location: String);
+  
   // Load fonts
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
@@ -74,6 +76,6 @@ pub trait CoreRender {
   fn get_camera(&self) -> PerspectiveCamera;
   fn num_drawcalls(&self) -> u32;
   
-  fn force_window_resize(&mut self, new_size: Vector2<f32>);
+  fn force_window_resize(&mut self, new_size: Vector2<f32>, fullscreen: bool);
 }
 

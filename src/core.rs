@@ -450,6 +450,10 @@ impl CoreRender for CoreMaat {
     self.resources.insert_unloaded_model(reference, location);
   }
   
+  fn set_icon(&mut self, location: String) {
+    self.window.set_icon(location);
+  }
+  
   fn preload_texture(&mut self, reference: String, location: String) {
     let graphics_queue = self.window.get_graphics_queue();
     let device = self.window.device();
@@ -601,18 +605,6 @@ impl CoreRender for CoreMaat {
     if Vector2::new(self.window_dimensions.width, self.window_dimensions.height) != old_resolution {
       self.recreate_swapchain = true;
     }
-    /*
-    if let Some(goal_resolution) = &self.goal_resolution {
-      println!("goal resolution exists {:?}", goal_resolution);
-      if !(goal_resolution.x as u32 == self.window_dimensions.width && goal_resolution.y as u32 == self.window_dimensions.height) {
-        self.recreate_swapchain = true;
-      }
-    }
-    
-    if self.recreate_swapchain == false {
-      self.goal_resolution = None;
-    }*/
-    
     
     println!("Finished resize");
     
@@ -918,7 +910,6 @@ impl CoreRender for CoreMaat {
     
     for ev in &events {
       if let Some(ref mut imgui) = imgui {
-        //imgui_winit_support::handle_event(imgui, ev, new_dpi as f64, new_dpi as f64);
         if let Some(ref mut platform) = self.imgui_platform {
           platform.handle_event(imgui.io_mut(), self.window.ref_window(), ev);
         }
@@ -963,10 +954,6 @@ impl CoreRender for CoreMaat {
   fn hide_cursor(&mut self) {
     
   }
-  /*
-  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize {
-    self.window.imgui_window(imgui)
-  }*/
   
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {
     println!("SETTING CLEAR COLOUR");
@@ -991,13 +978,10 @@ impl CoreRender for CoreMaat {
     0
   }
   
-  fn force_window_resize(&mut self, new_size: Vector2<f32>) {
-   // if self.window_dimensions.width != new_size.x as u32 && self.window_dimensions.height != new_size.y as u32 {
-      self.window.set_inner_size(LogicalSize::new(new_size.x as f64, new_size.y as f64));
-     // self.goal_resolution = Some(new_size);
-      self.recreate_swapchain = true;
-     // println!("{:?}", self.goal_resolution);
-   // }
+  fn force_window_resize(&mut self, new_size: Vector2<f32>, fullscreen: bool) {
+    self.window.set_inner_size(LogicalSize::new(new_size.x as f64, new_size.y as f64));
+    self.recreate_swapchain = true;
+    self.window.set_fullscreen(fullscreen);
   }
 }
 
