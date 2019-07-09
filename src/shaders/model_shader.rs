@@ -39,7 +39,7 @@ impl Light {
     }
   }
   
-  pub fn off() -> Light {
+  pub fn _off() -> Light {
     Light {
       pos: Vector3::new(0.0, 0.0, 0.0),
       colour: Vector3::new(0.0, 0.0, 0.0),
@@ -677,14 +677,14 @@ impl ModelShader {
                        
     }
     
-    let mut second_subpass = SubpassInfo::new().add_colour_attachment(0)
+    let second_subpass = SubpassInfo::new().add_colour_attachment(0)
                                            .add_input_attachment(1)
                                            .add_input_attachment(2)
                                            .add_input_attachment(3)
                                            .add_input_attachment(4)
                                            .add_input_attachment(6);
     
-    let mut render_pass = RenderPassBuilder::new();
+    let render_pass = RenderPassBuilder::new();
     let mut render_pass = render_pass.add_attachment(colour_attachment) // 0
                                      .add_attachment(albedo_colour_attachment) // 1
                                      .add_attachment(mro_attachment) // 2
@@ -1415,7 +1415,7 @@ impl ModelShader {
     cmd
   }
   
-    pub fn draw_deffered(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, command_pool: &CommandPool, graphics_queue: &vk::Queue, window_width: f32, window_height: f32, current_buffer: usize) -> CommandBufferBuilder {
+    pub fn draw_deffered(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize) -> CommandBufferBuilder {
       let mut cmd = cmd;
       
       let (c_pos, _, _) = self.camera.get_look_at();

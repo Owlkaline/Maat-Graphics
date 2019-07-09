@@ -12,7 +12,7 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
-use crate::imgui::ImGui;
+use imgui::ImGui;
 
 use cgmath::Vector3;
 

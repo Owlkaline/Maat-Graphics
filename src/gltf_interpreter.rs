@@ -6,7 +6,6 @@ use crate::vulkan::vkenums::{AddressMode, Filter};
 use base64;
 
 use gltf;
-use gltf::accessor::Dimensions;
 use gltf::json::Value;
 use gltf::animation;
 use gltf::material::AlphaMode;
@@ -372,8 +371,8 @@ impl ModelDetails {
         println!("");
         println!("");
         
-        let mut inputs: Vector2<f32> = Vector2::new(input_min, input_max);
-        let mut outputs: Vector2<Vector4<f32>> = Vector2::new(output_min, output_max);
+        let inputs: Vector2<f32> = Vector2::new(input_min, input_max);
+        let outputs: Vector2<Vector4<f32>> = Vector2::new(output_min, output_max);
         
         animations.push(Animation::new(interpolation, properties[i].clone(), inputs, outputs));
         

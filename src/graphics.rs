@@ -52,7 +52,7 @@ pub trait CoreRender {
   
   // Initalises everything
   fn init(&self);
-  fn prepare_imgui_ui(&mut self, mut imgui: Option<&mut ImGui>);
+  fn prepare_imgui_ui(&mut self, imgui: Option<&mut ImGui>);
 //  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize;
   
   // Standard draw calls that should be called in 98% of cases

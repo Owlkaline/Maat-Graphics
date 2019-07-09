@@ -17,7 +17,6 @@ use crate::shaders::ModelShader;
 use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
-use crate::math;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool, BorderColour};
@@ -71,8 +70,6 @@ pub struct CoreMaat {
   
   mouse_position: Vector2<f32>,
   dpi: f32,
-  
-  goal_resolution: Option<Vector2<f32>>,
 }
 
 impl CoreMaat {
@@ -303,8 +300,6 @@ impl CoreMaat {
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
-      
-      goal_resolution: None,
     }
   }
   
@@ -314,7 +309,7 @@ impl CoreMaat {
     let graphics_queue = self.window.get_graphics_queue();
     
     {
-    use imgui_sys::ImVec4;
+    
       fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
         let x = col[0].powf(2.2);
         let y = col[1].powf(2.2);
@@ -824,7 +819,7 @@ impl CoreRender for CoreMaat {
       }
       
       cmd = cmd.next_subpass(Arc::clone(&device));
-      cmd = self.model_shader.draw_deffered(Arc::clone(&device), cmd, &self.command_pool, &graphics_queue, window_size.width as f32, window_size.height as f32, image_index);
+      cmd = self.model_shader.draw_deffered(Arc::clone(&device), cmd, image_index);
       cmd = cmd.end_render_pass(Arc::clone(&device));
       
       // Final Shader
@@ -895,7 +890,7 @@ impl CoreRender for CoreMaat {
               recreate = true;
             },
             winit::WindowEvent::CursorMoved{device_id: _, position, modifiers: _} => {
-              mouse_pos = Vector2::new(position.x as f32, dimensions.y / new_dpi - position.y as f32);
+              mouse_pos = Vector2::new(position.x as f32, dimensions.y - position.y as f32);
             },
             winit::WindowEvent::HiDpiFactorChanged(event_dpi) => {
               new_dpi = *event_dpi as f32;
@@ -926,10 +921,10 @@ impl CoreRender for CoreMaat {
     events
   }
   
-  fn prepare_imgui_ui(&mut self, mut imgui: Option<&mut ImGui>) {
+  fn prepare_imgui_ui(&mut self, imgui: Option<&mut ImGui>) {
     if let Some(imgui) = imgui {
       if let Some(platform) = &mut self.imgui_platform {
-        platform.prepare_frame(imgui.io_mut(), self.window.ref_window());
+        let _token = platform.prepare_frame(imgui.io_mut(), self.window.ref_window());
       }
     }
   }
