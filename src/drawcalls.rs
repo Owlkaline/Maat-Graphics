@@ -149,6 +149,18 @@ impl DrawCall {
     }
   }
   
+  pub fn add_instanced_sprite_sheet_with_alpha(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>, alpha: f32) -> DrawCall {
+    let mut draw = DrawCall::add_instanced_sprite_sheet(position, scale, rotation, texture, sprite_details);
+    match &mut draw.draw_type {
+      DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, colour, sprite_details)) => {
+        colour.w = alpha;
+      },
+      _ => {},
+    }
+    
+    draw
+  }
+  
   pub fn add_instanced_sprite_sheet_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
     debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
     debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");

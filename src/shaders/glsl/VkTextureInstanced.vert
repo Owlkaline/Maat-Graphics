@@ -5,9 +5,10 @@ layout(location = 1) in vec2 uv;
 
 // Instanced.
 layout(location = 2) in vec4 model;//x y scaley scaley
+layout(location = 3) in vec4 colour; // r g b a
 layout(location = 4) in vec4 sprite_sheet; // block_x, block_y, num_of_rows, rotation
 
-layout(location = 0) out vec2 uvs;
+layout(location = 0) out vec3 uvs_alpha;
 
 // 128 bytes, float 4 bytes
 layout(push_constant) uniform PushConstants {
@@ -81,7 +82,8 @@ void main() {
   vec2 texcoords = uv.xy;
   texcoords += vec2(block_x, block_y);
   texcoords /= num_rows;
-  uvs = texcoords;
+  uvs_alpha.xy = texcoords;
+  uvs_alpha.z = colour.a;
   
   float x_offset = push_constants.projection.x;
   float y_offset = push_constants.projection.y;

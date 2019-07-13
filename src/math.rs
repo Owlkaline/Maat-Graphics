@@ -156,6 +156,49 @@ pub fn intersection(center: Vector2<f32>, radius: f32, p1: Vector2<f32>, p2: Vec
   ((dx * t1 + p1.x, dy * t1 + p1.y), (dx * t2 + p1.x, dy* t2 + p1.y))
 }
 
+// line Vector4(x, y, x2, y2), rect Vector4(center_x, center_y, width, height)
+pub fn line_rect_collision(line: Vector4<f32>, rect: Vector4<f32>) -> bool {
+  let x = rect.x-rect.z*0.5;
+  let y = rect.y-rect.w*0.5;
+  let width = rect.z;
+  let height = rect.w;
+  
+  let left = line_line_collision(line, Vector4::new(x, y, x, y+height));
+  let right = line_line_collision(line, Vector4::new(x+width, y, x+width, y+height));
+  let bottom = line_line_collision(line, Vector4::new(x, y, x+width, y));
+  let top = line_line_collision(line, Vector4::new(x, y+height, x+width, y+height));
+  
+  if left.is_some() || right.is_some() || bottom.is_some() || top.is_some() {
+    return true
+  }
+  
+  false
+}
+
+pub fn line_line_collision(line_1: Vector4<f32>, line_2: Vector4<f32>) -> Option<Vector2<f32>> {
+  let x1 = line_1.x;
+  let y1 = line_1.y;
+  let x2 = line_1.z;
+  let y2 = line_1.w;
+  let x3 = line_2.x;
+  let y3 = line_2.y;
+  let x4 = line_2.z;
+  let y4 = line_2.w;
+  
+  // direction of lines
+  let u_a = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+  let u_b = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+  
+  if (u_a >= 0.0 && u_a <= 1.0 && u_b >= 0.0 && u_b <= 1.0) {
+    let intersection_x = x1 + (u_a * (x2-x1));
+    let intersection_y = y1 + (u_a * (y2-y1));
+    
+    return Some(Vector2::new(intersection_x, intersection_y))
+  }
+  
+  None
+}
+
 /// Simple collision between two cicles given
 /// a Vector3(center_x, center_y, raidus)
 ///

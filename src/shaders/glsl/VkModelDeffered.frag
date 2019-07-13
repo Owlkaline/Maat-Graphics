@@ -66,7 +66,7 @@ vec3 BRDF(vec3 L, vec3 V, vec3 N, float metallic, float roughness, vec3 light_po
   
   vec3 radiance = light_colour * intensity * attenuation;
   
-  if (dotNL > 0.0) { //&& dotNV > 0.0) {
+  if (dotNL > 0.0 && dotNV > 0.0) {
     float rr = max(0.05, roughness);
     
     float D = D_GGX(dotNH, roughness);
