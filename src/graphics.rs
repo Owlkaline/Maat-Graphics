@@ -40,7 +40,8 @@ pub trait CoreRender {
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
   
-  fn create_instance_buffer(&mut self, reference: String);
+  fn create_instance_texture_buffer(&mut self, buffer_reference: String, texture_reference: String);
+  fn create_instance_colour_buffer(&mut self, reference: String);
   fn create_model_instance_buffer(&mut self, reference: String);
   
   // Load custom goemetry
@@ -52,7 +53,7 @@ pub trait CoreRender {
   
   // Initalises everything
   fn init(&self);
-  fn prepare_imgui_ui(&mut self, imgui: Option<&mut ImGui>);
+  fn prepare_imgui_ui(&mut self, imgui: Option<&mut Context>);
 //  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize;
   
   // Standard draw calls that should be called in 98% of cases
@@ -64,7 +65,7 @@ pub trait CoreRender {
   fn get_maximum_dimensions(&self) -> Vector2<f32>;
   fn get_physical_dimensions(&self) -> Vector2<f32>;
   fn get_virtual_dimensions(&self) -> Vector2<f32>;
-  fn get_events(&mut self, imgui: Option<&mut ImGui>) -> Vec<winit::Event>;
+  fn get_events(&mut self, imgui: Option<&mut Context>) -> Vec<winit::Event>;
   fn get_mouse_position(&mut self) -> Vector2<f32>;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
   fn get_dpi_scale(&self) -> f32;

@@ -12,7 +12,7 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
-use imgui::ImGui;
+use imgui::Context;
 
 use cgmath::Vector3;
 
@@ -502,7 +502,7 @@ ObjectType::Model(_, images) => {
     }
   }
   
-  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, imgui: &mut ImGui, command_pool: &CommandPool, graphics_queue: vk::Queue) {
+  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, imgui: &mut Context, command_pool: &CommandPool, graphics_queue: vk::Queue) {
     let mut fonts = imgui.fonts();
     let texture = fonts.build_rgba32_texture();
     let data = texture.data;

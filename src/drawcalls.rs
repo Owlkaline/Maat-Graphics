@@ -30,15 +30,16 @@ pub enum DrawType {
   DrawCustomShapeColoured((String, Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   
   AddInstancedModelBuffer((String)),
-  AddInstancedColoured,
-  // Ref, Position, Scale, Rotation
+  // BufRef, position, scale, rotation, colour
+  AddInstancedColoured((String, Vector2<f32>, Vector2<f32>, f32, Vector4<f32>)),
+  // Ref, Position, Scale, Rotation, alpha
   AddInstancedTextured((String, Vector2<f32>, Vector2<f32>, f32, f32)),
   // instanced buffer Ref, Position, Scale, Rotation, colour, SpriteDetails(x,y,rows)
   AddInstancedSpriteSheet((String, Vector2<f32>, Vector2<f32>, f32, Vector4<f32>, Vector3<i32>)),
   //  reference, position, scale rotation colour hologram
   AddInstancedModel((String, Vector3<f32>, Vector3<f32>, Vector3<f32>, Vector4<f32>, bool)),
-  // buffer ref, texture ref
-  DrawInstanced((String, String)),
+  // buffer ref
+  DrawInstanced((String)),
   
   // Ref, location
   NewTexture((String, String)),
@@ -116,6 +117,13 @@ impl DrawCall {
     }
   }
   
+  pub fn add_instanced_coloured(buffer_reference: String, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, colour: Vector4<f32>) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedColoured((buffer_reference, position, scale, rotation, colour)),
+      coloured: true,
+    }
+  }
+  
   pub fn draw_sprite_sheet(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>) -> DrawCall {
     debug_assert!(sprite_details.x < sprite_details.z, "Error sprite x location too large");
     debug_assert!(sprite_details.y < sprite_details.z, "Error sprite y location too large");
@@ -144,7 +152,7 @@ impl DrawCall {
     debug_assert!(sprite_details.x > -1, "Error sprite x location has to be larger than -1");
     debug_assert!(sprite_details.y > -1, "Error sprite y location has to be larger than -1");
     DrawCall {
-      draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, Vector4::new(0.0, 0.0, 0.0, 1.0), sprite_details)),
+      draw_type: DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, Vector4::new(1.0, 1.0, 1.0, 1.0), sprite_details)),
       coloured: true,
     }
   }
@@ -207,9 +215,9 @@ impl DrawCall {
     }
   }
   
-  pub fn draw_instanced(buffer_reference: String, texture_reference: String) -> DrawCall {
+  pub fn draw_instanced(buffer_reference: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawInstanced((buffer_reference, texture_reference)),
+      draw_type: DrawType::DrawInstanced((buffer_reference)),
       coloured: true,
     }
   }

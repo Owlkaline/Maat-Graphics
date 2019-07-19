@@ -303,7 +303,7 @@ impl CoreMaat {
     }
   }
   
-  pub fn use_imgui(mut self, mut imgui: &mut ImGui) -> CoreMaat {
+  pub fn use_imgui(mut self, mut imgui: &mut Context) -> CoreMaat {
     let instance = self.window.instance();
     let device = self.window.device();
     let graphics_queue = self.window.get_graphics_queue();
@@ -403,7 +403,7 @@ impl CoreMaat {
     
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
     
-    imgui.set_font_global_scale(1.2);
+    //imgui.set_font_global_scale(1.2);
     
     self.texture_shader.load_imgui(Arc::clone(&instance), Arc::clone(&device), self.max_frames as u32);
     
@@ -475,11 +475,18 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn create_instance_buffer(&mut self, reference: String) {
+  fn create_instance_texture_buffer(&mut self, buffer_reference: String, texture_reference: String) {
     let device = self.window.device();
     let instance = self.window.instance();
     let num_frames = self.fences.len() as u32;
-    self.texture_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
+    self.texture_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, buffer_reference, texture_reference);
+  }
+  
+  fn create_instance_colour_buffer(&mut self, buffer_reference: String) {
+    let device = self.window.device();
+    let instance = self.window.instance();
+    let num_frames = self.fences.len() as u32;
+    self.texture_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, buffer_reference, "".to_string());
   }
   
   fn create_model_instance_buffer(&mut self, reference: String) {
@@ -658,8 +665,12 @@ impl CoreRender for CoreMaat {
       for draw in draw_calls {
         match draw.get_type() {
           DrawType::DrawInstanced(ref references) => {
-            let (buffer_ref, texture_ref) = references;
-            cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string(), texture_ref.to_string());
+            let (buffer_ref) = references;
+            cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string());
+          },
+          DrawType::AddInstancedColoured(ref info) => {
+            let (buffer_reference, position, scale, rotation, colour) = info.clone();
+            self.texture_shader.add_instanced_draw(position, scale, rotation, None, colour, false, buffer_reference);
           },
           DrawType::AddInstancedSpriteSheet(ref info) => {
             let (buffer_reference, position, scale, rotation, colour, sprite_details) = info.clone(); 
@@ -872,7 +883,7 @@ impl CoreRender for CoreMaat {
     Vector2::new(self.window_dimensions.width as f32 * self.dpi, self.window_dimensions.height as f32 * self.dpi)
   }
   
-  fn get_events(&mut self, mut imgui: Option<&mut ImGui>) -> Vec<winit::Event> {
+  fn get_events(&mut self, mut imgui: Option<&mut Context>) -> Vec<winit::Event> {
     let mut events = Vec::new();
     
     let mut recreate = false;
@@ -921,7 +932,7 @@ impl CoreRender for CoreMaat {
     events
   }
   
-  fn prepare_imgui_ui(&mut self, imgui: Option<&mut ImGui>) {
+  fn prepare_imgui_ui(&mut self, imgui: Option<&mut Context>) {
     if let Some(imgui) = imgui {
       if let Some(platform) = &mut self.imgui_platform {
         let _token = platform.prepare_frame(imgui.io_mut(), self.window.ref_window());

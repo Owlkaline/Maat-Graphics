@@ -203,11 +203,7 @@ pub struct TextureShader {
   camera: OrthoCamera,
   
   vertex_shader_instanced: Shader,
-  fragment_shader_instanced: Shader,
- // instanced_texture: String,
-  instanced_cpu_buffers: HashMap<String, (UniformData, Buffer<f32>)>,
-  //instanced_buffer: Buffer<f32>,
-  instanced_descriptor_sets: HashMap<String, DescriptorSet>,
+  instanced_cpu_buffers: HashMap<String, (UniformData, Buffer<f32>, String)>,
   instanced_pipeline: Pipeline,
 }
 
@@ -218,7 +214,6 @@ impl TextureShader {
     let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextVert.spv"));
     let fragment_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextFrag.spv"));
     let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureInstancedVert.spv"));
-    let fragment_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureInstancedFrag.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(vk::FORMAT_R8G8B8A8_SNORM)
@@ -266,11 +261,6 @@ impl TextureShader {
                            .fragment_combined_image_sampler(0)
                            .build(Arc::clone(&device), &descriptor_set_pool, 1));
     
-    let mut instanced_descriptor_sets: HashMap<String, DescriptorSet> = HashMap::new();
-    instanced_descriptor_sets.insert("".to_string(), DescriptorSetBuilder::new()
-                           .fragment_combined_image_sampler(0)
-                           .build(Arc::clone(&device), &descriptor_set_pool, 1));
-    
     let push_constant_size = UniformData::new()
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
                                .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
@@ -306,10 +296,10 @@ impl TextureShader {
     
     let instanced_pipeline = PipelineBuilder::new()
                   .vertex_shader(*vertex_shader_instanced.get_shader())
-                  .fragment_shader(*fragment_shader_instanced.get_shader())
+                  .fragment_shader(*fragment_shader_texture.get_shader())
                   .push_constants(ShaderStage::Vertex, push_constant_size as u32)
                   .render_pass(render_pass.clone())
-                  .descriptor_set_layout(instanced_descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
+                  .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
                   .vertex_binding(vec!(Vertex::vertex_input_binding(), TextureInstanceData::vertex_input_binding()))
                   .multisample(msaa)
                   .vertex_attributes(attributes)
@@ -361,9 +351,7 @@ impl TextureShader {
       camera,
       
       vertex_shader_instanced,
-      fragment_shader_instanced,
       instanced_cpu_buffers: HashMap::new(),
-      instanced_descriptor_sets,
       instanced_pipeline,
     }
   }
@@ -477,19 +465,9 @@ impl TextureShader {
         }
       }
     }
-    
-    for (key, descriptor) in &self.instanced_descriptor_sets {
-      for i in 0..textures.len() {
-        if key.to_string() == textures[i].0 {
-          UpdateDescriptorSets::new()
-             .add_sampled_image(0, &textures[i].1, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-             .finish_update(Arc::clone(&device), &descriptor);
-        }
-      }
-    }
   }
   
-  pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, reference: String) {
+  pub fn add_instanced_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, buffer_reference: String, texture_reference: String) {
     let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*12);
     for _ in 0..(MAX_INSTANCES*12) {
       instanced_data.push(0.0);
@@ -497,11 +475,11 @@ impl TextureShader {
     
     let usage = BufferUsage::vertex_transfer_src_buffer();
     let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
-    self.instanced_cpu_buffers.insert(reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer));
+    self.instanced_cpu_buffers.insert(buffer_reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer, texture_reference));
   }
   
   pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &ImageAttachment, sampler: &Sampler) {
-   //println!("Adding texture: {}", texture_reference);
+   
    if !self.descriptor_sets.contains_key(&texture_reference) {
       let descriptor = DescriptorSetBuilder::new()
                            .fragment_combined_image_sampler(0)
@@ -510,19 +488,6 @@ impl TextureShader {
       
       if let Some(descriptor_set) = self.descriptor_sets.get(&texture_reference) {
         TextureShader::update_uniform_buffers(Arc::clone(&device), &texture_image, sampler, &descriptor_set);
-      }
-    }
-    
-    if !self.instanced_descriptor_sets.contains_key(&texture_reference) {
-      let descriptor = DescriptorSetBuilder::new()
-                           .fragment_combined_image_sampler(0)
-                           .build(Arc::clone(&device), &descriptor_set_pool, 1);
-      self.instanced_descriptor_sets.insert(texture_reference.to_string(), descriptor);
-      
-      if let Some(descriptor_set) = self.instanced_descriptor_sets.get(&texture_reference) {
-         UpdateDescriptorSets::new()
-             .add_sampled_image(0, texture_image, ImageLayout::ShaderReadOnlyOptimal, &sampler)
-             .finish_update(Arc::clone(&device), &descriptor_set);
       }
     }
   }
@@ -828,23 +793,23 @@ impl TextureShader {
     }
   }
   
-  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, buffer_reference: String, texture_reference: String) -> CommandBufferBuilder {
+  pub fn draw_instanced(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, buffer_reference: String) -> CommandBufferBuilder {
     let mut cmd = cmd;
     
-    if let Some((instanced_data, buffer)) = self.instanced_cpu_buffers.get_mut(&buffer_reference) {
+    if let Some((instanced_data, buffer, texture_reference)) = self.instanced_cpu_buffers.get_mut(&buffer_reference) {
       let data = instanced_data.build(Arc::clone(&device));
       let num_instances = data.len() as u32 / 12;
       
       if num_instances == 0 {
         return cmd;
       }
-      if !self.descriptor_sets.contains_key(&texture_reference) {
+      if !self.descriptor_sets.contains_key(&texture_reference.to_string()) {
         return cmd
       }
       
       buffer.fill_entire_buffer_single_frame(Arc::clone(&device), current_buffer, data);
       
-      let descriptor: &DescriptorSet = self.instanced_descriptor_sets.get(&texture_reference).unwrap();
+      let descriptor: &DescriptorSet = self.descriptor_sets.get(&texture_reference.to_string()).unwrap();
       
       let top = self.camera.get_top();
       let right = self.camera.get_right();
@@ -905,7 +870,7 @@ impl TextureShader {
     
     for instance_details in self.instanced_cpu_buffers.iter() {
       match instance_details {
-        (_reference, (_data, buffer)) => {
+        (_reference, (_data, buffer, texture)) => {
           buffer.destroy(Arc::clone(&device));
         }
       }
@@ -934,16 +899,11 @@ impl TextureShader {
       descriptor_set.destroy(Arc::clone(&device));
     }
     
-    for (_reference, descriptor_set) in &self.instanced_descriptor_sets {
-      descriptor_set.destroy(Arc::clone(&device));
-    }
-    
     self.vertex_shader_texture.destroy(Arc::clone(&device));
     self.fragment_shader_texture.destroy(Arc::clone(&device));
     self.vertex_shader_text.destroy(Arc::clone(&device));
     self.fragment_shader_text.destroy(Arc::clone(&device));
     self.vertex_shader_instanced.destroy(Arc::clone(&device));
-    self.fragment_shader_instanced.destroy(Arc::clone(&device));
     if let Some(vertex_shader) = &self.vertex_shader_imgui {
       vertex_shader.destroy(Arc::clone(&device));
     }

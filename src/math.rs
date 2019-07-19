@@ -7,6 +7,21 @@ use cgmath::InnerSpace;
 
 use std::f64::consts::PI;
 
+pub trait Vector2Math<T> {
+  fn abs(&self) -> Vector2<T>;
+  fn floor(&self) -> Vector2<T>;
+}
+
+impl Vector2Math<f32> for Vector2<f32> {
+  fn abs(&self) -> Vector2<f32> {
+    Vector2::new(self.x.abs(), self.y.abs())
+  }
+  
+  fn floor(&self) -> Vector2<f32> {
+    Vector2::new(self.x.floor(), self.y.floor())
+  }
+}
+
 pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, rotation: f32) -> Matrix4<f32> {
   let axis_z = Vector3::new(0.0, 0.0, 1.0).normalize();
   let rotation: Matrix4<f32> = Matrix4::from_axis_angle(axis_z, Deg(450.0-rotation));

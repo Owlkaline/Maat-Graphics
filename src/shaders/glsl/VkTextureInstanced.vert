@@ -9,6 +9,8 @@ layout(location = 3) in vec4 colour; // r g b a
 layout(location = 4) in vec4 sprite_sheet; // block_x, block_y, num_of_rows, rotation
 
 layout(location = 0) out vec3 uvs_alpha;
+layout(location = 1) out vec4 new_colour;
+layout(location = 2) out float use_texture;
 
 // 128 bytes, float 4 bytes
 layout(push_constant) uniform PushConstants {
@@ -84,6 +86,9 @@ void main() {
   texcoords /= num_rows;
   uvs_alpha.xy = texcoords;
   uvs_alpha.z = colour.a;
+  
+  new_colour = colour;
+  use_texture = sprite_sheet.z;
   
   float x_offset = push_constants.projection.x;
   float y_offset = push_constants.projection.y;
