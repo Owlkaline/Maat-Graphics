@@ -12,7 +12,7 @@ pub struct Shader {
 
 impl Shader {
   pub fn new(device: Arc<Device>, shader_code: &[u8]) -> Shader {
-    let mut shader_module: vk::ShaderModule = unsafe { mem::uninitialized() };
+    let mut shader_module: vk::ShaderModule = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let shader_code_size = mem::size_of::<u8>() * shader_code.len();
     

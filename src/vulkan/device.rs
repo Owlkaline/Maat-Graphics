@@ -50,7 +50,7 @@ impl Device {
   }
   
   pub fn min_buffer_align(&self, _buffer: &vk::Buffer) -> u64 {
-//    let mem_req: Vec<> = unsafe { mem::uninitialized() }; 
+//    let mem_req: Vec<> = unsafe { mem::MaybeUninit::uninit().assume_init() }; 
   //  self.vk.GetBufferMemoryRequirements(self.device, *buffer, mem_req.as_mut_ptr());
     
    // mem_req.size
@@ -62,7 +62,7 @@ impl Device {
   }
   
   pub fn get_device_queue(&self, family: u32, index: u32) -> vk::Queue {
-    let mut graphics_queue: vk::Queue = unsafe { mem::uninitialized() };
+    let mut graphics_queue: vk::Queue = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       self.vk.GetDeviceQueue(self.device, family, index, &mut graphics_queue);
@@ -134,7 +134,7 @@ impl Device {
     
     Device::print_physical_device_details(instance.pointers(), &physical_devices);
     
-    let mut device: vk::Device = unsafe { mem::uninitialized() };
+    let mut device: vk::Device = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let mut device_available_extensions = Vec::new();
     let mut physical_device_index = 0;
     
@@ -297,7 +297,7 @@ impl Device {
     }
     
     
-    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
@@ -313,7 +313,7 @@ impl Device {
   
   fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>) {
     for i in 0..physical_devices.len() as usize {
-      let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+      let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
       
       unsafe {
         vk_instance.GetPhysicalDeviceProperties(physical_devices[i], &mut device_prop);

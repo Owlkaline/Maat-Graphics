@@ -58,7 +58,7 @@ unsafe fn create_surface(
       window: window as *mut _,
     };
     
-    let mut output = mem::uninitialized();
+    let mut output = mem::MaybeUninit::uninit().assume_init();
     check_errors(vk.CreateAndroidSurfaceKHR(*instance.local_instance(),
                                             &infos,
                                             ptr::null(),
@@ -94,7 +94,7 @@ unsafe fn create_surface(
             display: display as *mut _,
             surface: surface as *mut _,
         };
-        let mut output = mem::uninitialized();
+        let mut output = mem::MaybeUninit::uninit().assume_init();
         check_errors(vk.CreateWaylandSurfaceKHR(*instance,
                                                 &infos,
                                                 ptr::null(),
@@ -115,7 +115,7 @@ unsafe fn create_surface(
             window: window.borrow().get_xlib_window().unwrap() as _,
           };
 
-          let mut output = mem::uninitialized();
+          let mut output = mem::MaybeUninit::uninit().assume_init();
           check_errors(vk.CreateXlibSurfaceKHR(*instance,
                                                &infos,
                                                ptr::null(),
@@ -138,7 +138,7 @@ unsafe fn create_surface(
             window: window.borrow().get_xlib_window().unwrap() as _,
           };
 
-          let mut output = mem::uninitialized();
+          let mut output = mem::MaybeUninit::uninit().assume_init();
           check_errors(vk.CreateXcbSurfaceKHR(*instance,
                                               &infos,
                                               ptr::null(),
@@ -175,7 +175,7 @@ unsafe fn create_surface(
       hwnd: hwnd as *mut _,
     };
     
-    let mut output = mem::uninitialized();
+    let mut output = mem::MaybeUninit::uninit().assume_init();
     check_errors(vk.CreateWin32SurfaceKHR(*instance.local_instance(),
                                           &infos,
                                           ptr::null(),
@@ -225,7 +225,7 @@ unsafe fn create_surface(
         pView: view as *const _,
       };
       
-      let mut output = mem::uninitialized();
+      let mut output = mem::MaybeUninit::uninit().assume_init();
       check_errors(vk.CreateMacOSSurfaceMVK(*instance.local_instance(),
                                           &infos,
                                           ptr::null(),
@@ -274,7 +274,7 @@ unsafe fn create_surface(
         pView: view as *const _,
       };
       
-      let mut output = mem::uninitialized();
+      let mut output = mem::MaybeUninit::uninit().assume_init();
       check_errors(vk.CreateIOSSurfaceMVK(*instance.local_instance(),
                                           &infos,
                                           ptr::null(),

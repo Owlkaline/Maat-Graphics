@@ -18,7 +18,7 @@ impl CommandPool {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut command_pool: vk::CommandPool = unsafe { mem::uninitialized() };
+    let mut command_pool: vk::CommandPool = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let command_pool_info = vk::CommandPoolCreateInfo {
       sType: vk::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -40,7 +40,7 @@ impl CommandPool {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut command_pool: vk::CommandPool = unsafe { mem::uninitialized() };
+    let mut command_pool: vk::CommandPool = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let command_pool_info = vk::CommandPoolCreateInfo {
       sType: vk::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,

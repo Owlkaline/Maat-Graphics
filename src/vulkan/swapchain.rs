@@ -107,7 +107,7 @@ impl Swapchain {
         subresourceRange: subresource,
       };
       
-      let mut image_view: vk::ImageView = unsafe { mem::uninitialized() };
+      let mut image_view: vk::ImageView = unsafe { mem::MaybeUninit::uninit().assume_init() };
       unsafe {
         vk.CreateImageView(*device, &image_view_create_info, ptr::null(), &mut image_view);
       }
@@ -238,7 +238,7 @@ impl Swapchain {
       oldSwapchain: if old_swapchain.is_some() { old_swapchain.unwrap() } else { 0 },
     };
     
-    let mut swapchain: vk::SwapchainKHR = unsafe { mem::uninitialized() };
+    let mut swapchain: vk::SwapchainKHR = unsafe { mem::MaybeUninit::uninit().assume_init() };
     unsafe {
       check_errors(vk.CreateSwapchainKHR(*device, &swapchain_info, ptr::null(), &mut swapchain));
     }

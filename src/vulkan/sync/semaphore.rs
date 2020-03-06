@@ -13,7 +13,7 @@ pub struct Semaphore {
 
 impl Semaphore {
   pub fn new(device: Arc<Device>) -> Semaphore {
-    let mut semaphore: vk::Semaphore = unsafe { mem::uninitialized() };
+    let mut semaphore: vk::Semaphore = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let semaphore_info = vk::SemaphoreCreateInfo {
       sType: vk::STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,

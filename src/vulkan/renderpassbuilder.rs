@@ -280,7 +280,7 @@ impl RenderPassBuilder {
   }
   
   pub fn build(self, device: Arc<Device>) -> RenderPass {
-    let mut render_pass: vk::RenderPass = unsafe { mem::uninitialized() };
+    let mut render_pass: vk::RenderPass = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let mut attachment_descriptions = Vec::with_capacity(self.attachments.len());
     let mut subpass_descriptions = Vec::with_capacity(self.subpasses.len());

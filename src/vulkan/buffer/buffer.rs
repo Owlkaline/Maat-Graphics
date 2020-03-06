@@ -149,7 +149,7 @@ impl<T: Clone> Buffer<T> {
     }
     self.data = data;
     
-    let mut host_visible_data = unsafe { mem::uninitialized() };
+    let mut host_visible_data = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let buffer_offset = mem::size_of::<T>() * offset as usize;
     let buffer_size = mem::size_of::<T>() * self.data.len();
     
@@ -179,7 +179,7 @@ impl<T: Clone> Buffer<T> {
     }
     self.data = data;
     
-    let mut host_visible_data = unsafe { mem::uninitialized() };
+    let mut host_visible_data = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let buffer_size = mem::size_of::<T>() * self.data.len();
     
     unsafe {
@@ -210,7 +210,7 @@ impl<T: Clone> Buffer<T> {
     }
     self.data = data;
     
-    let mut host_visible_data = unsafe { mem::uninitialized() };
+    let mut host_visible_data = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let buffer_size = mem::size_of::<T>() * self.data.len();
     
     for i in 0..self.memory.len() {
@@ -252,8 +252,8 @@ impl<T: Clone> Buffer<T> {
   fn create_buffer(instance: Arc<Instance>, device: Arc<Device>, usage: &BufferUsage, properties: vk::MemoryPropertyFlags, data_len: u64) -> (vk::Buffer, vk::DeviceMemory) {
     let mut data_len = data_len;
     Buffer::<T>::align_phantom_data(Arc::clone(&device), &mut data_len);
-    let mut buffer: vk::Buffer = unsafe { mem::uninitialized() };
-    let mut buffer_memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let mut buffer: vk::Buffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut buffer_memory: vk::DeviceMemory = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let buffer_create_info = {
       vk::BufferCreateInfo {
@@ -268,7 +268,7 @@ impl<T: Clone> Buffer<T> {
       }
     };
     
-    let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::uninitialized() };
+    let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       let vk = device.pointers();
@@ -278,7 +278,7 @@ impl<T: Clone> Buffer<T> {
     }
     
     let memory_type_bits_index = {
-      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::uninitialized() };
+      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
       
       unsafe {
         let vk = instance.pointers();

@@ -326,7 +326,7 @@ impl PipelineBuilder {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut layout = unsafe { mem::uninitialized() };
+    let mut layout = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
     let mut compute_pipeline_create_infos: Vec<vk::ComputePipelineCreateInfo> = Vec::with_capacity(2);
     
@@ -416,8 +416,8 @@ impl PipelineBuilder {
     }
     
     let mut pipelines: Vec<vk::Pipeline> = Vec::with_capacity(1);
-    let mut layout: vk::PipelineLayout = unsafe { mem::uninitialized() };
-    let mut cache: vk::PipelineCache = unsafe { mem::uninitialized() };
+    let mut layout: vk::PipelineLayout = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut cache: vk::PipelineCache = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let mut graphics_pipeline_create_infos: Vec<vk::GraphicsPipelineCreateInfo> = Vec::with_capacity(2);
     let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::with_capacity(2);

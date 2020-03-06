@@ -22,7 +22,7 @@ impl Fence {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut fence: vk::Fence = unsafe { mem::uninitialized() };
+    let mut fence: vk::Fence = unsafe { mem::MaybeUninit::uninit().assume_init() };
     unsafe {
       check_errors(vk.CreateFence(*device, &fence_info, ptr::null(), &mut fence));
     }

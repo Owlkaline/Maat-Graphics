@@ -3,7 +3,6 @@ use vk;
 use crate::drawcalls;
 use crate::font::GenericFont; 
 use crate::camera::OrthoCamera;
-use crate::imgui::{Ui};
 
 use crate::vulkan::vkenums::{ImageType, ImageUsage, ImageViewType, SampleCount, ImageTiling, AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ImageAspect, ShaderStage, VertexInputRate};
 
@@ -25,17 +24,10 @@ macro_rules! offset_of {
     ($base:path, $field:ident) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            let b: $base = mem::uninitialized();
+            let b: $base = unsafe { mem::MaybeUninit::uninit().assume_init() };
             (&b.$field as *const _ as isize) - (&b as *const _ as isize)
         }
     }};
-}
-
-#[derive(Clone)]
-pub struct ImGuiVertex {
-  pos: Vector2<f32>,
-  uvs: Vector2<f32>,
-  colours: Vector4<f32>,
 }
 
 #[derive(Clone)]
@@ -128,49 +120,6 @@ impl TextureInstanceData {
   }
 }
 
-impl ImGuiVertex {
-  pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
-    vk::VertexInputBindingDescription {
-      binding: 0,
-      stride: (mem::size_of::<ImGuiVertex>()) as u32,
-      inputRate: VertexInputRate::Vertex.to_bits(),
-    }
-  }
-  
-  pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
-    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(2);
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 0,
-        binding: 0,
-        format: vk::FORMAT_R32G32_SFLOAT,
-        offset: offset_of!(ImGuiVertex, pos) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 1,
-        binding: 0,
-        format: vk::FORMAT_R32G32_SFLOAT,
-        offset: offset_of!(ImGuiVertex, uvs) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions.push(
-      vk::VertexInputAttributeDescription {
-        location: 2,
-        binding: 0,
-        format: vk::FORMAT_R32G32B32A32_SFLOAT,
-        offset: offset_of!(ImGuiVertex, colours) as u32,
-      }
-    );
-    
-    vertex_input_attribute_descriptions
-  }
-}
-
 pub struct TextureShader {
   renderpass: RenderPass,
   framebuffers: Vec<Framebuffer>,
@@ -184,19 +133,12 @@ pub struct TextureShader {
   
   texture_pipeline: Pipeline,
   text_pipeline: Pipeline,
-  imgui_pipeline: Option<Pipeline>,
   
   vertex_shader_texture: Shader,
   fragment_shader_texture: Shader,
   
   vertex_shader_text: Shader,
   fragment_shader_text: Shader,
-  
-  vertex_shader_imgui: Option<Shader>,
-  fragment_shader_imgui: Option<Shader>,
-  imgui_vertex_buffer: Option<Vec<Buffer<ImGuiVertex>>>,
-  imgui_index_buffer: Option<Vec<Buffer<u32>>>,
-  imgui_update_timer: i32,
   
   msaa: SampleCount,
   scale: f32,
@@ -332,19 +274,12 @@ impl TextureShader {
       
       texture_pipeline,
       text_pipeline,
-      imgui_pipeline: None,
       
       vertex_shader_texture,
       fragment_shader_texture,
       
       vertex_shader_text,
       fragment_shader_text,
-      
-      vertex_shader_imgui: None,
-      fragment_shader_imgui: None,
-      imgui_vertex_buffer: None,
-      imgui_index_buffer: None,
-      imgui_update_timer: 0,
       
       msaa: *msaa,
       scale: 1.0,
@@ -354,51 +289,6 @@ impl TextureShader {
       instanced_cpu_buffers: HashMap::new(),
       instanced_pipeline,
     }
-  }
-  
-  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, num_sets: u32) {
-    let vertex_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiVert.spv"));
-    let fragment_shader_imgui = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkImGuiFrag.spv"));
-    
-    let push_constant_size = UniformData::new()
-                               .add_vector4(Vector4::new(0.0, 0.0, 0.0, 0.0))
-                               .size(Arc::clone(&device));
-    
-    let imgui_pipeline = PipelineBuilder::new()
-                          .vertex_shader(*vertex_shader_imgui.get_shader())
-                          .fragment_shader(*fragment_shader_imgui.get_shader())
-                          .push_constants(ShaderStage::Vertex, push_constant_size as u32)
-                          .render_pass(self.renderpass.clone())
-                          .descriptor_set_layout(self.descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
-                          .vertex_binding(vec!(ImGuiVertex::vertex_input_binding()))
-                          .vertex_attributes(ImGuiVertex::vertex_input_attributes())
-                          .multisample(&self.msaa)
-                          //.disable_blend()
-                          //.alpha_to_one()
-                          //.alpha_to_coverage()
-                          .topology_triangle_list()
-                          .polygon_mode_fill()
-                          .cull_mode_none()
-                          .front_face_counter_clockwise()
-                          .build(Arc::clone(&device));
-    
-    self.vertex_shader_imgui = Some(vertex_shader_imgui);
-    self.fragment_shader_imgui = Some(fragment_shader_imgui);
-    self.imgui_pipeline = Some(imgui_pipeline);
-    
-    let vertex_buffers = {
-      (0..num_sets).map(|_| 
-        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, 1)
-      ).collect::<Vec<Buffer<ImGuiVertex>>>()
-    };
-    let index_buffers = {
-      (0..num_sets).map(|_|
-        Buffer::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, 1)
-        ).collect::<Vec<Buffer<u32>>>()
-    };
-    
-    self.imgui_vertex_buffer = Some(vertex_buffers);
-    self.imgui_index_buffer = Some(index_buffers);
   }
   
   pub fn set_scale(&mut self, new_scale: f32) {
@@ -689,84 +579,6 @@ impl TextureShader {
     cmd
   }
   
-  pub fn draw_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, cmd: CommandBufferBuilder, current_buffer: usize, _max_buffer: usize, ui: Ui, _dpi_factor: f32, window_size: Vector2<f32>) -> CommandBufferBuilder {
-    let mut cmd = cmd;
-    
-    if !self.descriptor_sets.contains_key(&"imgui".to_string()) {
-      return cmd
-    }
-    
-    let mut fb_width = window_size.x;
-    let mut fb_height = window_size.y;
-    
-    let mut vertex_data = Vec::new();
-    let mut index_data = Vec::new();
-    let mut index_base = 0;
-    
-    let draw_data = ui.render();
-    
-      let width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
-      let height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
-      if !(fb_width > 0.0 && fb_height > 0.0) {
-        return cmd;
-      }
-      if width > fb_width {
-        fb_width = width;
-      }
-      if height > fb_height {
-        fb_height = height;
-      }
-      
-      let mut verticies = 0;
-      
-      for draw_list in draw_data.draw_lists() {
-        let mut idx = draw_list.idx_buffer().iter().map(|idx| *idx as u32+verticies).collect::<Vec<u32>>();
-        let mut vtx = draw_list.vtx_buffer().iter().map(|vtx| {
-        let colour =  vtx.col;
-          
-          ImGuiVertex { pos: Vector2::new(vtx.pos[0], vtx.pos[1]), uvs: Vector2::new(vtx.uv[0], vtx.uv[1]), colours: Vector4::new(colour[0] as f32/255.0, colour[1] as f32/255.0, colour[2] as f32/255.0, colour[3] as f32/255.0) }
-        }).collect::<Vec<ImGuiVertex>>();
-        let index_count = idx.len() as u32;
-        let vertex_count = vtx.len() as u32;
-        vertex_data.append(&mut vtx);
-        index_data.append(&mut idx);
-        index_base += index_count as i32;
-        verticies += vertex_count;
-      }
-    
-    if let Some(index_buffer) = &mut self.imgui_index_buffer {
-      self.imgui_update_timer += 1;
-      if index_buffer[current_buffer].internal_data().len() != index_data.len() || self.imgui_update_timer < 0 {
-        index_buffer[current_buffer].destroy(Arc::clone(&device));
-        index_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::index_buffer(), 1, index_data);
-        if let Some(vertex_buffer) = &mut self.imgui_vertex_buffer {
-          vertex_buffer[current_buffer].destroy(Arc::clone(&device));
-          vertex_buffer[current_buffer] = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), BufferUsage::vertex_buffer(), 1, vertex_data);
-        }
-        self.imgui_update_timer = -(index_buffer.len() as i32);
-      }
-    }
-    
-    if let Some(pipeline) = &self.imgui_pipeline {
-      let push_constant_data = UniformData::new()
-                                 .add_vector4(Vector4::new(fb_width as f32, fb_height as f32, 0.0, 0.0));
-      cmd = cmd.push_constants(Arc::clone(&device), &pipeline, ShaderStage::Vertex, push_constant_data);
-      let descriptor: &DescriptorSet = self.descriptor_sets.get(&"imgui".to_string()).unwrap();
-      
-      if let Some(index_buffer) = &self.imgui_index_buffer {
-        if let Some(vertex_buffer) = &self.imgui_vertex_buffer {
-           cmd = cmd.draw_indexed(Arc::clone(&device), 
-                                  &vertex_buffer[current_buffer].internal_object(0),
-                                  &index_buffer[current_buffer].internal_object(0),
-                                  index_base as u32, &pipeline,
-                                  vec!(*descriptor.set(0)),
-                                 Vec::with_capacity(0))
-        }
-      }
-    }
-    cmd
-  }
-  
   pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Vector4<f32>, use_texture: bool, buffer_reference: String) {
     let model = Vector4::new(position.x, position.y, scale.x, scale.y);
     
@@ -870,29 +682,14 @@ impl TextureShader {
     
     for instance_details in self.instanced_cpu_buffers.iter() {
       match instance_details {
-        (_reference, (_data, buffer, texture)) => {
+        (_reference, (_data, buffer, _texture)) => {
           buffer.destroy(Arc::clone(&device));
         }
       }
     }
     
-    if let Some(index_buffers) = &self.imgui_index_buffer {
-      for index_buffer in index_buffers {
-        index_buffer.destroy(Arc::clone(&device));
-      }
-    }
-    
-    if let Some(vertex_buffers) = &self.imgui_vertex_buffer {
-      for vertex_buffer in vertex_buffers {
-        vertex_buffer.destroy(Arc::clone(&device));
-      }
-    }
-    
     self.texture_pipeline.destroy(Arc::clone(&device));
     self.text_pipeline.destroy(Arc::clone(&device));
-    if let Some(pipeline) = &self.imgui_pipeline {
-      pipeline.destroy(Arc::clone(&device));
-    }
     self.instanced_pipeline.destroy(Arc::clone(&device));
     
     for (_reference, descriptor_set) in &self.descriptor_sets {
@@ -904,12 +701,6 @@ impl TextureShader {
     self.vertex_shader_text.destroy(Arc::clone(&device));
     self.fragment_shader_text.destroy(Arc::clone(&device));
     self.vertex_shader_instanced.destroy(Arc::clone(&device));
-    if let Some(vertex_shader) = &self.vertex_shader_imgui {
-      vertex_shader.destroy(Arc::clone(&device));
-    }
-    if let Some(fragment_shader) = &self.fragment_shader_imgui {
-      fragment_shader.destroy(Arc::clone(&device));
-    }
     
     for framebuffer in &self.framebuffers {
      framebuffer.destroy(Arc::clone(&device));

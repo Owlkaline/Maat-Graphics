@@ -43,19 +43,19 @@ pub enum Property {
 }
 
 pub struct Animation {
-  interpolation: Interpolation,
-  property: Property,
-  inputs: Vector2<f32>,
-  outputs: Vector2<Vector4<f32>>,
+  _interpolation: Interpolation,
+  _property: Property,
+  _inputs: Vector2<f32>,
+  _outputs: Vector2<Vector4<f32>>,
 }
 
 impl Animation {
-  pub fn new(interpolation: Interpolation, property: Property, inputs: Vector2<f32>, outputs: Vector2<Vector4<f32>>) -> Animation {
+  pub fn new(_interpolation: Interpolation, _property: Property, _inputs: Vector2<f32>, _outputs: Vector2<Vector4<f32>>) -> Animation {
     Animation {
-      interpolation,
-      property,
-      inputs,
-      outputs,
+      _interpolation,
+      _property,
+      _inputs,
+      _outputs,
     }
   }
 }

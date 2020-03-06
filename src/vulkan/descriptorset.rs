@@ -376,7 +376,7 @@ impl DescriptorSetBuilder {
     let device = device.internal_object();
     
     for _ in 0..num_sets as usize {
-      let mut layout = unsafe { mem::uninitialized() };
+      let mut layout = unsafe { mem::MaybeUninit::uninit().assume_init() };
       unsafe {
         vk.CreateDescriptorSetLayout(*device, &descriptor_set_layout_create_info, ptr::null(), &mut layout);
       }
@@ -385,7 +385,7 @@ impl DescriptorSetBuilder {
     }
     
     for i in 0..num_sets as usize {
-      let mut descriptor_set: vk::DescriptorSet = unsafe { mem::uninitialized() };
+      let mut descriptor_set: vk::DescriptorSet = unsafe { mem::MaybeUninit::uninit().assume_init() };
       let descriptor_set_allocate_info = {
         vk::DescriptorSetAllocateInfo {
           sType: vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,

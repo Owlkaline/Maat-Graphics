@@ -39,7 +39,7 @@ impl CommandBuffer {
       }
     };
     
-    let mut command_buffer: vk::CommandBuffer = unsafe { mem::uninitialized() };
+    let mut command_buffer: vk::CommandBuffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       let vk = device.pointers();
@@ -71,7 +71,7 @@ impl CommandBuffer {
       }
     };
     
-    let mut command_buffer: vk::CommandBuffer = unsafe { mem::uninitialized() };
+    let mut command_buffer: vk::CommandBuffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       let vk = device.pointers();

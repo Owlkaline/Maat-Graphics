@@ -101,10 +101,6 @@
 
 const ENGINE_VERSION: u32 = (0 as u32) << 22 | (2 as u32) << 12 | (0 as u32);
 
-extern crate imgui_sys;
-pub extern crate imgui;
-extern crate imgui_winit_support;
-
 pub extern crate winit;
 pub extern crate cgmath;
 

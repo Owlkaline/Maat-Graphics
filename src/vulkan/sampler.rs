@@ -123,7 +123,7 @@ impl SamplerBuilder {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut sampler: vk::Sampler = unsafe { mem::uninitialized() };
+    let mut sampler: vk::Sampler = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let sampler_create_info = {
       vk::SamplerCreateInfo {
@@ -167,7 +167,7 @@ impl Sampler {
     let vk = device.pointers();
     let device = device.internal_object();
     
-    let mut sampler: vk::Sampler = unsafe { mem::uninitialized() };
+    let mut sampler: vk::Sampler = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let mag_filter = vk::FILTER_NEAREST;
     let min_filter = vk::FILTER_NEAREST;

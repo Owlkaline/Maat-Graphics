@@ -15,9 +15,6 @@ base64 = "*"
 shared_library = "0.1.7"
 lazy_static = "1.2.0"
 libc = "0.2.44"
-imgui-sys = { version = "0.1.0-pre", git = "https://github.com/Gekkio/imgui-rs" }
-imgui = { version = "0.1.0-pre", git = "https://github.com/Gekkio/imgui-rs" }
-imgui-winit-support = { version = "0.1.0-pre", git = "https://github.com/Gekkio/imgui-rs" }
 
 [dependencies.gltf]
 version = "0.12"

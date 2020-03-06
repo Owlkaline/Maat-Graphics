@@ -93,7 +93,7 @@ void main() {
   mat4 model = create_translation_matrix(push_constants.model.xy, vec2(1.0));
   mat4 scale_matrix = create_translation_matrix(vec2(0.0), push_constants.model.zw);
   mat4 rot_z = create_rotation_matrix(rotation);
-  mat4 zoom_matrix = create_scale_matrix(matrix_zoom);
+  //mat4 zoom_matrix = create_scale_matrix(matrix_zoom);
   
   gl_Position = projection * zoom_matrix * model * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
 }

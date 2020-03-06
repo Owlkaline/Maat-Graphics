@@ -29,7 +29,7 @@ pub enum DrawType {
   // Ref, position, scale, colour, rotation
   DrawCustomShapeColoured((String, Vector2<f32>, Vector2<f32>, Vector4<f32>, f32)),
   
-  AddInstancedModelBuffer((String)),
+  AddInstancedModelBuffer(String),
   // BufRef, position, scale, rotation, colour
   AddInstancedColoured((String, Vector2<f32>, Vector2<f32>, f32, Vector4<f32>)),
   // Ref, Position, Scale, Rotation, alpha
@@ -39,7 +39,7 @@ pub enum DrawType {
   //  reference, position, scale rotation colour hologram
   AddInstancedModel((String, Vector3<f32>, Vector3<f32>, Vector3<f32>, Vector4<f32>, bool)),
   // buffer ref
-  DrawInstanced((String)),
+  DrawInstanced(String),
   
   // Ref, location
   NewTexture((String, String)),
@@ -47,12 +47,12 @@ pub enum DrawType {
   NewModel,
   
   // Ref
-  LoadTexture((String)),
-  LoadFont((String)),
-  LoadModel((String)),
-  UnloadTexture((String)),
-  UnloadFont((String)),
-  UnloadModel((String)),
+  LoadTexture(String),
+  LoadFont(String),
+  LoadModel(String),
+  UnloadTexture(String),
+  UnloadFont(String),
+  UnloadModel(String),
   
   NewShape,
   UpdateShape((String, Vec<graphics::Vertex2d>, Vec<u32>)),
@@ -160,7 +160,7 @@ impl DrawCall {
   pub fn add_instanced_sprite_sheet_with_alpha(position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, texture: String, sprite_details: Vector3<i32>, alpha: f32) -> DrawCall {
     let mut draw = DrawCall::add_instanced_sprite_sheet(position, scale, rotation, texture, sprite_details);
     match &mut draw.draw_type {
-      DrawType::AddInstancedSpriteSheet((texture, position, scale, rotation, colour, sprite_details)) => {
+      DrawType::AddInstancedSpriteSheet((_texture, _position, _scale, _rotation, colour, _sprite_details)) => {
         colour.w = alpha;
       },
       _ => {},
@@ -217,7 +217,7 @@ impl DrawCall {
   
   pub fn draw_instanced(buffer_reference: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::DrawInstanced((buffer_reference)),
+      draw_type: DrawType::DrawInstanced(buffer_reference),
       coloured: true,
     }
   }

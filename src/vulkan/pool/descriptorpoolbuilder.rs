@@ -69,7 +69,7 @@ impl DescriptorPoolBuilder {
                                 .max(self.num_storage_buffers)
                                 .max(self.num_input_attachments);
     
-    let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::uninitialized() };
+    let mut descriptor_pool: vk::DescriptorPool = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let mut descriptor_pool_size: Vec<vk::DescriptorPoolSize> = Vec::with_capacity((self.num_uniform_buffers + self.num_sampled_images + self.num_combined_image_samplers + self.num_storage_images + self.num_storage_buffers + self.num_input_attachments) as usize);
     
     for _ in 0..self.num_combined_image_samplers {

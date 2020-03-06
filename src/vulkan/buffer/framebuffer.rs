@@ -14,7 +14,7 @@ pub struct Framebuffer {
 
 impl Framebuffer {
   pub fn new(device: Arc<Device>, render_pass: &RenderPass, extent: &vk::Extent2D, image_view: &vk::ImageView) -> Framebuffer {
-    let mut framebuffer: vk::Framebuffer = unsafe { mem::uninitialized() };
+    let mut framebuffer: vk::Framebuffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let framebuffer_create_info = vk::FramebufferCreateInfo {
       sType: vk::STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -41,7 +41,7 @@ impl Framebuffer {
   }
   
   pub fn new_with_depth(device: Arc<Device>, render_pass: &RenderPass, extent: &vk::Extent2D, image_view: &vk::ImageView, depth_view: &vk::ImageView) -> Framebuffer {
-    let mut framebuffer: vk::Framebuffer = unsafe { mem::uninitialized() };
+    let mut framebuffer: vk::Framebuffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let attachments = vec!(*image_view, *depth_view);
     
@@ -70,7 +70,7 @@ impl Framebuffer {
   }
   
   pub fn new_with_imageviews(device: Arc<Device>, render_pass: &RenderPass, extent: &vk::Extent2D, attachments: Vec<vk::ImageView>) -> Framebuffer {
-    let mut framebuffer: vk::Framebuffer = unsafe { mem::uninitialized() };
+    let mut framebuffer: vk::Framebuffer = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let framebuffer_create_info = vk::FramebufferCreateInfo {
       sType: vk::STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,

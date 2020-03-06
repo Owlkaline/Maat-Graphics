@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::font::GenericFont;
 use crate::camera::PerspectiveCamera;
 use crate::graphics;
-use crate::imgui::*;
 
 use cgmath::{Vector2, Vector3};
 
@@ -53,19 +52,17 @@ pub trait CoreRender {
   
   // Initalises everything
   fn init(&self);
-  fn prepare_imgui_ui(&mut self, imgui: Option<&mut Context>);
-//  fn imgui_window(&mut self, imgui: &mut ImGui) -> imgui::FrameSize;
   
   // Standard draw calls that should be called in 98% of cases
   fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>, ui: Option<Ui>, delta_time: f32);
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
   fn post_draw(&self);
   
   // Getters and setters
   fn get_maximum_dimensions(&self) -> Vector2<f32>;
   fn get_physical_dimensions(&self) -> Vector2<f32>;
   fn get_virtual_dimensions(&self) -> Vector2<f32>;
-  fn get_events(&mut self, imgui: Option<&mut Context>) -> Vec<winit::Event>;
+  fn get_events(&mut self) -> Vec<winit::Event>;
   fn get_mouse_position(&mut self) -> Vector2<f32>;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
   fn get_dpi_scale(&self) -> f32;

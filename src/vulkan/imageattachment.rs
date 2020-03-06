@@ -382,8 +382,8 @@ impl ImageAttachment {
   }
   
   fn create_image(instance: Arc<Instance>, device: Arc<Device>, memory_property: &MemoryProperty, image_type: &ImageType, tiling: &ImageTiling, usage: &ImageUsage, initial_layout: &ImageLayout,  samples: &SampleCount, format: &vk::Format, width: u32, height: u32) -> (vk::Image, vk::DeviceMemory) {
-    let mut image: vk::Image = unsafe { mem::uninitialized() };
-    let mut memory: vk::DeviceMemory = unsafe { mem::uninitialized() };
+    let mut image: vk::Image = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut memory: vk::DeviceMemory = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let vk = device.pointers();
     let vk_instance = instance.pointers();
@@ -410,7 +410,7 @@ impl ImageAttachment {
       }
     };
     
-   let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::uninitialized() };
+   let mut memory_requirements: vk::MemoryRequirements = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       check_errors(vk.CreateImage(*device, &image_create_info, ptr::null(), &mut image));
@@ -419,7 +419,7 @@ impl ImageAttachment {
     
     let memory_type_bits_index = {
       
-      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::uninitialized() };
+      let mut memory_properties: vk::PhysicalDeviceMemoryProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
       
       unsafe {
         vk_instance.GetPhysicalDeviceMemoryProperties(*phys_device, &mut memory_properties);
@@ -458,7 +458,7 @@ impl ImageAttachment {
   }
   
   fn create_image_view(device: Arc<Device>, image: &vk::Image, format: &vk::Format, image_aspect: &ImageAspect, image_view_type: &ImageViewType) -> vk::ImageView {
-    let mut image_view: vk::ImageView = unsafe { mem::uninitialized() };
+    let mut image_view: vk::ImageView = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     let vk = device.pointers();
     let device = device.internal_object();

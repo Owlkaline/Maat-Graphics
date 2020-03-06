@@ -204,7 +204,7 @@ pub fn line_line_collision(line_1: Vector4<f32>, line_2: Vector4<f32>) -> Option
   let u_a = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
   let u_b = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
   
-  if (u_a >= 0.0 && u_a <= 1.0 && u_b >= 0.0 && u_b <= 1.0) {
+  if u_a >= 0.0 && u_a <= 1.0 && u_b >= 0.0 && u_b <= 1.0 {
     let intersection_x = x1 + (u_a * (x2-x1));
     let intersection_y = y1 + (u_a * (y2-y1));
     

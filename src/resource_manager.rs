@@ -12,8 +12,6 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
-use imgui::Context;
-
 use cgmath::Vector3;
 
 use std::time;
@@ -39,7 +37,7 @@ struct LoadableObject {
 
 impl LoadableObject {
   pub fn load_object(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: &ImageType, image_view_type: &ImageViewType, format: &vk::Format, samples: &SampleCount, tiling: &ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) {
-    let mut object;
+    let object;
     
     match &self.object_type {
       ObjectType::Texture(Some(image_data), ..) => {
@@ -110,7 +108,7 @@ pub struct ResourceManager {
   num_recv_objects: i32,
   tx: mpsc::Sender<usize>,
   rx: mpsc::Receiver<usize>,
-  data: Vec<Arc<Mutex<Option<(LoadableObject)>>>>,
+  data: Vec<Arc<Mutex<Option<LoadableObject>>>>,
 }
 
 impl ResourceManager {
@@ -336,7 +334,7 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
+  pub fn _insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
    // println!("inserting texture");
     debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
@@ -502,15 +500,6 @@ ObjectType::Model(_, images) => {
     }
   }
   
-  pub fn load_imgui(&mut self, instance: Arc<Instance>, device: Arc<Device>, imgui: &mut Context, command_pool: &CommandPool, graphics_queue: vk::Queue) {
-    let mut fonts = imgui.fonts();
-    let texture = fonts.build_rgba32_texture();
-    let data = texture.data;
-    let raw_pixels = data.iter().map(|p| *p as u8).collect::<Vec<u8>>();
-    let texture = ImageAttachment::create_texture_from_pixels(Arc::clone(&instance), Arc::clone(&device), raw_pixels, texture.width, texture.height, &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);
-    self.insert_texture("imgui".to_string(), texture);
-  }
-  
   /**
   ** Loads textures in seperate threads, non bloacking.
   **/
@@ -548,7 +537,7 @@ ObjectType::Model(_, images) => {
     });
   }
   
-  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> (ImageAttachment) {
+  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> ImageAttachment {
     let texture_start_time = time::Instant::now();
     
     let texture = ImageAttachment::create_texture_from_location(instance, device, location.to_string(), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);

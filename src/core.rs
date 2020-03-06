@@ -2,10 +2,6 @@ use vk;
 use winit;
 use cgmath::{Vector4};
 
-//use crate::imgui::imgui_sys::ImGuiCol;
-use crate::imgui::*;
-use crate::imgui_winit_support;
-
 use crate::ResourceManager;
 use crate::camera::PerspectiveCamera;
 use crate::drawcalls::DrawCall; 
@@ -19,7 +15,7 @@ use crate::graphics;
 use crate::Settings;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
-                             MipmapMode, VkBool, BorderColour};
+                             MipmapMode, VkBool};
 
 use crate::vulkan::{VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
 use crate::vulkan::pool::{CommandPool, DescriptorPool, DescriptorPoolBuilder};
@@ -64,9 +60,6 @@ pub struct CoreMaat {
   max_frames: usize,
   
   _image_from_draw: Option<ImageAttachment>,
-  
-  imgui_platform: Option<imgui_winit_support::WinitPlatform>,
-  imgui_sampler: Option<Sampler>,
   
   mouse_position: Vector2<f32>,
   dpi: f32,
@@ -295,133 +288,9 @@ impl CoreMaat {
       
       _image_from_draw: None,
       
-      imgui_platform: None,
-      imgui_sampler: None,
-      
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
     }
-  }
-  
-  pub fn use_imgui(mut self, mut imgui: &mut Context) -> CoreMaat {
-    let instance = self.window.instance();
-    let device = self.window.device();
-    let graphics_queue = self.window.get_graphics_queue();
-    
-    {
-    
-      fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
-        let x = col[0].powf(2.2);
-        let y = col[1].powf(2.2);
-        let z = col[2].powf(2.2);
-        let w = 1.0 - (1.0 - col[3]).powf(2.2);
-        
-        [x, y, z, w]
-      }
-      
-     let style = imgui.style_mut();
-     /* style.colors[9] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.6 };
-      style.colors[11] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.8 };
-      style.colors[12] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
-      style.colors[24] = ImVec4{ x: 1.0, y: 0.0, z: 0.0, w: 0.4 };
-      style.colors[18] = ImVec4{ x: 0.0, y: 1.0, z: 0.0, w: 1.0 };*/
-      
-      
-     // style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
-     // style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.50, y: 0.50, z: 0.50, w: 1.00};
-      
-      //for colour in &mut style.colors.iter_mut() {
-     //   colour.w = 0.0;
-    //  }
-      //style.Alpha = 1.0;
-      //style.FrameRounding = 3.0;
-    /*  style.colors[ImGuiCol::Text as usize]                   = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::TextDisabled as usize]           = ImVec4{ x: 0.60, y: 0.60, z: 0.60, w: 1.00};
-      style.colors[ImGuiCol::WindowBg as usize]               = ImVec4{ x: 0.94, y: 0.94, z: 0.94, w: 0.94};
-      style.colors[ImGuiCol::ChildBg as usize]                = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 0.00};
-      style.colors[ImGuiCol::PopupBg as usize]                = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.94};
-      style.colors[ImGuiCol::Border as usize]                 = ImVec4{ x: 0.00, y: 0.00, z: 0.00, w: 0.39};
-      style.colors[ImGuiCol::BorderShadow as usize]           = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.10};
-      style.colors[ImGuiCol::FrameBg as usize]                = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.94};
-      style.colors[ImGuiCol::FrameBgHovered as usize]         = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 0.40};
-      style.colors[ImGuiCol::FrameBgActive as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 0.67};
-      style.colors[ImGuiCol::TitleBg as usize]                = ImVec4{ x: 0.96, y: 0.96, z: 0.96, w: 1.00};
-      style.colors[ImGuiCol::TitleBgActive as usize]          = ImVec4{ x: 0.82, y: 0.82, z: 0.82, w: 1.00};
-      style.colors[ImGuiCol::TitleBgCollapsed as usize]       = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.51};
-      style.colors[ImGuiCol::MenuBarBg as usize]              = ImVec4{ x: 0.86, y: 0.86, z: 0.86, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarBg as usize]            = ImVec4{ x: 0.98, y: 0.98, z: 0.98, w: 0.53};
-      style.colors[ImGuiCol::ScrollbarGrab as usize]          = ImVec4{ x: 0.69, y: 0.69, z: 0.69, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarGrabHovered as usize]   = ImVec4{ x: 0.59, y: 0.59, z: 0.59, w: 1.00};
-      style.colors[ImGuiCol::ScrollbarGrabActive as usize]    = ImVec4{ x: 0.49, y: 0.49, z: 0.49, w: 1.00};
-      style.colors[ImGuiCol::CheckMark as usize]              = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::SliderGrab as usize]             = ImVec4{ x: 0.24, y: 0.52, z: 0.88, w: 1.00};
-      style.colors[ImGuiCol::SliderGrabActive as usize]       = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::Button as usize]                 = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::ButtonHovered as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::ButtonActive as usize]           = ImVec4{ x: 0.06, y: 0.53, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::Header as usize]                 = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::HeaderHovered as usize]          = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::HeaderActive as usize]           = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      //style.colors[ImGuiCol::Separator as usize]              = ImVec4{ x: 0.43, y: 0.43, z: 0.50, w: 1.00};
-      //style.colors[ImGuiCol::SeparatorHovered as usize]       = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
-      //style.colors[ImGuiCol::SeparatorActive as usize]        = ImVec4{ x: 0.10, y: 0.40, z: 0.75, w: 1.00};
-      style.colors[ImGuiCol::ResizeGrip as usize]             = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 0.50};
-      style.colors[ImGuiCol::ResizeGripHovered as usize]      = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::ResizeGripActive as usize]       = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      style.colors[ImGuiCol::PlotLines as usize]              = ImVec4{ x: 0.39, y: 0.39, z: 0.39, w: 1.00};
-      style.colors[ImGuiCol::PlotLinesHovered as usize]       = ImVec4{ x: 1.00, y: 0.43, z: 0.35, w: 1.00};
-      style.colors[ImGuiCol::PlotHistogram as usize]          = ImVec4{ x: 0.90, y: 0.70, z: 0.00, w: 1.00};
-      style.colors[ImGuiCol::PlotHistogramHovered as usize]   = ImVec4{ x: 1.00, y: 0.43, z: 0.35, w: 1.00};
-      style.colors[ImGuiCol::TextSelectedBg as usize]         = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-      //style.colors[ImGuiCol::DragDropTarget as usize]         = ImVec4{ x: 1.00, y: 1.00, z: 0.00, w: 1.00};
-      //style.colors[ImGuiCol::NavHighlight as usize]           = ImVec4{ x: 0.26, y: 0.59, z: 0.98, w: 1.00};
-     // style.colors[ImGuiCol::NavWindowingHighlight as usize]  = ImVec4{ x: 1.00, y: 1.00, z: 1.00, w: 1.00};
-      //style.colors[ImGuiCol::NavWindowingDimBg as usize]      = ImVec4{ x: 0.80, y: 0.80, z: 0.80, w: 1.00};
-      style.colors[ImGuiCol::ModalWindowDimBg as usize]       = ImVec4{ x: 0.20, y: 0.20, z: 0.20, w: 0.35};
-      //style.alpha = 1.0;*/
-
-      for col in 0..style.colors.len() {
-       style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-      }
-    }
-    
-    imgui.set_ini_filename(None);
-    
-    let mut platform = imgui_winit_support::WinitPlatform::init(&mut imgui);
-    platform.attach_window(imgui.io_mut(), self.window.ref_window(), imgui_winit_support::HiDpiMode::Default);
-    
-    let hidpi_factor = platform.hidpi_factor();
-    let font_size = (13.0 * hidpi_factor) as f32;
-    imgui.fonts().add_font(&[
-      FontSource::DefaultFontData {
-        config: Some(FontConfig {
-          size_pixels: font_size,
-          .. FontConfig::default()
-        }),
-      },
-    ]);
-    
-    imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
-    
-    //imgui.set_font_global_scale(1.2);
-    
-    self.texture_shader.load_imgui(Arc::clone(&instance), Arc::clone(&device), self.max_frames as u32);
-    
-    self.resources.load_imgui(Arc::clone(&instance), Arc::clone(&device), &mut imgui, &self.command_pool, *graphics_queue);
-    
-    self.imgui_platform = Some(platform);
-    
-    self.imgui_sampler = Some(SamplerBuilder::new()
-                       .min_filter(Filter::Linear)
-                       .mag_filter(Filter::Linear)
-                       .address_mode(AddressMode::ClampToEdge)
-                       .mipmap_mode(MipmapMode::Linear)
-                       .anisotropy(VkBool::False)
-                       .max_anisotropy(1.0)
-                       .border_colour(BorderColour::FloatTransparentBlack)//FloatOpaqueWhite)
-                       .build(Arc::clone(&device)));
-    
-    self
   }
   
   fn create_fences(device: Arc<Device>, num_fences: u32) -> Vec<Fence> {
@@ -524,13 +393,7 @@ impl CoreRender for CoreMaat {
       
       for (reference, size) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
-          if reference.to_string() == "imgui".to_string() {
-            if let Some(sampler) = &self.imgui_sampler {
-              self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, sampler);
-            }
-          } else {
-            self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
-          }
+          self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
         }
         if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
@@ -616,7 +479,7 @@ impl CoreRender for CoreMaat {
     model_details
   }
   
-  fn draw(&mut self, draw_calls: &Vec<DrawCall>, ui: Option<Ui>, delta_time: f32) {
+  fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32) {
     //
     // Build drawcalls
     //
@@ -665,7 +528,7 @@ impl CoreRender for CoreMaat {
       for draw in draw_calls {
         match draw.get_type() {
           DrawType::DrawInstanced(ref references) => {
-            let (buffer_ref) = references;
+            let buffer_ref = references;
             cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string());
           },
           DrawType::AddInstancedColoured(ref info) => {
@@ -742,20 +605,6 @@ impl CoreRender for CoreMaat {
           }
         }
       }
-    }
-    
-    let dpi = self.get_dpi_scale() as f32;
-    
-    if let Some(ui) = ui {
-      if let Some(platform) = &mut self.imgui_platform {
-        platform.prepare_render(&ui, self.window.ref_window());
-      }
-      
-      let device = self.window.device();
-      let instance = self.window.instance();
-      let window_size = Vector2::new(self.window_dimensions.width as f32, self.window_dimensions.height as f32);
-      
-      cmd = self.texture_shader.draw_imgui(Arc::clone(&instance), Arc::clone(&device), cmd, i, self.max_frames, ui, dpi, window_size);
     }
       
       let device = self.window.device();
@@ -883,7 +732,7 @@ impl CoreRender for CoreMaat {
     Vector2::new(self.window_dimensions.width as f32 * self.dpi, self.window_dimensions.height as f32 * self.dpi)
   }
   
-  fn get_events(&mut self, mut imgui: Option<&mut Context>) -> Vec<winit::Event> {
+  fn get_events(&mut self) -> Vec<winit::Event> {
     let mut events = Vec::new();
     
     let mut recreate = false;
@@ -921,23 +770,7 @@ impl CoreRender for CoreMaat {
       self.recreate_swapchain = true;
     }
     
-    for ev in &events {
-      if let Some(ref mut imgui) = imgui {
-        if let Some(ref mut platform) = self.imgui_platform {
-          platform.handle_event(imgui.io_mut(), self.window.ref_window(), ev);
-        }
-      }
-    }
-    
     events
-  }
-  
-  fn prepare_imgui_ui(&mut self, imgui: Option<&mut Context>) {
-    if let Some(imgui) = imgui {
-      if let Some(platform) = &mut self.imgui_platform {
-        let _token = platform.prepare_frame(imgui.io_mut(), self.window.ref_window());
-      }
-    }
   }
   
   fn get_mouse_position(&mut self) -> Vector2<f32> {
@@ -1016,10 +849,6 @@ impl Drop for CoreMaat {
     self.dummy_image.destroy(Arc::clone(&device));
     self.dummy_image_snorm.destroy(Arc::clone(&device));
     self.sampler.destroy(Arc::clone(&device));
-    
-    if let Some(sampler) = &self.imgui_sampler {
-      sampler.destroy(Arc::clone(&device));
-    }
     
     //self.compute_shader.destroy(Arc::clone(&device));
     self.texture_shader.destroy(Arc::clone(&device));

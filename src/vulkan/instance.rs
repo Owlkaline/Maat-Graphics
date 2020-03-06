@@ -114,7 +114,7 @@ impl Instance {
   }
   
   pub fn get_surface_capabilities(&self, phys_device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR) -> vk::SurfaceCapabilitiesKHR {
-    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::uninitialized() };
+    let mut surface_capabilities: vk::SurfaceCapabilitiesKHR = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       check_errors(self.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(*phys_device, *surface, &mut surface_capabilities));
@@ -175,7 +175,7 @@ impl Instance {
   }
   
   pub fn get_device_properties(&self, phys_device: &vk::PhysicalDevice) -> vk::PhysicalDeviceProperties {
-    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::uninitialized() };
+    let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       self.vk.GetPhysicalDeviceProperties(*phys_device, &mut device_prop);
@@ -199,7 +199,7 @@ impl Instance {
   }
   
   pub fn get_device_features(&self, phys_device: &vk::PhysicalDevice) -> vk::PhysicalDeviceFeatures {
-    let mut features: vk::PhysicalDeviceFeatures = unsafe { mem::uninitialized() };
+    let mut features: vk::PhysicalDeviceFeatures = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       self.vk.GetPhysicalDeviceFeatures(*phys_device, &mut features);
@@ -209,7 +209,7 @@ impl Instance {
   }
   
   pub fn create_device(&self, phys_device: &vk::PhysicalDevice, device_info: &vk::DeviceCreateInfo) -> vk::Device {
-    let mut device = unsafe { mem::uninitialized() };
+    let mut device = unsafe { mem::MaybeUninit::uninit().assume_init() };
     
     unsafe {
       check_errors(self.vk.CreateDevice(*phys_device, device_info, ptr::null(), &mut device));
@@ -266,7 +266,7 @@ impl Instance {
     };
     
     let instance: vk::Instance = unsafe {
-      let mut output = mem::uninitialized();
+      let mut output = mem::MaybeUninit::uninit().assume_init();
       let instance_info = vk::InstanceCreateInfo {
         sType: vk::STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         pNext: ptr::null(),
