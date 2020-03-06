@@ -1,4 +1,4 @@
-![Build status](https://travis-ci.com/lilith645/Ptah3D.svg?token=nw7eyDYfjBcSaxj1G3h7&branch=master)
+![Build status](https://travis-ci.com/lilith645/Maat-Graphics.svg?branch=master)
 
 # Maat-Graphics
 Graphics engine for rendering with vulkan, cross platform for windows, mac and Linux.
