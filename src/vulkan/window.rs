@@ -561,16 +561,19 @@ impl VkWindow {
   fn has_graphics_bit(queue_flags: &u32) -> bool {
     queue_flags % 2 != 0 
   }
-  /*
-  pub fn imgui_window(&mut self, imgui: &mut ImGui) -> FrameSize {
-    imgui_winit_support::update_mouse_cursor(&imgui, &self.window);
-    imgui_winit_support::get_frame_size(&self.window, self.get_hidpi_factor() as f64).unwrap()
-  }*/
 }
 
 impl Drop for VkWindow {
   fn drop(&mut self) {
     self.swapchain.destroy(Arc::clone(&self.device));
+    
+    let vk = self.instance.pointers();
+    let instance = self.instance.local_instance();
+    
+    unsafe {
+      vk.DestroySurfaceKHR(*instance, self.surface, ptr::null());
+    }
+    
     self.device.destroy();
     self.instance.destroy();
   }
