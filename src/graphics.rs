@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::font::GenericFont;
 use crate::camera::PerspectiveCamera;
 use crate::graphics;
+use crate::gltf_interpreter::ModelDetails;
 
 use cgmath::{Vector2, Vector3};
 
@@ -26,8 +27,10 @@ pub trait CoreRender {
   // Add is the recommened use for majority of the loading as it doesnt stall
   //
   // Load 3D models
-  fn preload_model(&mut self, reference: String, location: String);
+  fn preload_model(&mut self, reference: String, location: String, is_terrain: bool);
   fn add_model(&mut self, reference: String, location: String);
+  
+  fn add_terrain(&mut self, reference: String, model: ModelDetails);
   
   // Load png images
   fn preload_texture(&mut self, reference: String, location: String);
@@ -54,7 +57,7 @@ pub trait CoreRender {
   fn init(&self);
   
   // Standard draw calls that should be called in 98% of cases
-  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)>;
+  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)>;
   fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
   fn post_draw(&self);
   

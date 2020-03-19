@@ -89,6 +89,14 @@ impl PerspectiveCamera {
                                                         self.pitch, self.yaw);
   }
   
+  pub fn set_front(&mut self, front: Vector3<f32>) {
+    self.front = front;
+  }
+  
+  pub fn set_up(&mut self, up: Vector3<f32>) {
+    self.up = up;
+  }
+  
   pub fn set_mouse_sensitivity(&mut self, new_sensitivity: f32) {
     self.mouse_sensitivity = new_sensitivity;
   }

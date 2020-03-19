@@ -2,13 +2,14 @@ use std::{fs, io};
 use std::path::Path;
 
 use crate::vulkan::vkenums::{AddressMode, Filter};
+use crate::math;
 
 use base64;
 
 use gltf;
 use gltf::json::Value;
 use gltf::animation;
-use gltf::material::AlphaMode;
+pub use gltf::material::AlphaMode;
 use gltf::texture::MagFilter;
 use gltf::texture::MinFilter;
 use gltf::texture::WrappingMode;
@@ -69,9 +70,9 @@ impl Interpolation {
       animation::Interpolation::Step => {
         Interpolation::Step
       },
-      animation::Interpolation::CatmullRomSpline => {
+     /* animation::Interpolation::CatmullRomSpline => {
         Interpolation::CatmullRomSpline
-      },
+      },*/
       animation::Interpolation::CubicSpline => {
         Interpolation::CubicSpline
       }
@@ -110,34 +111,34 @@ pub enum Topology {
 }
 
 #[derive(Clone)]
-struct IndexArray {
-  index: Vec<u32>,
+pub struct IndexArray {
+  pub index: Vec<u32>,
 }
 
 #[derive(Clone)]
-struct TexCoordArray {
-  texcoord: Vec<[f32; 2]>
+pub struct TexCoordArray {
+  pub texcoord: Vec<[f32; 2]>
 }
 
 #[derive(Clone)]
-struct TangentArray {
-  tangent: Vec<[f32; 4]>,
+pub struct TangentArray {
+  pub tangent: Vec<[f32; 4]>,
 }
 
 #[derive(Clone)]
-struct NormalArray {
-  normal: Vec<[f32; 3]>,
+pub struct NormalArray {
+  pub normal: Vec<[f32; 3]>,
 }
 
 #[derive(Clone)]
-struct VertexArray {
-  morph_index: u32,
-  vertex: Vec<[f32; 3]>,
+pub struct VertexArray {
+  pub morph_index: u32,
+  pub vertex: Vec<[f32; 3]>,
 }
 
 #[derive(Clone)]
-struct ColourArray {
-  colour: Vec<[f32; 4]>,
+pub struct ColourArray {
+  pub colour: Vec<[f32; 4]>,
 }
 
 #[derive(Clone)]
@@ -149,59 +150,61 @@ pub struct SamplerInfo {
 }
 
 #[derive(Clone)]
-struct Texture {
+pub struct Texture {
   texture: String,
   
   raw_transform: [f32; 16],
 }
 
 #[derive(Clone)]
-struct Material {
-  name: String,
-  textures: Vec<Texture>,
+pub struct Material {
+  pub name: String,
+  pub textures: Vec<Texture>,
   
-  base_colour_factor: Vector4<f32>,
-  base_colour_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
-  metallic_factor: f32,
-  roughness_factor: f32,
-  metallic_roughness_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
-  normal_texture_scale: f32,
-  normal_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
-  occlusion_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
-  occlusion_texture_strength: f32,
-  emissive_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
-  emissive_factor: Vector3<f32>,
-  alpha_mode: AlphaMode,
-  alpha_cutoff: f32,
-  double_sided: bool,
+  pub base_colour_factor: Vector4<f32>,
+  pub base_colour_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  pub metallic_factor: f32,
+  pub roughness_factor: f32,
+  pub metallic_roughness_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  pub normal_texture_scale: f32,
+  pub normal_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  pub occlusion_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  pub occlusion_texture_strength: f32,
+  pub emissive_texture: Option<(Option<image::DynamicImage>, SamplerInfo)>,
+  pub emissive_factor: Vector3<f32>,
+  pub alpha_mode: AlphaMode,
+  pub alpha_cutoff: f32,
+  pub double_sided: bool,
 }
 
 #[derive(Clone)]
-struct FinalModel {
-  vertices: VertexArray,
-  indices: IndexArray,
-  normals: NormalArray,
-  tangents: TangentArray,
-  texcoords: TexCoordArray,
-  colours: ColourArray,
-  material: Material,
-  topology: Topology,
-  has_indices: bool,
-  has_normals: bool,
-  has_tangents: bool,
+pub struct FinalModel {
+  pub vertices: VertexArray,
+  pub indices: IndexArray,
+  pub normals: NormalArray,
+  pub tangents: TangentArray,
+  pub texcoords: TexCoordArray,
+  pub colours: ColourArray,
+  pub material: Material,
+  pub topology: Topology,
+  pub has_indices: bool,
+  pub has_normals: bool,
+  pub has_tangents: bool,
 //  animation: Animation,
 }
 
 #[derive(Clone)]
 pub struct ModelDetails {
-  models: Vec<FinalModel>,
-  size: Vector3<f32>,
+  pub models: Vec<FinalModel>,
+  pub size: Vector3<f32>,
+  pub height_points: Option<Vec<Vec<f32>>>,
  // materials: Vec<Material>,
 }
 
 impl Drop for ModelDetails{
   fn drop(&mut self) {
     let _children = mem::replace(&mut self.models, Vec::new());
+    let _children1 = mem::replace(&mut self.height_points, None);
     /*
     loop {
       children = match children {
@@ -280,8 +283,10 @@ fn serde_to_f32(value: Option<Value>) -> Vector4<f32> {
 }
 
 impl ModelDetails {
-  pub fn new(source: String) -> ModelDetails {
+  pub fn new(source: String, is_terrain: bool) -> ModelDetails {
     let source = &source;
+    
+    let mut points: Vec<Vec<f32>> = Vec::new();
     //let (gltf, buffers, images) = gltf::import("./examples/ObjectStatic.gltf").unwrap();
 //    let source = "./examples/ObjectStatic.gltf";
     /*
@@ -456,7 +461,10 @@ impl ModelDetails {
       let (translation, rotation, scale) = node.transform().decomposed();
       let scale = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
       let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
-      let quaternion = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]);
+      let quaternion = Quaternion::new(rotation[3], 
+                                       rotation[0], 
+                                       rotation[1], 
+                                       rotation[2]);
       //let inverse_quaternion = quaternion.invert();
       let rotation = Matrix4::from(quaternion);
       
@@ -541,7 +549,13 @@ impl ModelDetails {
               let vertex = Vector3::new(vertex_position[0], vertex_position[1], vertex_position[2]);
               //let rotq = (quaternion*Quaternion::from_sv(0.0, vertex)*inverse_quaternion).v;
               let vertex = (translation*scale)*rotation*Vector4::new(vertex.x, vertex.y, vertex.z, 1.0);
+              
               vertices.push([vertex.x, vertex.y, vertex.z]);
+              
+              if is_terrain {
+                
+                //points.push(vertex.xyz());
+              }
             }
             models[index].vertices.vertex = vertices;
           }
@@ -599,12 +613,17 @@ impl ModelDetails {
     ModelDetails {
       models: models,
       size: Vector3::new(max_xyz.x - min_xyz.x, max_xyz.y - min_xyz.y, max_xyz.z - min_xyz.z),
+      height_points: None,//if is_terrain { Some(points) } else { None },
      // materials: materials,
     }
   }
   
   pub fn get_size(&self) -> Vector3<f32> {
     self.size
+  }
+  
+  pub fn get_height_points(&self) -> Option<Vec<Vec<f32>>> {
+    self.height_points.clone()
   }
   
   pub fn num_models(&self) -> usize {

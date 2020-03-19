@@ -136,7 +136,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<(String, Option<Vector3<f32>>)> {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> {
     let mut references = Vec::new();
     
     if self.num_recv_objects <= 0 {
@@ -158,16 +158,18 @@ impl ResourceManager {
           //println!("Object recieved: {}", object.reference);
           
           let mut size = None;
+          let mut terrain_data = None;
           match &object.object_type {
             ObjectType::Model(Some(model), ..) => {
               size = Some(model.get_size());
+              terrain_data = model.get_height_points();
             }
             _ => {}
           }
           
           self.objects.push(object);
           
-          references.push((reference, size));
+          references.push((reference, size, terrain_data));
           self.num_recv_objects -= 1;
         },
         Err(_e) => { },
@@ -488,13 +490,14 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads models from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_model_from_reference(&mut self, reference: String) {
-    let unloaded_object = self.get_unloaded_object(reference.clone());
+  pub fn load_model_from_reference(&mut self, reference: (String, bool)) {
+    let unloaded_object = self.get_unloaded_object(reference.0.clone());
     if let Some(object) = unloaded_object {
+      let is_terrain = reference.1;
       let location = object.location;
       let reference = object.reference;
       
-      self.load_model(reference, location);
+      self.load_model(reference, location, is_terrain);
     } else {
       //println!("Object {} already loaded", reference);
     }
@@ -561,14 +564,14 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads models in the main thread blocking.
   **/
-  pub fn sync_load_model(&mut self, reference: String, location: String) {
+  pub fn sync_load_model(&mut self, reference: String, location: String, is_terrain: bool) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
    // println!("loading model");
     
     let model_start_time = time::Instant::now();
-    let model = ModelDetails::new(location.to_string());
+    let model = ModelDetails::new(location.to_string(), is_terrain);
       
     let object = LoadableObject {
       loaded: true,
@@ -586,7 +589,7 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads modelss in seperate threads, non bloacking.
   **/
-  pub fn load_model(&mut self, reference: String, location: String) {
+  pub fn load_model(&mut self, reference: String, location: String, is_terrain: bool) {
     
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     //println!("loading model");
@@ -599,7 +602,7 @@ ObjectType::Model(_, images) => {
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
       let model_start_time = time::Instant::now();
-      let model = ModelDetails::new(location.to_string());
+      let model = ModelDetails::new(location.to_string(), is_terrain);
       
       let object = LoadableObject {
         loaded: true,
@@ -610,6 +613,34 @@ ObjectType::Model(_, images) => {
       
       let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
       println!("{} ms,  {:?}", (model_time*1000f64) as f32, location);
+      
+      *data = Some(object);
+      tx.send(index.clone()).unwrap();
+    });
+  }
+  
+  pub fn add_loaded_model(&mut self, reference: String, model: ModelDetails) {
+    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+    
+    self.num_recv_objects += 1;
+    let index = self.data.len();
+    
+    self.data.push(Arc::new(Mutex::new(None)));
+    
+    let (data, tx) = (self.data[index].clone(), self.tx.clone());
+    self.pool.execute(move || {
+      let mut data = data.lock().unwrap();
+      let model_start_time = time::Instant::now();
+      
+      let object = LoadableObject {
+        loaded: true,
+        location: "".to_string(),
+        reference: reference.to_string(),
+        object_type: ObjectType::Model(Some(model), Vec::new()),
+      };
+      
+      let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+      println!("{} ms,  {:?}", (model_time*1000f64) as f32, reference);
       
       *data = Some(object);
       tx.send(index.clone()).unwrap();

@@ -17,7 +17,7 @@ lazy_static = "1.2.0"
 libc = "0.2.44"
 
 [dependencies.gltf]
-version = "0.12"
+version = "0.15"
 features = ["extras", "names"]
 
 [dependencies.cgmath]

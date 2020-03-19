@@ -13,6 +13,7 @@ use crate::shaders::ModelShader;
 use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
+use crate::gltf_interpreter::ModelDetails;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool};
@@ -306,12 +307,16 @@ impl CoreMaat {
 }
 
 impl CoreRender for CoreMaat {
-  fn preload_model(&mut self, reference: String, location: String) {
-    self.resources.sync_load_model(reference, location);
+  fn preload_model(&mut self, reference: String, location: String, is_terrain: bool) {
+    self.resources.sync_load_model(reference, location, is_terrain);
   }
   
   fn add_model(&mut self, reference: String, location: String) {
     self.resources.insert_unloaded_model(reference, location);
+  }
+  
+  fn add_terrain(&mut self, reference: String, model: ModelDetails) {
+    self.resources.add_loaded_model(reference, model);
   }
   
   fn set_icon(&mut self, location: String) {
@@ -381,7 +386,7 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>)> {
+  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)> {
     let mut model_details = Vec::new();
     
     {
@@ -389,9 +394,9 @@ impl CoreRender for CoreMaat {
       let device = self.window.device();
       let instance = self.window.instance();
       
-      let references: Vec<(String, Option<Vector3<f32>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+      let references: Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
-      for (reference, size) in references {
+      for (reference, size, terrain_data) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
           self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
         }
@@ -400,7 +405,7 @@ impl CoreRender for CoreMaat {
         }
         
         if size.is_some() {
-          model_details.push((reference, size.unwrap()));
+          model_details.push((reference, size.unwrap(), terrain_data));
         }
       }
     }

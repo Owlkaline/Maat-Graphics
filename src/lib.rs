@@ -117,6 +117,7 @@ pub mod shaders;
 pub mod vulkan;
 pub mod camera;
 pub mod math;
+pub mod generate_terrain;
 
 mod settings;
 mod drawcalls;

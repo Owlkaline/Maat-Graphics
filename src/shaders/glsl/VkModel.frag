@@ -82,7 +82,7 @@ void main() {
   base_colour *= v_base_colour_factor.rgb;
   base_colour *= v_colour.rgb;
   alpha *= v_base_colour_factor.a;
-  base_colour *= 0.02;
+  base_colour *= 0.2;//0.02;
   base_colour += emissive.rgb;
   
   float alpha_cutoff = v_alpha_cutoff.x;

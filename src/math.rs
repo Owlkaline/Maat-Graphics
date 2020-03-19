@@ -31,6 +31,15 @@ pub fn calculate_texture_model(translation: Vector3<f32>, size: Vector2<f32>, ro
   model
 }
 
+pub fn barryCentric(p1: Vector3<f32>, p2: Vector3<f32>, p3: Vector3<f32>, pos: Vector2<f32>) -> f32 {
+  let det = (p2.z - p3.z) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.z - p3.z);
+  let l1 = ((p2.z - p3.z) * (pos.x - p3.x) + (p3.x - p2.x) * (pos.y - p3.z)) / det;
+  let l2 = ((p3.z - p1.z) * (pos.x - p3.x) + (p1.x - p3.x) * (pos.y - p3.z)) / det;
+  let l3 = 1.0 - l1 - l2;
+  
+  l1 * p1.y + l2 * p2.y + l3 * p3.y
+}
+
 pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
   let x_rot;
   let z_rot;
@@ -69,6 +78,15 @@ pub fn calculate_y_rotation(y_rotation: f32) -> (f32, f32) {
   (x_rot, z_rot)
 }
 
+pub fn vec3_lerp(current: Vector3<f32>, goal: Vector3<f32>, t: f32) -> Vector3<f32> {
+  
+  let x = lerp(current.x, goal.x, t);
+  let y = lerp(current.y, goal.y, t);
+  let z = lerp(current.z, goal.z, t);
+  
+  Vector3::new(x, y, z)
+}
+
 pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
   a + t * (b-a)
 }
@@ -77,6 +95,15 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 pub fn normalise_vector2(mut some_vec: Vector2<f32>) -> Vector2<f32> {
   if some_vec == Vector2::new(0.0, 0.0) || some_vec.x.is_nan() || some_vec.y.is_nan() || some_vec.x.is_infinite() || some_vec.y.is_infinite() {
     return Vector2::new(0.0,0.0);
+  }
+  
+  some_vec = some_vec.normalize();
+  some_vec
+}
+
+pub fn normalise_vector3(mut some_vec: Vector3<f32>) -> Vector3<f32> {
+  if some_vec == Vector3::new(0.0, 0.0, 0.0) || some_vec.x.is_nan() || some_vec.y.is_nan() || some_vec.z.is_nan() || some_vec.x.is_infinite() || some_vec.y.is_infinite() || some_vec.z.is_infinite() {
+    return Vector3::new(0.0, 0.0, 0.0);
   }
   
   some_vec = some_vec.normalize();
