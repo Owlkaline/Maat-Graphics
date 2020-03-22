@@ -67,9 +67,9 @@ pub struct CoreMaat {
 }
 
 impl CoreMaat {
-  pub fn new(app_name: String, app_version: u32, _width: f32, _height: f32, should_debug: bool) -> CoreMaat {
+  pub fn new(app_name: String, app_version: u32, _width: f32, _height: f32, should_debug: bool) -> (CoreMaat, winit::event_loop::EventLoop<()>) {
     let mut settings = Settings::load();
-    let window = VkWindow::new(app_name, app_version, should_debug, &settings);
+    let (window, event_loop) = VkWindow::new(app_name, app_version, should_debug, &settings);
     
     let resource_manager = ResourceManager::new();
     
@@ -250,7 +250,7 @@ impl CoreMaat {
     
     settings.save();
     
-    CoreMaat {
+    (CoreMaat {
       window: window,
       window_dimensions: current_extent,
       recreate_swapchain: false,
@@ -291,7 +291,7 @@ impl CoreMaat {
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
-    }
+    }, event_loop)
   }
   
   fn create_fences(device: Arc<Device>, num_fences: u32) -> Vec<Fence> {
@@ -386,33 +386,10 @@ impl CoreRender for CoreMaat {
     
   }
   
-  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)> {
-    let mut model_details = Vec::new();
-    
-    {
-      let graphics_queue = self.window.get_graphics_queue();
-      let device = self.window.device();
-      let instance = self.window.instance();
-      
-      let references: Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
-      
-      for (reference, size, terrain_data) in references {
-        if let Some(texture) = self.resources.get_texture(reference.to_string()) {
-          self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
-        }
-        if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
-          self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
-        }
-        
-        if size.is_some() {
-          model_details.push((reference, size.unwrap(), terrain_data));
-        }
-      }
-    }
-    
+  fn pre_draw(&mut self) {
     if !self.recreate_swapchain {
       self.window.set_resizable(false);
-      return model_details;
+      return;
     }
     
     self.window.set_resizable(true);
@@ -480,14 +457,44 @@ impl CoreRender for CoreMaat {
     }
     
     println!("Finished resize");
-    
-    model_details
   }
   
   fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32) {
     //
     // Build drawcalls
     //
+    { // Do drawcalls that most likely will only be called once and dont acutally draw
+      let device = self.window.device();
+      for draw in draw_calls {
+        match draw.get_type() {
+          DrawType::AddInstancedModelBuffer(ref info) => {
+            let reference = info.clone();
+            let instance = self.window.instance();
+            let num_frames = self.fences.len() as u32;
+            self.model_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
+          },
+          DrawType::LoadModel(ref info) => {
+            let reference = info.clone();
+            self.resources.load_model_from_reference(reference);
+          },
+          DrawType::UnloadModel(ref info) => {
+            let reference = info.clone();
+            self.resources.unload_model_from_reference(Arc::clone(&device), reference.to_string());
+            self.model_shader.remove_model(Arc::clone(&device), reference);
+          },
+          DrawType::SetLight(ref info) => {
+            let (position, colour, intensity) = info.clone();
+            self.model_shader.set_light(position, colour, intensity);
+          },
+          DrawType::SetCursorPosition(ref pos) => {
+            let (x,y) = pos.clone();
+            self.set_cursor_position(x,y);
+          },
+          _ => {},
+        }
+      }
+    }
+    
     if self.recreate_swapchain {
       return;
     }
@@ -601,10 +608,6 @@ impl CoreRender for CoreMaat {
               self.texture_shader.reset_camera(window_size.width as f32, window_size.height as f32);
             }
           },
-          DrawType::SetCursorPosition(ref pos) => {
-            let (x,y) = pos.clone();
-            self.set_cursor_position(x,y);
-          }
           draw => {
             model_draw_calls.push(draw);
           }
@@ -660,25 +663,6 @@ impl CoreRender for CoreMaat {
               self.model_shader.set_mouse_sensitivity(*mouse_sensitivity);
             }
           },
-          DrawType::AddInstancedModelBuffer(ref info) => {
-            let reference = info.clone();
-            let instance = self.window.instance();
-            let num_frames = self.fences.len() as u32;
-            self.model_shader.add_instanced_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, reference);
-          },
-          DrawType::LoadModel(ref info) => {
-            let reference = info.clone();
-            self.resources.load_model_from_reference(reference);
-          },
-          DrawType::UnloadModel(ref info) => {
-            let reference = info.clone();
-            self.resources.unload_model_from_reference(Arc::clone(&device), reference.to_string());
-            self.model_shader.remove_model(Arc::clone(&device), reference);
-          },
-          DrawType::SetLight(ref info) => {
-            let (position, colour, intensity) = info.clone();
-            self.model_shader.set_light(position, colour, intensity);
-          }
           _ => {}
         }
       }
@@ -737,27 +721,59 @@ impl CoreRender for CoreMaat {
     Vector2::new(self.window_dimensions.width as f32 * self.dpi, self.window_dimensions.height as f32 * self.dpi)
   }
   
-  fn get_events(&mut self) -> Vec<winit::Event> {
+  fn retrieve_models(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)> {
+    let mut model_details = Vec::new();
+    
+    {
+      let graphics_queue = self.window.get_graphics_queue();
+      let device = self.window.device();
+      let instance = self.window.instance();
+      
+      let references: Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+      
+      for (reference, size, terrain_data) in references {
+        if let Some(texture) = self.resources.get_texture(reference.to_string()) {
+          self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
+        }
+        if let Some((Some(model), base_textures)) = self.resources.get_model(reference.to_string()) {
+          self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
+        }
+        
+        if size.is_some() {
+          model_details.push((reference, size.unwrap(), terrain_data));
+        }
+      }
+    }
+    
+    model_details
+  }
+  
+  fn force_swapchain_recreate(&mut self) {
+    self.recreate_swapchain = true;
+  }
+  
+  /*
+  fn get_events(&mut self) -> Vec<winit::event::Event<()>> {
     let mut events = Vec::new();
     
     let mut recreate = false;
     let mut mouse_pos = self.mouse_position;
     let mut new_dpi = self.dpi;
     let dimensions = self.get_virtual_dimensions();
-    
+    /*
     let all_events = self.window.get_events();
     
     all_events.poll_events(|ev| {
       match &ev {
-        winit::Event::WindowEvent{ event, .. } => {
+        winit::event::Event::WindowEvent{ event, .. } => {
           match event {
-            winit::WindowEvent::Resized(_new_size) => {
+            winit::event::WindowEvent::Resized(_new_size) => {
               recreate = true;
             },
-            winit::WindowEvent::CursorMoved{device_id: _, position, modifiers: _} => {
+            winit::event::WindowEvent::CursorMoved{device_id: _, position, modifiers: _} => {
               mouse_pos = Vector2::new(position.x as f32, dimensions.y - position.y as f32);
             },
-            winit::WindowEvent::HiDpiFactorChanged(event_dpi) => {
+            winit::event::WindowEvent::HiDpiFactorChanged(event_dpi) => {
               new_dpi = *event_dpi as f32;
             },
             _ => {}
@@ -773,10 +789,10 @@ impl CoreRender for CoreMaat {
     self.dpi = new_dpi;
     if recreate {
       self.recreate_swapchain = true;
-    }
+    }*/
     
     events
-  }
+  }*/
   
   fn get_mouse_position(&mut self) -> Vector2<f32> {
     self.mouse_position
@@ -795,7 +811,7 @@ impl CoreRender for CoreMaat {
   }
   
   fn set_cursor_position(&mut self, x: f32, y: f32) {
-    self.window.set_cursor_position(LogicalPosition::new(x as f64, y as f64));
+    self.window.set_cursor_position(LogicalPosition::new(x, y));
   }
   
   fn show_cursor(&mut self) {
@@ -830,7 +846,7 @@ impl CoreRender for CoreMaat {
   }
   
   fn force_window_resize(&mut self, new_size: Vector2<f32>, fullscreen: bool) {
-    self.window.set_inner_size(LogicalSize::new(new_size.x as f64, new_size.y as f64));
+    self.window.set_inner_size(LogicalSize::new(new_size.x, new_size.y));
     self.recreate_swapchain = true;
     self.window.set_fullscreen(fullscreen);
   }

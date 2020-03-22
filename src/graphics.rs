@@ -57,7 +57,7 @@ pub trait CoreRender {
   fn init(&self);
   
   // Standard draw calls that should be called in 98% of cases
-  fn pre_draw(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)>;
+  fn pre_draw(&mut self);
   fn draw(&mut self, draw_calls: &Vec<DrawCall>, delta_time: f32);
   fn post_draw(&self);
   
@@ -65,7 +65,11 @@ pub trait CoreRender {
   fn get_maximum_dimensions(&self) -> Vector2<f32>;
   fn get_physical_dimensions(&self) -> Vector2<f32>;
   fn get_virtual_dimensions(&self) -> Vector2<f32>;
-  fn get_events(&mut self) -> Vec<winit::Event>;
+  
+  fn force_swapchain_recreate(&mut self);
+  fn retrieve_models(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)>;
+  //fn get_events(&mut self) -> Vec<winit::event::Event<()>>;
+  
   fn get_mouse_position(&mut self) -> Vector2<f32>;
   fn get_fonts(&self) -> HashMap<String, GenericFont>;
   fn get_dpi_scale(&self) -> f32;

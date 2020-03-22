@@ -26,6 +26,9 @@ layout(set = 0, binding = 5) uniform sampler2D emissive_texture;
 
 const float M_PI = 3.141592653589793;
 
+const vec3 sun_dir = vec3(-0.2, 1.0, -0.2);
+const vec3 sun_colour = vec3(1.0, 1.0, 1.0);
+
 vec4 when_gt(vec4 x, vec4 y) {
   return max(sign(x - y), 0.0);
 }
@@ -82,8 +85,17 @@ void main() {
   base_colour *= v_base_colour_factor.rgb;
   base_colour *= v_colour.rgb;
   alpha *= v_base_colour_factor.a;
-  base_colour *= 0.2;//0.02;
+ // base_colour *= 0.02;
   base_colour += emissive.rgb;
+  
+  // Cell shading
+  float light_levels = 6.0;
+  float brightness_factor = max(dot(normalize(normal.xyz), normalize(sun_dir)), 0.0);
+  float level = floor(brightness_factor * light_levels); 
+  brightness_factor = level / light_levels;
+  
+  //base_colour *= brightness_factor;
+  base_colour.rgb = base_colour*max(brightness_factor, 0.02);
   
   float alpha_cutoff = v_alpha_cutoff.x;
   float alpha_mask = v_alpha_cutoff.y;

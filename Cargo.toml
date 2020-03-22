@@ -8,9 +8,9 @@ edition = '2018'
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-vk = { version = "0.4.0", package = "vk-sys" }
+vk = { version = "0.5.1", package = "vk-sys" }
 image = "0.21.0"
-winit = "0.19.1"
+winit = "0.22"
 base64 = "*"
 shared_library = "0.1.7"
 lazy_static = "1.2.0"
@@ -25,7 +25,7 @@ version = "0.17.0"
 features = ["swizzle"]
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))'.dependencies]
-wayland-client = "=0.21.7"
+wayland-client = "=0.23.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 metal = "0.13"

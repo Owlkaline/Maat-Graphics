@@ -39,7 +39,7 @@ use objc::runtime::YES;
 unsafe fn create_surface(
     instance: &Instance, window: &winit::Window,
 ) -> vk::SurfaceKHR {
-  use winit::os::android::WindowExt;
+  //use winit::os::android::WindowExt;
   
   let vk = instance.pointers();
   let win = window;
@@ -72,15 +72,15 @@ unsafe fn create_surface(
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
 unsafe fn create_surface(
     instance: &Instance,
-    window: &winit::Window,
+    window: &winit::window::Window,
 ) -> vk::SurfaceKHR {
-  use winit::os::unix::WindowExt;
+  use winit::platform::unix::WindowExtUnix;
   
   let vk = instance.pointers();
   let extensions = instance.get_extensions();
   let instance = instance.local_instance();
   
-  match (window.borrow().get_wayland_display(), window.borrow().get_wayland_surface()) {
+  match (window.borrow().wayland_display(), window.borrow().wayland_surface()) {
     (Some(display), Some(surface)) => {//wayland
       if !extensions.contains(&CString::new("VK_KHR_wayland_surface").unwrap()) {
         panic!("Missing extension VK_KHR_wayland_surface");
@@ -111,8 +111,8 @@ unsafe fn create_surface(
             sType: vk::STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
             pNext: ptr::null(),
             flags: 0, // reserved
-            dpy: window.borrow().get_xlib_display().unwrap() as *mut _,
-            window: window.borrow().get_xlib_window().unwrap() as _,
+            dpy: window.borrow().xlib_display().unwrap() as *mut _,
+            window: window.borrow().xlib_window().unwrap() as _,
           };
 
           let mut output = mem::MaybeUninit::uninit().assume_init();
@@ -134,8 +134,8 @@ unsafe fn create_surface(
             sType: vk::STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
             pNext: ptr::null(),
             flags: 0, // reserved
-            connection: window.borrow().get_xcb_connection().unwrap() as *mut _,
-            window: window.borrow().get_xlib_window().unwrap() as _,
+            connection: window.borrow().xcb_connection().unwrap() as *mut _,
+            window: window.borrow().xlib_window().unwrap() as _,
           };
 
           let mut output = mem::MaybeUninit::uninit().assume_init();
@@ -156,7 +156,7 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::Window,
 ) -> vk::SurfaceKHR {
-  use winit::os::windows::WindowExt;
+  //use winit::os::windows::WindowExt;
   
   let vk = instance.pointers();
   let extensions = instance.get_extensions();
@@ -192,7 +192,7 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::Window,
 ) -> vk::SurfaceKHR {
-    use winit::os::macos::WindowExt;
+    //use winit::os::macos::WindowExt;
     
     let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
     
@@ -241,7 +241,7 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::Window,
 ) -> vk::SurfaceKHR {
-    use winit::os::macos::WindowExt;
+    //use winit::os::macos::WindowExt;
     
     let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
     
@@ -293,12 +293,12 @@ pub struct VkWindow {
   graphics_queue: vk::Queue,
   present_queue: vk::Queue,
   graphics_present_family_index: (u32, u32),
-  window: winit::Window,
-  events_loop: winit::EventsLoop,
+  window: winit::window::Window,
+  //events_loop: winit::event_loop::EventLoop<()>,
 }
 
 impl VkWindow {
-  pub fn new(app_name: String, app_version: u32, should_debug: bool, settings: &Settings) -> VkWindow {
+  pub fn new(app_name: String, app_version: u32, should_debug: bool, settings: &Settings) -> (VkWindow, winit::event_loop::EventLoop<()>) {
     let fullscreen = settings.is_fullscreen();
     let vsync = settings.vsync_enabled();
     let triple_buffer = settings.triple_buffer_enabled();
@@ -321,7 +321,7 @@ impl VkWindow {
     let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, 
                                    graphics_family, present_family, vsync, triple_buffer);
     
-    VkWindow {
+    (VkWindow {
       instance: instance,
       device: device,
       surface: surface,
@@ -330,11 +330,11 @@ impl VkWindow {
       present_queue: present_queue,
       graphics_present_family_index: (graphics_family, present_family),
       window: window,
-      events_loop: events_loop,
-    }
+      //events_loop: events_loop,
+    }, events_loop)
   }
   
-  pub fn ref_window(&self) -> &winit::Window {
+  pub fn ref_window(&self) -> &winit::window::Window {
     &self.window
   }
   
@@ -342,7 +342,7 @@ impl VkWindow {
     self.window.set_resizable(resizable);
   }
   
-  pub fn set_inner_size(&mut self, new_size: LogicalSize) {
+  pub fn set_inner_size(&mut self, new_size: LogicalSize<f32>) {
     self.set_resizable(true);
     self.window.set_inner_size(new_size);
   }
@@ -352,8 +352,8 @@ impl VkWindow {
   // self.window.set_maximized(true);
   pub fn set_fullscreen(&mut self, fullscreen: bool) {
     if fullscreen {
-      let monitor = self.window.get_current_monitor();
-      self.window.set_fullscreen(Some(monitor));
+      let monitor = self.window.current_monitor();
+      self.window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor)));
     } else {
       self.window.set_fullscreen(None);
     }
@@ -363,28 +363,28 @@ impl VkWindow {
     let image = image::open(&location.clone()).expect(&("Icon not found: ".to_string() + &location)).to_rgba();
     let (width, height) = image.dimensions();
     let image_data = image.clone().into_raw();
-    let some_icon = winit::Icon::from_rgba(image_data, width, height);
+    let some_icon = winit::window::Icon::from_rgba(image_data, width, height);
     if let Ok(icon) = some_icon {
       self.window.set_window_icon(Some(icon));
     }
   }
   
   pub fn get_max_resolution(&self) -> Vector2<f32> {
-    let monitor = self.window.get_current_monitor();
+    let monitor = self.window.current_monitor();
     
-    let max_dim = monitor.get_dimensions();
-    let dpi = monitor.get_hidpi_factor();
+    let max_dim = monitor.size();
+    let dpi = monitor.scale_factor();
     
     Vector2::new(max_dim.width as f32*dpi as f32, max_dim.height as f32*dpi as f32)
   }
   
   pub fn get_hidpi_factor(&self) -> f32 {
-    let dpi = self.window.get_hidpi_factor();
+    let dpi = self.window.scale_factor();
     
     dpi as f32
   }
   
-  pub fn set_cursor_position(&self, new_pos: LogicalPosition) {
+  pub fn set_cursor_position(&self, new_pos: LogicalPosition<f32>) {
     if let Err(e) = self.window.set_cursor_position(new_pos) {
       // TODO: Turn into real error
       println!("Error: {}", e.to_string());
@@ -413,9 +413,9 @@ impl VkWindow {
     self.swapchain.get_format()
   }
   
-  pub fn get_events(&mut self) -> &mut winit::EventsLoop {
-    &mut self.events_loop
-  }
+ // pub fn get_events(&mut self) -> &mut winit::event_loop::EventLoop<()> {
+//    &mut self.events_loop
+//  }
   
   pub fn aquire_next_image(&self, device: Arc<Device>, image_available: &Semaphore) -> (vk::Result, usize) {
     let mut current_image = 0;
@@ -475,29 +475,29 @@ impl VkWindow {
     self.instance.get_surface_capabilities(phys_device, &self.surface)
   }
   
-  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32) -> (winit::Window, winit::EventsLoop, vk::SurfaceKHR) {
-    let events_loop = winit::EventsLoop::new();
+  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32) -> (winit::window::Window, winit::event_loop::EventLoop<()>, vk::SurfaceKHR) {
+    let events_loop = winit::event_loop::EventLoop::new();
     let window = {
       if fullscreen {
-        for (num, monitor) in events_loop.get_available_monitors().enumerate() {
-          println!("Monitor #{}: {:?}", num, monitor.get_name());
+        for (num, monitor) in events_loop.available_monitors().enumerate() {
+          println!("Monitor #{}: {:?}", num, monitor.name());
         }
         
-        let monitor = events_loop.get_available_monitors().nth(0).expect("Please enter a valid ID");
+        let monitor = events_loop.available_monitors().nth(0).expect("Please enter a valid ID");
         
-        println!("Using {:?}", monitor.get_name());
+        println!("Using {:?}", monitor.name());
         
         // Fullscreen
-        winit::WindowBuilder::new()
-                             .with_fullscreen(Some(monitor))
+        winit::window::WindowBuilder::new()
+                             .with_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor)))
                              .with_title(app_name)
                              .with_resizable(false)
                              //  .build_vk_surface(&events_loop, instance.clone())
                              .build(&events_loop).unwrap()
       } else {
-        winit::WindowBuilder::new()
+        winit::window::WindowBuilder::new()
                               .with_title(app_name)
-                              .with_dimensions(LogicalSize::new(width as f64, height as f64))
+                              .with_inner_size(LogicalSize::new(width as f64, height as f64))
                               .with_resizable(false)
                               .build(&events_loop).unwrap()
       }

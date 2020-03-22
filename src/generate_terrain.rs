@@ -2,17 +2,56 @@ use crate::gltf_interpreter::{Topology, VertexArray, NormalArray, ColourArray, I
                               TangentArray, FinalModel, TexCoordArray, ModelDetails, Material,
                               AlphaMode};
 
-use crate::cgmath::{Vector3, Vector4};
+use crate::cgmath::{Vector2, Vector3, Vector4};
 use crate::math;
 
 use image::DynamicImage;
 use image::GenericImageView;
 
 const SIZE: f32 = 800.0;
-const VERTEX_COUNT: i32 = 128;
+const VERTEX_COUNT: i32 = 127;
 
 const MAX_HEIGHT: f32 = 200.0;
 const MAX_PIXEL_COLOUR: i32 = 256; //* 256 * 256;
+
+pub fn calculate_xz_height(height_data: &Vec<Vec<f32>>, x: f32, z: f32) -> f32 {
+  let mut height = 0.0;
+  
+  let terrain_x = SIZE as f32*0.5 - x;
+  let terrain_z = SIZE as f32 *0.5 - z;
+  
+  let grid_square_size = SIZE as f32 / (height_data.len() as f32 - 1.0);
+  
+  let grid_x = (terrain_x / grid_square_size).floor() as i32;
+  let grid_z = (terrain_z / grid_square_size).floor() as i32;
+  
+  if grid_x >= height_data.len() as i32-1 || grid_z >= height_data.len() as i32 -1 || grid_x < 0 || grid_z < 0 {
+    return height;
+  }
+  
+  let x_coord = (terrain_x % grid_square_size) / grid_square_size;
+  let z_coord = (terrain_z % grid_square_size) / grid_square_size;
+  
+  let mut answer = 0.0;
+  let grid_x = grid_x as usize;
+  let grid_z = grid_z as usize;
+  
+  if x_coord <= 1.0-z_coord {
+    height = math::barryCentric(Vector3::new(0.0, height_data[grid_x][grid_z], 0.0),
+                                Vector3::new(1.0, height_data[grid_x+1][grid_z], 0.0),
+                                Vector3::new(0.0, height_data[grid_x][grid_z+1], 1.0),
+                                Vector2::new(x_coord, z_coord)
+                              );
+  } else {
+    height = math::barryCentric(Vector3::new(1.0, height_data[grid_x+1][grid_z], 0.0),
+                                Vector3::new(1.0, height_data[grid_x+1][grid_z+1], 1.0),
+                                Vector3::new(0.0, height_data[grid_x][grid_z+1], 1.0),
+                                Vector2::new(x_coord, z_coord)
+                              );
+  }
+  
+  height
+}
 
 fn get_height(x: u32, z: u32, image: &image::ImageBuffer<image::Luma<u8>, std::vec::Vec<u8>>) -> f32 {
   let (width, height) = image.dimensions();
@@ -25,6 +64,7 @@ fn get_height(x: u32, z: u32, image: &image::ImageBuffer<image::Luma<u8>, std::v
   height /= 255.0;
   
   height -= 0.5;
+  height *= 2.0;
   height *= MAX_HEIGHT;
   
   height
@@ -68,22 +108,22 @@ pub fn generate_terrain_from_image(image: String) -> ModelDetails {
   for i in 0..VERTEX_COUNT as usize {
     heights.push(Vec::new());
     for j in 0..VERTEX_COUNT as usize {
-      let height = get_height(j as u32, i as u32, &image);
+      let height = get_height(j as u32, VERTEX_COUNT as u32-i as u32, &image);
       
       heights[i].push(height);
       
       verticies.push([
-                       (j as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE,
+                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE + SIZE * 0.5,
                        height,
-                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE
+                       ((VERTEX_COUNT as f32 - j as f32) / VERTEX_COUNT as f32 - 1.0) * SIZE + SIZE *0.5
                      ]
                     );
       
       normals.push(calculate_normal(j as u32, i as u32, &image));
       
       uvs.push([
-                 j as f32 / (VERTEX_COUNT as f32 - 1.0), 
-                 i as f32 / (VERTEX_COUNT as f32 - 1.0)
+                 i as f32 / (VERTEX_COUNT as f32 - 1.0), 
+                 (VERTEX_COUNT as f32 - j as f32) / (VERTEX_COUNT as f32 - 1.0)
                 ]);
                 
       vertex_pointer += 1;
@@ -129,7 +169,7 @@ pub fn generate_terrain_from_image(image: String) -> ModelDetails {
     emissive_factor: Vector3::new(0.0, 0.0, 0.0),
     alpha_mode: AlphaMode::Blend,
     alpha_cutoff: 0.0,
-    double_sided: false,
+    double_sided: true,
   };
   
   let f_model = FinalModel {
@@ -167,9 +207,9 @@ pub fn generate_flat_terrain() -> ModelDetails {
   for i in 0..VERTEX_COUNT {
     for j in 0..VERTEX_COUNT {
       verticies.push([
-                       (j as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE,
+                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE + 400.0,
                        0.0,
-                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE
+                       ((VERTEX_COUNT as f32 - j as f32) / VERTEX_COUNT as f32 - 1.0) * SIZE + 400.0
                      ]
                     );
       
@@ -223,7 +263,7 @@ pub fn generate_flat_terrain() -> ModelDetails {
     emissive_factor: Vector3::new(0.0, 0.0, 0.0),
     alpha_mode: AlphaMode::Blend,
     alpha_cutoff: 0.0,
-    double_sided: false,
+    double_sided: true,
   };
   
   let f_model = FinalModel {

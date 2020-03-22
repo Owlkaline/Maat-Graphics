@@ -7,6 +7,74 @@ use cgmath::InnerSpace;
 
 use std::f64::consts::PI;
 
+pub fn is_point_inside_AABB(point: Vector3<f32>, box_location: Vector3<f32>, box_size: Vector3<f32>) -> bool {
+  let min_x = box_location.x - box_size.x*0.5;
+  let max_x = box_location.x + box_size.x*0.5;
+  let min_y = box_location.y - box_size.y*0.5;
+  let max_y = box_location.y + box_size.y*0.5;
+  let min_z = box_location.z - box_size.z*0.5;
+  let max_z = box_location.z + box_size.z*0.5;
+  
+  (point.x >= min_x && point.x <= max_x) && 
+  (point.y >= min_y && point.y <= max_y) && 
+  (point.z >= min_z && point.z <= max_z)
+}
+
+pub fn intersect_AABB(box_a_location: Vector3<f32>, box_a_size: Vector3<f32>, box_b_location: Vector3<f32>, box_b_size: Vector3<f32>) -> bool {
+  let a_min_x = box_a_location.x - box_a_size.x*0.5;
+  let a_max_x = box_a_location.x + box_a_size.x*0.5;
+  let a_min_y = box_a_location.y - box_a_size.y*0.5;
+  let a_max_y = box_a_location.y + box_a_size.y*0.5;
+  let a_min_z = box_a_location.z - box_a_size.z*0.5;
+  let a_max_z = box_a_location.z + box_a_size.z*0.5;
+  
+  let b_min_x = box_b_location.x - box_b_size.x*0.5;
+  let b_max_x = box_b_location.x + box_b_size.x*0.5;
+  let b_min_y = box_b_location.y - box_b_size.y*0.5;
+  let b_max_y = box_b_location.y + box_b_size.y*0.5;
+  let b_min_z = box_b_location.z - box_b_size.z*0.5;
+  let b_max_z = box_b_location.z + box_b_size.z*0.5;
+  
+  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
+  (a_min_y <= b_max_y && a_max_y >= b_min_y) &&
+  (a_min_z <= b_max_z && a_max_z >= b_min_z)
+}
+
+pub fn is_point_inside_sphere(point: Vector3<f32>, sphere: Vector4<f32>) -> bool {
+  let dist = ((point.x - sphere.x) * (point.x - sphere.x) +
+              (point.y - sphere.y) * (point.y - sphere.y) +
+              (point.z - sphere.z) * (point.z - sphere.z)).sqrt();
+  
+  dist < sphere.w // dist < radius
+}
+
+pub fn intersect_sphere(sphere_a: Vector4<f32>, sphere_b: Vector4<f32>) -> bool {
+  let dist = ((sphere_a.x - sphere_b.x) * (sphere_a.x - sphere_b.x) +
+              (sphere_a.y - sphere_b.y) * (sphere_a.y - sphere_b.y) +
+              (sphere_a.z - sphere_b.z) * (sphere_a.z - sphere_b.z)).sqrt();
+  
+  dist < sphere_a.w + sphere_b.w // dist < a_radius+b_radius
+}
+
+pub fn sphere_intersect_AABB(sphere: Vector4<f32>, box_location: Vector3<f32>, box_size: Vector3<f32>) -> bool {
+  let min_x = box_location.x - box_size.x*0.5;
+  let max_x = box_location.x + box_size.x*0.5;
+  let min_y = box_location.y - box_size.y*0.5;
+  let max_y = box_location.y + box_size.y*0.5;
+  let min_z = box_location.z - box_size.z*0.5;
+  let max_z = box_location.z + box_size.z*0.5;
+  
+  let x = ((sphere.x).min(max_x)).max(min_x);
+  let y = ((sphere.y).min(max_y)).max(min_y);
+  let z = ((sphere.z).min(max_z)).max(min_z);
+  
+  let dist = ((x - sphere.x) * (x - sphere.x) +
+              (y - sphere.y) * (y - sphere.y) +
+              (z - sphere.z) * (z - sphere.z)).sqrt();
+  
+  dist < sphere.w
+}
+
 pub trait Vector2Math<T> {
   fn abs(&self) -> Vector2<T>;
   fn floor(&self) -> Vector2<T>;
