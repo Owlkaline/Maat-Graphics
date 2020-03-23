@@ -75,6 +75,13 @@ pub fn sphere_intersect_AABB(sphere: Vector4<f32>, box_location: Vector3<f32>, b
   dist < sphere.w
 }
 
+pub fn is_point_inside_circle(point: Vector2<f32>, sphere: Vector3<f32>) -> bool {
+  let dist = ((point.x - sphere.x) * (point.x - sphere.x) +
+              (point.y - sphere.y) * (point.y - sphere.y)).sqrt();
+  
+  dist < sphere.z // dist < radius
+}
+
 pub trait Vector2Math<T> {
   fn abs(&self) -> Vector2<T>;
   fn floor(&self) -> Vector2<T>;

@@ -154,7 +154,7 @@ unsafe fn create_surface(
 
 #[cfg(target_os = "windows")]
 unsafe fn create_surface(
-    instance: &Instance, win: &winit::Window,
+    instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
   //use winit::os::windows::WindowExt;
   
@@ -190,7 +190,7 @@ unsafe fn create_surface(
 
 #[cfg(target_os = "macos")]
 unsafe fn create_surface(
-    instance: &Instance, win: &winit::Window,
+    instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
     //use winit::os::macos::WindowExt;
     
@@ -239,7 +239,7 @@ unsafe fn create_surface(
 
 #[cfg(target_os = "ios")]
 unsafe fn create_surface(
-    instance: &Instance, win: &winit::Window,
+    instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
     //use winit::os::macos::WindowExt;
     
