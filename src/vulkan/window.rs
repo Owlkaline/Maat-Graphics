@@ -39,12 +39,12 @@ use objc::runtime::YES;
 unsafe fn create_surface(
     instance: &Instance, window: &winit::Window,
 ) -> vk::SurfaceKHR {
-  //use winit::os::android::WindowExt;
+  use winit::platform::android::WindowExt;
   
   let vk = instance.pointers();
   let win = window;
   let extensions = instance.get_extensions();
-  let window = win.borrow().get_native_window();
+  let window = win.borrow().native_window();
   
   if !extensions.contains(&CString::new("VK_KHR_android_surface").unwrap()) {
     panic!("Missing extension VK_KHR_android_surface");
@@ -156,7 +156,7 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
-  //use winit::os::windows::WindowExt;
+  use winit::platform::windows::WindowExtWindows;
   
   let vk = instance.pointers();
   let extensions = instance.get_extensions();
@@ -192,9 +192,9 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
-    //use winit::os::macos::WindowExt;
+    use winit::platform::macos::WindowExtMacOS;
     
-    let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
+    let wnd: cocoa_id = mem::transmute(win.borrow().nswindow());
     
     let layer = CoreAnimationLayer::new();
     
@@ -208,7 +208,7 @@ unsafe fn create_surface(
     view.setLayer(mem::transmute(layer.as_ref())); // Bombs here with out of memory
     view.setWantsLayer(YES);
     
-    let view = win.borrow().get_nsview() as *const ();
+    let view = win.borrow().nsview() as *const ();
     
     let vk = instance.pointers();
     let extensions = instance.get_extensions();
@@ -241,9 +241,9 @@ unsafe fn create_surface(
 unsafe fn create_surface(
     instance: &Instance, win: &winit::window::Window,
 ) -> vk::SurfaceKHR {
-    //use winit::os::macos::WindowExt;
+    use winit::platform::macos::WindowExtMacOS;
     
-    let wnd: cocoa_id = mem::transmute(win.borrow().get_nswindow());
+    let wnd: cocoa_id = mem::transmute(win.borrow().nswindow());
     
     let layer = CoreAnimationLayer::new();
     
@@ -257,7 +257,7 @@ unsafe fn create_surface(
     view.setLayer(mem::transmute(layer.as_ref())); // Bombs here with out of memory
     view.setWantsLayer(YES);
     
-    let view = win.borrow().get_nsview() as *const ();
+    let view = win.borrow().nsview() as *const ();
     
     let vk = instance.pointers();
     let extensions = instance.get_extensions();
