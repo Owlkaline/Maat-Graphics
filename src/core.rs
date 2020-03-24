@@ -752,48 +752,6 @@ impl CoreRender for CoreMaat {
     self.recreate_swapchain = true;
   }
   
-  /*
-  fn get_events(&mut self) -> Vec<winit::event::Event<()>> {
-    let mut events = Vec::new();
-    
-    let mut recreate = false;
-    let mut mouse_pos = self.mouse_position;
-    let mut new_dpi = self.dpi;
-    let dimensions = self.get_virtual_dimensions();
-    /*
-    let all_events = self.window.get_events();
-    
-    all_events.poll_events(|ev| {
-      match &ev {
-        winit::event::Event::WindowEvent{ event, .. } => {
-          match event {
-            winit::event::WindowEvent::Resized(_new_size) => {
-              recreate = true;
-            },
-            winit::event::WindowEvent::CursorMoved{device_id: _, position, modifiers: _} => {
-              mouse_pos = Vector2::new(position.x as f32, dimensions.y - position.y as f32);
-            },
-            winit::event::WindowEvent::HiDpiFactorChanged(event_dpi) => {
-              new_dpi = *event_dpi as f32;
-            },
-            _ => {}
-          }
-        },
-        _ => {}
-      }
-      
-      events.push(ev);
-    });
-    
-    self.mouse_position = mouse_pos;
-    self.dpi = new_dpi;
-    if recreate {
-      self.recreate_swapchain = true;
-    }*/
-    
-    events
-  }*/
-  
   fn get_mouse_position(&mut self) -> Vector2<f32> {
     self.mouse_position
   }

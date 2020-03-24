@@ -22,6 +22,55 @@ pub struct Compute {
 }
 
 impl Compute {
+  /*pub fn new(instance: Arc<Instance>, device: Arc<Device>, _dummy_image: &ImageAttachment, descriptor_pool: &DescriptorPool, num_sets: u32) -> Compute {
+    let (compute_queue, compute_family) = device.get_compute_queue(Arc::clone(&instance));
+    
+    let compute_shader = Shader::new(Arc::clone(&device), include_bytes!("../shaders/sprv/ComputeSharpen.spv"));
+    
+    let mut descriptor_sets = Vec::with_capacity(num_sets as usize);
+    
+    
+    descriptor_sets.push(DescriptorSetBuilder::new()
+                         .build(Arc::clone(&device), descriptor_pool, 1));
+    
+    let pipeline = PipelineBuilder::new()
+                     .compute_shader(*compute_shader.get_shader())
+                     .descriptor_set_layout(descriptor_sets[0].layouts_clone())
+                     .build_compute(Arc::clone(&device));
+    
+    let command_pool = CommandPool::new(Arc::clone(&device), compute_family);
+    let command_buffers = command_pool.create_command_buffers(Arc::clone(&device), num_sets);
+    
+    let mut fences = Vec::with_capacity(num_sets as usize);
+    for _ in 0..num_sets as usize {
+      fences.push(Fence::new(Arc::clone(&device)));
+    }
+    
+    Compute {
+      queue: compute_queue,
+      _family: compute_family,
+      shader: compute_shader,
+      command_pool,
+      command_buffers,
+      fences,
+      descriptor_sets,
+      pipeline,
+    }
+    Compute {
+    
+    }
+  }*/
+  
+  // Running compute shaders
+  //
+  // vkCmDispatch
+  // or vkCmdDispatchIndirect
+  
+  
+}
+
+/*
+impl Compute {
   pub fn new(instance: Arc<Instance>, device: Arc<Device>, _dummy_image: &ImageAttachment, descriptor_pool: &DescriptorPool, num_sets: u32) -> Compute {
     
     let (compute_queue, compute_family) = device.get_compute_queue(Arc::clone(&instance));
@@ -103,7 +152,7 @@ impl Compute {
       descriptor.destroy(Arc::clone(&device));
     }
   }
-}
+}*/
 
 
 
