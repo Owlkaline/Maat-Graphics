@@ -9,6 +9,8 @@ use crate::vulkan::Swapchain;
 use crate::vulkan::Instance;
 use crate::vulkan::Device;
 
+use crate::Logs;
+
 use cgmath::Vector2;
 //use crate::imgui::{ImGui, FrameSize};
 //use crate::imgui_winit_support;
@@ -298,7 +300,7 @@ pub struct VkWindow {
 }
 
 impl VkWindow {
-  pub fn new(app_name: String, app_version: u32, should_debug: bool, settings: &Settings) -> (VkWindow, winit::event_loop::EventLoop<()>) {
+  pub fn new(app_name: String, app_version: u32, should_debug: bool, settings: &Settings, logs: &mut Logs) -> (VkWindow, winit::event_loop::EventLoop<()>) {
     let fullscreen = settings.is_fullscreen();
     let vsync = settings.vsync_enabled();
     let triple_buffer = settings.triple_buffer_enabled();
@@ -311,15 +313,16 @@ impl VkWindow {
                               app_name, 
                               fullscreen,
                               resolution.x as f32, 
-                              resolution.y as f32)
+                              resolution.y as f32,
+                              logs)
     };
     
-    let device = Device::new(Arc::clone(&instance), &surface);
+    let device = Device::new(Arc::clone(&instance), &surface, logs);
     
-    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface);
+    let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface, logs);
     
     let swapchain = Swapchain::new(Arc::clone(&instance), Arc::clone(&device), &surface, 
-                                   graphics_family, present_family, vsync, triple_buffer);
+                                   graphics_family, present_family, vsync, triple_buffer, logs);
     
     (VkWindow {
       instance: instance,
@@ -384,10 +387,9 @@ impl VkWindow {
     dpi as f32
   }
   
-  pub fn set_cursor_position(&self, new_pos: LogicalPosition<f32>) {
+  pub fn set_cursor_position(&self, new_pos: LogicalPosition<f32>, logs: &mut Logs) {
     if let Err(e) = self.window.set_cursor_position(new_pos) {
-      // TODO: Turn into real error
-      println!("Error: {}", e.to_string());
+      logs.error_msg(&e.to_string());
     }
   }
   
@@ -395,10 +397,10 @@ impl VkWindow {
     vk::Extent2D { width: self.get_capabilities().currentExtent.width * self.get_hidpi_factor() as u32, height: self.get_capabilities().currentExtent.height * self.get_hidpi_factor() as u32 }
   }
   
-  pub fn recreate_swapchain(&mut self, settings: &Settings) {
+  pub fn recreate_swapchain(&mut self, settings: &Settings, logs: &mut Logs) {
     let vsync = settings.vsync_enabled();
     let triple_buffer = settings.triple_buffer_enabled();
-    self.swapchain.recreate(Arc::clone(&self.instance), Arc::clone(&self.device), &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1, vsync, triple_buffer);
+    self.swapchain.recreate(Arc::clone(&self.instance), Arc::clone(&self.device), &self.surface, self.graphics_present_family_index.0, self.graphics_present_family_index.1, vsync, triple_buffer, logs);
   }
   
   pub fn get_swapchain(&self) -> &Swapchain {
@@ -475,17 +477,18 @@ impl VkWindow {
     self.instance.get_surface_capabilities(phys_device, &self.surface)
   }
   
-  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32) -> (winit::window::Window, winit::event_loop::EventLoop<()>, vk::SurfaceKHR) {
+  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32, logs: &mut Logs) -> (winit::window::Window, winit::event_loop::EventLoop<()>, vk::SurfaceKHR) {
     let events_loop = winit::event_loop::EventLoop::new();
     let window = {
       if fullscreen {
         for (num, monitor) in events_loop.available_monitors().enumerate() {
-          println!("Monitor #{}: {:?}", num, monitor.name());
+          let msg = format!("Monitor #{}: {:?}", num, monitor.name());
+          logs.system_msg(&msg);
         }
         
-        let monitor = events_loop.available_monitors().nth(0).expect("Please enter a valid ID");
+        let monitor = events_loop.available_monitors().nth(0).expect("No monitor found, choose valid monitor id");
         
-        println!("Using {:?}", monitor.name());
+        logs.system_msg(&format!("Using {:?}", monitor.name()));
         
         // Fullscreen
         winit::window::WindowBuilder::new()
@@ -507,7 +510,7 @@ impl VkWindow {
     (window, events_loop, surface)
   }
   
-  fn find_queue_families(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR) -> (u32, u32, vk::Queue, vk::Queue) {
+  fn find_queue_families(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> (u32, u32, vk::Queue, vk::Queue) {
     let phys_device = device.physical_device();
     
     let queue_family_properties: Vec<vk::QueueFamilyProperties> = instance.get_queue_family_properties(phys_device);
@@ -549,7 +552,9 @@ impl VkWindow {
     }
     
     if graphics_family != present_family {
-      panic!("This is my custom error brown, I dun fucked up!");
+      let msg = "This is my custom error brown, I dun fucked up!";
+      logs.panic_msg(msg);
+      panic!(msg);
     }
     
     let graphics_queue: vk::Queue = device.get_device_queue(graphics_family as u32, 0);

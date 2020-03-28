@@ -1,11 +1,42 @@
-use cgmath::Deg;
-use cgmath::Vector2;
-use cgmath::Vector3;
-use cgmath::Vector4;
-use cgmath::Matrix4;
-use cgmath::InnerSpace;
+use cgmath::{Deg, Rad};
+use cgmath::{Vector2, Vector3, Vector4, Matrix4,
+             InnerSpace, Quaternion, Angle, Zero};
 
 use std::f64::consts::PI;
+
+
+pub fn to_euler(quaternion: &cgmath::Quaternion<f32>) -> (Rad<f32>, Rad<f32>, Rad<f32>) {
+    let sig: f32 = 0.499f32;
+    let two: f32 = 2f32;
+    let one: f32 = 1f32;
+
+    let (qw, qx, qy, qz) = (quaternion.s, quaternion.v.x, quaternion.v.y, quaternion.v.z);
+    let (sqw, sqx, sqy, sqz) = (qw * qw, qx * qx, qy * qy, qz * qz);
+
+    let unit = sqx + sqy + sqz + sqw;
+    let test = qx * qy + qz * qw;
+
+    if test > sig * unit {
+        (
+            Rad::zero(),
+            Rad::turn_div_4(),
+            Rad::atan2(qx, qw) * two,
+        )
+    } else if test < -sig * unit {
+        (
+            Rad::zero(),
+            -Rad::turn_div_4(),
+            Rad::atan2(qx, qw) * two,
+        )
+    } else {
+        (
+            Rad::atan2(two * (qy * qw - qx * qz), one - two * (sqy + sqz)),
+            Rad::asin(two * (qx * qy + qz * qw)),
+            Rad::atan2(two * (qx * qw - qy * qz), one - two * (sqx + sqz)),
+        )
+    }
+  }
+
 
 pub fn is_point_inside_AABB(point: Vector3<f32>, box_location: Vector3<f32>, box_size: Vector3<f32>) -> bool {
   let min_x = box_location.x - box_size.x*0.5;
@@ -19,6 +50,71 @@ pub fn is_point_inside_AABB(point: Vector3<f32>, box_location: Vector3<f32>, box
   (point.y >= min_y && point.y <= max_y) && 
   (point.z >= min_z && point.z <= max_z)
 }
+/*
+pub fn intersect_rotated_AABB(box_a_location: Vector3<f32>, box_a_size: Vector3<f32>, box_a_rot: Vector4<f32>,
+                              box_b_location: Vector3<f32>, box_b_size: Vector3<f32>, box_b_rot: Vector4<f32>) -> bool {
+  let quaternion_a = Quaternion::new(box_a_rot.x, box_a_rot.y, box_a_rot.z, box_a_rot.w);
+  
+  let blcc =  box_a_location + -box_a_size*0.5;
+  let tlcc =     box_a_location +  Vector3::new(-box_a_size.x*0.5,  box_a_size.y*0.5, -box_a_size.z*0.5);
+  let trcc =    box_a_location +  Vector3::new (box_a_size.x*0.5,  box_a_size.x*0.5, -box_a_size.x*0.5);
+  let brcc = box_a_location +  Vector3::new( box_a_size.x*0.5, -box_a_size.y*0.5, -box_a_size.z*0.5);
+  
+  let blfc =  box_a_location +  box_a_size*0.5;
+  let tlfc =     box_a_location +  Vector3::new(-box_a_size.x*0.5,  box_a_size.y*0.5, box_a_size.z*0.5);
+  let trfc =    box_a_location +  Vector3::new (box_a_size.x*0.5,  box_a_size.x*0.5, box_a_size.x*0.5);
+  let brfc = box_a_location +  Vector3::new( box_a_size.x*0.5, -box_a_size.y*0.5, box_a_size.z*0.5);
+  
+  let blcc = quaternion_a * (quaternion_a.conjugate()*blcc);
+  let tlcc = quaternion_a * (quaternion_a.conjugate()*tlcc);
+  let trcc = quaternion_a * (quaternion_a.conjugate()*trcc);
+  let brcc = quaternion_a * (quaternion_a.conjugate()*brcc);
+  
+  let blfc = quaternion_a * (blfc * quaternion_a.conjugate());
+  let tlfc = quaternion_a * (tlfc * quaternion_a.conjugate());
+  let trfc = quaternion_a * (trfc * quaternion_a.conjugate());
+  let brfc = quaternion_a * (brfc * quaternion_a.conjugate());
+  
+  let a_min_x = blcc.x.min(tlcc.x).min(trcc.x).min(brcc.x).min(blfc.x).min(tlfc.x).min(trfc.x).min(brfc.x);
+  let a_max_x = blcc.x.max(tlcc.x).max(trcc.x).max(brcc.x).max(blfc.x).max(tlfc.x).max(trfc.x).max(brfc.x);
+  let a_min_y = blcc.y.min(tlcc.y).min(trcc.y).min(brcc.y).min(blfc.y).min(tlfc.y).min(trfc.y).min(brfc.y);
+  let a_max_y = blcc.y.max(tlcc.y).max(trcc.y).max(brcc.y).max(blfc.y).max(tlfc.y).max(trfc.y).max(brfc.y);
+  let a_min_z = blcc.z.min(tlcc.z).min(trcc.z).min(brcc.z).min(blfc.z).min(tlfc.z).min(trfc.z).min(brfc.z);
+  let a_max_z = blcc.z.max(tlcc.z).max(trcc.z).max(brcc.z).max(blfc.z).max(tlfc.z).max(trfc.z).max(brfc.z);
+  
+  let quaternion_b = Quaternion::new(box_b_rot.x, box_b_rot.y, box_b_rot.z, box_b_rot.w);
+  
+  let blcc =  box_b_location + -box_b_size*0.5;
+  let tlcc =     box_b_location +  Vector3::new(-box_b_size.x*0.5,  box_b_size.y*0.5, -box_b_size.z*0.5);
+  let trcc =    box_b_location +  Vector3::new (box_b_size.x*0.5,  box_b_size.x*0.5, -box_b_size.x*0.5);
+  let brcc = box_b_location +  Vector3::new( box_b_size.x*0.5, -box_b_size.y*0.5, -box_b_size.z*0.5);
+  
+  let blfc =  box_b_location +  box_b_size*0.5;
+  let tlfc =     box_b_location +  Vector3::new(-box_b_size.x*0.5,  box_b_size.y*0.5, box_b_size.z*0.5);
+  let trfc =    box_b_location +  Vector3::new (box_b_size.x*0.5,  box_b_size.x*0.5, box_b_size.x*0.5);
+  let brfc = box_b_location +  Vector3::new( box_b_size.x*0.5, -box_b_size.y*0.5, box_b_size.z*0.5);
+  
+  let blcc = quaternion_b * (quaternion_b.conjugate()*blcc);
+  let tlcc = quaternion_b * (quaternion_b.conjugate()*tlcc);
+  let trcc = quaternion_b * (quaternion_b.conjugate()*trcc);
+  let brcc = quaternion_b * (quaternion_b.conjugate()*brcc);
+  
+  let blfc = quaternion_b * (quaternion_b.conjugate()*blfc);
+  let tlfc = quaternion_b * (quaternion_b.conjugate()*tlfc);
+  let trfc = quaternion_b * (quaternion_b.conjugate()*trfc);
+  let brfc = quaternion_b * (quaternion_b.conjugate()*brfc);
+  
+  let b_min_x = blcc.x.min(tlcc.x).min(trcc.x).min(brcc.x).min(blfc.x).min(tlfc.x).min(trfc.x).min(brfc.x);
+  let b_max_x = blcc.x.max(tlcc.x).max(trcc.x).max(brcc.x).max(blfc.x).max(tlfc.x).max(trfc.x).max(brfc.x);
+  let b_min_y = blcc.y.min(tlcc.y).min(trcc.y).min(brcc.y).min(blfc.y).min(tlfc.y).min(trfc.y).min(brfc.y);
+  let b_max_y = blcc.y.max(tlcc.y).max(trcc.y).max(brcc.y).max(blfc.y).max(tlfc.y).max(trfc.y).max(brfc.y);
+  let b_min_z = blcc.z.min(tlcc.z).min(trcc.z).min(brcc.z).min(blfc.z).min(tlfc.z).min(trfc.z).min(brfc.z);
+  let b_max_z = blcc.z.max(tlcc.z).max(trcc.z).max(brcc.z).max(blfc.z).max(tlfc.z).max(trfc.z).max(brfc.z);
+  
+  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
+  (a_min_y <= b_max_y && a_max_y >= b_min_y) &&
+  (a_min_z <= b_max_z && a_max_z >= b_min_z)
+}*/
 
 pub fn intersect_AABB(box_a_location: Vector3<f32>, box_a_size: Vector3<f32>, box_b_location: Vector3<f32>, box_b_size: Vector3<f32>) -> bool {
   let a_min_x = box_a_location.x - box_a_size.x*0.5;
@@ -85,6 +181,7 @@ pub fn is_point_inside_circle(point: Vector2<f32>, sphere: Vector3<f32>) -> bool
 pub trait Vector2Math<T> {
   fn abs(&self) -> Vector2<T>;
   fn floor(&self) -> Vector2<T>;
+  fn multiply(&self, other: Vector2<T>) -> Vector2<T>;
 }
 
 impl Vector2Math<f32> for Vector2<f32> {
@@ -94,6 +191,30 @@ impl Vector2Math<f32> for Vector2<f32> {
   
   fn floor(&self) -> Vector2<f32> {
     Vector2::new(self.x.floor(), self.y.floor())
+  }
+  
+  fn multiply(&self, other: Vector2<f32>) -> Vector2<f32> {
+    Vector2::new(self.x*other.x, self.y*other.y)
+  }
+}
+
+pub trait Vector3Math<T> {
+  fn abs(&self) -> Vector3<T>;
+  fn floor(&self) -> Vector3<T>;
+  fn multiply(&self, other: Vector3<T>) -> Vector3<T>;
+}
+
+impl Vector3Math<f32> for Vector3<f32> {
+  fn abs(&self) -> Vector3<f32> {
+    Vector3::new(self.x.abs(), self.y.abs(), self.z.abs())
+  }
+  
+  fn floor(&self) -> Vector3<f32> {
+    Vector3::new(self.x.floor(), self.y.floor(), self.z.floor())
+  }
+  
+  fn multiply(&self, other: Vector3<f32>) -> Vector3<f32> {
+    Vector3::new(self.x*other.x, self.y*other.y, self.z*other.z)
   }
 }
 

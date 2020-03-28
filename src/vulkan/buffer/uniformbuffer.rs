@@ -62,9 +62,13 @@ impl UniformData {
     }
   }
   
-  pub fn empty(&mut self) {
+  pub fn clear(&mut self) {
     self.data.clear();
   }
+  /*
+  pub fn empty(&mut self) {
+    self.data.clear();
+  }*/
   
   pub fn add_float(mut self, value: f32) -> UniformData {
     self.data.push(value);

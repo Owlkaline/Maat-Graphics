@@ -14,6 +14,7 @@ use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
 use crate::gltf_interpreter::ModelDetails;
+use crate::logs::Logs;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool};
@@ -21,8 +22,10 @@ use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount,
 use crate::vulkan::{VkWindow, Device, ImageAttachment, Sampler, SamplerBuilder, Compute};
 use crate::vulkan::pool::{CommandPool, DescriptorPool, DescriptorPoolBuilder};
 use crate::vulkan::sync::{Semaphore, Fence};
-use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder};
+use crate::vulkan::buffer::{CommandBuffer, CommandBufferBuilder, Buffer, BufferUsage};
 use crate::vulkan::check_errors;
+
+use crate::ModelData;
 
 use cgmath::{Vector2, Vector3};
 use winit::dpi::{LogicalSize, LogicalPosition};
@@ -64,12 +67,18 @@ pub struct CoreMaat {
   
   mouse_position: Vector2<f32>,
   dpi: f32,
+  
+  logs: Logs,
 }
 
 impl CoreMaat {
   pub fn new(app_name: String, app_version: u32, _width: f32, _height: f32, should_debug: bool) -> (CoreMaat, winit::event_loop::EventLoop<()>) {
     let mut settings = Settings::load();
-    let (window, event_loop) = VkWindow::new(app_name, app_version, should_debug, &settings);
+    
+    let mut logs = Logs::new();
+    logs.system_msg("Engine initing...");
+    
+    let (window, event_loop) = VkWindow::new(app_name, app_version, should_debug, &settings, &mut logs);
     
     let resource_manager = ResourceManager::new();
     
@@ -108,7 +117,7 @@ impl CoreMaat {
       let image_views = window.swapchain_image_views();
       
       let max_msaa = window.get_max_mssa();
-      println!("Max Msaa possible: {}", max_msaa);
+      logs.system_msg(&format!("Max Msaa possible: {}", max_msaa));
       
       if desired_texture_msaa < max_msaa {
         texture_msaa = SampleCount::from(desired_texture_msaa);
@@ -124,8 +133,8 @@ impl CoreMaat {
       
       settings.set_texture_msaa(texture_msaa.to_bits());
       settings.set_model_msaa(model_msaa.to_bits());
-      println!("Using Msaa: {}x for 2D", texture_msaa.to_bits());
-      println!("Using Msaa: {}x for 3D", model_msaa.to_bits());
+      logs.system_msg(&format!("Using Msaa: {}x for 2D", texture_msaa.to_bits()));
+      logs.system_msg(&format!("Using Msaa: {}x for 3D", model_msaa.to_bits()));
       
       for _ in 0..image_views.len() {
         semaphore_image_available.push(Semaphore::new(Arc::clone(&device)));
@@ -155,7 +164,9 @@ impl CoreMaat {
                        .max_anisotropy(1.0)
                        .build(Arc::clone(&device));
       
-      //compute_shader = Some(Compute::new(Arc::clone(&instance), Arc::clone(&device), &dummy_image, &descriptor_set_pool, image_views.len() as u32));
+      //let mut buffer = Buffer::<f32>::cpu_buffer(Arc::clone(&instance), Arc::clone(&device), BufferUsage::storage_buffer(), image_views.len() as u32, vk::WHOLE_SIZE);
+      //compute_shader = Some(Compute::new(Arc::clone(&instance), Arc::clone(&device), &buffer, &descriptor_set_pool, image_views.len() as u32));
+     // buffer.destroy(Arc::clone(&device));
       
       texture_shader = TextureShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &texture_msaa);
       model_shader = ModelShader::new(Arc::clone(&instance), Arc::clone(&device), &current_extent, &format, &sampler, image_views, &dummy_image, &descriptor_set_pool, &command_pool, graphics_queue, &model_msaa);
@@ -291,6 +302,8 @@ impl CoreMaat {
       
       mouse_position: Vector2::new(0.0, 0.0),
       dpi: 1.0,
+      
+      logs,
     }, event_loop)
   }
   
@@ -307,16 +320,17 @@ impl CoreMaat {
 }
 
 impl CoreRender for CoreMaat {
-  fn preload_model(&mut self, reference: String, location: String, is_terrain: bool) {
-    self.resources.sync_load_model(reference, location, is_terrain);
+  fn preload_model(&mut self, reference: String, location: String) {
+    self.resources.sync_load_model(reference, location, &mut self.logs);
   }
   
   fn add_model(&mut self, reference: String, location: String) {
     self.resources.insert_unloaded_model(reference, location);
   }
   
-  fn add_terrain(&mut self, reference: String, model: ModelDetails) {
-    self.resources.add_loaded_model(reference, model);
+  fn add_terrain(&mut self, model: (ModelDetails, ModelData)) {
+    println!("ADD_TERRAIN: collsiion info count: {}", model.1.num_collision_info());
+    self.resources.add_loaded_terrain(model, &mut self.logs);
   }
   
   fn set_icon(&mut self, location: String) {
@@ -327,12 +341,12 @@ impl CoreRender for CoreMaat {
     let graphics_queue = self.window.get_graphics_queue();
     let device = self.window.device();
     let instance = self.window.instance();
-    self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
+    self.resources.sync_load_texture(reference.to_string(), location, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue, &mut self.logs);
     self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_texture(reference).unwrap(), &self.sampler);
   }
   
   fn add_texture(&mut self, reference: String, location: String) {
-    self.resources.insert_unloaded_texture(reference, location);
+    self.resources.insert_unloaded_texture(reference, location, &mut self.logs);
   }
   
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]) {
@@ -340,7 +354,7 @@ impl CoreRender for CoreMaat {
     let device = self.window.device();
     let instance = self.window.instance();
     
-    self.resources.sync_load_font(reference.to_string(), font_texture.to_string(), font, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue);
+    self.resources.sync_load_font(reference.to_string(), font_texture.to_string(), font, Arc::clone(&device), Arc::clone(&instance), &self.command_pool, *graphics_queue, &mut self.logs);
     
     self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &self.resources.get_font(reference).unwrap().1, &self.sampler);
   }
@@ -412,7 +426,7 @@ impl CoreRender for CoreMaat {
     settings.set_max_monitor_resolution(Vector2::new(max_montior_dim.x as i32, max_montior_dim.y as i32));
     settings.save();
     
-    self.window.recreate_swapchain(&settings);
+    self.window.recreate_swapchain(&settings, &mut self.logs);
     self.window_dimensions = self.window.get_current_extent();
     
     for i in 0..self.command_buffers.len() {
@@ -475,7 +489,7 @@ impl CoreRender for CoreMaat {
           },
           DrawType::LoadModel(ref info) => {
             let reference = info.clone();
-            self.resources.load_model_from_reference(reference);
+            self.resources.load_model_from_reference(reference, &mut self.logs);
           },
           DrawType::UnloadModel(ref info) => {
             let reference = info.clone();
@@ -584,7 +598,7 @@ impl CoreRender for CoreMaat {
           },
           DrawType::LoadTexture(ref info) => {
             let reference = info.clone();
-            self.resources.load_texture_from_reference(reference);
+            self.resources.load_texture_from_reference(reference, &mut self.logs);
           },
           DrawType::SetTextureScale(ref scale) => {
             self.texture_shader.set_scale(scale.clone());
@@ -721,7 +735,7 @@ impl CoreRender for CoreMaat {
     Vector2::new(self.window_dimensions.width as f32 * self.dpi, self.window_dimensions.height as f32 * self.dpi)
   }
   
-  fn retrieve_models(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)> {
+  fn retrieve_models(&mut self) -> Vec<ModelData> {
     let mut model_details = Vec::new();
     
     {
@@ -729,9 +743,9 @@ impl CoreRender for CoreMaat {
       let device = self.window.device();
       let instance = self.window.instance();
       
-      let references: Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
+      let references: Vec<(String, ModelData)> = self.resources.recieve_objects(Arc::clone(&instance), Arc::clone(&device), ImageType::Type2D, ImageViewType::Type2D, &vk::FORMAT_R8G8B8A8_UNORM, SampleCount::OneBit, ImageTiling::Optimal, &self.command_pool, graphics_queue);
       
-      for (reference, size, terrain_data) in references {
+      for (reference, model_data) in references {
         if let Some(texture) = self.resources.get_texture(reference.to_string()) {
           self.texture_shader.add_texture(Arc::clone(&device), &self.descriptor_set_pool, reference.to_string(), &texture, &self.sampler);
         }
@@ -739,9 +753,7 @@ impl CoreRender for CoreMaat {
           self.model_shader.add_model(Arc::clone(&instance), Arc::clone(&device), reference.to_string(), model, base_textures, &self.dummy_image, &self.command_pool, &self.descriptor_set_pool, &self.sampler, graphics_queue);
         }
         
-        if size.is_some() {
-          model_details.push((reference, size.unwrap(), terrain_data));
-        }
+        model_details.push(model_data);
       }
     }
     
@@ -769,7 +781,7 @@ impl CoreRender for CoreMaat {
   }
   
   fn set_cursor_position(&mut self, x: f32, y: f32) {
-    self.window.set_cursor_position(LogicalPosition::new(x, y));
+    self.window.set_cursor_position(LogicalPosition::new(x, y), &mut self.logs);
   }
   
   fn show_cursor(&mut self) {

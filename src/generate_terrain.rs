@@ -1,7 +1,7 @@
 use crate::gltf_interpreter::{Topology, VertexArray, NormalArray, ColourArray, IndexArray, 
                               TangentArray, FinalModel, TexCoordArray, ModelDetails, Material,
                               AlphaMode};
-
+use crate::ModelData;
 use crate::cgmath::{Vector2, Vector3, Vector4};
 use crate::math;
 
@@ -72,9 +72,9 @@ fn get_height(x: u32, z: u32, image: &image::ImageBuffer<image::Luma<u8>, std::v
 
 
 fn calculate_normal(x: u32, z: u32, image: &image::ImageBuffer<image::Luma<u8>, std::vec::Vec<u8>>) -> [f32; 3] {
-  let height_l = get_height(x-1, z, image);
+  let height_l = get_height((x as i32-1).max(0) as u32, z, image);
   let height_r = get_height(x+1, z, image);
-  let height_d = get_height(x, z-1, image);
+  let height_d = get_height(x, (z as i32-1).max(0) as u32, image);
   let height_u = get_height(x, z+1, image);
   
   let normal = Vector3::new(height_l-height_r, 2.0, height_d - height_u);
@@ -84,7 +84,7 @@ fn calculate_normal(x: u32, z: u32, image: &image::ImageBuffer<image::Luma<u8>, 
   [n.x, n.y, n.z]
 }
 
-pub fn generate_terrain_from_image(image: String) -> ModelDetails {
+pub fn generate_terrain_from_image(reference: String, image: String) -> (ModelDetails, ModelData) {
   let image = image::open(&image.clone()).expect(&("No file or Directory at: ".to_string() + &image)).to_luma();
   
   let (width, height) = image.dimensions();
@@ -94,6 +94,7 @@ pub fn generate_terrain_from_image(image: String) -> ModelDetails {
   let vertex_count = height;
   
   let mut heights: Vec<Vec<f32>> = Vec::new();
+  let mut size = Vector3::new(0.0, 0.0, 0.0);
   
   let count = VERTEX_COUNT * VERTEX_COUNT;
   
@@ -109,6 +110,9 @@ pub fn generate_terrain_from_image(image: String) -> ModelDetails {
     heights.push(Vec::new());
     for j in 0..VERTEX_COUNT as usize {
       let height = get_height(j as u32, VERTEX_COUNT as u32-i as u32, &image);
+      if height > size.y {
+        size.y = height;
+      }
       
       heights[i].push(height);
       
@@ -186,11 +190,13 @@ pub fn generate_terrain_from_image(image: String) -> ModelDetails {
     has_tangents: false,
   };
   
-  ModelDetails {
+  let mut model_data = ModelData::new_terrain(reference.to_string(), size, heights);
+  println!("GENERATE_TERRAIN: collsiion info count: {}", model_data.num_collision_info());
+  (ModelDetails {
     models: vec!(f_model),
     size: Vector3::new(SIZE, 0.0, SIZE),
-    height_points: Some(heights),
-  }
+  },
+  model_data)
 }
 
 pub fn generate_flat_terrain() -> ModelDetails {
@@ -207,17 +213,17 @@ pub fn generate_flat_terrain() -> ModelDetails {
   for i in 0..VERTEX_COUNT {
     for j in 0..VERTEX_COUNT {
       verticies.push([
-                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE + 400.0,
+                       (i as f32 / VERTEX_COUNT as f32 - 1.0) * SIZE + SIZE*0.5,
                        0.0,
-                       ((VERTEX_COUNT as f32 - j as f32) / VERTEX_COUNT as f32 - 1.0) * SIZE + 400.0
+                       ((VERTEX_COUNT as f32 - j as f32) / VERTEX_COUNT as f32 - 1.0) * SIZE + SIZE*0.5
                      ]
                     );
       
       normals.push([0.0, 1.0, 0.0]);
       
       uvs.push([
-                 j as f32 / (VERTEX_COUNT as f32 - 1.0), 
-                 i as f32 / (VERTEX_COUNT as f32 - 1.0)
+                 i as f32 / (VERTEX_COUNT as f32 - 1.0), 
+                 (VERTEX_COUNT as f32 - j as f32) / (VERTEX_COUNT as f32 - 1.0)
                 ]);
                 
       vertex_pointer += 1;
@@ -283,6 +289,5 @@ pub fn generate_flat_terrain() -> ModelDetails {
   ModelDetails {
     models: vec!(f_model),
     size: Vector3::new(SIZE, 0.0, SIZE),
-    height_points: None,
   }
 }

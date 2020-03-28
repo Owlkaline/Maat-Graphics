@@ -4,6 +4,7 @@ use crate::font::GenericFont;
 use crate::camera::PerspectiveCamera;
 use crate::graphics;
 use crate::gltf_interpreter::ModelDetails;
+use crate::ModelData;
 
 use cgmath::{Vector2, Vector3};
 
@@ -27,10 +28,10 @@ pub trait CoreRender {
   // Add is the recommened use for majority of the loading as it doesnt stall
   //
   // Load 3D models
-  fn preload_model(&mut self, reference: String, location: String, is_terrain: bool);
+  fn preload_model(&mut self, reference: String, location: String);
   fn add_model(&mut self, reference: String, location: String);
   
-  fn add_terrain(&mut self, reference: String, model: ModelDetails);
+  fn add_terrain(&mut self, model: (ModelDetails, ModelData));
   
   // Load png images
   fn preload_texture(&mut self, reference: String, location: String);
@@ -67,7 +68,7 @@ pub trait CoreRender {
   fn get_virtual_dimensions(&self) -> Vector2<f32>;
   
   fn force_swapchain_recreate(&mut self);
-  fn retrieve_models(&mut self) -> Vec<(String, Vector3<f32>, Option<Vec<Vec<f32>>>)>;
+  fn retrieve_models(&mut self) -> Vec<ModelData>;
   //fn get_events(&mut self) -> Vec<winit::event::Event<()>>;
   
   fn get_mouse_position(&mut self) -> Vector2<f32>;

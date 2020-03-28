@@ -197,14 +197,12 @@ pub struct FinalModel {
 pub struct ModelDetails {
   pub models: Vec<FinalModel>,
   pub size: Vector3<f32>,
-  pub height_points: Option<Vec<Vec<f32>>>,
  // materials: Vec<Material>,
 }
 
 impl Drop for ModelDetails{
   fn drop(&mut self) {
     let _children = mem::replace(&mut self.models, Vec::new());
-    let _children1 = mem::replace(&mut self.height_points, None);
     /*
     loop {
       children = match children {
@@ -283,7 +281,7 @@ fn serde_to_f32(value: Option<Value>) -> Vector4<f32> {
 }
 
 impl ModelDetails {
-  pub fn new(source: String, is_terrain: bool) -> ModelDetails {
+  pub fn new(source: String) -> ModelDetails {
     let source = &source;
     
     let mut points: Vec<Vec<f32>> = Vec::new();
@@ -551,11 +549,6 @@ impl ModelDetails {
               let vertex = (translation*scale)*rotation*Vector4::new(vertex.x, vertex.y, vertex.z, 1.0);
               
               vertices.push([vertex.x, vertex.y, vertex.z]);
-              
-              if is_terrain {
-                
-                //points.push(vertex.xyz());
-              }
             }
             models[index].vertices.vertex = vertices;
           }
@@ -613,17 +606,12 @@ impl ModelDetails {
     ModelDetails {
       models: models,
       size: Vector3::new(max_xyz.x - min_xyz.x, max_xyz.y - min_xyz.y, max_xyz.z - min_xyz.z),
-      height_points: None,//if is_terrain { Some(points) } else { None },
      // materials: materials,
     }
   }
   
   pub fn get_size(&self) -> Vector3<f32> {
     self.size
-  }
-  
-  pub fn get_height_points(&self) -> Option<Vec<Vec<f32>>> {
-    self.height_points.clone()
   }
   
   pub fn num_models(&self) -> usize {

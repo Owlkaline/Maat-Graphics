@@ -7,6 +7,8 @@ use crate::vulkan::Device;
 use crate::vulkan::vkenums::{PresentMode, CompositeAlpha, ComponentSwizzle, ImageAspect, 
                              ImageViewType, SharingMode};
 
+use crate::Logs;
+
 use std::ptr;
 use std::mem;
 use std::sync::Arc; 
@@ -19,9 +21,9 @@ pub struct Swapchain {
 }
 
 impl Swapchain {
-  pub fn new(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool) -> Swapchain {
+  pub fn new(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool, logs: &mut Logs) -> Swapchain {
     
-    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, None, vsync, triple_buffer);
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, None, vsync, triple_buffer, logs);
     let images = Swapchain::get_swapchain_images(Arc::clone(&device), &swapchain);
     let image_views = Swapchain::create_image_views(Arc::clone(&device), &images, &format);
     
@@ -33,9 +35,9 @@ impl Swapchain {
     }
   }
   
-  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool) {
+  pub fn recreate(&mut self, instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, vsync: bool, triple_buffer: bool, logs: &mut Logs) {
     let old_swapchain = self.swapchain;
-    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, Some(old_swapchain), vsync, triple_buffer);
+    let (swapchain, format) = Swapchain::create_swapchain(Arc::clone(&instance), Arc::clone(&device), surface, graphics_family, present_family, Some(old_swapchain), vsync, triple_buffer, logs);
     
     self.destroy(Arc::clone(&device));
     
@@ -135,7 +137,7 @@ impl Swapchain {
     images
   }
   
-  fn create_swapchain(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>, vsync: bool, triple_buffer: bool) -> (vk::SwapchainKHR, vk::Format) {
+  fn create_swapchain(instance: Arc<Instance>, device: Arc<Device>, surface: &vk::SurfaceKHR, graphics_family: u32, present_family: u32, old_swapchain: Option<vk::SwapchainKHR>, vsync: bool, triple_buffer: bool, logs: &mut Logs) -> (vk::SwapchainKHR, vk::Format) {
     let vk = device.pointers();
     let phys_device = device.physical_device();
     let device = device.internal_object();
@@ -160,7 +162,7 @@ impl Swapchain {
       let mut final_format = &surface_formats[0];
       for i in 0..surface_formats.len() {
         if surface_formats[i].format == ideal_format {
-          println!("Using ideal swapchain format");
+          logs.system_msg(&format!("Using ideal swapchain format"));
           final_format = &surface_formats[i];
         }
       }
@@ -171,19 +173,20 @@ impl Swapchain {
     let present_mode: u32 = {
       let mut present_type = PresentMode::Immediate.to_bits();
       if triple_buffer && present_modes.contains(&PresentMode::Mailbox.to_bits()) {
-        println!("Using Mailbox present mode (triple buffering)");
+        logs.system_msg(&format!("Using Mailbox present mode (triple buffering)"));
         present_type = PresentMode::Mailbox.to_bits();
       } else if vsync && present_modes.contains(&PresentMode::Fifo.to_bits()) {
-        println!("Using Fifo present mode (vsync)");
+        logs.system_msg(&format!("Using Fifo present mode (vsync)"));
         present_type = PresentMode::Fifo.to_bits();
       } else if present_modes.contains(&PresentMode::Immediate.to_bits()) {
-        println!("Using immediate present mode");
+        logs.system_msg(&format!("Using immediate present mode"));
       } else {
         if present_modes.contains(&PresentMode::Mailbox.to_bits()) {
           present_type = PresentMode::Mailbox.to_bits();
         } else if present_modes.contains(&PresentMode::Fifo.to_bits()) {
           present_type = PresentMode::Fifo.to_bits();
         } else {
+          logs.system_msg(&format!("No present mode found!"));
           panic!("No present mode found!");
         }
       }
@@ -207,12 +210,12 @@ impl Swapchain {
     let mut queue_family_indices: Vec<u32> = Vec::new();
     
     if graphics_family != present_family {
-      println!("Concurrent sharing enabled");
+      logs.system_msg(&format!("Concurrent sharing enabled"));
       image_sharing_mode = SharingMode::Concurrent.to_bits();
       queue_family_index_count = 2;
       queue_family_indices = vec!(graphics_family, present_family);
     } else {
-      println!("Exclusive sharing enabled");
+      logs.system_msg(&format!("Exclusive sharing enabled"));
       image_sharing_mode = SharingMode::Exclusive.to_bits();
       queue_family_index_count = 0;
     }

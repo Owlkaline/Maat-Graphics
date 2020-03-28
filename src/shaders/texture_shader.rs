@@ -646,7 +646,7 @@ impl TextureShader {
                                        &self.instanced_pipeline,
                                        vec!(*descriptor.set(0)));
       
-      instanced_data.empty();
+      instanced_data.clear();
     }
     
     cmd

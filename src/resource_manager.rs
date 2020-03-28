@@ -12,6 +12,10 @@ use crate::vulkan::pool::{CommandPool};
 use crate::gltf_interpreter::ModelDetails;
 use crate::font::GenericFont;
 
+use crate::{ModelData, CollisionInfo};
+
+use crate::Logs;
+
 use cgmath::Vector3;
 
 use std::time;
@@ -23,7 +27,7 @@ use std::sync::Mutex;
 enum ObjectType {
   Font(Option<(GenericFont, ImageAttachment)>),
   Texture(Option<image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>>>, Option<ImageAttachment>),
-  Model(Option<ModelDetails>, Vec<Option<ImageAttachment>>),
+  Model(Option<ModelDetails>, Vec<Option<ImageAttachment>>, Option<ModelData>),
   _Shape(Option<(Buffer<f32>, ImageAttachment)>),
 }
 
@@ -92,7 +96,7 @@ impl LoadableObject {
           }
         }
         
-        object = ObjectType::Model(Some(model.clone()), images);
+        object = ObjectType::Model(Some(model.clone()), images, None);
       },
       _ => { println!("No implemented to load yet"); return; },
     }
@@ -136,7 +140,7 @@ impl ResourceManager {
   /**
   ** Needs to be called frequently in backend to move resources from unknown land to somewhere where we can use it
   **/
-  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<(String, Option<Vector3<f32>>, Option<Vec<Vec<f32>>>)> {
+  pub fn recieve_objects(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_type: ImageType, image_view_type: ImageViewType, format: &vk::Format, samples: SampleCount, tiling: ImageTiling, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Vec<(String, ModelData)> {
     let mut references = Vec::new();
     
     if self.num_recv_objects <= 0 {
@@ -158,18 +162,36 @@ impl ResourceManager {
           //println!("Object recieved: {}", object.reference);
           
           let mut size = None;
-          let mut terrain_data = None;
+          let mut model_data = None;
           match &object.object_type {
-            ObjectType::Model(Some(model), ..) => {
+            ObjectType::Model(Some(model), _, data) => {
+              println!("reference: {} = {:?}", reference.to_string(), data);
               size = Some(model.get_size());
-              terrain_data = model.get_height_points();
+              model_data = data.clone();
             }
             _ => {}
           }
           
+          if let Some(data) = &model_data {
+            println!("RECV_OBJECT_FIRST: collsiion info count: {}", data.num_collision_info());
+          }
+          
+          let object_location = object.location.to_string();
           self.objects.push(object);
           
-          references.push((reference, size, terrain_data));
+          if model_data.is_none() {
+            println!("model data reference name is {}Uwu", reference.to_string());
+            model_data = Some(ModelData::new(reference.to_string(), object_location.to_string()));
+            if let Some(m_data) = &mut model_data {
+              if let Some(size) = size {
+                m_data.set_size(size);
+              }
+              
+              m_data.load_collision_info();
+            }
+          }
+          
+          references.push((reference.to_string(), model_data.unwrap_or(ModelData::new(reference.to_string(), object_location))));
           self.num_recv_objects -= 1;
         },
         Err(_e) => { },
@@ -199,7 +221,7 @@ impl ResourceManager {
                 image.destroy(Arc::clone(&device));
               }
             },
-            ObjectType::Model(_, images) => {
+            ObjectType::Model(_, images, _) => {
               for some_image in images {
                 if let Some(image) = some_image {
                   image.destroy(Arc::clone(&device));
@@ -264,7 +286,7 @@ impl ResourceManager {
     for object in &self.objects {
       if object.reference == reference {
         match object.object_type {
-          ObjectType::Model(ref model, ref images) => {
+          ObjectType::Model(ref model, ref images, ..) => {
             result = Some((model.clone(), images.clone()));
           },
           _ => {}
@@ -320,8 +342,11 @@ impl ResourceManager {
   ** Inserts details for a texture, does not load the image into memory.
   ** Must call Load_texture as a DrawCall in order to use
   **/
-  pub fn insert_unloaded_texture(&mut self, reference: String, location: String) {
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+  pub fn insert_unloaded_texture(&mut self, reference: String, location: String, logs: &mut Logs) {
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Texture {} already exists!", reference));
+    }
+    //debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
    // println!("Inserting object: {}", reference);
     self.objects.push(
       LoadableObject {
@@ -336,9 +361,12 @@ impl ResourceManager {
   /**
   ** Inserts a image that was created elsewhere in the program into the resource manager, a location is not required here as it is presumed that it was not created from a file that the ResourceManager has access to.
   **/
-  pub fn _insert_texture(&mut self, reference: String, new_image: ImageAttachment) {
+  pub fn _insert_texture(&mut self, reference: String, new_image: ImageAttachment, logs: &mut Logs) {
    // println!("inserting texture");
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    //debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Texture {} already exists!", reference));
+    }
     
     self.objects.push(
       LoadableObject {
@@ -353,11 +381,13 @@ impl ResourceManager {
   /**
   ** Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_texture(&mut self, reference: String, location: String, device: Arc<Device>, instance: Arc<Instance>, command_pool: &CommandPool, queue: vk::Queue) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
+  pub fn sync_load_texture(&mut self, reference: String, location: String, device: Arc<Device>, instance: Arc<Instance>, command_pool: &CommandPool, queue: vk::Queue, logs: &mut Logs) {
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Sync Load {} already exists!", reference));
+    }
+   // debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
   
-    let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue);
+    let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue, logs);
     
     self.objects.push(
       LoadableObject {
@@ -372,7 +402,7 @@ impl ResourceManager {
   /**
   ** Loads textures from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_texture_from_reference(&mut self, reference: String) {
+  pub fn load_texture_from_reference(&mut self, reference: String, logs: &mut Logs) {
    // debug_assert!(!self.check_object(reference.clone()), "Error: Object {} doesn't exist!", reference);
     
     let unloaded_object = self.get_unloaded_object(reference.clone());
@@ -380,7 +410,7 @@ impl ResourceManager {
       let location = object.location;
       let reference = object.reference;
       
-      self.load_texture(reference, location);
+      self.load_texture(reference, location, logs);
     } else {
     //  println!("Object {} already loaded", reference);
     }
@@ -415,7 +445,7 @@ impl ResourceManager {
       let mut object_index: i32 = -1;
       if self.objects[i].reference == reference {
         match &self.objects[i].object_type {
-ObjectType::Model(_, images) => {
+ObjectType::Model(_, images, ..) => {
           object_index = i as i32;
           for some_image in images {
             if let Some(image) = some_image {
@@ -436,12 +466,14 @@ ObjectType::Model(_, images) => {
   /**
   ** Only way to laod new font, Forces thread to wait until resource is loaded into memory.
   **/
-  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8], device: Arc<Device>, instance: Arc<Instance>, command_pool: &CommandPool, queue: vk::Queue) {
+  pub fn sync_load_font(&mut self, reference: String, location: String, font: &[u8], device: Arc<Device>, instance: Arc<Instance>, command_pool: &CommandPool, queue: vk::Queue, logs: &mut Logs) {
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Font {} already exists!", reference));
+    }
+    //debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
     
-    debug_assert!(self.check_object(reference.clone()), "Error, Object reference already exists!");
-    
-    let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue);
-    let font = ResourceManager::load_font_into_memory(reference.clone(), font);
+    let texture = ResourceManager::load_texture_into_memory(location.clone(), instance, device, command_pool, queue, logs);
+    let font = ResourceManager::load_font_into_memory(reference.clone(), font, logs);
     
     self.objects.push(
       LoadableObject {
@@ -453,14 +485,14 @@ ObjectType::Model(_, images) => {
     );
   }
   
-  fn load_font_into_memory(reference: String, font: &[u8]) -> GenericFont {
+  fn load_font_into_memory(reference: String, font: &[u8], logs: &mut Logs) -> GenericFont {
     let font_start_time = time::Instant::now();
     
     let mut new_font = GenericFont::new();
     new_font.load_font(font);
     
     let font_time = font_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms, Font: {:?}", (font_time*1000f64) as f32, reference);
+    logs.system_msg(&format!("{} ms, Font: {:?}", (font_time*1000f64) as f32, reference));
     
     new_font
   }
@@ -482,7 +514,7 @@ ObjectType::Model(_, images) => {
         loaded: false,
         location: location,
         reference: reference.clone(),
-        object_type: ObjectType::Model(None, Vec::new()),
+        object_type: ObjectType::Model(None, Vec::new(), None),
       }
     );
   }
@@ -490,14 +522,13 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads models from inserted details in seperate threads, non bloacking.
   **/
-  pub fn load_model_from_reference(&mut self, reference: (String, bool)) {
-    let unloaded_object = self.get_unloaded_object(reference.0.clone());
+  pub fn load_model_from_reference(&mut self, reference: String, logs: &mut Logs) {
+    let unloaded_object = self.get_unloaded_object(reference.clone());
     if let Some(object) = unloaded_object {
-      let is_terrain = reference.1;
       let location = object.location;
       let reference = object.reference;
       
-      self.load_model(reference, location, is_terrain);
+      self.load_model(reference, location, logs);
     } else {
       //println!("Object {} already loaded", reference);
     }
@@ -506,9 +537,11 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads textures in seperate threads, non bloacking.
   **/
-  pub fn load_texture(&mut self, reference: String, location: String) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+  pub fn load_texture(&mut self, reference: String, location: String, logs: &mut Logs) {
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Texture {} already exists!", reference));
+    }
+    //debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     //println!("loading texture");
     self.num_recv_objects += 1;
     let index = self.data.len();
@@ -533,20 +566,20 @@ ObjectType::Model(_, images) => {
       };
       
       let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+      //println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
       println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
-      
       *data = Some(object);
       tx.send(index.clone()).unwrap();
     });
   }
   
-  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue) -> ImageAttachment {
+  fn load_texture_into_memory(location: String, instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: vk::Queue, logs: &mut Logs) -> ImageAttachment {
     let texture_start_time = time::Instant::now();
     
     let texture = ImageAttachment::create_texture_from_location(instance, device, location.to_string(), &ImageType::Type2D, &ImageTiling::Optimal, &SampleCount::OneBit, &ImageViewType::Type2D, vk::FORMAT_R8G8B8A8_UNORM, command_pool, &graphics_queue);
     
     let texture_time = texture_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (texture_time*1000f64) as f32, location);
+    logs.system_msg(&format!("{} ms,  {:?}", (texture_time*1000f64) as f32, location));
     
     (texture)
   }
@@ -564,24 +597,26 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads models in the main thread blocking.
   **/
-  pub fn sync_load_model(&mut self, reference: String, location: String, is_terrain: bool) {
-    
-    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+  pub fn sync_load_model(&mut self, reference: String, location: String, logs: &mut Logs) {
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Model {} reference already exists!", reference));
+    }
+    //debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
    // println!("loading model");
     
     let model_start_time = time::Instant::now();
-    let model = ModelDetails::new(location.to_string(), is_terrain);
+    let model = ModelDetails::new(location.to_string());
       
     let object = LoadableObject {
       loaded: true,
       location: location.to_string(),
       reference: reference,
-      object_type: ObjectType::Model(Some(model), Vec::new()),
+      object_type: ObjectType::Model(Some(model), Vec::new(), None),
     };
     
     let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
-    println!("{} ms,  {:?}", (model_time*1000f64) as f32, location);
+    logs.system_msg(&format!("{} ms,  {:?}", (model_time*1000f64) as f32, location));
     
     self.objects.push(object);
   }
@@ -589,9 +624,13 @@ ObjectType::Model(_, images) => {
   /**
   ** Loads modelss in seperate threads, non bloacking.
   **/
-  pub fn load_model(&mut self, reference: String, location: String, is_terrain: bool) {
+  pub fn load_model(&mut self, reference: String, location: String, logs: &mut Logs) {
     
-    debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
+    if self.check_object(reference.clone()) {
+      logs.warning_msg(&format!("Model {} reference already exists", reference));
+    }
+    
+    //debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     //println!("loading model");
     self.num_recv_objects += 1;
     let index = self.data.len();
@@ -602,13 +641,13 @@ ObjectType::Model(_, images) => {
     self.pool.execute(move || {
       let mut data = data.lock().unwrap();
       let model_start_time = time::Instant::now();
-      let model = ModelDetails::new(location.to_string(), is_terrain);
+      let model = ModelDetails::new(location.to_string());
       
       let object = LoadableObject {
         loaded: true,
         location: location.to_string(),
         reference: reference,
-        object_type: ObjectType::Model(Some(model), Vec::new()),
+        object_type: ObjectType::Model(Some(model), Vec::new(), None),
       };
       
       let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
@@ -619,6 +658,43 @@ ObjectType::Model(_, images) => {
     });
   }
   
+  pub fn add_loaded_terrain(&mut self, model: (ModelDetails, ModelData), logs: &mut Logs) {
+   if self.check_object(model.1.name().clone()) {
+     logs.warning_msg(&format!("Terrain {} reference already exists!", model.1.name()));
+   }
+    println!("ADD_LOADED_TERRAIN: collsiion info count: {}", model.1.num_collision_info());
+    self.num_recv_objects += 1;
+    let index = self.data.len();
+    
+    self.data.push(Arc::new(Mutex::new(None)));
+    
+    let (data, tx) = (self.data[index].clone(), self.tx.clone());
+    self.pool.execute(move || {
+      let mut data = data.lock().unwrap();
+      let model_start_time = time::Instant::now();
+      
+      let m_data = model.1.clone();
+      let m_details = model.0.clone();
+      
+      
+      println!("THREAD_ADD_LOADED_TERRAIN: collsiion info count: {}", m_data.num_collision_info());
+      
+      let object = LoadableObject {
+        loaded: true,
+        location: "".to_string(),
+        reference: m_data.name().to_string(),
+        object_type: ObjectType::Model(Some(m_details), Vec::new(), Some(m_data)),
+      };
+      
+      let model_time = model_start_time.elapsed().subsec_nanos() as f64 / 1000000000.0 as f64;
+      println!("{} ms,  {:?}", (model_time*1000f64) as f32, model.1.name().to_string());
+      
+      *data = Some(object);
+      tx.send(index.clone()).unwrap();
+    });
+  }
+  
+  /*
   pub fn add_loaded_model(&mut self, reference: String, model: ModelDetails) {
     debug_assert!(self.check_object(reference.clone()), "Error: Object reference already exists!");
     
@@ -645,7 +721,7 @@ ObjectType::Model(_, images) => {
       *data = Some(object);
       tx.send(index.clone()).unwrap();
     });
-  }
+  }*/
   
   /*
   /**

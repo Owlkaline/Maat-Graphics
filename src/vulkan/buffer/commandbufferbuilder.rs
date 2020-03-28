@@ -174,6 +174,11 @@ impl CommandBufferBuilder {
     self
   }
   
+  pub fn buffer_barrier(self, device: Arc<Device>, src_stage: PipelineStage, dst_stage: PipelineStage, src_mask: &Access, dst_mask: &Access, src_queue_family: u32, dst_queue_family: u32, buffer: &Buffer<f32>) -> CommandBufferBuilder {
+    self.command_buffer.buffer_barrier(Arc::clone(&device), src_stage, dst_stage, src_mask, dst_mask, src_queue_family, dst_queue_family, buffer.internal_object(0), 0);
+    self
+  }
+  
   pub fn image_barrier(self, device: Arc<Device>, src_mask: &Access, dst_mask: &Access, old_layout: &ImageLayout, new_layout: &ImageLayout, aspect: &ImageAspect, src_stage: PipelineStage, dst_stage: PipelineStage, src_queue_family: u32, dst_queue_family: u32, image: &ImageAttachment) -> CommandBufferBuilder {
     self.command_buffer.image_barrier(Arc::clone(&device), src_mask, dst_mask, old_layout, new_layout, aspect, src_stage, dst_stage, src_queue_family, dst_queue_family, image);
     self

@@ -385,6 +385,31 @@ impl CommandBuffer {
     }
   }
   
+  pub fn buffer_barrier(&self, device: Arc<Device>, 
+                              src_stage: PipelineStage, dst_stage: PipelineStage,
+                              src_access_flags: &Access, dst_access_flags: &Access, 
+                              src_queue_family: u32, dst_queue_family: u32, 
+                              buffer: &vk::Buffer, 
+                              offset: u32) {
+    
+    let barrier = vk::BufferMemoryBarrier {
+      sType: vk::STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+      pNext: ptr::null(),
+      srcAccessMask: src_access_flags.to_bits(),
+      dstAccessMask: dst_access_flags.to_bits(),
+      srcQueueFamilyIndex: src_queue_family,
+      dstQueueFamilyIndex: dst_queue_family,
+      buffer: *buffer,
+      offset: offset as u64,
+      size: vk::WHOLE_SIZE,
+    };
+    
+    unsafe {
+      let vk = device.pointers();
+      vk.CmdPipelineBarrier(self.command_buffer, src_stage.to_bits(), dst_stage.to_bits(), 0, 0, ptr::null(), 1, &barrier, 0, ptr::null());
+    }
+  }
+  
   pub fn pipeline_barrier(&self, device: Arc<Device>, src_stage: PipelineStage, dst_stage: PipelineStage, barrier: vk::ImageMemoryBarrier) {
     unsafe {
       let vk = device.pointers();

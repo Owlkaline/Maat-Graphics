@@ -7,6 +7,8 @@ use crate::vulkan::loader;
 use crate::vulkan::loader::Loader; 
 use crate::vulkan::loader::FunctionPointers;
 
+use crate::Logs;
+
 use std::mem;
 use std::ptr;
 use std::sync::Arc;
@@ -73,7 +75,7 @@ impl Instance {
     &self.instance
   }
   
-  pub fn enumerate_physical_devices(&self) -> Vec<vk::PhysicalDevice> {
+  pub fn enumerate_physical_devices(&self, logs: &mut Logs) -> Vec<vk::PhysicalDevice> {
     let mut physical_device_count = 0;
     let mut physical_devices: Vec<vk::PhysicalDevice>;
     
@@ -84,7 +86,7 @@ impl Instance {
       physical_devices.set_len(physical_device_count as usize);
     }
     
-    println!("Number of usable GPUs: {}", physical_device_count);
+    logs.system_msg(&format!("Number of usable GPUs: {}", physical_device_count));
     
     physical_devices
   }

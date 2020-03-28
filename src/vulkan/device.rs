@@ -3,6 +3,8 @@ use vk;
 use crate::vulkan::Instance;
 use crate::vulkan::vkenums::{VkBool};
 
+use crate::Logs;
+
 use std::mem;
 use std::ptr;
 use std::sync::Arc;
@@ -19,8 +21,8 @@ pub struct Device {
 }
 
 impl Device {
-  pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> Arc<Device> {
-    let (device, phys_device, min_uniformbuffer_offset_alignment, non_coherent_atom_size, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface);
+  pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> Arc<Device> {
+    let (device, phys_device, min_uniformbuffer_offset_alignment, non_coherent_atom_size, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface, logs);
     let vk = Device::create_device_instance(Arc::clone(&instance), &device);
     
     Arc::new(Device {
@@ -71,7 +73,7 @@ impl Device {
     graphics_queue
   }
   
-  pub fn get_compute_queue(&self, instance: Arc<Instance>) -> (vk::Queue, u32) {
+  pub fn get_compute_queue(&self, instance: Arc<Instance>, logs: &mut Logs) -> (vk::Queue, u32) {
     let mut num_queue_families = 0;
     let mut queue_family_properties: Vec<vk::QueueFamilyProperties>;
     let mut compute_index: u32 = 0;
@@ -91,7 +93,7 @@ impl Device {
     for i in 0..num_queue_families as usize {
       if Device::has_compute_bit(&queue_family_properties[i].queueFlags) && !Device::has_graphics_bit(&queue_family_properties[i].queueFlags) {
         compute_index = i as u32;
-        println!("Dedicated Compute queue found!");
+        logs.system_msg(&format!("Dedicated Compute queue found!"));
         break;
       }
     }
@@ -126,13 +128,13 @@ impl Device {
     vk_device
   }
   
-  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
+  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
     let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
-    let physical_devices = instance.enumerate_physical_devices();
+    let physical_devices = instance.enumerate_physical_devices(logs);
     
-    Device::print_physical_device_details(instance.pointers(), &physical_devices);
+    Device::print_physical_device_details(instance.pointers(), &physical_devices, logs);
     
     let mut device: vk::Device = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let mut device_available_extensions = Vec::new();
@@ -208,12 +210,12 @@ impl Device {
         
         match device_features.shaderSampledImageArrayDynamicIndexing {
           vk::TRUE => {
-            println!("Dynamic indexing supported!");
+            logs.system_msg(&format!("Dynamic indexing supported!"));
           },
-          _ => {println!("Dynamic indexing not supported :(");}
+          _ => {logs.warning_msg(&format!("Dynamic indexing not supported :("));}
         }
         
-        println!("feature alpha to one {}", device_features.alphaToOne);
+        logs.system_msg(&format!("feature alpha to one {}", device_features.alphaToOne));
         
         // Need to fix
         let features = vk::PhysicalDeviceFeatures {
@@ -305,13 +307,13 @@ impl Device {
     
     let min_uniformbuffer_offset_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     let non_coherent_atom_size = device_prop.limits.nonCoherentAtomSize;
-    println!("Max fragment shader outputs: {}", device_prop.limits.maxFragmentOutputAttachments);
-    println!("Max fragment shader inputs: {}", device_prop.limits.maxDescriptorSetInputAttachments);
+    logs.system_msg(&format!("Max fragment shader outputs: {}", device_prop.limits.maxFragmentOutputAttachments));
+    logs.system_msg(&format!("Max fragment shader inputs: {}", device_prop.limits.maxDescriptorSetInputAttachments));
     
     (device, physical_devices[physical_device_index], min_uniformbuffer_offset_alignment, non_coherent_atom_size, device_available_extensions)
   }
   
-  fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>) {
+  fn print_physical_device_details(vk_instance: &vk::InstancePointers, physical_devices: &Vec<vk::PhysicalDevice>, logs: &mut Logs) {
     for i in 0..physical_devices.len() as usize {
       let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
       
@@ -319,8 +321,8 @@ impl Device {
         vk_instance.GetPhysicalDeviceProperties(physical_devices[i], &mut device_prop);
       }
       
-      println!("min alignment: {}", device_prop.limits.minUniformBufferOffsetAlignment);
-      println!("max push constant size: {}", device_prop.limits.maxPushConstantsSize);
+      logs.system_msg(&format!("min alignment: {}", device_prop.limits.minUniformBufferOffsetAlignment));
+      logs.system_msg(&format!("max push constant size: {}", device_prop.limits.maxPushConstantsSize));
       let device_name = device_prop.deviceName.iter().map(|a| { 
         let mut b = (*a as u8 as char).to_string();
         if b == "\u{0}".to_string() {
@@ -341,11 +343,11 @@ impl Device {
         _ => {},
       }
       
-      println!("{}: {} -> {}", i, device_type_name, device_name);
+      logs.system_msg(&format!("{}: {} -> {}", i, device_type_name, device_name));
     }
     
     for i in 0..physical_devices.len() {
-      println!("Device: {}", i);
+      logs.system_msg(&format!("Device: {}", i));
       let mut family_count = 0;
       
       unsafe {
@@ -361,30 +363,30 @@ impl Device {
       
       //let mut queue_index = 0;
       for j in 0..family_properties.len() {
-        println!("  Queue: {}", j);
+        logs.system_msg(&format!("  Queue: {}", j));
         let mut queue_flags = family_properties[j].queueFlags;
         if Device::has_graphics_bit(&queue_flags) {
-          println!("    Graphics: True");
+          logs.system_msg(&format!("    Graphics: True"));
           queue_flags -= 1;
         } else {
-          println!("    Graphics: False");
+          logs.system_msg(&format!("    Graphics: False"));
         };
         if queue_flags >= 8 {
-          println!("     Binding: True");
+          logs.system_msg(&format!("     Binding: True"));
           queue_flags -= 8;
         } else {
-          println!("     Binding: False");
+          logs.system_msg(&format!("     Binding: False"));
         }
         if queue_flags >= 4 {
-          println!("    Transfer: True");
+          logs.system_msg(&format!("    Transfer: True"));
           queue_flags -= 4;
         } else {
-          println!("    Transfer: False");
+          logs.system_msg(&format!("    Transfer: False"));
         }
         if queue_flags != 0 {
-          println!("     Compute: True");
+          logs.system_msg(&format!("     Compute: True"));
         } else {
-          println!("     Compute: False");
+          logs.system_msg(&format!("     Compute: False"));
         }
       }
     }

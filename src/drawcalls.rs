@@ -49,7 +49,7 @@ pub enum DrawType {
   // Ref
   LoadTexture(String),
   LoadFont(String),
-  LoadModel((String, bool)),
+  LoadModel(String),
   UnloadTexture(String),
   UnloadFont(String),
   UnloadModel(String),
@@ -427,14 +427,7 @@ impl DrawCall {
   
   pub fn load_model(reference: String) -> DrawCall {
     DrawCall {
-      draw_type: DrawType::LoadModel((reference, false)),
-      coloured: true,
-    }
-  }
-  
-  pub fn load_terrain_model(reference: String) -> DrawCall {
-    DrawCall {
-      draw_type: DrawType::LoadModel((reference, true)),
+      draw_type: DrawType::LoadModel(reference),
       coloured: true,
     }
   }

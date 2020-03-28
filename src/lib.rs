@@ -112,6 +112,10 @@ pub use self::settings::Settings;
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
 
+pub use self::model_data::{ModelData, CollisionInfo, CollisionType};
+
+use logs::Logs;
+
 pub mod graphics;
 pub mod shaders;
 pub mod vulkan;
@@ -126,6 +130,8 @@ mod gltf_interpreter;
 mod font;
 mod threadpool;
 mod resource_manager;
+mod model_data;
+mod logs;
 
 #[cfg(test)]
 mod tests {

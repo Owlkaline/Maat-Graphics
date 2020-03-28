@@ -29,8 +29,7 @@ pub struct DescriptorSetBuilder {
 }
 
 pub struct UpdateDescriptorSets<'a> {
-  uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
-  dynamic_uniform_buffers: Vec<(u32, &'a Buffer<f32>)>,
+  buffers: Vec<(u32, DescriptorType, &'a Buffer<f32>)>,
   images: Vec<(u32, &'a ImageAttachment, ImageLayout, Option<&'a Sampler>, DescriptorType)>,
   input_images: Vec<(u32, &'a Vec<ImageAttachment>, ImageLayout, DescriptorType)>,
 }
@@ -38,35 +37,38 @@ pub struct UpdateDescriptorSets<'a> {
 impl<'a> UpdateDescriptorSets<'a> {
   pub fn new() -> UpdateDescriptorSets<'a> {
     UpdateDescriptorSets {
-      uniform_buffers: Vec::new(),
-      dynamic_uniform_buffers: Vec::new(),
+      buffers: Vec::new(),
       images: Vec::new(),
       input_images: Vec::new(),
     }
   }
   
   pub fn add_built_uniformbuffer(mut self, binding: u32, uniform_buffer: &'a mut Buffer<f32>) -> UpdateDescriptorSets<'a> {
-    self.uniform_buffers.push((binding, uniform_buffer));
+    self.buffers.push((binding, DescriptorType::UniformBuffer, uniform_buffer));
     self
   }
   
+  pub fn add_storage_buffer(mut self, binding: u32, buffer: &'a Buffer<f32>) -> UpdateDescriptorSets<'a> {
+    self.buffers.push((binding, DescriptorType::StorageBuffer, buffer));
+    self
+  }
   
   pub fn add_uniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
-    self.uniform_buffers.push((binding, uniform_buffer));
+    self.buffers.push((binding, DescriptorType::UniformBuffer, uniform_buffer));
     self
   }
   
   pub fn add_built_dynamicuniformbuffer(mut self, binding: u32, uniform_buffer: &'a mut Buffer<f32>) -> UpdateDescriptorSets<'a> {
-    self.dynamic_uniform_buffers.push((binding, uniform_buffer));
+    self.buffers.push((binding, DescriptorType::UniformBufferDynamic, uniform_buffer));
     self
   }
   
   pub fn add_dyanmicuniformbuffer(mut self, device: Arc<Device>, binding: u32, uniform_buffer: &'a mut Buffer<f32>, data: UniformData) -> UpdateDescriptorSets<'a> {
     let mut data = data;
     uniform_buffer.fill_entire_buffer_all_frames(Arc::clone(&device), data.build(Arc::clone(&device)));
-    self.dynamic_uniform_buffers.push((binding, uniform_buffer));
+    self.buffers.push((binding, DescriptorType::UniformBufferDynamic, uniform_buffer));
     self
   }
   
@@ -89,10 +91,10 @@ impl<'a> UpdateDescriptorSets<'a> {
     let sets = descriptor_set.all_sets();
 
     for j in 0..sets.len() {
-     for i in 0..self.uniform_buffers.len() {
-       let (binding, uniform_buffer) = &self.uniform_buffers[i];
+     for i in 0..self.buffers.len() {
+       let (binding, buffer_type, buffer) = &self.buffers[i];
        let descriptor_buffer_info = vk::DescriptorBufferInfo {
-            buffer: *uniform_buffer.internal_object(j),
+            buffer: *buffer.internal_object(j),
             offset: 0,
             range: vk::WHOLE_SIZE,
          };
@@ -105,41 +107,11 @@ impl<'a> UpdateDescriptorSets<'a> {
             dstBinding: *binding,
             dstArrayElement: 0,
             descriptorCount: 1,
-            descriptorType: DescriptorType::UniformBuffer.to_bits(),
+            descriptorType: buffer_type.to_bits(),
             pImageInfo: ptr::null(),
             pBufferInfo: &descriptor_buffer_info,
             pTexelBufferView: ptr::null(),
           };
-        
-        let vk = device.pointers();
-        let device = device.internal_object();
-        unsafe {
-          vk.UpdateDescriptorSets(*device, 1, &write_descriptor_set, 0, ptr::null());
-        }
-      }
-      
-      for i in 0..self.dynamic_uniform_buffers.len() {
-        let (binding, uniform_buffer) = &self.dynamic_uniform_buffers[i];
-        let descriptor_buffer_info =  vk::DescriptorBufferInfo {
-            buffer: *uniform_buffer.internal_object(j),
-            offset: 0,
-            range: vk::WHOLE_SIZE,
-          };
-        
-        let write_descriptor_set =
-          vk::WriteDescriptorSet {
-            sType: vk::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            pNext: ptr::null(),
-            dstSet: sets[j],
-            dstBinding: *binding,
-            dstArrayElement: 0,
-            descriptorCount: 1,
-            descriptorType: DescriptorType::UniformBufferDynamic.to_bits(),
-            pImageInfo: ptr::null(),
-            pBufferInfo: &descriptor_buffer_info,
-            pTexelBufferView: ptr::null(),
-          };
-        
         
         let vk = device.pointers();
         let device = device.internal_object();
@@ -307,6 +279,17 @@ impl DescriptorSetBuilder {
         binding: binding_location,
         descriptor_type: DescriptorType::CombinedImageSampler,
         shader_stage: ShaderStage::Fragment,
+      }
+    );
+    self
+  }
+  
+  pub fn compute_storage_buffer(mut self, binding_location: u32) -> DescriptorSetBuilder {
+    self.descriptor_set_layout_info.push(
+      DescriptorSetLayoutInfo {
+        binding: binding_location,
+        descriptor_type: DescriptorType::StorageBuffer,
+        shader_stage: ShaderStage::Compute,
       }
     );
     self
