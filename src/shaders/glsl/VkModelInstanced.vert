@@ -82,6 +82,32 @@ mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
   return look_at_matrix;
 }
 
+vec4 quaternion_from_rotation(vec3 axis, float deg_rotation) {
+  vec4 q = vec4(0.0);
+  
+  float h_angle = (deg_rotation*0.5) * M_PI / 180.0;
+  q.x = axis.x * sin(h_angle);
+  q.y = axis.y * sin(h_angle);
+  q.z = axis.z * sin(h_angle);
+  q.w = cos(h_angle);
+  
+  return q;
+}
+
+vec3 rotate_vertex_position(vec3 position, vec3 axis, float angle) { 
+  vec4 q = quaternion_from_rotation(axis, angle);
+  vec3 v = position.xyz;
+  return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
+
+vec3 rotate_vector_by_angle(vec3 pos, vec3 rotation) {
+  vec3 rotated_pos = rotate_vertex_position(pos, vec3(1.0, 0.0, 0.0), rotation.x);
+  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 1.0, 0.0), rotation.y);
+  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 0.0, 1.0), rotation.z);
+  
+  return rotated_pos;
+}
+
 mat4 create_rotation_matrix(vec3 deg_rotation) {
   vec3 rotation = to_radians(deg_rotation);
   
@@ -109,7 +135,7 @@ mat4 create_rotation_matrix(vec3 deg_rotation) {
                     vec4(0.0, 0.0, 1.0, 0.0), 
                     vec4(0.0, 0.0, 0.0, 1.0));
   
-  mat4 rotation_matrix = rot_y*rot_x*rot_z;
+  mat4 rotation_matrix = rot_y*rot_z*rot_x;
   
   return rotation_matrix;
 }
@@ -139,11 +165,10 @@ void main() {
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
   mat4 model = create_translation_matrix(model.xyz);
   mat4 scale = create_scale_matrix(model_scale);
-  mat4 rotation = create_rotation_matrix(rotation.xyz);
   
-  vec3 local_pos = vec3(model * rotation * scale * vec4(position, 1.0));
+  vec3 local_pos = vec3(model * scale * vec4(rotate_vector_by_angle(position, rotation.xyz), 1.0));
   
-  vec4 rotated_normal = rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
+  vec4 rotated_normal = vec4(rotate_vector_by_angle(vec3(-normal.x, normal.y, normal.z), rotation.xyz), 1.0);
   
   uvs = uv;
   v_colour = colour;

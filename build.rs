@@ -24,6 +24,9 @@ fn assert_file_exists(path: &str) -> io::Result<()> {
   }
 }*/
 
+
+use std::process::Command;
+
 fn main() {
   let target = env::var("TARGET").unwrap();
   if target.contains("apple-ios") {
@@ -35,7 +38,25 @@ fn main() {
     println!("cargo:rustc-link-lib=framework=QuartzCore");
     println!("cargo:rustc-link-lib=framework=UIKit");
     println!("cargo:rustc-link-lib=framework=Foundation");
-  }/*
+  }
+  
+ // if !(target.contains("windows") || target.contains("apple-ios")) {
+   /* let output = Command::new("sh")
+            .arg("-c")
+            .arg("./src/shaders/glslangValidator")
+            .arg("-V")
+            .arg("./src/shaders/glsl/VkModel.vert")
+            .arg("-o")
+            .arg("./src/shaders/sprv/testVkModelVert.spv")
+            .output()
+            .expect("Failed to run glslangValidator");*/
+   // println!("cargo:rerun-if-changed=src/shaders/glsl");
+ // }
+  
+  
+  
+  
+  /*
   
   let mut build = cc::Build::new();
   build.cpp(true);

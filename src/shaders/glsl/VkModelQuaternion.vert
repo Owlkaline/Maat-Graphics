@@ -30,8 +30,8 @@ layout(push_constant) uniform PushConstants {
   vec4 c_center;   // x, y, z, aspect
   vec4 c_up;       // x, y, z, x_scale
   vec4 model;      // x, y, z, y_scale
-  vec4 rotation;   // x_rot, y_rot, z_rot, z_scale
-  vec4 hologram_scanline; // hologram_enabled, scanline, _, _
+  vec4 quaternion;   // qx, qy, qz, qw 
+  vec4 hologram_scanline; // hologram_enabled, scanline, z_scale, _
 } push_constants;
 
 const float M_PI = 3.141592653589793;
@@ -77,84 +77,7 @@ mat4 create_view_matrix(vec3 eye, vec3 center, vec3 up) {
   return look_at_matrix;
 }
 
-vec4 quaternion_normalise(vec4 q) {
-  float n = sqrt(q.x *q.x + q.y*q.y + q.z*q.z + q.w*q.w);
-  
-  return vec4(q.x/n, q.y/n, q.z/n, q.w/n);
-}
 
-vec4 quaternion_from_rotation(vec3 axis, float deg_rotation) {
-  vec4 q = vec4(0.0);
-  
-  float h_angle = (deg_rotation*0.5) * M_PI / 180.0;
-  q.x = axis.x * sin(h_angle);
-  q.y = axis.y * sin(h_angle);
-  q.z = axis.z * sin(h_angle);
-  q.w = cos(h_angle);
-  
-  return q;
-}
-
-vec4 quaternion_conj(vec4 q) {
-  return vec4(-q.xyz, q.w);
-}
-
-vec4 quaternion_from_position(vec3 pos) {
-  return vec4(pos, 0.0);
-}
-
-vec4 quaternion_inverse(vec4 q) {
-  vec4 q_1 = vec4(0.0);
-  
-  float n = sqrt(q.x *q.x + q.y*q.y + q.z*q.z + q.w*q.w);
-  q_1 = vec4(-q.xyz, q.w) / n;
-  //q_1 = vec4(-q.x/n, -q.y/n, -q.z/n, w/n);.
-  return q_1;
-}
-
-vec4 quaternion_mul(vec4 q1, vec4 q2) {
-  vec4 qr;
-  qr.x = (q1.w * q2.x) + (q1.x * q2.w) + (q1.y * q2.z) - (q1.z * q2.y);
-  qr.y = (q1.w * q2.y) - (q1.x * q2.z) + (q1.y * q2.w) + (q1.z * q2.x);
-  qr.z = (q1.w * q2.z) + (q1.x * q2.y) - (q1.y * q2.x) + (q1.z * q2.w);
-  qr.w = (q1.w * q2.w) - (q1.x * q2.x) - (q1.y * q2.y) - (q1.z * q2.z);
-  return qr;
-}
-
-vec3 rotate_vertex_position(vec3 position, vec3 axis, float angle) { 
-  vec4 q = quaternion_from_rotation(axis, angle);
-  vec3 v = position.xyz;
-  return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
-}
-
-
-mat4 create_rotation_matrix_from_quaternion(vec3 axis, float deg_rotation) {
-  vec4 q = quaternion_from_rotation(axis, deg_rotation);
-  float s = sin(to_radians(deg_rotation) * 0.5);
-  mat4 rotation_matrix = mat4(
-          vec4(1.0 - 2.0*s*(q.y*q.y + q.z*q.z),       2.0*s*(q.x*q.y - q.z*q.w),       2.0*s*(q.x*q.z + q.y*q.w), 0.0),
-          vec4(      2.0*s*(q.x*q.y + q.z*q.w), 1.0 - 2.0*s*(q.x*q.x + q.z*q.z),       2.0*s*(q.y*q.z - q.x*q.w), 0.0),
-          vec4(      2.0*s*(q.x*q.z - q.y*q.w),       2.0*s*(q.y*q.z + q.x*q.w), 1.0 - 2.0*s*(q.x*q.x + q.y*q.y), 0.0),
-          vec4(0.0, 0.0, 0.0, 1.0));
-  
-  return rotation_matrix;
-}
-
-vec3 rotate_vector_by_angle(vec3 pos, vec3 rotation) {
-  vec3 rotated_pos = rotate_vertex_position(pos, vec3(1.0, 0.0, 0.0), rotation.x);
-  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 1.0, 0.0), rotation.y);
-  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 0.0, 1.0), rotation.z);
-  
-  return rotated_pos;
-}
-/*
-mat4 create_entire_rotation_matrix(vec3 rotations) {
-  mat4 rot_x = create_rotation_matrix_from_quaternion(vec3(1.0, 0.0, 0.0), rotations.x);
-  mat4 rot_y = create_rotation_matrix_from_quaternion(vec3(0.0, 1.0, 0.0), rotations.y);
-  mat4 rot_z = create_rotation_matrix_from_quaternion(vec3(0.0, 0.0, 1.0), rotations.z);
-  
-  return rot_y*rot_z*rot_x;
-}*/
 /*
 mat4 create_rotation_matrix(vec3 deg_rotation) {
   vec3 rotation = to_radians(deg_rotation);
@@ -183,7 +106,7 @@ mat4 create_rotation_matrix(vec3 deg_rotation) {
                     vec4(0.0, 0.0, 1.0, 0.0), 
                     vec4(0.0, 0.0, 0.0, 1.0));
   
-  mat4 rotation_matrix = rot_y*rot_z*rot_x;
+  mat4 rotation_matrix = rot_y*rot_x*rot_z;
   
   return rotation_matrix;
 }*/
@@ -213,11 +136,11 @@ void main() {
   mat4 view = create_view_matrix(push_constants.c_position.xyz, push_constants.c_center.xyz, push_constants.c_up.xyz);
   mat4 model = create_translation_matrix(push_constants.model.xyz);
   mat4 scale = create_scale_matrix(model_scale);
-  vec3 rotation = push_constants.rotation.xyz;
+  mat4 rotation = create_rotation_matrix(push_constants.rotation.xyz);
   
-  vec3 local_pos = vec3(model * scale * vec4(rotate_vector_by_angle(position, rotation), 1.0));
+  vec3 local_pos = vec3(model * rotation * scale * vec4(position, 1.0));
   
-  vec4 rotated_normal = vec4(rotate_vector_by_angle(vec3(-normal.x, normal.y, normal.z), rotation), 1.0);
+  vec4 rotated_normal = rotation * vec4(-normal.x, normal.y, normal.z, 1.0);
   
   uvs = uv;
   v_colour = colour;
