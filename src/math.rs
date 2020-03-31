@@ -17,39 +17,6 @@ pub fn is_point_inside_AABB(point: Vector3<f32>, box_location: Vector3<f32>, box
   (point.z >= min_z && point.z <= max_z)
 }
 
-pub fn intersect_rotation_AABB(box_a_location: Vector3<f32>, box_a_size: Vector3<f32>, box_a_rotation: Vector4<f32>,
-                      box_b_location: Vector3<f32>, box_b_size: Vector3<f32>, box_b_rotation: Vector4<f32>) -> bool {
-  let a_min_x = box_a_location.x - box_a_size.x*0.5;
-  let a_max_x = box_a_location.x + box_a_size.x*0.5;
-  let a_min_y = box_a_location.y - box_a_size.y*0.5;
-  let a_max_y = box_a_location.y + box_a_size.y*0.5;
-  let a_min_z = box_a_location.z - box_a_size.z*0.5;
-  let a_max_z = box_a_location.z + box_a_size.z*0.5;
-  
-  let quaternion = Quaternion::new(box_a_rotation.x, box_a_rotation.y, box_a_rotation.z, box_a_rotation.w);
-  let euler = Euler::from(quaternion);
-  let mat4_rotx = Matrix4::from_axis_angle(Vector3::new(1.0, 0.0, 0.0), euler.x);
-  let mat4_roty = Matrix4::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), euler.y);
-  let mat4_rotz = Matrix4::from_axis_angle(Vector3::new(0.0, 0.0, 1.0), euler.z);
-  
-  
-  
-  let a_min = Vector3::new(a_min_x, a_min_y, a_min_z);
-  let a_max = Vector3::new(a_max_x, a_max_y, a_max_z);
-  
-  let b_min_x = box_b_location.x - box_b_size.x*0.5;
-  let b_max_x = box_b_location.x + box_b_size.x*0.5;
-  let b_min_y = box_b_location.y - box_b_size.y*0.5;
-  let b_max_y = box_b_location.y + box_b_size.y*0.5;
-  let b_min_z = box_b_location.z - box_b_size.z*0.5;
-  let b_max_z = box_b_location.z + box_b_size.z*0.5;
-  
-  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
-  (a_min_y <= b_max_y && a_max_y >= b_min_y) &&
-  (a_min_z <= b_max_z && a_max_z >= b_min_z)
-}
-
-
 pub fn intersect_AABB(box_a_location: Vector3<f32>, box_a_size: Vector3<f32>, box_b_location: Vector3<f32>, box_b_size: Vector3<f32>) -> bool {
   let a_min_x = box_a_location.x - box_a_size.x*0.5;
   let a_max_x = box_a_location.x + box_a_size.x*0.5;
@@ -369,6 +336,69 @@ pub fn line_line_collision(line_1: Vector4<f32>, line_2: Vector4<f32>) -> Option
   }
   
   None
+}
+
+
+pub fn quaternion_from_rotation(axis: Vector3<f32>, angle: f32) -> Vector4<f32> {
+  let mut q = Vector4::zero();
+  
+  let h_angle = (angle*0.5) * PI as f32 / 180.0;
+  q.x = axis.x * h_angle.sin();
+  q.y = axis.y * h_angle.sin();
+  q.z = axis.z * h_angle.sin();
+  q.w = h_angle.cos();
+  
+  q
+}
+
+pub fn rotate_vertex_with_quaternion(vertex: Vector3<f32>, axis: Vector3<f32>, angle: f32) -> Vector3<f32> {
+  let q = quaternion_from_rotation(axis, angle);
+  let v = vertex.xyz();
+  vertex + 2.0 * (vertex * q.w + vertex.cross(q.xyz())).cross(q.xyz())
+}
+
+pub fn rotate_vertex_by_angle(vertex: Vector3<f32>, angle: Vector3<f32>) -> Vector3<f32> {
+  // rotation should be in degrees
+  
+  let mut rotated_vertex = rotate_vertex_with_quaternion(vertex, Vector3::new(1.0, 0.0, 0.0), angle.x);
+  rotated_vertex = rotate_vertex_with_quaternion(rotated_vertex, Vector3::new(0.0, 1.0, 0.0), angle.y);
+  rotated_vertex = rotate_vertex_with_quaternion(rotated_vertex, Vector3::new(0.0, 0.0, 1.0), angle.z);
+  
+  rotated_vertex
+}
+
+// scale 0.866025404
+// rot_x 0.577350269
+// rot y 
+// rot z 
+// angle 120
+
+pub fn quaternion_to_axis_angle(q: Vector4<f32>) -> Vector3<f32> {
+  let sig = 0.499;
+  
+  let unit = q.x + q.z + q.y + q.w;
+  let test = q.x*q.z + q.y*q.w;
+  
+  let scale = (q.x*q.x + q.y*q.y + q.z*q.z).sqrt();
+    
+  if test > sig * unit {
+    Vector3::new(0.0, 90.0, q.x.atan2(q.w) *2.0)
+  } else if test < -sig * unit {
+    Vector3::new(0.0, -90.0, -q.x.atan2(q.w) *2.0)
+  } else {
+    Vector3::new(
+       (2.0 * (-q.y * q.z - q.x * q.w) as f32).atan2(1.0 - 2.0 * (q.x*q.x + q.y*q.y)) *0.5,
+       (2.0 * (q.x * q.z + q.y * q.w)).asin() * 0.5,
+       (2.0 * (-q.x * q.y + q.z * q.w) as f32).atan2(1.0 - 2.0 * (q.y*q.y + q.z*q.z)) *0.5,
+    )
+  }
+  
+ /* let scale = (q.x*q.x + q.y*q.y + q.z*q.z).sqrt();
+  
+  let angle = q.w.acos() * 2.0;
+  let rotation = Vector3::new(q.x / scale, q.y /scale, q.z / scale);
+  
+  Vector3::new(angle*rotation.x, angle*rotation.y, angle*rotation.z)*/
 }
 
 /// Simple collision between two cicles given

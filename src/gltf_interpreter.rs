@@ -327,7 +327,7 @@ impl ModelDetails {
 
     let mut models: Vec<FinalModel> = Vec::new();
     let mut min_xyz: Vector3<f32> = Vector3::new(10000000000000000.0, 100000000000000.0, 10000000000000000.0);
-    let mut max_xyz: Vector3<f32> = Vector3::new(-10000000000000000000.0, -1.000000000000000000, -100000000000000000.0);
+    let mut max_xyz: Vector3<f32> = Vector3::new(-10000000000000000000.0, -100000000000000000.0, -100000000000000000.0);
   /*  let mut models = FinalModel {
       vertices: VertexArray,
       indices: IndexArray,
@@ -456,16 +456,20 @@ impl ModelDetails {
     
     let mut index = 0;
     for node in gltf.nodes() {
-      let (translation, rotation, scale) = node.transform().decomposed();
-      let scale = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
-      let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
-      let quaternion = Quaternion::new(rotation[3], 
-                                       rotation[0], 
-                                       rotation[1], 
-                                       rotation[2]);
-      //let inverse_quaternion = quaternion.invert();
-      let rotation = Matrix4::from(quaternion);
-      
+      let transform_matrix = node.transform().matrix();
+      let t_matrix = Matrix4::from_cols(
+                                Vector4::new(transform_matrix[0][0], transform_matrix[0][1], transform_matrix[0][2], transform_matrix[0][3]),
+                                Vector4::new(transform_matrix[1][0], transform_matrix[1][1], transform_matrix[1][2], transform_matrix[1][3]),
+                                Vector4::new(transform_matrix[2][0], transform_matrix[2][1], transform_matrix[2][2], transform_matrix[2][3]),
+                                Vector4::new(transform_matrix[3][0], transform_matrix[3][1], transform_matrix[3][2], transform_matrix[3][3])
+                              );
+      //let (translation, quaternion, scale) = node.transform().decomposed();
+      //let scale = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
+      //let translation = Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
+      //println!("{:?}", quaternion);
+      //let quaternion = math::array4_to_vec4(quaternion);
+      //let quaternion = math::quaternion_to_axis_angle(quaternion);
+      //println!("{:?}\n", quaternion);
       for mesh in node.mesh() {
         //println!("{}", index);
         //println!("Mesh #{}", mesh.index());
@@ -544,9 +548,10 @@ impl ModelDetails {
           if let Some(iter) = reader.read_positions() {
             let mut vertices = Vec::with_capacity(iter.len());
             for vertex_position in iter {
-              let vertex = Vector3::new(vertex_position[0], vertex_position[1], vertex_position[2]);
-              //let rotq = (quaternion*Quaternion::from_sv(0.0, vertex)*inverse_quaternion).v;
-              let vertex = (translation*scale)*rotation*Vector4::new(vertex.x, vertex.y, vertex.z, 1.0);
+              let vertex = Vector4::new(vertex_position[0], vertex_position[1], vertex_position[2], 1.0);
+              ///let vertex = math::rotate_vertex_by_angle(vertex, quaternion);
+              //let vertex = (translation*scale)*Vector4::new(vertex.x, vertex.y, vertex.z, 1.0);
+              let vertex = t_matrix * vertex;
               
               vertices.push([vertex.x, vertex.y, vertex.z]);
             }
@@ -556,7 +561,9 @@ impl ModelDetails {
             let mut normals = Vec::with_capacity(iter.len());
             for vertex_normal in iter {
               let normal = Vector4::new(vertex_normal[0], vertex_normal[1], vertex_normal[2], 1.0);
-              let normal = (translation*scale)*rotation*Vector4::new(normal.x, normal.y, normal.z, 1.0);
+              //let normal = math::rotate_vertex_by_angle(normal, quaternion);
+              let normal = t_matrix * normal;
+              
               normals.push([normal.x, normal.y, normal.z]);
               
               models[index].has_normals = true;
@@ -567,8 +574,9 @@ impl ModelDetails {
             let mut tangents = Vec::with_capacity(iter.len());
             for vertex_tangent in iter {
               let tangent = Vector4::new(vertex_tangent[0], vertex_tangent[1], vertex_tangent[2], vertex_tangent[3]);
-            //  let normal = (translation*scale)*rotation*Vector4::new(tangent.x, tangent.y, tangent.z, tangent.w);
-              tangents.push([tangent.x, tangent.y, tangent.z, tangent.w]);
+             // let tangent = math::rotate_vertex_by_angle(tangent.xyz(), quaternion);
+              let tangent = t_matrix * tangent;
+              tangents.push([tangent.x, tangent.y, tangent.z, vertex_tangent[3]]);
               
               models[index].has_tangents = true;
             }
