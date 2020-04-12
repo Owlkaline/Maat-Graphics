@@ -504,9 +504,9 @@ impl TextureShader {
     
     let height = self.camera.get_top();
     let width = self.camera.get_right();
-    let top = height + height*0.01;
-    let right = width + width*0.01;
-    let pos = self.camera.get_position()+Vector2::new(0.0, -10.0);
+    let top = height; //+ height*0.01;
+    let right = width;// + width*0.01;
+    let pos = self.camera.get_position();//+Vector2::new(0.0, -10.0);
     let projection_details = Vector4::new(pos.x, pos.y, right, top);
     let model = Vector4::new(position.x, position.y, scale.x, scale.y);
     let rotation = Vector4::new(rotation, 0.0, 0.0, 0.0);

@@ -72,11 +72,81 @@ pub fn sphere_intersect_AABB(sphere: Vector4<f32>, box_location: Vector3<f32>, b
   dist < sphere.w
 }
 
-pub fn is_point_inside_circle(point: Vector2<f32>, sphere: Vector3<f32>) -> bool {
+pub fn is_point_inside_circle(point: Vector2<f32>, sphere: Vector2<f32>, radius: f32) -> bool {
   let dist = ((point.x - sphere.x) * (point.x - sphere.x) +
               (point.y - sphere.y) * (point.y - sphere.y)).sqrt();
   
-  dist < sphere.z // dist < radius
+  dist < radius // dist < radius
+}
+
+pub fn intersect_circle(sphere_a: Vector2<f32>, radius_a: f32, sphere_b: Vector2<f32>, radius_b: f32) -> bool {
+  let dist = ((sphere_a.x - sphere_b.x) * (sphere_a.x - sphere_b.x) +
+              (sphere_a.y - sphere_b.y) * (sphere_a.y - sphere_b.y)).sqrt();
+  
+  dist < radius_a + radius_b // dist < a_radius+b_radius
+}
+
+pub fn intersect_square(box_a_location: Vector2<f32>, box_a_size: Vector2<f32>, box_b_location: Vector2<f32>, box_b_size: Vector2<f32>) -> bool {
+  let a_min_x = box_a_location.x - box_a_size.x*0.5;
+  let a_max_x = box_a_location.x + box_a_size.x*0.5;
+  let a_min_y = box_a_location.y - box_a_size.y*0.5;
+  let a_max_y = box_a_location.y + box_a_size.y*0.5;
+  
+  let b_min_x = box_b_location.x - box_b_size.x*0.5;
+  let b_max_x = box_b_location.x + box_b_size.x*0.5;
+  let b_min_y = box_b_location.y - box_b_size.y*0.5;
+  let b_max_y = box_b_location.y + box_b_size.y*0.5;
+  
+  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
+  (a_min_y <= b_max_y && a_max_y >= b_min_y)
+}
+
+pub fn circle_intersect_square(sphere: Vector2<f32>, radius: f32, box_location: Vector2<f32>, box_size: Vector2<f32>) -> bool {
+  let min_x = box_location.x - box_size.x*0.5;
+  let max_x = box_location.x + box_size.x*0.5;
+  let min_y = box_location.y - box_size.y*0.5;
+  let max_y = box_location.y + box_size.y*0.5;
+  
+  let x = ((sphere.x).min(max_x)).max(min_x);
+  let y = ((sphere.y).min(max_y)).max(min_y);
+  
+  let dist = ((x - sphere.x) * (x - sphere.x) +
+              (y - sphere.y) * (y - sphere.y)).sqrt();
+  
+  dist < radius
+}
+
+pub fn line_intersect_square(point_a: Vector2<f32>, point_b: Vector2<f32>, box_location: Vector2<f32>, box_size: Vector2<f32>) -> bool {
+  let min_x = box_location.x - box_size.x*0.5;
+  let max_x = box_location.x + box_size.x*0.5;
+  let min_y = box_location.y - box_size.y*0.5;
+  let max_y = box_location.y + box_size.y*0.5;
+  
+  let line_min_x = point_a.x.min(point_b.x);
+  let line_max_x = point_a.x.max(point_b.x);
+  let line_min_y = point_a.y.min(point_b.y);
+  let line_max_y = point_a.y.max(point_b.y);
+  
+  if min_x > line_max_x || max_x < line_min_x {
+    return false;
+  }
+  
+  if max_y < line_min_y || min_y > line_max_y {
+    return false;
+  }
+  
+  // if box not axis aligned
+  // let y_at_rect_min_x = line.calculate_y_for_x(box.left)
+  // let y_at_rect_max_x = line.calculate_y_for_x(box.right)
+  //if min_x > yatrectleft || max_x < yatrectright {
+  //  return false;
+  //}
+  
+  //if max_y < yatrectleft || min_y > yatrectright {
+  //  return false;
+  //}
+  
+  true
 }
 
 pub trait Vector2Math<T> {

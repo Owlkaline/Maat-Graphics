@@ -387,6 +387,10 @@ impl VkWindow {
     dpi as f32
   }
   
+  pub fn set_cursor_visible(&mut self, visible: bool) {
+    self.window.set_cursor_visible(visible);
+  }
+  
   pub fn set_cursor_position(&self, new_pos: LogicalPosition<f32>, logs: &mut Logs) {
     if let Err(e) = self.window.set_cursor_position(new_pos) {
       logs.error_msg(&e.to_string());

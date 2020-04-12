@@ -83,8 +83,8 @@ vec4 quaternion_normalise(vec4 q) {
   return vec4(q.x/n, q.y/n, q.z/n, q.w/n);
 }
 
-vec4 quaternion_from_rotation(vec3 axis, float deg_rotation) {
-  vec4 q = vec4(0.0);
+vec4 quaternion_from_rotation(vec3 deg_rotation) {
+  /*vec4 q = vec4(0.0);
   
   float h_angle = (deg_rotation*0.5) * M_PI / 180.0;
   q.x = axis.x * sin(h_angle);
@@ -92,7 +92,28 @@ vec4 quaternion_from_rotation(vec3 axis, float deg_rotation) {
   q.z = axis.z * sin(h_angle);
   q.w = cos(h_angle);
   
+  return q;*/
+  //deg_rotation.x += 180.0;
+  //deg_rotation.z += 270.0;
+  //deg_rotation = vec3(0.0, 0.0, 0.0);
+  float h = 0.5;
+  float s_x = sin(to_radians(deg_rotation.x) * h); // 0
+  float c_x = cos(to_radians(deg_rotation.x) * h); // 1
+  
+  float s_y = sin(to_radians(deg_rotation.z) * h); // 0
+  float c_y = cos(to_radians(deg_rotation.z) * h); // 1
+   
+  float s_z = sin(to_radians(deg_rotation.y) * h); // 0
+  float c_z = cos(to_radians(deg_rotation.y) * h); // 1
+  
+  vec4 q = vec4(0.0);
+  q.w = -s_x*s_y*s_z + c_x*c_y*c_z; //1
+  q.x =  s_x*c_y*c_z + s_y*s_z*c_x; //0
+  q.z = -s_x*s_z*c_y + s_y*c_x*c_z; //0
+  q.y = s_z*s_y*c_z + s_z*c_x*c_y;  // 
+  
   return q;
+  //return vec4(0.0, 0.707, 0.0, 1.0);
 }
 
 vec4 quaternion_conj(vec4 q) {
@@ -121,29 +142,27 @@ vec4 quaternion_mul(vec4 q1, vec4 q2) {
   return qr;
 }
 
-vec3 rotate_vertex_position(vec3 position, vec3 axis, float angle) { 
-  vec4 q = quaternion_from_rotation(axis, angle);
+vec3 rotate_vertex_position(vec3 position, vec3 angle) { 
+  vec4 q = quaternion_normalise(quaternion_from_rotation(angle));
   vec3 v = position.xyz;
   return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
 }
 
 
-mat4 create_rotation_matrix_from_quaternion(vec3 axis, float deg_rotation) {
-  vec4 q = quaternion_from_rotation(axis, deg_rotation);
-  float s = sin(to_radians(deg_rotation) * 0.5);
+mat4 create_rotation_matrix_from_quaternion(vec3 deg_rotation) {
+  vec4 q = quaternion_from_rotation(deg_rotation);
+  /*float s = sin(to_radians(deg_rotation.x) * 0.5) + sin(to_radians(deg_rotation.y) * 0.5) + sin(to_radians(deg_rotation.z) * 0.5);
   mat4 rotation_matrix = mat4(
           vec4(1.0 - 2.0*s*(q.y*q.y + q.z*q.z),       2.0*s*(q.x*q.y - q.z*q.w),       2.0*s*(q.x*q.z + q.y*q.w), 0.0),
           vec4(      2.0*s*(q.x*q.y + q.z*q.w), 1.0 - 2.0*s*(q.x*q.x + q.z*q.z),       2.0*s*(q.y*q.z - q.x*q.w), 0.0),
           vec4(      2.0*s*(q.x*q.z - q.y*q.w),       2.0*s*(q.y*q.z + q.x*q.w), 1.0 - 2.0*s*(q.x*q.x + q.y*q.y), 0.0),
           vec4(0.0, 0.0, 0.0, 1.0));
-  
+  */
   return rotation_matrix;
 }
 
 vec3 rotate_vector_by_angle(vec3 pos, vec3 rotation) {
-  vec3 rotated_pos = rotate_vertex_position(pos, vec3(1.0, 0.0, 0.0), rotation.x);
-  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 1.0, 0.0), rotation.y);
-  rotated_pos = rotate_vertex_position(rotated_pos, vec3(0.0, 0.0, 1.0), rotation.z);
+  vec3 rotated_pos = rotate_vertex_position(pos, rotation);
   
   return rotated_pos;
 }

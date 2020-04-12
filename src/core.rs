@@ -785,11 +785,11 @@ impl CoreRender for CoreMaat {
   }
   
   fn show_cursor(&mut self) {
-    
+    self.window.set_cursor_visible(true);
   }
   
   fn hide_cursor(&mut self) {
-    
+    self.window.set_cursor_visible(false);
   }
   
   fn set_clear_colour(&mut self, r: f32, g: f32, b: f32, a: f32) {

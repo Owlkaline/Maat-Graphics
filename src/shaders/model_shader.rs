@@ -1266,6 +1266,7 @@ impl ModelShader {
       let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     scale.x);
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
+      println!("MS: {}: Rotation {:?}", model_reference, rotation);
       let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, 0.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {

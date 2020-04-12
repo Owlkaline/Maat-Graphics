@@ -244,7 +244,7 @@ impl FinalShader {
     cmd.draw_indexed(Arc::clone(&device), &self.vertex_buffer.internal_object(0),
                              &self.index_buffer.internal_object(0),
                              index_count, &self.pipeline,
-                             vec!(if is_model_texture { 
+                             vec!(if is_model_texture {
                                     *self.descriptor_sets[current_buffer].set(0) 
                                   } else {
                                     *self.ds[current_buffer].set(0)
