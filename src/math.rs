@@ -1,8 +1,174 @@
 use cgmath::{Deg, Rad};
 use cgmath::{Vector2, Vector3, Vector4, Matrix4,
-             InnerSpace, Quaternion, Angle, Zero, Euler};
+             InnerSpace, Angle, Zero, Euler};
 
 use std::f64::consts::PI;
+/*
+// 3D math Primer for Graphics and Game Development (2nd Ed)
+#[derive(Clone)]
+pub struct Quaternion {
+  pub w: f32,
+  pub x: f32,
+  pub y: f32,
+  pub z: f32,
+}
+
+impl Quaternion {
+  pub fn new(angle: f32, n: Vector3<f32>) -> Quaternion {
+    let s = (angle*0.5).sin();
+    Quaternion {
+      w: (angle*0.5).cos(),
+      x: s*n.x,
+      y: s*n.y,
+      z: s*n.z,
+    }
+  }
+  
+  pub fn identtiy() -> Quaternion {
+    Quaternion::raw(1.0, 0.0, 0.0, 0.0)
+  }
+  
+  pub fn raw(w: f32, x: f32, y: f32, z: f32) -> Quaternion {
+    Quaternion {
+      w,
+      x,
+      y,
+      z,
+    }
+  }
+  
+  pub fn magnitude(&self) -> f32 {
+    (self.w*self.w + self.x*self.x + self.y*self.y + self.z*self.z).sqrt()
+  }
+  
+  pub fn conjuate(&self) -> Quaternion {
+    Quaternion::raw(self.w, -self.x, -self.y, -self.z)
+  }
+  
+  pub fn inverse(&self) -> Quaternion {
+    let q_star = self.conjuate();
+    let q_mag = self.magnitude();
+    
+    Quaternion::raw(q_star.w / q_mag, q_star.x / q_mag,
+                    q_star.y / q_mag, q_star.z / q_mag)
+  }
+  
+  pub fn xyz(&self) -> Vector3<f32> {
+    Vector3::new(self.x, self.y, self.z)
+  }
+  
+  pub fn scalar(&self, k: f32) -> Quaternion {
+    Quaternion::raw(self.w*k, self.x*k, self.y*k, self.z*k)
+  }
+  
+  pub fn log(&self) -> Quaternion {
+    Quaternion::raw(self.w.log(), self.x.log(), self.y.log(), self.z.log())
+  }
+  
+  pub fn exp(&self, v: f32) -> Quaternion {
+    Quaternion::raw(self.w.exp(v), self.x.exp(v), self.y.exp(v), self.z.exp(v))
+  }
+  
+  pub fn mul(&self, q2: &Quaternion) -> Quaternion {
+    Quaternion::raw(
+      self.w*q2.w - self.x*q2.x - self.y*q2.y - self.z*q2.z,
+      self.w*q2.x + self.x*q2.w + self.y*q2*z - self.z*q2.y,
+      self.w*q2.y + self.y*q2.w + self.z*q2.x - self.x*q2.z,
+      self.w*q2.z + self.z*q2.w + self.x*q2.y - self.y*q2.x
+    )
+  }
+  
+  pub fn dot(&self, q2: &Quaternion) -> f32 {
+    self.w*q2.w + self.x*q2.x + self.y*q2.y + self.z*q2.z
+  }
+  
+  pub fn slerp(&self, q2: &Quaternion, t: f32) -> Quaternion {
+    
+    let mut q1 = self;
+    
+    let mut cos_omega = self.dot(q2);
+    
+    if cos_omega < 0.0 {
+      q1 = &q1.scalar(-1.0);
+      cos_omega = -cos_omega;
+    }
+    
+    let (k_0, k_1) = {
+      if cos_omega > 0.9999 {
+        (1.0-t, t)
+      } else {
+        let sin_omega = (1.0 - cos_omega*cos_omega).sqrt();
+        
+        let omega = sin_omega.atan2(cos_omega);
+        
+        let one_over_sin_omega = 1.0 / sin_omega;
+        
+        let k_0 = ((1.0-t) * omega).sin() * one_over_sin_omega;
+        let k_1 = (t * omega).sin() * one_over_sin_omega;
+        (k_0, k_1)
+      }
+    };
+    
+    Quaternion::raw(
+      q1.w*k_0 + q2.w*k_1,
+      q1.x*k_0 + q2.x*k_1,
+      q1.y*k_0 + q2.y*k_1,
+      q1.z*k_0 + q2.z*k_1,
+    )
+  }
+  
+  pub fn to_euler(&self) -> Vector3<f32> {
+    let sp = -2.0 * (self.y*self.z - self.w*self.x);
+    
+    
+    if sp.abs() > 0.9999 {
+      let p = 1.570796 * sp;
+      let h = (-self.x*self.z - self.w*self.y).atan2(0.5-self.y*self.y - self.z*self.z);
+      let b = 0.0;
+      
+      Vector3::new(p, h, b)
+    } else {
+      let p = (sp).asin();
+      let h = (self.x*self.z - self.w*self.y).atan2(0.5 - self.x*self.x - self.y*self.y);
+      let b = (self.x*self.y - self.w*self.z).atan2(0.5 - self.x*self.x - self.z*self.z);
+      
+      Vector3::new(p, h, b)
+    }
+  }
+  
+  pub fn from_euler(x: f32, y: f32, z: f32) -> Quaternion {
+    let h = Quaternion::new(y, Vector3::new(0.0, 1.0, 0.0));
+    let p = Quaternion::new(x, Vector3::new(1.0, 0.0, 0.0));
+    let b = Quaternion::new(z, Vector3::new(0.0, 0.0, 1.0));
+    
+    (h.mul(&p)).mul(&b).conjuate()
+  }
+  
+  pub fn rotation_matrix(&self) -> Matrix3<f32> {
+    let w = self.w;
+    let x = self.x;
+    let y = self.y;
+    let z = self.z;
+    let y_2 = y*y;
+    let x_2 = x*x;
+    let z_2 = z*z;
+    let w_2 = w*w;
+    Matrix3::from_cols(
+      Vector3::new(1.0 - 2.0*y_2 - 2.0*z_2, 2.0*x*y + 2.0*w*z, 2.0*x*z - 2.0*w*y),
+      Vector3::new(2.0*x*y - 2.0*w*z, 1.0 - 2.0*x_2 - 2.0*z_2, 2.0*y*z + 2.0*w*x),
+      Vector3::new(2.0*x*z + 2.0*w*y, 2.0*y*z - 2.0*w*x, 1.0 - 2.0*x_2 - 2.0*y_2),
+    )
+  }
+  
+  pub fn to_matrix4(&self) -> Matrix4<f32> {
+    Matrix4::from_cols(
+      Vector4::new(self.w, -self.z, self.y, self.x),
+      Vector4::new(self.z, self.w, -self.x, self.y),
+      Vector4::new(-self.y, self.x, self.w, self.z),
+      Vector4::new(-self.x, -self.y, -self.z, self.w),
+    )
+  }
+}*/
 
 pub fn is_point_inside_AABB(point: Vector3<f32>, box_location: Vector3<f32>, box_size: Vector3<f32>) -> bool {
   let min_x = box_location.x - box_size.x*0.5;

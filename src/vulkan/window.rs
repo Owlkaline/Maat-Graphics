@@ -317,7 +317,7 @@ impl VkWindow {
                               logs)
     };
     
-    let device = Device::new(Arc::clone(&instance), &surface, logs);
+    let device = Device::new(Arc::clone(&instance), &surface, should_debug, logs);
     
     let (graphics_family, present_family, graphics_queue, present_queue) = VkWindow::find_queue_families(Arc::clone(&instance), Arc::clone(&device), &surface, logs);
     

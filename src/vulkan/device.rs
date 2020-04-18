@@ -21,8 +21,8 @@ pub struct Device {
 }
 
 impl Device {
-  pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> Arc<Device> {
-    let (device, phys_device, min_uniformbuffer_offset_alignment, non_coherent_atom_size, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface, logs);
+  pub fn new(instance: Arc<Instance>, surface: &vk::SurfaceKHR, debug: bool, logs: &mut Logs) -> Arc<Device> {
+    let (device, phys_device, min_uniformbuffer_offset_alignment, non_coherent_atom_size, extensions) = Device::create_suitable_device(Arc::clone(&instance), surface, debug, logs);
     let vk = Device::create_device_instance(Arc::clone(&instance), &device);
     
     Arc::new(Device {
@@ -128,7 +128,7 @@ impl Device {
     vk_device
   }
   
-  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR, logs: &mut Logs) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
+  fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR, debug: bool, logs: &mut Logs) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
     let layer_names = instance.get_layers();
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
@@ -174,7 +174,10 @@ impl Device {
         // available_extensions.push(CString::new("VK_KHR_get_memory_requirements2").unwrap());
         //available_extensions.push(CString::new("VK_KHR_dedicated_allocation").unwrap());
         //available_extensions.push(CString::new("VK_KHR_incremental_present").unwrap());
-        available_extensions.push(CString::new("VK_EXT_debug_markers").unwrap());
+        
+        if debug {
+          available_extensions.push(CString::new("VK_EXT_debug_markers").unwrap());
+        }
         
         let supported_device_extensions: Vec<CString>
            = device_extensions.iter().map(|x| unsafe { CStr::from_ptr(x.extensionName.as_ptr()) }.to_owned()).collect();
