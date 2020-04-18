@@ -169,7 +169,6 @@ impl Device {
         
         let mut available_extensions = instance.get_extensions();
         available_extensions.push(CString::new("VK_KHR_swapchain").unwrap());
-        available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
         //available_extensions.push(CString::new("VK_KHR_sampler_mirror_clamp_to_edge").unwrap());
         // available_extensions.push(CString::new("VK_KHR_get_memory_requirements2").unwrap());
         //available_extensions.push(CString::new("VK_KHR_dedicated_allocation").unwrap());
@@ -177,6 +176,7 @@ impl Device {
         
         if debug {
           available_extensions.push(CString::new("VK_EXT_debug_markers").unwrap());
+          available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
         }
         
         let supported_device_extensions: Vec<CString>
