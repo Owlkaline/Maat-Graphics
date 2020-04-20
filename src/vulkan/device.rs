@@ -11,10 +11,13 @@ use std::sync::Arc;
 use std::ffi::CStr;
 use std::ffi::CString;
 
+const PRIORITY: f32 = 1.0;
+
 pub struct Device {
   vk: vk::DevicePointers,
   device: vk::Device,
   phys_device: vk::PhysicalDevice,
+  
   min_uniformbuffer_offset_alignment: u64,
   non_coherent_atom_size: u64,
   _extensions: Vec<CString>,
@@ -141,6 +144,8 @@ impl Device {
     let mut device_available_extensions = Vec::new();
     let mut physical_device_index = 0;
     
+    let priority = vec!(1.0);
+    
     for i in 0..physical_devices.len() {
       logs.system_msg(&format!("\nLooping devices: {}", i));
       let family_properties = instance.get_device_queue_family_properties(&physical_devices[i]);
@@ -196,10 +201,8 @@ impl Device {
         
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         
-        
-        
         for j in 0..family_properties.len() {
-          println!("j: {}", j);
+          let p: &Vec<f32> = priority.as_ref();
           device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -207,7 +210,7 @@ impl Device {
               flags: 0,
               queueFamilyIndex: j as u32,
               queueCount: family_properties[j].queueCount,
-              pQueuePriorities: 1.0,  // priotiry
+              pQueuePriorities: p.as_ptr(),  // priotiry
             }
           );
         }
