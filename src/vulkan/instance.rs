@@ -210,9 +210,9 @@ impl Instance {
     features
   }
   
-  pub fn create_device(&self, phys_device: &vk::PhysicalDevice, device_info: &vk::DeviceCreateInfo) -> vk::Device {
+  pub fn create_device(&self, phys_device: &vk::PhysicalDevice, device_info: &vk::DeviceCreateInfo, logs: &mut Logs) -> vk::Device {
     let mut device = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    
+    logs.system_msg(&format!("GABU ANAL: {:?}", phys_device));
     unsafe {
       check_errors(self.vk.CreateDevice(*phys_device, device_info, ptr::null(), &mut device));
     }

@@ -288,7 +288,7 @@ impl<T: Clone> Buffer<T> {
       
       let mut index: i32 = -1;
       for i in 0..memory_properties.memoryTypeCount as usize {
-        if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties {
+        if memory_requirements.memoryTypeBits & (1 << i) != 0 && memory_properties.memoryTypes[i].propertyFlags & properties == properties && (memory_properties.memoryTypes[i].propertyFlags & (0x00000080 | 0x00000040)) == 0 {
           index = i as i32;
         }
       }

@@ -130,6 +130,7 @@ impl Device {
   
   fn create_suitable_device(instance: Arc<Instance>, surface: &vk::SurfaceKHR, debug: bool, logs: &mut Logs) -> (vk::Device, vk::PhysicalDevice, u64, u64, Vec<CString>) {
     let layer_names = instance.get_layers();
+    logs.system_msg(&format!("\nLayer names: {:?}", layer_names));
     let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
     
     let physical_devices = instance.enumerate_physical_devices(logs);
@@ -141,6 +142,7 @@ impl Device {
     let mut physical_device_index = 0;
     
     for i in 0..physical_devices.len() {
+      logs.system_msg(&format!("\nLooping devices: {}", i));
       let family_properties = instance.get_device_queue_family_properties(&physical_devices[i]);
       
       let mut has_graphics_bit = false;
@@ -169,6 +171,7 @@ impl Device {
         
         let mut available_extensions = instance.get_extensions();
         available_extensions.push(CString::new("VK_KHR_swapchain").unwrap());
+        available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
         //available_extensions.push(CString::new("VK_KHR_sampler_mirror_clamp_to_edge").unwrap());
         // available_extensions.push(CString::new("VK_KHR_get_memory_requirements2").unwrap());
         //available_extensions.push(CString::new("VK_KHR_dedicated_allocation").unwrap());
@@ -176,12 +179,11 @@ impl Device {
         
         if debug {
           available_extensions.push(CString::new("VK_EXT_debug_markers").unwrap());
-          available_extensions.push(CString::new("VK_KHR_display_swapchain").unwrap());
         }
         
         let supported_device_extensions: Vec<CString>
            = device_extensions.iter().map(|x| unsafe { CStr::from_ptr(x.extensionName.as_ptr()) }.to_owned()).collect();
-          
+          logs.system_msg(&format!("\nSupported extensions:\n {:?}", supported_device_extensions));
           for supported_device_extension in supported_device_extensions {
             for available_extension in &available_extensions {
               if *available_extension == supported_device_extension {
@@ -189,22 +191,23 @@ impl Device {
               }
             }
           }
-          
+        logs.system_msg(&format!("\nAvailable extensions:\n {:?}", device_available_extensions));
         let device_available_extensions_raw: Vec<*const i8> = device_available_extensions.iter().map(|raw_name| raw_name.as_ptr()).collect();
         
         let mut device_queue_infos = Vec::with_capacity(family_properties.len());
         
-        let priority = 1.0;
+        
         
         for j in 0..family_properties.len() {
+          println!("j: {}", j);
           device_queue_infos.push(
             vk::DeviceQueueCreateInfo {
               sType: vk::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
               pNext: ptr::null(),
-              flags: 0,//Default::default(),//queue_flags,
+              flags: 0,
               queueFamilyIndex: j as u32,
-              queueCount: family_properties.len().min(j.max(1)) as u32,
-              pQueuePriorities: &priority,
+              queueCount: family_properties[j].queueCount,
+              pQueuePriorities: 1.0,  // priotiry
             }
           );
         }
@@ -280,7 +283,6 @@ impl Device {
         };
         
         //features.robustBufferAccess = vk::TRUE;
-        
         let device_info = vk::DeviceCreateInfo {
           sType: vk::STRUCTURE_TYPE_DEVICE_CREATE_INFO,
           pNext: ptr::null(),
@@ -294,7 +296,8 @@ impl Device {
           pEnabledFeatures: &features, // For more features use vk::GetPhysicalDeviceFeatures
         };
         
-        device = instance.create_device(&physical_devices[i], &device_info);
+        logs.system_msg(&format!("Physical device index = {}", i));
+        device = instance.create_device(&physical_devices[i], &device_info, logs);
         
         physical_device_index = i;
         break;
@@ -303,11 +306,11 @@ impl Device {
     
     
     let mut device_prop: vk::PhysicalDeviceProperties = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    
+    logs.system_msg(&format!("BEFORE THAT DUMB PHGYS DEVICE GET SHIT"));
     unsafe {
       instance.pointers().GetPhysicalDeviceProperties(physical_devices[physical_device_index], &mut device_prop);
     }
-    
+    logs.system_msg(&format!("AFTER THAT DUMB PHGYS DEVICE GET SHIT"));
     let min_uniformbuffer_offset_alignment = device_prop.limits.minUniformBufferOffsetAlignment;
     let non_coherent_atom_size = device_prop.limits.nonCoherentAtomSize;
     logs.system_msg(&format!("Max fragment shader outputs: {}", device_prop.limits.maxFragmentOutputAttachments));
