@@ -637,10 +637,12 @@ impl TextureShader {
       
       let index_count = 6;
       
+      let image_count = self.framebuffer_colour_images.len();
+      
       cmd = cmd.draw_instanced_indexed(Arc::clone(&device), 
                                        &self.vertex_buffer.internal_object(0),
                                        &self.index_buffer.internal_object(0),
-                                       &buffer.internal_object(current_buffer),
+                                       &buffer.internal_object((current_buffer + image_count) % image_count),
                                        index_count,
                                        num_instances,
                                        &self.instanced_pipeline,

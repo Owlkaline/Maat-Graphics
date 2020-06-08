@@ -305,6 +305,8 @@ impl VkWindow {
     let vsync = settings.vsync_enabled();
     let triple_buffer = settings.triple_buffer_enabled();
     let resolution = math::array2_to_vec2(settings.get_resolution());
+    let borderless = settings.is_borderless();
+    let monitor = settings.get_monitor_idx();
     
     let instance = Instance::new(app_name.to_string(), app_version, should_debug);
     
@@ -312,6 +314,8 @@ impl VkWindow {
       VkWindow::create_window(Arc::clone(&instance),
                               app_name, 
                               fullscreen,
+                              borderless,
+                              monitor,
                               resolution.x as f32, 
                               resolution.y as f32,
                               logs)
@@ -481,25 +485,48 @@ impl VkWindow {
     self.instance.get_surface_capabilities(phys_device, &self.surface)
   }
   
-  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, width: f32, height: f32, logs: &mut Logs) -> (winit::window::Window, winit::event_loop::EventLoop<()>, vk::SurfaceKHR) {
+  fn create_window(instance: Arc<Instance>, app_name: String, fullscreen: bool, borderless: bool, monitor_idx: usize, width: f32, height: f32, logs: &mut Logs) -> (winit::window::Window, winit::event_loop::EventLoop<()>, vk::SurfaceKHR) {
     let events_loop = winit::event_loop::EventLoop::new();
+    
+    let mut max_monitor = 0;
+    let msg = format!("Monitor Options: #{} Monitors", events_loop.available_monitors().count());
+    logs.system_msg(&msg);
+    
+    for (num, monitor) in events_loop.available_monitors().enumerate() {
+      let msg = format!("Monitor #{}: {:?}", num, monitor.name());
+      logs.system_msg(&msg);
+      logs.system_msg(&format!("  Available Video modes"));
+      for (i, video_mode) in monitor.video_modes().enumerate() {
+        let msg = format!("    #{}: {}", i, video_mode);
+        logs.system_msg(&msg);
+      }
+      
+      if num > max_monitor {
+        max_monitor = num;
+      }
+    }
+    
     let window = {
       if fullscreen {
-        for (num, monitor) in events_loop.available_monitors().enumerate() {
-          let msg = format!("Monitor #{}: {:?}", num, monitor.name());
-          logs.system_msg(&msg);
-        }
+        let monitor_idx = monitor_idx.min(max_monitor);
         
-        let monitor = events_loop.available_monitors().nth(0).expect("No monitor found, choose valid monitor id");
+        let monitor = events_loop.available_monitors().nth(monitor_idx).expect("No monitor found, choose valid monitor id");
+        
+        let video_mode = monitor.video_modes().nth(0).expect("Please enter a valid video mode ID for monitor");
         
         logs.system_msg(&format!("Using {:?}", monitor.name()));
+        let msg = format!("Using video mode: {}", video_mode);
+        logs.system_msg(&msg);
+        
+        let fullscreen  = Some(match borderless {
+          true => winit::window::Fullscreen::Exclusive(video_mode),
+          false => winit::window::Fullscreen::Borderless(monitor),
+        });
         
         // Fullscreen
         winit::window::WindowBuilder::new()
-                             .with_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor)))
+                             .with_fullscreen(fullscreen.clone())
                              .with_title(app_name)
-                             .with_resizable(false)
-                             //  .build_vk_surface(&events_loop, instance.clone())
                              .build(&events_loop).unwrap()
       } else {
         winit::window::WindowBuilder::new()

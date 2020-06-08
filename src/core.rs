@@ -504,6 +504,14 @@ impl CoreRender for CoreMaat {
             let (x,y) = pos.clone();
             self.set_cursor_position(x,y);
           },
+          DrawType::EnableCursor(ref info) => {
+            let enable_cursor = info.clone();
+            if enable_cursor {
+              self.show_cursor();
+            } else {
+              self.hide_cursor();
+            }
+          },
           _ => {},
         }
       }

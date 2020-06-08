@@ -75,6 +75,8 @@ pub enum DrawType {
   ResetScissorRender,
   SetCursorPosition((f32, f32)),
   
+  EnableCursor(bool),
+  
   // Some(OtherCamera) ,Some(x offset, y offset), Some(right and top size), velocity to lerp
   OrthoCamera((Option<OrthoCamera>, Option<Vector2<f32>>, Option<Vector2<f32>>, Vector2<f32>)),
   
@@ -512,6 +514,13 @@ impl DrawCall {
   pub fn enable_fullscreen(enable: bool) -> DrawCall {
     DrawCall {
       draw_type: DrawType::EnableFullscreen(enable),
+      coloured: false,
+    }
+  }
+  
+  pub fn enable_cursor(enable: bool) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::EnableCursor(enable),
       coloured: false,
     }
   }

@@ -18,6 +18,8 @@ const DPI: &str = "Dpi";
 const TRIPLE_BUFFERING: &str = "TripleBuffer";
 const RESOLUTION: &str = "Resolution";
 const MAX_RESOLUTION: &str = "MaxMonitorResolution";
+const BORDERLESS: &str = "Borderless";
+const MONITOR: &str = "Monitor";
 
 pub const RESOLUTIONS: [(u32, u32, &str); 99] = [
   (2160, 1080, "(1:2)"),
@@ -129,11 +131,13 @@ pub struct Settings {
   texture_msaa: u32,
   model_msaa: u32,
   fullscreen: bool,
+  borderless: bool,
   _minimum_resolution: [u32; 2],
   max_monitor_resolution: [u32; 2],
   resolution: [u32; 2],
   force_dpi: bool,
   dpi: f32,
+  monitor: usize,
 }
 
 impl Settings {
@@ -143,6 +147,8 @@ impl Settings {
     let mut texture_msaa = 1;
     let mut model_msaa = 1;
     let mut is_fullscreen = false;
+    let mut is_borderless = true;
+    let mut monitor = 0;
     let mut resolution: [u32; 2] = [1280, 720];
     let mut max_monitor_resolution = [1920, 1080];
     let mut force_dpi = false;
@@ -189,6 +195,17 @@ impl Settings {
                 },
                 FALSE => {
                   is_fullscreen = false;
+                },
+                _ => {}
+              }
+            },
+            BORDERLESS => {
+              match v[1] {
+                TRUE => {
+                  is_borderless = true;
+                },
+                FALSE => {
+                  is_borderless = false;
                 },
                 _ => {}
               }
@@ -240,7 +257,12 @@ impl Settings {
               if let Ok(custom_dpi) = v[1].parse::<f32>() {
                 dpi = custom_dpi;
               }
-            }
+            },
+            MONITOR => {
+              if let Ok(m) = v[1].parse::<usize>() {
+                monitor = m;
+              }
+            },
             _ => {
               println!("Unknown setting: {:?}", v);
             }
@@ -260,11 +282,13 @@ impl Settings {
       texture_msaa,
       model_msaa,
       fullscreen: is_fullscreen,
+      borderless: is_borderless,
       resolution,
       _minimum_resolution: [800, 640],
       max_monitor_resolution,
       force_dpi: force_dpi,
       dpi: dpi,
+      monitor,
     }
   }
   
@@ -300,10 +324,20 @@ impl Settings {
       }
     };
     
+    let borderless = {
+      if self.borderless {
+        TRUE
+      } else {
+        FALSE
+      }
+    };
+    
     let data = RESOLUTION.to_owned() + SPACE + &self.resolution[0].to_string() + 
                   SPACE + &self.resolution[1].to_string() + NL +
-                  MAX_RESOLUTION + SPACE + &self.max_monitor_resolution[0].to_string() + SPACE + &self.max_monitor_resolution[1].to_string() + NL +
-                  FULLSCREEN + SPACE + fullscreen + NL + 
+                  MAX_RESOLUTION    + SPACE + &self.max_monitor_resolution[0].to_string() + SPACE + &self.max_monitor_resolution[1].to_string() + NL +
+                  FULLSCREEN        + SPACE + fullscreen + NL + 
+                  BORDERLESS        + SPACE + borderless + NL + 
+                  MONITOR           + SPACE + &self.monitor.to_string() + NL + 
                   VSYNC             + SPACE + vsync + NL + 
                   TRIPLE_BUFFERING  + SPACE + triple_buffer + NL + 
                   TEXTURE_MSAA      + SPACE + &self.texture_msaa.to_string() + NL + 
@@ -319,8 +353,10 @@ impl Settings {
     println!("Settings file not found");
     let data = RESOLUTION.to_owned() + SPACE + &(1280).to_string() + 
                   SPACE + &(720).to_string() + NL +
-                  MAX_RESOLUTION + SPACE + &(1920).to_string() + SPACE + &(1080).to_string() + NL +
-                  FULLSCREEN + SPACE + FALSE + NL + 
+                  MAX_RESOLUTION    + SPACE + &(1920).to_string() + SPACE + &(1080).to_string() + NL +
+                  FULLSCREEN        + SPACE + FALSE + NL + 
+                  BORDERLESS        + SPACE + TRUE + NL + 
+                  MONITOR           + SPACE + "0" + NL +
                   VSYNC             + SPACE + TRUE  + NL + 
                   TRIPLE_BUFFERING  + SPACE + FALSE + NL + 
                   TEXTURE_MSAA      + SPACE + "2"   + NL + 
@@ -404,6 +440,14 @@ impl Settings {
   
   pub fn get_resolution(&self) -> [u32; 2] {
     self.resolution
+  }
+  
+  pub fn get_monitor_idx(&self) -> usize {
+    self.monitor
+  }
+  
+  pub fn is_borderless(&self) -> bool {
+    self.borderless
   }
 }
 
