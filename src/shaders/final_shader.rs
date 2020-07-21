@@ -1,4 +1,4 @@
-use vk;
+use crate::vk;
 
 use crate::vulkan::vkenums::{AttachmentLoadOp, AttachmentStoreOp, ImageLayout, ShaderStage,
                              VertexInputRate, SampleCount};
@@ -7,7 +7,7 @@ use crate::vulkan::{Instance, Device, RenderPass, Shader, Pipeline, PipelineBuil
 use crate::vulkan::buffer::{Buffer, BufferUsage, UniformData, Framebuffer, CommandBufferBuilder};
 use crate::vulkan::pool::{DescriptorPool, CommandPool};
 
-use cgmath::{Vector2, Vector4};
+use crate::cgmath::{Vector2, Vector4};
 
 use std::mem;
 use std::sync::Arc;

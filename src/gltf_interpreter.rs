@@ -1,7 +1,7 @@
 use std::{fs, io};
 use std::path::Path;
 
-use crate::vulkan::vkenums::{AddressMode, Filter};
+use crate::vkenums::{AddressMode, Filter};
 use crate::math;
 
 use base64;
@@ -17,14 +17,10 @@ use gltf::texture::WrappingMode;
 //use gltf_importer;
 //use gltf_importer::config::ValidationStrategy;
 
-use cgmath::Vector2;
-use cgmath::Vector3;
-use cgmath::Vector4;
-use cgmath::Matrix4;
-use cgmath::Quaternion;
+use crate::cgmath::{Vector2, Vector3, Vector4, Matrix4, Quaternion};
 
-use image;
-use image::ImageFormat::{JPEG, PNG};
+use crate::image;
+use crate::image::ImageFormat::{JPEG, PNG};
 
 use std::mem;
 

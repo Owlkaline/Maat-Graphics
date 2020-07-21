@@ -1,7 +1,7 @@
 use crate::math;
 
-use cgmath;
-use cgmath::{dot, InnerSpace, SquareMatrix, PerspectiveFov, Deg, Vector2, Vector3, Vector4, Point3, Angle, 
+use crate::cgmath;
+use crate::cgmath::{dot, InnerSpace, SquareMatrix, PerspectiveFov, Deg, Vector2, Vector3, Vector4, Point3, Angle, 
              EuclideanSpace, Matrix4};
 
 #[derive(Clone, PartialEq)]

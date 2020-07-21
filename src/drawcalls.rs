@@ -6,10 +6,7 @@ use crate::camera::OrthoCamera;
 
 use crate::graphics;
 
-use cgmath::Vector2;
-use cgmath::Vector3;
-use cgmath::Vector4;
-use cgmath::Matrix4;
+use crate::cgmath::{Vector2, Vector3, Vector4, Matrix4};
 
 #[derive(Clone, PartialEq)]
 pub enum DrawType {

@@ -1,7 +1,5 @@
-use cgmath;
-use cgmath::Vector2;
-use cgmath::Matrix4;
-use cgmath::ortho;
+use crate::cgmath;
+use crate::cgmath::{Vector2, Matrix4, ortho};
 
 pub enum _Direction {
   Left,

@@ -5,8 +5,8 @@ use crate::ModelData;
 use crate::cgmath::{Vector2, Vector3, Vector4};
 use crate::math;
 
-use image::DynamicImage;
-use image::GenericImageView;
+use crate::image;
+use crate::image::{DynamicImage, GenericImageView};
 
 const SIZE: f32 = 800.0;
 const VERTEX_COUNT: i32 = 127;

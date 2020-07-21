@@ -1,6 +1,6 @@
-use vk;
-use winit;
-use cgmath::{Vector4};
+use crate::vk;
+use crate::winit;
+use crate::cgmath::{Vector4};
 
 use crate::ResourceManager;
 use crate::camera::PerspectiveCamera;
@@ -14,7 +14,7 @@ use crate::shaders::FinalShader;
 use crate::graphics;
 use crate::Settings;
 use crate::gltf_interpreter::ModelDetails;
-use crate::logs::Logs;
+use crate::Logs;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount, Filter, AddressMode, 
                              MipmapMode, VkBool};
@@ -27,8 +27,8 @@ use crate::vulkan::check_errors;
 
 use crate::ModelData;
 
-use cgmath::{Vector2, Vector3};
-use winit::dpi::{LogicalSize, LogicalPosition};
+use crate::cgmath::{Vector2, Vector3};
+use crate::winit::dpi::{LogicalSize, LogicalPosition};
 
 use std::sync::Arc;
 use std::collections::HashMap;

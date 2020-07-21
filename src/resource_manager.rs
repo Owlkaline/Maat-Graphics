@@ -1,7 +1,7 @@
 use crate::ThreadPool;
 
-use vk;
-use image;
+use crate::vk;
+use crate::image;
 
 use crate::vulkan::vkenums::{ImageType, ImageViewType, ImageTiling, SampleCount};
 
@@ -16,7 +16,7 @@ use crate::{ModelData, CollisionInfo};
 
 use crate::Logs;
 
-use cgmath::Vector3;
+use crate::cgmath::Vector3;
 
 use std::time;
 use std::sync::Arc;

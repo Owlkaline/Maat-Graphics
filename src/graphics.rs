@@ -6,9 +6,9 @@ use crate::graphics;
 use crate::gltf_interpreter::ModelDetails;
 use crate::ModelData;
 
-use cgmath::{Vector2, Vector3};
+use crate::cgmath::{Vector2, Vector3};
 
-use winit;
+use crate::winit;
 
 use std::vec::Vec;
 

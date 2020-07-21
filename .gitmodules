@@ -1,0 +1,3 @@
+[submodule "Maat-Vulkan"]
+	path = Maat-Vulkan
+	url = https://github.com/lilith645/Maat-Vulkan.git

@@ -99,31 +99,30 @@
 //! 
 //! 
 
-const ENGINE_VERSION: u32 = (0 as u32) << 22 | (2 as u32) << 12 | (0 as u32);
-
-pub extern crate winit;
-pub extern crate cgmath;
+use maat_vulkan as vulkan;
+use vulkan::{vk, vkenums};
+pub use vulkan::{Logs, cgmath, Settings, winit, image};
 
 pub use self::threadpool::ThreadPool;
 use self::resource_manager::ResourceManager;
 
-pub use self::settings::Settings;
+//pub use self::settings::Settings;
 
 pub use crate::core::CoreMaat;
 pub use crate::drawcalls::DrawCall;
 
 pub use self::model_data::{ModelData, CollisionInfo, CollisionType};
 
-use logs::Logs;
+//use logs::Logs;
 
 pub mod graphics;
 pub mod shaders;
-pub mod vulkan;
+//pub mod vulkan;
 pub mod camera;
 pub mod math;
 pub mod generate_terrain;
 
-mod settings;
+//mod settings;
 mod drawcalls;
 mod core;
 mod gltf_interpreter;
@@ -131,7 +130,7 @@ mod font;
 mod threadpool;
 mod resource_manager;
 mod model_data;
-mod logs;
+//mod logs;
 
 #[cfg(test)]
 mod tests {

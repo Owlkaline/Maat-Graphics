@@ -1,5 +1,5 @@
-use cgmath::{Deg, Rad};
-use cgmath::{Vector2, Vector3, Vector4, Matrix4,
+use crate::cgmath::{Deg, Rad};
+use crate::cgmath::{Vector2, Vector3, Vector4, Matrix4,
              InnerSpace, Angle, Zero, Euler};
 
 use std::f64::consts::PI;

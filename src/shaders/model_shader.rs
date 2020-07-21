@@ -1,4 +1,4 @@
-use vk;
+use crate::vk;
 
 use gltf::material::AlphaMode;
 
@@ -15,7 +15,7 @@ use crate::vulkan::pool::{DescriptorPool, CommandPool};
 use crate::shaders::FinalShader;
 use crate::shaders::FinalVertex;
 
-use cgmath::{Vector2, Vector3, Vector4};
+use crate::cgmath::{Vector2, Vector3, Vector4};
 
 use std::mem;
 use std::sync::Arc;
