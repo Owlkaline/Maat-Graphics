@@ -364,7 +364,7 @@ impl TextureShader {
     }
     
     let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), &usage, image_views, instanced_data);
     self.instanced_cpu_buffers.insert(buffer_reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer, texture_reference));
   }
   

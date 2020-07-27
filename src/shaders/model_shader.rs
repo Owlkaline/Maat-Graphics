@@ -1239,7 +1239,7 @@ impl ModelShader {
     }
     
     let usage = BufferUsage::vertex_transfer_src_buffer();
-    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), usage, image_views, instanced_data);
+    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), &usage, image_views, instanced_data);
     
     self.instanced_cpu_buffers.push((model_reference, instanced_cpu_buffer));
     self.instanced_cpu_data.push(UniformData::new());

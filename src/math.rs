@@ -644,23 +644,23 @@ pub fn quaternion_to_axis_angle(q: Vector4<f32>) -> Vector3<f32> {
 /// 
 /// Simple example with circles that do collide.
 ///
-/// ```
+/// 
 /// # extern crate maat_graphics;
 /// # extern crate cgmath;
 /// let a = cgmath::Vector3::new(1.0, 1.0, 5.0);
 /// let b = cgmath::Vector3::new(-1.0, -1.0, 4.0);
 /// assert!(maat_graphics::math::circle_collision(a, b));
-/// ```
+/// 
 ///
 /// Simple eample with circle that dont collide.
 /// 
-/// ```
+/// 
 /// # extern crate maat_graphics;
 /// # extern crate cgmath;
 /// let a = cgmath::Vector3::new(10.0, 10.0, 5.0);
 /// let b = cgmath::Vector3::new(-10.0, -10.0, 4.0);
 /// assert!(!maat_graphics::math::circle_collision(a, b));
-/// ```
+/// 
 /// 
 pub fn circle_collision(a: Vector3<f32>, b: Vector3<f32>) -> bool {
   let dist = a.z + b.z;
@@ -681,23 +681,23 @@ pub fn circle_collision(a: Vector3<f32>, b: Vector3<f32>) -> bool {
 /// 
 /// Simple example with box's that do collide.
 ///
-/// ```
+/// 
 /// # extern crate maat_graphics;
 /// # extern crate cgmath;
 /// let a = cgmath::Vector4::new(1.0, 1.0, 5.0, 5.0);
 /// let b = cgmath::Vector4::new(-1.0, -1.0, 4.0, 4.0);
 /// assert!(maat_graphics::math::box_collision(a, b));
-/// ```
+/// 
 ///
 /// Simple eample with circle that dont collide.
 /// 
-/// ```
+/// 
 /// # extern crate maat_graphics;
 /// # extern crate cgmath;
 /// let a = cgmath::Vector4::new(10.0, 10.0, 5.0, 5.0);
 /// let b = cgmath::Vector4::new(-10.0, -10.0, 4.0, 4.0);
 /// assert!(!maat_graphics::math::box_collision(a, b));
-/// ```
+/// 
 /// 
 pub fn box_collision(a: Vector4<f32>, b: Vector4<f32>) -> bool {
   if a.x+a.z*0.5 < b.x-b.z*0.5 || a.x-a.z*0.5 > b.x+b.z*0.5 {
