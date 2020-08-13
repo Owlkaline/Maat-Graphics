@@ -422,10 +422,10 @@ impl TextureShader {
   
   pub fn create_vertex_buffer(instance: Arc<Instance>, device: Arc<Device>, command_pool: &CommandPool, graphics_queue: &vk::Queue) -> Buffer<Vertex> {
     let triangle = vec!(
-      Vertex { pos: Vector2::new(0.5, 0.5), uvs: Vector2::new(0.99, 0.0) },
+      Vertex { pos: Vector2::new(0.5, 0.5), uvs: Vector2::new(1.0, 0.0) },
       Vertex { pos: Vector2::new(-0.5, 0.5), uvs: Vector2::new(0.0, 0.0) },
-      Vertex { pos: Vector2::new(-0.5, -0.5), uvs: Vector2::new(0.0, 0.99) },
-      Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(0.99, 0.99) },
+      Vertex { pos: Vector2::new(-0.5, -0.5), uvs: Vector2::new(0.0, 1.0) },
+      Vertex { pos: Vector2::new(0.5, -0.5), uvs: Vector2::new(1.0, 1.0) },
     );
     
     let usage = BufferUsage::vertex_buffer();
@@ -508,7 +508,7 @@ impl TextureShader {
     let right = width;// + width*0.01;
     let pos = self.camera.get_position();//+Vector2::new(0.0, -10.0);
     let projection_details = Vector4::new(pos.x, pos.y, right, top);
-    let model = Vector4::new(position.x, position.y, scale.x, scale.y);
+    let model = Vector4::new(position.x-(position.x*0.01), position.y+((height-position.y)*0.01), scale.x, scale.y);
     let rotation = Vector4::new(rotation, 0.0, 0.0, 0.0);
     
     let push_constant_data = UniformData::new()
