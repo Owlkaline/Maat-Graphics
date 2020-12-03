@@ -14,6 +14,7 @@ layout (input_attachment_index = 1, binding = 1) uniform subpassInput colour_tex
 layout (input_attachment_index = 2, binding = 2) uniform subpassInput mro_texture;
 layout (input_attachment_index = 3, binding = 3) uniform subpassInput occlusion_texture;
 layout (input_attachment_index = 4, binding = 4) uniform subpassInput normal_texture;
+layout (input_attachment_index = 6, binding = 6) uniform subpassInput depth_texture;
 layout (input_attachment_index = 5, binding = 5) uniform subpassInput position_texture;
 
 const float M_PI = 3.141592653589793;
@@ -92,6 +93,7 @@ float getLinearDepth(vec2 coord) {
 
 void main() {
   vec4 base_colour = subpassLoad(colour_texture);
+  vec4 occlusion = subpassLoad(occlusion_texture);
   
   if (base_colour.a == 0.0) {
     discard;

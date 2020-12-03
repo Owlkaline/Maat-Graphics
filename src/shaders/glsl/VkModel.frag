@@ -116,6 +116,7 @@ void main() {
   alpha = use_scanline.a      * halpha + 
           not(use_scanline).a * alpha;
   
+  outColour = vec4(base_colour, alpha);
   outAlbedo = vec4(base_colour, alpha);
   outMro = mro;
   outOcclusion = texture(occlusion_texture, uvs);

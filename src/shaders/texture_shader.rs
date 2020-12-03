@@ -31,6 +31,15 @@ macro_rules! offset_of {
 }
 
 #[derive(Clone)]
+pub struct TextInstanceData {
+  model: Vector4<f32>, // vec4(x, y, scale, window_width)
+  letter_uv: Vector4<f32>,
+  edge_width: Vector4<f32>,
+  colour: Vector4<f32>, //vec4(r,g,b, a)
+  outline_colour: Vector4<f32>, //vec4(r,g,b, window_height)
+}
+
+#[derive(Clone)]
 pub struct TextureInstanceData {
   model: Vector4<f32>,
   colour: Vector4<f32>,
@@ -77,6 +86,67 @@ impl Vertex {
   }
 }
 
+impl TextInstanceData {
+  pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
+    vk::VertexInputBindingDescription {
+      binding: 1,
+      stride: (mem::size_of::<TextInstanceData>()) as u32,
+      inputRate: VertexInputRate::Instance.to_bits(),
+    }
+  }
+  
+  pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
+    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(5);
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 2,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(TextInstanceData, model) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 3,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(TextInstanceData, letter_uv) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 4,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(TextInstanceData, edge_width) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 5,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(TextInstanceData, colour) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions.push(
+      vk::VertexInputAttributeDescription {
+        location: 6,
+        binding: 1,
+        format: vk::FORMAT_R32G32B32A32_SFLOAT,
+        offset: offset_of!(TextInstanceData, outline_colour) as u32,
+      }
+    );
+    
+    vertex_input_attribute_descriptions
+  }
+}
+
 impl TextureInstanceData {
   pub fn vertex_input_binding() -> vk::VertexInputBindingDescription {
     vk::VertexInputBindingDescription {
@@ -87,7 +157,7 @@ impl TextureInstanceData {
   }
   
   pub fn vertex_input_attributes() -> Vec<vk::VertexInputAttributeDescription> {
-    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(2);
+    let mut vertex_input_attribute_descriptions: Vec<vk::VertexInputAttributeDescription> = Vec::with_capacity(3);
     
     vertex_input_attribute_descriptions.push(
       vk::VertexInputAttributeDescription {
@@ -147,6 +217,10 @@ pub struct TextureShader {
   vertex_shader_instanced: Shader,
   instanced_cpu_buffers: HashMap<String, (UniformData, Buffer<f32>, String)>,
   instanced_pipeline: Pipeline,
+  
+  vertex_text_shader_instanced: Shader,
+  instanced_text_cpu_buffers: HashMap<String, (UniformData, Buffer<f32>, String)>,
+  instanced_text_pipeline: Pipeline,
 }
 
 impl TextureShader {
@@ -156,6 +230,7 @@ impl TextureShader {
     let vertex_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextVert.spv"));
     let fragment_shader_text = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextFrag.spv"));
     let vertex_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextureInstancedVert.spv"));
+    let vertex_text_shader_instanced = Shader::new(Arc::clone(&device), include_bytes!("./sprv/VkTextInstancedVert.spv"));
     
     let colour_attachment = AttachmentInfo::new()
                                 .format(vk::FORMAT_R8G8B8A8_SNORM)
@@ -251,6 +326,24 @@ impl TextureShader {
                   .front_face_counter_clockwise()
                   .build(Arc::clone(&device));
     
+    let mut instanced_text_attributes: Vec<vk::VertexInputAttributeDescription> = Vertex::vertex_input_attributes();
+    instanced_text_attributes.append(&mut TextInstanceData::vertex_input_attributes());
+    
+    let instanced_text_pipeline = PipelineBuilder::new()
+                  .vertex_shader(*vertex_text_shader_instanced.get_shader())
+                  .fragment_shader(*fragment_shader_text.get_shader())
+                  .push_constants(ShaderStage::Vertex, push_constant_size as u32)
+                  .render_pass(render_pass.clone())
+                  .descriptor_set_layout(descriptor_sets.get(&"".to_string()).unwrap().layouts_clone())
+                  .vertex_binding(vec!(Vertex::vertex_input_binding(), TextInstanceData::vertex_input_binding()))
+                  .multisample(msaa)
+                  .vertex_attributes(instanced_text_attributes)
+                  .topology_triangle_list()
+                  .polygon_mode_fill()
+                  .cull_mode_back()
+                  //.front_face_counter_clockwise()
+                  .build(Arc::clone(&device));
+    
     let vertex_buffer = TextureShader::create_vertex_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     let index_buffer = TextureShader::create_index_buffer(Arc::clone(&instance), Arc::clone(&device), &command_pool, graphics_queue);
     
@@ -288,6 +381,10 @@ impl TextureShader {
       vertex_shader_instanced,
       instanced_cpu_buffers: HashMap::new(),
       instanced_pipeline,
+      
+      vertex_text_shader_instanced,
+      instanced_text_cpu_buffers: HashMap::new(),
+      instanced_text_pipeline,
     }
   }
   
@@ -366,6 +463,17 @@ impl TextureShader {
     let usage = BufferUsage::vertex_transfer_src_buffer();
     let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), &usage, image_views, instanced_data);
     self.instanced_cpu_buffers.insert(buffer_reference, (UniformData::with_capacity(MAX_INSTANCES*12), instanced_cpu_buffer, texture_reference));
+  }
+  
+  pub fn add_instanced_text_buffer(&mut self, instance: Arc<Instance>, device: Arc<Device>, image_views: u32, buffer_reference: String, texture_reference: String) {
+    let mut instanced_data = Vec::with_capacity(MAX_INSTANCES*20);
+    for _ in 0..(MAX_INSTANCES*20) {
+      instanced_data.push(0.0);
+    }
+    
+    let usage = BufferUsage::vertex_transfer_src_buffer();
+    let instanced_cpu_buffer = Buffer::cpu_buffer_with_data(Arc::clone(&instance), Arc::clone(&device), &usage, image_views, instanced_data);
+    self.instanced_text_cpu_buffers.insert(buffer_reference, (UniformData::with_capacity(MAX_INSTANCES*20), instanced_cpu_buffer, texture_reference));
   }
   
   pub fn add_texture(&mut self, device: Arc<Device>, descriptor_set_pool: &DescriptorPool, texture_reference: String, texture_image: &ImageAttachment, sampler: &Sampler) {
@@ -579,6 +687,50 @@ impl TextureShader {
     cmd
   }
   
+  pub fn add_instanced_text(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, 
+                            display_text: String, font: String, position: Vector2<f32>, 
+                            scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, 
+                            edge_width: Vector4<f32>, wrap_length: u32, centered: bool, 
+                            font_details: GenericFont, window_width: f32, window_height: f32, 
+                            buffer_reference: String) -> CommandBufferBuilder {
+    let mut cmd = cmd;
+    
+    if !self.descriptor_sets.contains_key(&font) {
+      return cmd
+    }
+    
+    let wrapped_draw = drawcalls::setup_correct_wrapping(display_text.clone(), font, position, scale*2.0, colour, outline_colour, edge_width, wrap_length, centered, font_details.clone());
+    
+    let scale = scale.x;
+    for letter in wrapped_draw {
+      let (_font, display_text, position, _scale, colour, outline_colour, edge_width, _wrapped, _wrap_length, _centered) = letter.draw_font_details().unwrap();
+      let char_letter = {
+        display_text.as_bytes()[0] 
+      };
+      
+      let c = font_details.get_character(char_letter as i32);
+      
+      let mut model = drawcalls::calculate_text_info(Vector3::new(position.x, position.y, 0.0), scale, &c.clone(), char_letter);
+      model.z *= scale/(scale/2.0);
+      model.w = window_width;
+      let letter_uv = drawcalls::calculate_text_uv(&c.clone());
+      let colour = colour;
+      let outline = Vector4::new(outline_colour.x, outline_colour.y, outline_colour.z, window_height);
+      let edge_width = edge_width; 
+      
+      if let Some(details) = &mut self.instanced_text_cpu_buffers.get_mut(&buffer_reference) {
+        let data = details.0.clone();
+        details.0 = data.add_vector4(model)
+                        .add_vector4(letter_uv)
+                        .add_vector4(edge_width)
+                        .add_vector4(colour)
+                        .add_vector4(outline);
+      }
+    }
+    
+    cmd
+  }
+  
   pub fn add_instanced_draw(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32, sprite_details: Option<Vector3<i32>>, colour: Vector4<f32>, use_texture: bool, buffer_reference: String) {
     let model = Vector4::new(position.x, position.y, scale.x, scale.y);
     
@@ -648,6 +800,44 @@ impl TextureShader {
                                        &self.instanced_pipeline,
                                        vec!(*descriptor.set(0)));
       
+      instanced_data.clear();
+    }
+    
+    cmd
+  }
+  
+  pub fn draw_instanced_text(&mut self, device: Arc<Device>, cmd: CommandBufferBuilder, 
+                             current_buffer: usize, font: String, 
+                             buffer_reference: String) -> CommandBufferBuilder {
+    let mut cmd = cmd;
+    
+    if let Some((instanced_data, buffer, text_reference)) = self.instanced_text_cpu_buffers.get_mut(&buffer_reference) {
+      let data = instanced_data.build(Arc::clone(&device));
+      let num_instances = data.len() as u32 / 20;
+      
+      if num_instances == 0 {
+        return cmd;
+      }
+      if !self.descriptor_sets.contains_key(&font) {
+        return cmd
+      }
+      
+      buffer.fill_entire_buffer_single_frame(Arc::clone(&device), current_buffer, data);
+      
+      let descriptor: &DescriptorSet = self.descriptor_sets.get(&font).unwrap();
+      
+      let index_count = 6;
+      
+      let image_count = self.framebuffer_colour_images.len();
+      
+      cmd = cmd.draw_instanced_indexed(Arc::clone(&device), 
+                                       &self.vertex_buffer.internal_object(0),
+                                       &self.index_buffer.internal_object(0),
+                                       &buffer.internal_object((current_buffer + image_count) % image_count),
+                                       index_count,
+                                       num_instances,
+                                       &self.instanced_text_pipeline,
+                                       vec!(*descriptor.set(0)));
       instanced_data.clear();
     }
     

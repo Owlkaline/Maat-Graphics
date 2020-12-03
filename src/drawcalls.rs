@@ -38,6 +38,10 @@ pub enum DrawType {
   // buffer ref
   DrawInstanced(String),
   
+  // Font, Display Text, Position, Scale, Colour, Outline Colour, Edge_width, wrapped, wrap length, centered
+  AddInstancedFont((String, String, Vector2<f32>, Vector2<f32>, Vector4<f32>, Vector3<f32>, Vector4<f32>, bool, u32, bool)), 
+  DrawInstancedFont(String), 
+  
   // Ref, location
   NewTexture((String, String)),
   NewFont, 
@@ -252,6 +256,34 @@ impl DrawCall {
   pub fn draw_custom_shape_coloured(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, rotation: f32, shape: String) -> DrawCall {
     DrawCall {
       draw_type: DrawType::DrawCustomShapeColoured((shape, position, scale, colour, rotation)),
+      coloured: true,
+    }
+  }
+  
+  pub fn draw_instanced_text(buffer_reference: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::DrawInstancedFont(buffer_reference),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_text(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, false, 0, false)),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_instanced_text_wrapped(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedFont((font, display_text, position, scale, colour, DEFAULT_OUTLINE, DEFAULT_BASIC_EDGE_WIDTH, true, wrap_length, false)),
+      coloured: true,
+    }
+  }
+  
+  pub fn add_text_custom(position: Vector2<f32>, scale: Vector2<f32>, colour: Vector4<f32>, outline_colour: Vector3<f32>, edge_width: Vector4<f32>, centered: bool, wrap_length: u32, display_text: String, font: String) -> DrawCall {
+    DrawCall {
+      draw_type: DrawType::AddInstancedFont((font, display_text, position, scale, colour, outline_colour, edge_width, true, wrap_length, centered)),
       coloured: true,
     }
   }

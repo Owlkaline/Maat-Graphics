@@ -43,6 +43,7 @@ pub trait CoreRender {
   fn preload_font(&mut self, reference: String, font_texture: String, font: &[u8]);
   fn add_font(&mut self, reference: String, font_texture: String, font: &[u8]);  
   
+  fn create_instance_text_buffer(&mut self, buffer_reference: String, texture_reference: String);
   fn create_instance_texture_buffer(&mut self, buffer_reference: String, texture_reference: String);
   fn create_instance_colour_buffer(&mut self, reference: String);
   fn create_model_instance_buffer(&mut self, reference: String);

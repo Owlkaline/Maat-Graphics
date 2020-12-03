@@ -519,7 +519,7 @@ impl ModelShader {
     let albedo_colour_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
-                                .load(AttachmentLoadOp::DontCare)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
@@ -530,7 +530,7 @@ impl ModelShader {
     let mro_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
-                                .load(AttachmentLoadOp::DontCare)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
@@ -540,7 +540,7 @@ impl ModelShader {
     let emissive_attachment = AttachmentInfo::new()
                                 .format(*format)
                                 .multisample(&SampleCount::OneBit)
-                                .load(AttachmentLoadOp::DontCare)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
@@ -551,7 +551,7 @@ impl ModelShader {
     let normal_attachment = AttachmentInfo::new()
                                 .format(vk::FORMAT_R8G8B8A8_SNORM)
                                 .multisample(&SampleCount::OneBit)
-                                .load(AttachmentLoadOp::DontCare)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
@@ -562,7 +562,7 @@ impl ModelShader {
     let position_attachment = AttachmentInfo::new()
                                 .format(vk::FORMAT_R16G16B16A16_SFLOAT)
                                 .multisample(&SampleCount::OneBit)
-                                .load(AttachmentLoadOp::DontCare)
+                                .load(AttachmentLoadOp::Clear)
                                 .store(AttachmentStoreOp::DontCare)
                                 .stencil_load(AttachmentLoadOp::DontCare)
                                 .stencil_store(AttachmentStoreOp::DontCare)
@@ -682,7 +682,8 @@ impl ModelShader {
                                            .add_input_attachment(2)
                                            .add_input_attachment(3)
                                            .add_input_attachment(4)
-                                           .add_input_attachment(6);
+                                           .add_input_attachment(6)
+                                           .add_input_attachment(5);
     
     let render_pass = RenderPassBuilder::new();
     let mut render_pass = render_pass.add_attachment(colour_attachment) // 0
@@ -690,8 +691,8 @@ impl ModelShader {
                                      .add_attachment(mro_attachment) // 2
                                      .add_attachment(emissive_attachment) // 3
                                      .add_attachment(normal_attachment) // 4
-                                     .add_attachment(depth_attachment) // 5
-                                     .add_attachment(position_attachment); // 6
+                                     .add_attachment(depth_attachment) // 6
+                                     .add_attachment(position_attachment); // 5
     
     if msaa != &SampleCount::OneBit {
       render_pass = render_pass.add_attachment(msaa_attachment); // 7
@@ -758,6 +759,7 @@ impl ModelShader {
           .fragment_input_attachment(2)
           .fragment_input_attachment(3)
           .fragment_input_attachment(4)
+          .fragment_input_attachment(6)
           .fragment_input_attachment(5)
           .build(Arc::clone(&device), &descriptor_set_pool, image_views.len() as u32);
       
@@ -766,6 +768,7 @@ impl ModelShader {
       .add_input_attachment_image(2, &framebuffer_mro_images)
       .add_input_attachment_image(3, &framebuffer_emissive_images)
       .add_input_attachment_image(4, &framebuffer_normal_images)
+      .add_input_attachment_image(6, &framebuffer_depth_images)
       .add_input_attachment_image(5, &framebuffer_position_images)
      .finish_update(Arc::clone(&device), &deffered_descriptor_set);
     
@@ -939,6 +942,7 @@ impl ModelShader {
       .add_input_attachment_image(3, &self.framebuffer_emissive_images)
       .add_input_attachment_image(4, &self.framebuffer_normal_images)
       .add_input_attachment_image(5, &self.framebuffer_position_images)
+      .add_input_attachment_image(6, &self.framebuffer_depth_images)
      .finish_update(Arc::clone(&device), &self.deffered_descriptor_set);
   }
   
@@ -1266,7 +1270,7 @@ impl ModelShader {
       let camera_up          = Vector4::new(c_up.x,     c_up.y,     c_up.z,     scale.x);
       let model              = Vector4::new(position.x, position.y, position.z, scale.y);
       let rotation           = Vector4::new(rotation.x, rotation.y, rotation.z, scale.z);
-      println!("MS: {}: Rotation {:?}", model_reference, rotation);
+     // println!("MS: {}: Rotation {:?}", model_reference, rotation);
       let hologram           = Vector4::new(if hologram { 1.0 } else { -1.0 }, self.scanline, 0.0, 0.0);
       
       for j in 0..self.models[i].vertex_buffers.len() {

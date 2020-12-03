@@ -3,6 +3,7 @@ use crate::cgmath::{Vector2, Vector3, Vector4, Matrix4,
              InnerSpace, Angle, Zero, Euler};
 
 use std::f64::consts::PI;
+use std::ops::{Div, Mul};
 /*
 // 3D math Primer for Graphics and Game Development (2nd Ed)
 #[derive(Clone)]
@@ -455,12 +456,12 @@ pub fn array4_to_vec4<T: Clone>(array: [T; 4]) -> Vector4<T> {
   Vector4::new(array[0].clone(), array[1].clone(), array[2].clone(), array[3].clone())
 }
 
-pub fn to_radians(degree: f32) -> f32 {
-  degree * (PI as f32/180.0)
+pub fn to_radians(degree: f64) -> f64 {
+  degree * (PI as f64/180.0)
 }
 
-pub fn to_degrees(radian: f32) -> f32 {
-  radian * 180.0 / PI as f32
+pub fn to_degrees(radian: f64) -> f64 {
+  radian * 180.0 / PI as f64
 }
 
 pub fn squared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
@@ -472,7 +473,7 @@ pub fn unsquared_distance(origin: Vector2<f32>, point: Vector2<f32>) -> f32 {
 }
 
 pub fn rotate_vector2(direction: Vector2<f32>, angle: f32) -> Vector2<f32> {
-  let radians = to_radians(angle);
+  let radians = to_radians(angle as f64) as f32;
   
   let cos = radians.cos();
   let sin = radians.sin();

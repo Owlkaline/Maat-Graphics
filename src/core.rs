@@ -363,6 +363,13 @@ impl CoreRender for CoreMaat {
     
   }
   
+  fn create_instance_text_buffer(&mut self, buffer_reference: String, texture_reference: String) {
+    let device = self.window.device();
+    let instance = self.window.instance();
+    let num_frames = self.fences.len() as u32;
+    self.texture_shader.add_instanced_text_buffer(Arc::clone(&instance), Arc::clone(&device), num_frames, buffer_reference, texture_reference);
+  }
+  
   fn create_instance_texture_buffer(&mut self, buffer_reference: String, texture_reference: String) {
     let device = self.window.device();
     let instance = self.window.instance();
@@ -565,6 +572,10 @@ impl CoreRender for CoreMaat {
             let buffer_ref = references;
             cmd = self.texture_shader.draw_instanced(Arc::clone(&device), cmd, i, buffer_ref.to_string());
           },
+          DrawType::DrawInstancedFont(ref references) => {
+            let buffer_ref = references;
+            cmd = self.texture_shader.draw_instanced_text(Arc::clone(&device), cmd, i, buffer_ref.to_string(), buffer_ref.to_string());
+          },
           DrawType::AddInstancedColoured(ref info) => {
             let (buffer_reference, position, scale, rotation, colour) = info.clone();
             self.texture_shader.add_instanced_draw(position, scale, rotation, None, colour, false, buffer_reference);
@@ -573,6 +584,14 @@ impl CoreRender for CoreMaat {
             let (buffer_reference, position, scale, rotation, colour, sprite_details) = info.clone(); 
             self.texture_shader.add_instanced_draw
 (position, scale, rotation, Some(sprite_details), colour, true, buffer_reference.to_string());
+          },
+          DrawType::AddInstancedFont(ref info) => {
+            let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 
+            
+            let texture_resource = self.resources.get_font(font.clone());
+            if let Some((font_details, _texture)) = texture_resource {
+              cmd = self.texture_shader.add_instanced_text(Arc::clone(&device), cmd, display_text, font.to_string(), position, scale, colour, outline_colour, edge_width, wrap_length, centered, font_details, window_size.width as f32, window_size.height as f32, font);
+            }
           },
           DrawType::DrawFont(ref info) => {
             let (font, display_text, position, scale, colour, outline_colour, edge_width, _wrapped, wrap_length, centered) = info.clone(); 

@@ -422,7 +422,7 @@ impl PerspectiveCamera {
     let near = 0.1;
     let far = 256.0;
     let fov = 60.0;
-    let f = 1.0 / (math::to_radians(fov) / 2.0).tan();
+    let f = 1.0 / (math::to_radians(fov as f64) as f32 / 2.0).tan();
     
     let perspective = Matrix4::from_cols(
                       Vector4::new(f / aspect, 0.0,   0.0,                               0.0),

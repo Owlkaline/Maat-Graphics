@@ -8,7 +8,7 @@ edition = '2018'
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-maat_vulkan = { path = "./Maat-Vulkan/" }
+maat_vulkan = { path = "../Maat-Vulkan/" }
 base64 = "*"
 csv = "1.1"
 
