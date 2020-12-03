@@ -53,16 +53,20 @@ mat4 create_translation_matrix(vec2 pos, vec2 scale) {
 }
 
 mat4 create_ortho_projection(float near, float far, float right, float bottom, vec2 offset) {
-  float left = offset.x;
-  float top = offset.y;
-  right += left;
-  bottom += top;
+  //float left = offset.x;
+  //float top = offset.y;
+  float height = bottom;
+  
+  float top = 0.0; //height;
+  //bottom = 0.0;
+  float left = 0.0;
+  //right += left;
+  //bottom += top;/*
   
   mat4 ortho = mat4(vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
                     vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
                     vec4(0.0, 0.0, -2.0 / (near / far), 0.0),
                     vec4(-(right + left) / (right - left), -(top+bottom)/(top-bottom), 0.0, 1.0));
-  
   return ortho;
 }
 
@@ -96,5 +100,5 @@ void main() {
   
   mat4 zoom_matrix = create_scale_matrix(matrix_zoom);
   
-  gl_Position = projection * zoom_matrix * model * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
+  gl_Position = projection * model * rot_z * scale_matrix * vec4(position, 0.0, 1.0);
 }
