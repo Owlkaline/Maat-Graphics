@@ -91,8 +91,8 @@ void main() {
   // Cell shading
   float light_levels = 6.0;
   float brightness_factor = max(dot(normalize(normal.xyz), normalize(sun_dir)), 0.0);
-  float level = floor(brightness_factor * light_levels); 
-  brightness_factor = level / light_levels;
+  /*float level = floor(brightness_factor * light_levels); 
+  brightness_factor = level / light_levels;*/
   
   //base_colour *= brightness_factor;
   base_colour.rgb = base_colour*max(brightness_factor, 0.02);

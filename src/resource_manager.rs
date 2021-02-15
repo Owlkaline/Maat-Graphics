@@ -165,22 +165,22 @@ impl ResourceManager {
           let mut model_data = None;
           match &object.object_type {
             ObjectType::Model(Some(model), _, data) => {
-              println!("reference: {} = {:?}", reference.to_string(), data);
+            //  println!("reference: {} = {:?}", reference.to_string(), data);
               size = Some(model.get_size());
               model_data = data.clone();
             }
             _ => {}
           }
           
-          if let Some(data) = &model_data {
-            println!("RECV_OBJECT_FIRST: collsiion info count: {}", data.num_collision_info());
-          }
+         // if let Some(data) = &model_data {
+         //   println!("RECV_OBJECT_FIRST: collsiion info count: {}", data.num_collision_info());
+        //  }
           
           let object_location = object.location.to_string();
           self.objects.push(object);
           
           if model_data.is_none() {
-            println!("model data reference name is {}Uwu", reference.to_string());
+           // println!("model data reference name is {}Uwu", reference.to_string());
             model_data = Some(ModelData::new(reference.to_string(), object_location.to_string()));
             if let Some(m_data) = &mut model_data {
               if let Some(size) = size {
