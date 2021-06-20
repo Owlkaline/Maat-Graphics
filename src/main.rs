@@ -23,18 +23,12 @@ use crate::ash::version::DeviceV1_0;
 
 mod modules;
 
-use crate::modules::{Vulkan, VkWindow, Buffer, Shader, GraphicsPipelineBuilder, ImageBuilder, Sampler,
-                     DescriptorSet, DescriptorWriter, ComputeShader};
+use crate::modules::{Vulkan, VkWindow, Buffer, Shader, GraphicsPipelineBuilder, Image, ImageBuilder, Sampler,
+                     DescriptorSet, DescriptorWriter, ComputeShader, DescriptorPoolBuilder};
 use crate::modules::vulkan::find_memorytype_index;
 
 const APP_NAME: &str = "Ash - Example";
 const WINDOW_SIZE: [u32; 2] = [1280, 720];
-
-#[derive(Clone, Debug, Copy)]
-struct Vertex {
-  pos: [f32; 4],
-  colour: [f32; 4],
-}
 
 #[derive(Clone, Debug, Copy)]
 struct ComboVertex {
@@ -46,6 +40,23 @@ struct ComboVertex {
 #[derive(Clone, Debug, Copy)]
 struct UniformBuffer {
   colour: [f32; 4],
+}
+
+fn create_texture(vulkan: &mut Vulkan, texture: &str) -> Image {
+  let image = image::open(&texture.clone()).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba();
+  
+  let dimensions = image.dimensions();
+  let image_data = image.into_raw();
+  
+  let mut src_buffer = Buffer::<u8>::new_image(vulkan.device(), image_data);
+  let mut dst_image = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
+                                   .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+                                   .set_dimensions(dimensions.0, dimensions.1)
+                                   .build_device_local(vulkan.device());
+  
+  vulkan.copy_buffer_to_device_local_image(&src_buffer, &dst_image);
+  
+  dst_image
 }
 
 fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &DescriptorSet) -> (Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
@@ -130,36 +141,14 @@ fn main() {
   
   let uniform_buffer = Buffer::<UniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
   
-  let image = image::load_from_memory(include_bytes!("../textures/negativeviewportheight.jpg"))
-                    .unwrap()
-                    .fliph()
-                    .to_rgba();
+  let dst_image = create_texture(&mut vulkan, "./textures/negativeviewportheight.jpg");
+  let dst_image2 = create_texture(&mut vulkan, "./textures/rust.png");
   
-  let dimensions = image.dimensions();
-  let image_data = image.into_raw();
-  
-  let mut src_buffer = Buffer::<u8>::new_image(vulkan.device(), image_data);
-  let mut dst_image = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
-                                   .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
-                                   .set_dimensions(dimensions.0, dimensions.1)
-                                   .build_device_local(vulkan.device());
-  
-  vulkan.copy_buffer_to_device_local_image(&src_buffer, &dst_image);
-  
-  let image = image::load_from_memory(include_bytes!("../textures/rust.png"))
-                    .unwrap()
-                    .fliph()
-                    .to_rgba();
-  
-  let dimensions = image.dimensions();
-  let image_data = image.into_raw();
-  
-  let mut src_buffer2 = Buffer::<u8>::new_image(vulkan.device(), image_data);
-  let mut dst_image2 = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
-                                   .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
-                                   .set_dimensions(dimensions.0, dimensions.1)
-                                   .build_device_local(vulkan.device());
-  vulkan.copy_buffer_to_device_local_image(&src_buffer2, &dst_image2);
+  let descriptor_pool = DescriptorPoolBuilder::new()
+                                              .num_combined_image_samplers(5)
+                                              .num_storage(5)
+                                              .num_uniform_buffers(5)
+                                              .build(vulkan.device());
   
   let sampler = Sampler::builder()
                          .min_filter_linear()
@@ -170,17 +159,17 @@ fn main() {
                          .compare_op_never()
                          .build(vulkan.device());
   
-  let (descriptor_sets, descriptor_pool) = DescriptorSet::builder()
-                                                        .uniform_buffer_fragment()
-                                                        .combined_image_sampler_fragment()
-                                                        .build(vulkan.device());
+  let descriptor_sets = DescriptorSet::builder()
+                                      .uniform_buffer_fragment()
+                                      .combined_image_sampler_fragment()
+                                      .build(vulkan.device(), &descriptor_pool);
   let descriptor_set_writer = DescriptorWriter::builder().update_uniform_buffer(&uniform_buffer, &descriptor_sets)
                                                          .update_image(&dst_image, &sampler, &descriptor_sets);
   
-  let (descriptor_sets2, descriptor_pool2) = DescriptorSet::builder()
-                                                        .uniform_buffer_fragment()
-                                                        .combined_image_sampler_fragment()
-                                                        .build(vulkan.device());
+  let descriptor_sets2 = DescriptorSet::builder()
+                                       .uniform_buffer_fragment()
+                                       .combined_image_sampler_fragment()
+                                       .build(vulkan.device(), &descriptor_pool);
   let descriptor_set_writer2 = DescriptorWriter::builder().update_uniform_buffer(&uniform_buffer, &descriptor_sets2)
                                                          .update_image(&dst_image2, &sampler, &descriptor_sets2);
   
@@ -189,7 +178,7 @@ fn main() {
   descriptor_set_writer.build(vulkan.device());
   descriptor_set_writer2.build(vulkan.device());
   
-  let (compute_descriptor_sets, pool) = DescriptorSet::builder().storage_compute().build(vulkan.device());
+  let compute_descriptor_sets = DescriptorSet::builder().storage_compute().build(vulkan.device(), &descriptor_pool);
   let compute_shader = ComputeShader::new(vulkan.device(), 
                                           Cursor::new(&include_bytes!("../shaders/collatz_comp.spv")[..]),
                                           &compute_descriptor_sets);

@@ -21,6 +21,7 @@ pub use self::descriptorset::DescriptorSet;
 pub use self::descriptorset_writer::DescriptorWriter;
 pub use self::compute_shader::ComputeShader;
 pub use self::compute_pipeline::ComputePipeline;
+pub use self::pool::DescriptorPoolBuilder;
 
 pub mod vulkan;
 mod swapchain;
@@ -45,4 +46,5 @@ mod descriptorset;
 mod descriptorset_writer;
 mod compute_pipeline;
 mod compute_shader;
+mod pool;
 
