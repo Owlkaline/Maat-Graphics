@@ -1,17 +1,13 @@
 [package]
-name = "maat_graphics"
-version = "0.2.0"
+name = "maat_graphics_ash"
+version = "0.1.0"
 authors = ["Lilith645 <lilith@inet-sys.com>"]
-edition = '2018'
+edition = "2018"
 
-[lib]
-crate-type = ["dylib", "rlib"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-maat_vulkan = { path = "../Maat-Vulkan/" }
-base64 = "*"
-csv = "1.1"
-
-[dependencies.gltf]
-version = "0.15.1"
-features = ["extras", "names"]
+ash = "0.32.0"
+ash-window = "0.6.0"
+winit = "0.25.0"
+image = "0.23.14"
