@@ -10,6 +10,8 @@ use std::io::Cursor;
 use std::mem;
 use std::mem::align_of;
 
+use std::time;
+
 use winit::{
   dpi::{LogicalSize, PhysicalSize},
   event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -29,6 +31,8 @@ use crate::modules::vulkan::find_memorytype_index;
 
 const APP_NAME: &str = "Ash - Example";
 const WINDOW_SIZE: [u32; 2] = [1280, 720];
+
+const DELTA_STEP: f32 = 0.001;
 
 #[derive(Clone, Debug, Copy)]
 struct ComboVertex {
@@ -188,8 +192,28 @@ fn main() {
   vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
   println!("Compute Data: {:?}", compute_data);
   
+  let mut delta_time = 0.0;
+  let mut last_time = time::Instant::now();
+  
+  let mut total_delta_time = 0.0;
+  
   event_loop.run(move |event, _, control_flow| {
       //*control_flow = ControlFlow::Wait;
+      *control_flow = ControlFlow::Poll;
+      
+      delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+      last_time = time::Instant::now();
+      total_delta_time += delta_time as f32;
+      
+      if total_delta_time > DELTA_STEP {
+        let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
+          
+        for _ in 0..delta_steps {
+          //F(DELTA_STEP); // update
+          total_delta_time -= DELTA_STEP;
+        }
+      }
+      
       match event {
           Event::WindowEvent { event, .. } => match event {
               WindowEvent::CloseRequested => {
