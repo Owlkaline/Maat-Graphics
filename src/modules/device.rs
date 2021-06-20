@@ -10,6 +10,13 @@ use std::ffi::{CStr, CString};
 
 use crate::modules::{VkInstance, VkWindow};
 
+/*
+ if (data->properties.limits.nonCoherentAtomSize > 0) {
+   VkDeviceSize atom_size = data->properties.limits.nonCoherentAtomSize - 1;
+   new_size = (new_size + atom_size) & ~atom_size;
+ }
+*/
+
 pub struct VkDevice {
   device: Device,
   phys_device: vk::PhysicalDevice,

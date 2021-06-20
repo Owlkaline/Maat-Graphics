@@ -7,6 +7,8 @@ use ash::{vk};
 use std::default::Default;
 use winit::window::Window;
 
+use std::os::raw::c_void;
+
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
                      PassDescription, VkWindow, Buffer, GraphicsPipeline, Shader, DescriptorSet,
@@ -914,7 +916,18 @@ impl Vulkan {
     shader: &Shader<T>, 
     vertex_buffer: &Buffer<T>, 
     index_buffer: &Buffer<L>,
+    data: Vec<f32>,
   ) {
+    
+    let mut push_constant_data: [u8; 128] = [0; 128];
+    for i in 0..(32).min(data.len()) {
+      let bytes = data[i].to_le_bytes();
+      push_constant_data[i*4 + 0] = bytes[0];
+      push_constant_data[i*4 + 1] = bytes[1];
+      push_constant_data[i*4 + 2] = bytes[2];
+      push_constant_data[i*4 + 3] = bytes[3];
+    }
+    
     unsafe {
       self.device.cmd_bind_descriptor_sets(
         self.draw_command_buffer,
@@ -947,6 +960,13 @@ impl Vulkan {
         0,
         vk::IndexType::UINT32,
       );
+      
+      self.device.cmd_push_constants(
+        self.draw_command_buffer,
+        shader.pipeline_layout(),
+        vk::ShaderStageFlags::VERTEX,
+        0,
+        &push_constant_data);
       
       self.device.cmd_draw_indexed(
         self.draw_command_buffer,

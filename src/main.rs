@@ -233,33 +233,17 @@ fn main() {
               vulkan.draw(&descriptor_sets,
                           &combo_shader,
                           &combo_vertex_buffer,
-                          &combo_index_buffer);
+                          &combo_index_buffer,
+                          vec!(0.0, 0.0, 1.0, 0.0,  // x y usetexture empty
+                               0.0, 0.0, 1.0, 1.0)); // Colour
               vulkan.draw(&descriptor_sets2,
                           &combo_shader,
                           &combo_vertex_buffer,
-                          &combo_index_buffer);
+                          &combo_index_buffer,
+                          vec!(0.2, 0.2, 1.0, 0.0,
+                               1.0, 0.0, 0.0, 1.0));
               vulkan.end_render(present_index);
             }
-            
-            /* vulkan.render_triangle(
-              &triangle_vertex_buffer,
-              &triangle_index_buffer,
-              triangle_shader.graphics_pipeline(),
-            );*/
-            
-            /*vulkan.render_texture(
-              &descriptor_sets,
-              &combo_shader,
-              &combo_vertex_buffer,
-              &combo_index_buffer,
-            );
-            
-            vulkan.render_texture(
-              &descriptor_sets2,
-              &combo_shader,
-              &combo_vertex_buffer,
-              &combo_index_buffer,
-            );*/
           },
           Event::LoopDestroyed => {
             unsafe {
@@ -270,12 +254,6 @@ fn main() {
               combo_shader.destroy(vulkan.device());
               combo_index_buffer.destroy(vulkan.device());
               combo_vertex_buffer.destroy(vulkan.device());
-              /*triangle_shader.destroy(vulkan.device());
-              triangle_index_buffer.destroy(vulkan.device());
-              triangle_vertex_buffer.destroy(vulkan.device());
-              texture_shader.destroy(vulkan.device());
-              texture_index_buffer.destroy(vulkan.device());
-              texture_vertex_buffer.destroy(vulkan.device());*/
             }
           }
           _ => (),
