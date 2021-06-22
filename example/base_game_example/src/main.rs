@@ -24,10 +24,6 @@ use maat_graphics::{MaatGraphics, VkWindow};
 use maat_graphics::ash::util::*;
 use maat_graphics::ash::vk;
 use maat_graphics::ash::version::DeviceV1_0;
-/*
-use maat_graphics::modules::{Vulkan, VkWindow, Buffer, Shader, GraphicsPipelineBuilder, Image, ImageBuilder, Sampler,
-                     DescriptorSet, DescriptorWriter, ComputeShader, DescriptorPoolBuilder};
-use maat_graphics::modules::vulkan::find_memorytype_index;*/
 
 const APP_NAME: &str = "MaatGraphics - Example";
 const WINDOW_SIZE: [u32; 2] = [1280, 720];
@@ -59,7 +55,7 @@ fn main() {
       
       if total_delta_time > DELTA_STEP {
         let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
-          
+        
         for _ in 0..delta_steps {
           //F(DELTA_STEP); // update
           total_delta_time -= DELTA_STEP;
@@ -89,11 +85,13 @@ fn main() {
           },
           Event::MainEventsCleared => {
             vulkan.draw(vec!(
-              (vec!(0.0, 0.0, 1.0, 0.0,  // x y usetexture empty
-                   0.0, 0.0, 1.0, 1.0), 
+              (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
+                    0.0, 0.0, 1.0, 1.0, // r g b a
+                    1.0), // use texture
                "orientation"),
-              (vec!(0.2, 0.2, 1.0, 0.0,
-                   1.0, 0.0, 0.0, 1.0), 
+              (vec!(150.0, 150.0, 573.0, 300.0,
+                    1.0, 0.0, 1.0, 1.0,
+                    1.0), 
                "rust_crab"),
             ));
           },

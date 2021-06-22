@@ -72,10 +72,10 @@ impl<T: Sized + Copy> Buffer<T> {
   }
   
   pub fn destroy(&self, device: &VkDevice) {
+    self.memory.destroy(device);
     unsafe {
       device.internal().destroy_buffer(self.buffer, None);
     }
-    self.memory.destroy(device);
   }
   
   pub fn internal(&self) -> &vk::Buffer {

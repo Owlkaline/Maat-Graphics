@@ -95,12 +95,15 @@ impl MaatGraphics {
   pub fn destroy(&mut self) {
     unsafe {
       self.vulkan.device().internal().device_wait_idle().unwrap();
-      
-      self.texture_handler.destroy(&mut self.vulkan);
-      
-      self.compute_descriptor_sets.destroy(self.vulkan.device());
-      self.compute_shader.destroy(self.vulkan.device());
-      
+    }
+    
+    self.texture_handler.destroy(&mut self.vulkan);
+    
+    self.compute_descriptor_sets.destroy(self.vulkan.device());
+    self.compute_shader.destroy(self.vulkan.device());
+    
+    unsafe {
+      self.vulkan.device().destroy_descriptor_pool(self.compute_descriptor_pool, None);
     }
   }
 }

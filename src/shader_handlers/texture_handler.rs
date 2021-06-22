@@ -9,6 +9,8 @@ use crate::offset_of;
 use crate::modules::{Vulkan, Image, ImageBuilder, Shader, Sampler, Buffer, DescriptorSet, DescriptorPoolBuilder,
                      DescriptorWriter, GraphicsPipelineBuilder};
 
+use crate::ash::version::DeviceV1_0;
+
 #[derive(Clone, Debug, Copy)]
 pub struct ComboVertex {
   pos: [f32; 4],
@@ -99,6 +101,12 @@ impl TextureHandler {
     self.combo_shader.destroy(vulkan.device());
     self.combo_index_buffer.destroy(vulkan.device());
     self.combo_vertex_buffer.destroy(vulkan.device());
+    
+    unsafe {
+      vulkan.device().destroy_descriptor_pool(self.descriptor_pool, None);
+    }
+    
+    self.sampler.destroy(vulkan.device());
   }
   
   pub fn load_texture(&mut self, vulkan: &mut Vulkan, texture_ref: &str, texture: &str) {
@@ -162,35 +170,36 @@ impl TextureHandler {
   
   fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &DescriptorSet) -> (Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
     let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];//vec![3, 2, 0, 2, 0, 1];
+    let z = -1.0;
     let combo_vertices = vec![
       ComboVertex {
-          pos: [1.0, 1.0, 0.0, 1.0],
+          pos: [1.0, 1.0, z, 1.0],
           colour: [0.0, 1.0, 0.0, 1.0],
           uv: [0.0, 0.0],
       },
       ComboVertex {
-          pos: [-1.0, 1.0, 0.0, 1.0],
+          pos: [0.0, 1.0, z, 1.0],
           colour: [0.0, 0.0, 1.0, 1.0],
           uv: [1.0, 0.0],
       },
       ComboVertex {
-          pos: [-1.0, -1.0, 0.0, 1.0],
+          pos: [0.0, 0.0, z, 1.0],
           colour: [1.0, 0.0, 0.0, 1.0],
           uv: [1.0, 1.0],
       },
       
       ComboVertex {
-          pos: [-1.0, -1.0, 0.0, 1.0],
+          pos: [0.0, 0.0, z, 1.0],
           colour: [0.0, 1.0, 0.0, 1.0],
           uv: [1.0, 1.0],
       },
       ComboVertex {
-          pos: [1.0, -1.0, 0.0, 1.0],
+          pos: [1.0, 0.0, z, 1.0],
           colour: [0.0, 0.0, 1.0, 1.0],
           uv: [0.0, 1.0],
       },
       ComboVertex {
-          pos: [1.0, 1.0, 0.0, 1.0],
+          pos: [1.0, 1.0, z, 1.0],
           colour: [1.0, 0.0, 0.0, 1.0],
           uv: [0.0, 0.0],
       }

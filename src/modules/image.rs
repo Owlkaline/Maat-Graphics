@@ -52,6 +52,8 @@ impl Image {
   
   pub fn destroy(&self, device: &VkDevice) {
     unsafe {
+      self.memory.destroy(device);
+      device.destroy_image_view(self.image_view, None);
       device.destroy_image(self.image, None);
     }
   }

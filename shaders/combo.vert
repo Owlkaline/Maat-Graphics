@@ -10,9 +10,9 @@ layout (location = 0) out vec4 o_colour;
 layout (location = 1) out vec3 o_uv_textured;
 
 layout(push_constant) uniform PushConstants {
-  vec4 offset_textured;
-  vec4 colour; 
-  vec4 attrib2; 
+  vec4 pos_scale; // x, y, scale_x, scale_y
+  vec4 colour;  // r g b a
+  vec4 is_textured; // is_textured, empty x3 
   vec4 attrib3;
   vec4 attrib4;
   vec4 attrib5; 
@@ -20,9 +20,25 @@ layout(push_constant) uniform PushConstants {
   vec4 attrib7;
 } push_constants;
 
+mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
+  mat4 projection = mat4(
+    vec4(2.0 / (right - left), 0.0, 0.0, 0.0),
+    vec4(0.0, 2.0 / (top - bottom), 0.0, 0.0),
+    vec4(0.0, 0.0, -2.0 / (far - near), 0.0),
+    vec4(-(right + left) / (right - left), -(top + bottom) / (top - bottom), -(far + near)/(far - near), 1)
+  );
+  
+  return projection;
+}
+
 void main() {
-  o_uv_textured = vec3(uv, push_constants.offset_textured.z);
+  o_uv_textured = vec3(uv, push_constants.is_textured.x);
   o_colour = push_constants.colour;
   
-  gl_Position = pos + vec4(push_constants.offset_textured.xy, vec2(0.0));
+  mat4 ortho_matrix = ortho_projection(0.0, 720.0, 0.0, 1280.0, 0.1, 1.0);
+  
+  float x = (pos.x*push_constants.pos_scale.z) + push_constants.pos_scale.x;
+  float y = (pos.y*push_constants.pos_scale.w) + push_constants.pos_scale.y;
+  
+  gl_Position = ortho_matrix * vec4(x, y, pos.zw);
 }

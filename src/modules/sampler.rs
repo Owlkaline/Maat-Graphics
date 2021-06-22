@@ -25,6 +25,12 @@ impl Sampler {
   pub fn internal(&self) -> vk::Sampler {
     self.sampler
   }
+  
+  pub fn destroy(&mut self, device: &VkDevice) {
+    unsafe {
+      device.internal().destroy_sampler(self.sampler, None);
+    }
+  }
 }
 
 pub struct SamplerBuilder {
