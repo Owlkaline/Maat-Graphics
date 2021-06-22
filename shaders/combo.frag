@@ -2,9 +2,9 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (binding = 1) uniform sampler2D samplerColour;
+layout (binding = 0) uniform sampler2D samplerColour;
 
-layout (binding = 0) uniform UBO {
+layout (binding = 1) uniform UBO {
   vec3 color;
 } ubo;
 

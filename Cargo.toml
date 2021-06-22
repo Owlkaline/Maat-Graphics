@@ -1,5 +1,5 @@
 [package]
-name = "maat_graphics_ash"
+name = "maat_graphics"
 version = "0.1.0"
 authors = ["Lilith645 <lilith@inet-sys.com>"]
 edition = "2018"

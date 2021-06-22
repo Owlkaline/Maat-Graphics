@@ -50,6 +50,12 @@ impl Image {
     }
   }
   
+  pub fn destroy(&self, device: &VkDevice) {
+    unsafe {
+      device.destroy_image(self.image, None);
+    }
+  }
+  
   pub fn view(&self) -> vk::ImageView {
     self.image_view
   }
