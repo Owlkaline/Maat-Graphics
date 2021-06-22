@@ -9,6 +9,10 @@ layout (location = 2) in vec2 uv;
 layout (location = 0) out vec4 o_colour;
 layout (location = 1) out vec3 o_uv_textured;
 
+layout (binding = 1) uniform UBO {
+  vec3 window_size;
+} ubo;
+
 layout(push_constant) uniform PushConstants {
   vec4 pos_scale; // x, y, scale_x, scale_y
   vec4 colour;  // r g b a
@@ -17,7 +21,7 @@ layout(push_constant) uniform PushConstants {
   vec4 attrib4;
   vec4 attrib5; 
   vec4 attrib6;
-  vec4 attrib7;
+  vec4 window_size; // empty x2 width height 
 } push_constants;
 
 mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
@@ -35,7 +39,8 @@ void main() {
   o_uv_textured = vec3(uv, push_constants.is_textured.x);
   o_colour = push_constants.colour;
   
-  mat4 ortho_matrix = ortho_projection(0.0, 720.0, 0.0, 1280.0, 0.1, 1.0);
+  mat4 ortho_matrix = ortho_projection(0.0, push_constants.window_size.w, 0.0, push_constants.window_size.z, 0.1, 1.0);
+                                                                 //720.0, 0.0, 1280.0, 0.1, 1.0);
   
   float x = (pos.x*push_constants.pos_scale.z) + push_constants.pos_scale.x;
   float y = (pos.y*push_constants.pos_scale.w) + push_constants.pos_scale.y;

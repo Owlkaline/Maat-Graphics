@@ -35,7 +35,7 @@ pub struct TextureHandler {
 }
 
 impl TextureHandler {
-  pub fn new(vulkan: &mut Vulkan) -> TextureHandler {
+  pub fn new(vulkan: &mut Vulkan, screen_size: vk::Extent2D) -> TextureHandler {
     let descriptor_pool = DescriptorPoolBuilder::new()
                                               .num_combined_image_samplers(5)
                                               .num_uniform_buffers(5)
@@ -52,7 +52,7 @@ impl TextureHandler {
     
     let uniform_data = vec![
       UniformBuffer {
-        colour: [0.0, 0.0, 0.0, 0.0],
+        colour: [screen_size.width as f32, screen_size.height as f32, 0.0, 0.0],
       }
     ];
     
@@ -60,7 +60,7 @@ impl TextureHandler {
     
     let descriptor_sets = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
-                                      .uniform_buffer_fragment()
+                                      .uniform_buffer_vertex()
                                       .build(vulkan.device(), &descriptor_pool);
     
     let (combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, &descriptor_sets);
@@ -69,7 +69,7 @@ impl TextureHandler {
     let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, checked_image);
     let dummy_descriptor_set = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
-                                      .uniform_buffer_fragment()
+                                      .uniform_buffer_vertex()
                                       .build(vulkan.device(), &descriptor_pool);
     let dummy_descriptor_set_writer = DescriptorWriter::builder()
                                                         .update_image(&dummy_texture, &sampler, &dummy_descriptor_set)

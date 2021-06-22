@@ -82,6 +82,10 @@ impl<T: Sized + Copy> Buffer<T> {
     &self.buffer
   }
   
+  pub fn set_data(&mut self, data: Vec<T>) {
+    self.data = data;
+  }
+  
   pub fn data(&self) -> &Vec<T> {
     &self.data
   }

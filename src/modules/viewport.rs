@@ -32,4 +32,12 @@ impl Viewport {
       max_depth: self.max_depth,
     }
   }
+  
+  pub fn width(&self) -> f32 {
+    self.width
+  }
+  
+  pub fn height(&self) -> f32 {
+    self.y
+  }
 }

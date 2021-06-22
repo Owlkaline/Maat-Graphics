@@ -4,10 +4,6 @@
 
 layout (binding = 0) uniform sampler2D samplerColour;
 
-layout (binding = 1) uniform UBO {
-  vec3 color;
-} ubo;
-
 layout (location = 0) in vec4 o_colour;
 layout (location = 1) in vec3 o_uv_textured;
 

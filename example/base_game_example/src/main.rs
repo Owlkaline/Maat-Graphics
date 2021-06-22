@@ -12,9 +12,9 @@ use std::time;
 
 use winit::{
   dpi::{LogicalSize, PhysicalSize},
-  event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+  event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, WindowEvent},
   event_loop::{ControlFlow, EventLoop},
-  window::WindowBuilder
+  window::WindowBuilder,
 };
 
 use std::time::Instant;
@@ -78,10 +78,12 @@ fn main() {
                 *control_flow = ControlFlow::Exit
               },
               WindowEvent::Resized(dimensions) => {
-                println!("resized");
+                //println!("resized");
                 vulkan.recreate_swapchain(dimensions.width, dimensions.height);
               },
-              _ => (),
+              event => {
+                handle_event(event);
+              },
           },
           Event::MainEventsCleared => {
             vulkan.draw(vec!(
@@ -101,4 +103,45 @@ fn main() {
           _ => (),
       }
   });
+}
+
+fn handle_event(event: WindowEvent) {
+  match event {
+    WindowEvent::KeyboardInput {device_id: _, input: key, is_synthetic: _} => {
+      if let Some(key_code) = key.virtual_keycode {
+        println!("KeyInput: {:?}", key_code);
+      }
+    },
+    WindowEvent::CursorMoved { device_id: _, position: pos, modifiers: _, } => {
+      let x: f64 = pos.x;
+      let y: f64 = WINDOW_SIZE[1] as f64 - pos.y;
+      
+    },
+    WindowEvent::MouseInput {device_id: _, state: state, button: button, modifiers: _} => {
+      match state {
+        ElementState::Pressed => {
+          
+        },
+        ElementState::Released => {
+          
+        },
+      }
+      
+      match button {
+        MouseButton::Left => {
+          
+        },
+        MouseButton::Right => {
+          
+        },
+        MouseButton::Middle => {
+          
+        },
+        MouseButton::Other(id) => {
+          
+        },
+      }
+    },
+    _ => {},
+  }
 }

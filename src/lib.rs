@@ -59,7 +59,7 @@ impl MaatGraphics {
     vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
     println!("Compute Data: {:?}", compute_data);
     
-    let texture_handler = TextureHandler::new(&mut vulkan);
+    let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution);
     
     MaatGraphics {
       vulkan,

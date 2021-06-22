@@ -54,6 +54,12 @@ impl DescriptorSetBuilder {
     }
   }
   
+  pub fn uniform_buffer_vertex(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::UNIFORM_BUFFER);
+    self.stages.push(vk::ShaderStageFlags::VERTEX);
+    self
+  }
+  
   pub fn uniform_buffer_fragment(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::UNIFORM_BUFFER);
     self.stages.push(vk::ShaderStageFlags::FRAGMENT);

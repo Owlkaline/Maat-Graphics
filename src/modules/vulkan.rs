@@ -909,6 +909,14 @@ impl Vulkan {
       }
     };
   }
+  /*
+  pub fn update_buffer(&mut self, buffer: &mut Buffer<T>, data: T) {
+    self.device.cmd_update_buffer(self.draw_command_buffer,
+                                  buffer.internal(),
+                                  0 as vk::DeviceSize,
+                                  &data);
+    buffer.set_data(data);
+  }*/
   
   pub fn draw<T: Copy, L: Copy>(
     &mut self,
@@ -927,6 +935,19 @@ impl Vulkan {
       push_constant_data[i*4 + 2] = bytes[2];
       push_constant_data[i*4 + 3] = bytes[3];
     }
+    
+    // Pass in window size
+    // TODO: Move to specialisation constant or uniform buffer
+    let width_bytes = self.viewports.width().to_le_bytes();
+    push_constant_data[30*4 + 0] = width_bytes[0];
+    push_constant_data[30*4 + 1] = width_bytes[1];
+    push_constant_data[30*4 + 2] = width_bytes[2];
+    push_constant_data[30*4 + 3] = width_bytes[3];
+    let height_bytes = self.viewports.height().to_le_bytes();
+    push_constant_data[31*4 + 0] = height_bytes[0];
+    push_constant_data[31*4 + 1] = height_bytes[1];
+    push_constant_data[31*4 + 2] = height_bytes[2];
+    push_constant_data[31*4 + 3] = height_bytes[3];
     
     unsafe {
       self.device.cmd_bind_descriptor_sets(
