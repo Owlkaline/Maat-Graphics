@@ -16,7 +16,7 @@ layout (binding = 1) uniform UBO {
 layout(push_constant) uniform PushConstants {
   vec4 pos_scale; // x, y, scale_x, scale_y
   vec4 colour;  // r g b a
-  vec4 is_textured; // is_textured, empty x3 
+  vec4 is_textured_rotation; // is_textured, rotation, empty x2
   vec4 attrib3;
   vec4 attrib4;
   vec4 attrib5; 
@@ -36,14 +36,34 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
 }
 
 void main() {
-  o_uv_textured = vec3(uv, push_constants.is_textured.x);
+  o_uv_textured = vec3(uv, push_constants.is_textured_rotation.x);
   o_colour = push_constants.colour;
   
   mat4 ortho_matrix = ortho_projection(0.0, push_constants.window_size.w, 0.0, push_constants.window_size.z, 0.1, 1.0);
                                                                  //720.0, 0.0, 1280.0, 0.1, 1.0);
   
-  float x = (pos.x*push_constants.pos_scale.z) + push_constants.pos_scale.x;
-  float y = (pos.y*push_constants.pos_scale.w) + push_constants.pos_scale.y;
+  vec2 unrotated_pos = pos.xy - vec2(0.5, 0.5);
+  float rotation = radians(push_constants.is_textured_rotation.y);
+  
+  unrotated_pos.x *= push_constants.pos_scale.z;
+  unrotated_pos.y *= push_constants.pos_scale.w;
+  
+  mat2 rot_mat = mat2(vec2(cos(rotation), -sin(rotation)),
+                      vec2(sin(rotation), cos(rotation)));
+  
+  vec2 rotated_pos = rot_mat * unrotated_pos;
+  
+  rotated_pos += push_constants.pos_scale.zw*0.5;
+  
+  float x = rotated_pos.x + push_constants.pos_scale.x;
+  float y = rotated_pos.y + push_constants.pos_scale.y;
+  
+  //vec2 rotated_scale = rot_mat * push_constants.pos_scale.zw;
+  
+  //rotated_pos += vec2(0.5, 0.5);
+  
+  //float x = (rotated_pos.x*rotated_scale.x) + push_constants.pos_scale.x;
+  //float y = (rotated_pos.y*rotated_scale.y) + push_constants.pos_scale.y;
   
   gl_Position = ortho_matrix * vec4(x, y, pos.zw);
 }

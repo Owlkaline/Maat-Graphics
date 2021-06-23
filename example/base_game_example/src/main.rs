@@ -89,11 +89,11 @@ fn main() {
             vulkan.draw(vec!(
               (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
                     0.0, 0.0, 1.0, 1.0, // r g b a
-                    1.0), // use texture
+                    1.0, 45.0), // use texture, rotation
                "orientation"),
               (vec!(150.0, 150.0, 573.0, 300.0,
                     1.0, 0.0, 1.0, 1.0,
-                    1.0), 
+                    1.0, 0.0), 
                "rust_crab"),
             ));
           },
