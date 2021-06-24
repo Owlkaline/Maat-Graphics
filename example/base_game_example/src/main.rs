@@ -26,15 +26,16 @@ use maat_graphics::ash::vk;
 use maat_graphics::ash::version::DeviceV1_0;
 
 const APP_NAME: &str = "MaatGraphics - Example";
-const WINDOW_SIZE: [u32; 2] = [1280, 720];
+//const WINDOW_SIZE: [u32; 2] = [1280, 720];
 
 const DELTA_STEP: f32 = 0.001;
 
 fn main() {
+  let mut create_window_size: [u32; 2] = [1280, 720];
   let mut screen_resolution = vk::Extent2D { width: 1, height: 1};
   
   let mut event_loop = EventLoop::new();
-  let mut window = VkWindow::new(APP_NAME, WINDOW_SIZE[0], WINDOW_SIZE[1], &event_loop, &mut screen_resolution);
+  let mut window = VkWindow::new(APP_NAME, create_window_size[0], create_window_size[1], &event_loop, &mut screen_resolution);
   
   let mut vulkan = MaatGraphics::new(&mut window, screen_resolution);
   
@@ -80,9 +81,11 @@ fn main() {
               WindowEvent::Resized(dimensions) => {
                 //println!("resized");
                 vulkan.recreate_swapchain(dimensions.width, dimensions.height);
+                screen_resolution.width = dimensions.width;
+                screen_resolution.height = dimensions.height;
               },
               event => {
-                handle_event(event);
+                handle_event(event, screen_resolution);
               },
           },
           Event::MainEventsCleared => {
@@ -105,7 +108,7 @@ fn main() {
   });
 }
 
-fn handle_event(event: WindowEvent) {
+fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D) {
   match event {
     WindowEvent::KeyboardInput {device_id: _, input: key, is_synthetic: _} => {
       if let Some(key_code) = key.virtual_keycode {
@@ -114,7 +117,7 @@ fn handle_event(event: WindowEvent) {
     },
     WindowEvent::CursorMoved { device_id: _, position: pos, modifiers: _, } => {
       let x: f64 = pos.x;
-      let y: f64 = WINDOW_SIZE[1] as f64 - pos.y;
+      let y: f64 = screen_resolution.height as f64 - pos.y;
       
     },
     WindowEvent::MouseInput {device_id: _, state: state, button: button, modifiers: _} => {

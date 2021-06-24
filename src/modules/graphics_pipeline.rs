@@ -202,7 +202,7 @@ impl GraphicsPipelineBuilder {
     let dynamic_state = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
     let dynamic_state_info =
         vk::PipelineDynamicStateCreateInfo::builder().dynamic_states(&dynamic_state);
-
+    
     let graphic_pipeline_info = vk::GraphicsPipelineCreateInfo::builder()
         .stages(&shader_stage_create_info)
         .vertex_input_state(&vertex_input_state)
