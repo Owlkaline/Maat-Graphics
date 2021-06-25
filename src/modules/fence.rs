@@ -26,7 +26,7 @@ impl Fence {
   pub fn new_many_signaled(device: &VkDevice, count: u32) -> Vec<Fence> {
     let mut fences = Vec::new();
     
-    for i in 0..count {
+    for _ in 0..count {
       fences.push(Fence::new_signaled(device));
     }
     

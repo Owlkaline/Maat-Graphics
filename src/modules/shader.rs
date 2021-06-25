@@ -2,7 +2,6 @@ use ash::vk;
 use ash::util::read_spv;
 use ash::version::DeviceV1_0;
 
-use std::io::Cursor;
 use std::io::Seek;
 use std::io::Read;
 use std::ffi::CString;
@@ -108,7 +107,7 @@ impl<T: Sized + Copy> Shader<T> {
                                                             &pipeline_layout, 
                                                             shader_stage_create_info.to_vec(),
                                                             vertex_input_state,
-                                                            vertex_input_attributes,
+                                                           // vertex_input_attributes,
                                                             viewport, scissors, renderpass);
     
     Shader {

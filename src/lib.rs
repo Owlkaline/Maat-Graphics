@@ -1,3 +1,5 @@
+#![ allow( dead_code )]
+
 pub extern crate ash;
 pub extern crate winit;
 pub extern crate image;
@@ -7,32 +9,12 @@ mod shader_handlers;
 
 pub use crate::modules::{VkWindow};
 
-use ash::util::*;
 use ash::vk;
-use std::default::Default;
-use std::ffi::CString;
 use std::io::Cursor;
-use std::mem;
-use std::mem::align_of;
-
-use std::time;
-
-use winit::{
-  dpi::{LogicalSize, PhysicalSize},
-  event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-  event_loop::{ControlFlow, EventLoop},
-  window::WindowBuilder
-};
-
-use std::time::Instant;
-
-use std::collections::HashMap;
 
 use crate::ash::version::DeviceV1_0;
 
-use crate::modules::{Vulkan, Buffer, Shader, GraphicsPipelineBuilder, Image, ImageBuilder, Sampler,
-                     DescriptorSet, DescriptorWriter, ComputeShader, DescriptorPoolBuilder};
-use crate::modules::vulkan::find_memorytype_index;
+use crate::modules::{Vulkan, Image, DescriptorSet, ComputeShader, DescriptorPoolBuilder};
 use crate::shader_handlers::TextureHandler;
 
 pub struct MaatGraphics {

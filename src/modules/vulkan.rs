@@ -1,13 +1,8 @@
-use ash::extensions::{
-    khr::{Surface, Swapchain},
-};
-
 use ash::version::{DeviceV1_0};
 use ash::{vk};
 use std::default::Default;
-use winit::window::Window;
 
-use std::os::raw::c_void;
+use crate::shader_handlers::gltf_loader;
 
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
@@ -70,6 +65,8 @@ pub struct Vulkan {
 
 impl Vulkan {
   pub fn new(window: &mut VkWindow, screen_resolution: vk::Extent2D) -> Vulkan {
+    
+    gltf_loader::load_gltf();
     
     let instance = VkInstance::new(window);
     let device = VkDevice::new(&instance, window);
@@ -158,15 +155,15 @@ impl Vulkan {
   
   pub fn recreate_swapchain(&mut self) {
     unsafe {
-        let device = self.device.internal();
-        
-        device.device_wait_idle().unwrap();
-        
-        self.framebuffer.destroy(device);
+      let device = self.device.internal();
+      
+      device.device_wait_idle().unwrap();
+      
+      self.framebuffer.destroy(device);
 
-        device.destroy_image_view(self.depth_image.view(), None);
-        device.destroy_image(self.depth_image.internal(), None);
-        device.free_memory(self.depth_image.memory(), None);
+      device.destroy_image_view(self.depth_image.view(), None);
+      device.destroy_image(self.depth_image.internal(), None);
+      device.free_memory(self.depth_image.memory(), None);
     }
     self.swapchain.destroy(&self.device);
     
@@ -205,7 +202,7 @@ impl Vulkan {
     
     let (present_index, _) = match present_index_result {
       Ok(index) => index,
-      Err(e) => {
+      Err(_e) => {
           self.recreate_swapchain();
           return;
       }
@@ -834,13 +831,11 @@ impl Vulkan {
         .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)
         .expect("Begin commandbuffer");
       
-      unsafe {
-        self.device.cmd_begin_render_pass(
-          self.draw_command_buffer,
-          &render_pass_begin_info,
-          vk::SubpassContents::INLINE,
-        );
-      }
+      self.device.cmd_begin_render_pass(
+        self.draw_command_buffer,
+        &render_pass_begin_info,
+        vk::SubpassContents::INLINE,
+      );
     }
     
     Some(present_index)

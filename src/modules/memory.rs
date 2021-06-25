@@ -2,9 +2,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 use ash::util::Align;
 use std::mem::{align_of};
-use std::mem;
 use std::slice;
-use std::ptr;
 
 use crate::modules::VkDevice;
 
@@ -135,7 +133,7 @@ impl<T: Copy> Memory<T> {
       )
       .unwrap() };
     
-    let mut data_slice = unsafe { slice::from_raw_parts(index_ptr as *const T, data_len) };
+    let data_slice = unsafe { slice::from_raw_parts(index_ptr as *const T, data_len) };
     let data = data_slice.to_vec();
     
     unsafe {

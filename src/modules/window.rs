@@ -2,8 +2,7 @@ use ash::vk;
 
 use winit::{
   dpi::{LogicalSize, PhysicalSize},
-  event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-  event_loop::{ControlFlow, EventLoop},
+  event_loop::{EventLoop},
   window::{WindowBuilder, Window}
 };
 

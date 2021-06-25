@@ -110,13 +110,13 @@ impl TextureHandler {
   }
   
   pub fn load_texture(&mut self, vulkan: &mut Vulkan, texture_ref: &str, texture: &str) {
-    let image = image::open(&texture.clone()).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba();
+    let image = image::open(&texture.clone()).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba8();
     
     let dl_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
     
     let descriptor_sets = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
-                                      .uniform_buffer_fragment()
+                                      .uniform_buffer_vertex()
                                       .build(vulkan.device(), &self.descriptor_pool);
     let descriptor_set_writer = DescriptorWriter::builder()
                                                   .update_image(&dl_texture, &self.sampler, &descriptor_sets)
@@ -157,8 +157,8 @@ impl TextureHandler {
     let dimensions = image.dimensions();
     let image_data = image.into_raw();
     
-    let mut src_buffer = Buffer::<u8>::new_image(vulkan.device(), image_data);
-    let mut dst_image = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
+    let src_buffer = Buffer::<u8>::new_image(vulkan.device(), image_data);
+    let dst_image = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
                                      .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
                                      .set_dimensions(dimensions.0, dimensions.1)
                                      .build_device_local(vulkan.device());
@@ -214,7 +214,7 @@ impl TextureHandler {
     let combo_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), combo_index_buffer_data);
     let combo_vertex_buffer = Buffer::<ComboVertex>::new_vertex(vulkan.device(), combo_vertices);
     
-    let mut graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
+    let graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
                                                                       .front_face_counter_clockwise()
                                                                       .polygon_mode_fill()
                                                                       .samples_1();

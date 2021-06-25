@@ -144,7 +144,7 @@ impl GraphicsPipelineBuilder {
                       pipeline_layout: &vk::PipelineLayout, 
                       shader_stage_create_info: Vec<vk::PipelineShaderStageCreateInfo>,
                       vertex_input_state: vk::PipelineVertexInputStateCreateInfo,
-                      vertex_input_attributes: Vec<vk::VertexInputAttributeDescription>,
+                      //vertex_input_attributes: Vec<vk::VertexInputAttributeDescription>,
                       viewport: &Viewport, 
                       scissors: &Scissors, 
                       renderpass: &Renderpass) -> GraphicsPipeline {

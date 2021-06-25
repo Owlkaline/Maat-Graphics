@@ -2,7 +2,7 @@ use ash::vk;
 
 use ash::version::DeviceV1_0;
 
-use crate::modules::{VkDevice, Viewport, Scissors, Renderpass};
+use crate::modules::{VkDevice};
 
 pub struct ComputePipeline {
   pipeline: vk::Pipeline,

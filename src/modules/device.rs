@@ -6,8 +6,6 @@ pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
 use std::default::Default;
 
-use std::ffi::{CStr, CString};
-
 use crate::modules::{VkInstance, VkWindow};
 
 /*

@@ -1,8 +1,6 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use image;
-
 use crate::modules::{VkDevice, Memory};
 
 pub struct Buffer<T: Sized + Copy> {

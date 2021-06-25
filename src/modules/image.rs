@@ -1,10 +1,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use image::GenericImage;
-use image::GenericImageView;
-
-use crate::modules::{VkDevice, Memory, Buffer, Vulkan};
+use crate::modules::{VkDevice, Memory};
 
 pub struct Image {
   image: vk::Image,
@@ -15,7 +12,7 @@ pub struct Image {
 }
 
 impl Image {
-  pub fn new_device_local(device: &VkDevice, image: vk::Image, mut image_view_info: vk::ImageViewCreateInfo,
+  pub fn new_device_local(device: &VkDevice, image: vk::Image, image_view_info: vk::ImageViewCreateInfo,
                           width: u32, height: u32) -> Image {
     let memory: Memory<u8> = Memory::<u8>::new_image_memory(device, &image, vk::MemoryPropertyFlags::DEVICE_LOCAL);
     
@@ -34,7 +31,7 @@ impl Image {
     }
   }
   
-  pub fn new_present_image(device: &VkDevice, image: vk::Image, mut image_view_info: vk::ImageViewCreateInfo) -> Image {
+  pub fn new_present_image(device: &VkDevice, image: vk::Image, image_view_info: vk::ImageViewCreateInfo) -> Image {
     let image_view = unsafe {
       device.internal()
         .create_image_view(&image_view_info, None)
@@ -251,7 +248,7 @@ impl ImageBuilder {
     self
   }
   
-  pub fn build_imageview(&self, device: &VkDevice, image: &vk::Image) -> vk::ImageViewCreateInfo {
+  pub fn build_imageview(&self, image: &vk::Image) -> vk::ImageViewCreateInfo {
      let mut image_view_info = vk::ImageViewCreateInfo::builder()
                                                       .view_type(self.image_view_type)
                                                       .format(self.format);
@@ -279,7 +276,7 @@ impl ImageBuilder {
   }
   
   pub fn build_from_present_image(&self, device: &VkDevice, image: vk::Image) -> Image {
-    let image_view_info = self.build_imageview(device, &image);
+    let image_view_info = self.build_imageview(&image);
     
     Image::new_present_image(device, image, image_view_info)
   }
@@ -300,7 +297,7 @@ impl ImageBuilder {
       device.internal().create_image(&image_create_info, None).unwrap()
     };
     
-    let image_view_info = self.build_imageview(device, &image);
+    let image_view_info = self.build_imageview(&image);
     
     Image::new_device_local(device, image, image_view_info, self.extent.width, self.extent.height)
   }

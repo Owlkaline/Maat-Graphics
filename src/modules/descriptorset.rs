@@ -1,7 +1,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::modules::{VkDevice, Sampler};
+use crate::modules::{VkDevice};
 
 pub struct DescriptorSet {
   descriptor_sets: Vec<vk::DescriptorSet>,
