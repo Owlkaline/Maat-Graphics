@@ -8,6 +8,7 @@ pub struct PassDescription {
   samples: vk::SampleCountFlags,
   load_op: vk::AttachmentLoadOp,
   store_op: vk::AttachmentStoreOp,
+  stencil_load_op: vk::AttachmentLoadOp,
   attachment_layout: vk::ImageLayout,
   initial_layout: vk::ImageLayout,
   final_layout: vk::ImageLayout,
@@ -21,6 +22,7 @@ impl PassDescription {
     let samples: vk::SampleCountFlags = Default::default();
     let load_op: vk::AttachmentLoadOp = Default::default();
     let store_op: vk::AttachmentStoreOp = Default::default();
+    let stencil_load_op: vk::AttachmentLoadOp = Default::default();
     let initial_layout: vk::ImageLayout = Default::default();
     let final_layout: vk::ImageLayout = Default::default();
     let attachment_layout: vk::ImageLayout = Default::default();
@@ -30,6 +32,7 @@ impl PassDescription {
       samples,
       load_op,
       store_op,
+      stencil_load_op,
       attachment_layout,
       initial_layout,
       final_layout,
@@ -70,6 +73,17 @@ impl PassDescription {
     self.store_op = vk::AttachmentStoreOp::STORE;
     self
   }
+  
+   pub fn stencil_load_op_load(mut self) -> PassDescription {
+    self.stencil_load_op = vk::AttachmentLoadOp::LOAD;
+    self
+  }
+  
+  pub fn stencil_load_op_clear(mut self) -> PassDescription {
+    self.stencil_load_op = vk::AttachmentLoadOp::CLEAR;
+    self
+  }
+  
   
   pub fn attachment_layout_colour(mut self) -> PassDescription {
     self.attachment_layout = vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
@@ -169,6 +183,7 @@ impl PassDescription {
       samples: self.samples,
       load_op: self.load_op,
       store_op: self.store_op,
+      stencil_load_op: self.stencil_load_op,
       final_layout: self.final_layout,
       ..Default::default()
     }

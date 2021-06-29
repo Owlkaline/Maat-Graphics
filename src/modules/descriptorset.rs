@@ -3,6 +3,7 @@ use ash::version::DeviceV1_0;
 
 use crate::modules::{VkDevice};
 
+#[derive(Clone)]
 pub struct DescriptorSet {
   descriptor_sets: Vec<vk::DescriptorSet>,
   descriptor_layouts: Vec<vk::DescriptorSetLayout>,

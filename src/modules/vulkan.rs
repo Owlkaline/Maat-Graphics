@@ -2,12 +2,13 @@ use ash::version::{DeviceV1_0};
 use ash::{vk};
 use std::default::Default;
 
-use crate::shader_handlers::gltf_loader;
+use crate::shader_handlers::Camera;
 
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
                      PassDescription, VkWindow, Buffer, GraphicsPipeline, Shader, DescriptorSet,
                      ComputeShader, DescriptorWriter};
+use crate::shader_handlers::gltf_loader::{GltfModel, Node, MeshImage, Material, Texture};
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]
@@ -40,7 +41,8 @@ pub struct Vulkan {
   instance: VkInstance,
   device: VkDevice,
   
-  renderpass: Renderpass,
+  texture_renderpass: Renderpass,
+  model_renderpass: Renderpass,
   framebuffer: VkFrameBuffer,
   
   swapchain: VkSwapchain,
@@ -65,8 +67,6 @@ pub struct Vulkan {
 
 impl Vulkan {
   pub fn new(window: &mut VkWindow, screen_resolution: vk::Extent2D) -> Vulkan {
-    
-    gltf_loader::load_gltf();
     
     let instance = VkInstance::new(window);
     let device = VkDevice::new(&instance, window);
@@ -98,9 +98,27 @@ impl Vulkan {
                        .final_layout_depth_stencil()
     ];
     
-    let renderpass = Renderpass::new(&device, passes);
+    let texture_renderpass = Renderpass::new(&device, passes);
     
-    let framebuffer = VkFrameBuffer::new(&device, &mut swapchain, &depth_image, &renderpass);
+    let passes = vec![
+      PassDescription::new(device.surface_format().format)
+                       .samples_1()
+                       .attachment_load_op_clear()
+                       .attachment_store_op_store()
+                       .attachment_layout_colour()
+                       .initial_layout_undefined()
+                       .final_layout_present_src(),
+      PassDescription::new(vk::Format::D16_UNORM)
+                       .samples_1()
+                       .attachment_load_op_clear()
+                       .attachment_layout_depth_stencil()
+                       .stencil_load_op_clear()
+                       .initial_layout_undefined()
+                       .final_layout_depth_stencil()
+    ];
+    let model_renderpass = Renderpass::new(&device, passes);
+    
+    let framebuffer = VkFrameBuffer::new(&device, &mut swapchain, &depth_image, &model_renderpass);
     
     let draw_commands_reuse_fence = Fence::new_signaled(&device);
     let setup_commands_reuse_fence = Fence::new_signaled(&device);
@@ -108,7 +126,7 @@ impl Vulkan {
     let present_complete_semaphore = Semaphore::new(&device);
     let rendering_complete_semaphore = Semaphore::new(&device);
     
-    let clear_values = ClearValues::new().add_colour(0.0, 0.0, 0.0, 0.0).add_depth(1.0, 0);
+    let clear_values = ClearValues::new().add_colour(0.2, 0.2, 0.2, 0.0).add_depth(1.0, 0);
     let scissors = Scissors::new().add_scissor(0, 0, extent.width, extent.height);
     
     let viewports = Viewport::new(0.0, extent.height as f32, 
@@ -119,7 +137,8 @@ impl Vulkan {
     Vulkan {
         instance,
         device,
-        renderpass,
+        texture_renderpass,
+        model_renderpass,
         swapchain,
         pool,
         
@@ -141,8 +160,12 @@ impl Vulkan {
     &mut self.swapchain
   }
   
-  pub fn renderpass(&self) -> &Renderpass {
-    &self.renderpass
+  pub fn texture_renderpass(&self) -> &Renderpass {
+    &self.texture_renderpass
+  }
+  
+  pub fn model_renderpass(&self) -> &Renderpass {
+    &self.texture_renderpass
   }
   
   pub fn scissors(&self) -> &Scissors {
@@ -174,7 +197,7 @@ impl Vulkan {
                                               1, 1, vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
                                      .build_device_local(&self.device);
     
-    self.framebuffer = VkFrameBuffer::new(&self.device, &mut self.swapchain, &self.depth_image, &self.renderpass);
+    self.framebuffer = VkFrameBuffer::new(&self.device, &mut self.swapchain, &self.depth_image, &self.model_renderpass);
 
     self.scissors = Scissors::new().add_scissor(0, 0, extent.width, extent.height);
 
@@ -210,7 +233,7 @@ impl Vulkan {
     
     let clear_values = self.clear_values.build();
     let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
-        .render_pass(self.renderpass.internal())
+        .render_pass(self.texture_renderpass.internal())
         .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
         .render_area(vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -322,7 +345,7 @@ impl Vulkan {
     
     let clear_values = self.clear_values.build();
     let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
-        .render_pass(self.renderpass.internal())
+        .render_pass(self.texture_renderpass.internal())
         .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
         .render_area(vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -805,7 +828,7 @@ impl Vulkan {
     
     let clear_values = self.clear_values.build();
     let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
-        .render_pass(self.renderpass.internal())
+        .render_pass(self.model_renderpass.internal())
         .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
         .render_area(vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -904,14 +927,6 @@ impl Vulkan {
       }
     };
   }
-  /*
-  pub fn update_buffer(&mut self, buffer: &mut Buffer<T>, data: T) {
-    self.device.cmd_update_buffer(self.draw_command_buffer,
-                                  buffer.internal(),
-                                  0 as vk::DeviceSize,
-                                  &data);
-    buffer.set_data(data);
-  }*/
   
   pub fn draw<T: Copy, L: Copy>(
     &mut self,
@@ -992,6 +1007,123 @@ impl Vulkan {
         0,
         1,
       );
+    }
+  }
+  
+  pub fn draw_mesh<T: Copy>(
+    &mut self,
+    shader: &Shader<T>, 
+    uniform_descriptor: &DescriptorSet,
+    dummy_descriptor_set: &DescriptorSet,
+    model: &GltfModel
+  ) {
+    unsafe {
+      self.device.cmd_bind_descriptor_sets(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        0,
+        &uniform_descriptor.internal()[..],
+        &[],
+      );
+      
+      self.device.cmd_bind_pipeline(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        *shader.graphics_pipeline().internal(),
+      );
+      
+      self.device.cmd_set_viewport(self.draw_command_buffer, 0, &[self.viewports.build()]);
+      self.device.cmd_set_scissor(self.draw_command_buffer, 0, &self.scissors.build());
+    }
+    
+    unsafe {
+      self.device.cmd_bind_vertex_buffers(
+        self.draw_command_buffer,
+        0,
+        &[*model.vertex_buffer().internal()],
+        &[0],
+      );
+      
+      self.device.cmd_bind_index_buffer(
+        self.draw_command_buffer,
+        *model.index_buffer().internal(),
+        0,
+        vk::IndexType::UINT32,
+      );
+    }
+    
+    for node in model.nodes() {
+      self.draw_node(shader, node, model.images(), &model.textures(), &model.materials(), 
+                     dummy_descriptor_set, vec!(), 1);
+    }
+  }
+  
+  fn draw_node<T: Copy>(&self, shader: &Shader<T>, node: &Node, images: &Vec<MeshImage>,
+                        textures: &Vec<Texture>, materials: &Vec<Material>,
+                        dummy_descriptor_set: &DescriptorSet, mut previous_matrix: Vec<[f32; 16]>, depth: u32) {
+    if node.mesh.primitives.len() > 0 {
+      let mut push_constant_data: [u8; 128] = [0; 128];
+      let mut matrix = node.matrix;//Camera::mat4_identity();
+      for i in (0..previous_matrix.len()) {
+        matrix = Camera::mat4_mul(matrix, previous_matrix[i]);
+      }
+      
+      for i in 0..matrix.len() {
+        let bytes = matrix[i].to_le_bytes();
+        push_constant_data[i*4 + 0] = bytes[0];
+        push_constant_data[i*4 + 1] = bytes[1];
+        push_constant_data[i*4 + 2] = bytes[2];
+        push_constant_data[i*4 + 3] = bytes[3];
+      }
+      
+      unsafe {
+        self.device.cmd_push_constants(
+          self.draw_command_buffer,
+          shader.pipeline_layout(),
+          vk::ShaderStageFlags::VERTEX,
+          0,
+          &push_constant_data);
+      }
+      
+      for primitive in &node.mesh.primitives {
+        if primitive.index_count > 0 {
+          let descriptor = {
+            if images.len() == 0 {
+              dummy_descriptor_set
+            } else {
+              let idx = textures[materials[primitive.material_index as usize].base_colour_texture_index as usize].image_index as usize;
+              &images[idx].descriptor_set
+            }
+          };
+          unsafe {
+            self.device.cmd_bind_descriptor_sets(
+              self.draw_command_buffer,
+              vk::PipelineBindPoint::GRAPHICS,
+              shader.pipeline_layout(),
+              1,
+              &descriptor.internal()[..],
+              &[],
+            );
+          }
+          
+          unsafe {
+            self.device.cmd_draw_indexed(
+              self.draw_command_buffer,
+              primitive.index_count,
+              1,
+              primitive.first_index,
+              0,
+              1,
+            );
+          }
+        }
+      }
+    }
+    
+    previous_matrix.push(node.matrix);
+    for children in &node.children {
+      self.draw_node(shader, &children, images, textures, materials, dummy_descriptor_set, previous_matrix.clone(), depth + 1);
     }
   }
 }

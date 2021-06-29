@@ -15,11 +15,13 @@ use std::io::Cursor;
 use crate::ash::version::DeviceV1_0;
 
 use crate::modules::{Vulkan, Image, DescriptorSet, ComputeShader, DescriptorPoolBuilder};
-use crate::shader_handlers::TextureHandler;
+use crate::shader_handlers::{TextureHandler, ModelHandler};
+pub use crate::shader_handlers::Camera;
 
 pub struct MaatGraphics {
   vulkan: Vulkan,
   texture_handler: TextureHandler,
+  model_handler: ModelHandler,
   compute_descriptor_pool: vk::DescriptorPool,
   compute_shader: ComputeShader,
   compute_descriptor_sets: DescriptorSet,
@@ -42,10 +44,12 @@ impl MaatGraphics {
     println!("Compute Data: {:?}", compute_data);
     
     let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution);
+    let model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
     
     MaatGraphics {
       vulkan,
       texture_handler,
+      model_handler,
       compute_descriptor_pool,
       compute_shader,
       compute_descriptor_sets,
@@ -54,6 +58,10 @@ impl MaatGraphics {
   
   pub fn load_texture(&mut self, texture_ref: &str, texture: &str) {
     self.texture_handler.load_texture(&mut self.vulkan, texture_ref, texture);
+  }
+  
+  pub fn load_model(&mut self, model_ref: &str, model: &str) {
+    self.model_handler.load_model(&mut self.vulkan, model_ref, model);
   }
   
   pub fn recreate_swapchain(&mut self, width: u32, height: u32) {
@@ -65,12 +73,28 @@ impl MaatGraphics {
     self.vulkan.recreate_swapchain();
   }
   
-  pub fn draw(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
+  pub fn mut_camera(&mut self) -> &mut Camera {
+    self.model_handler.mut_camera()
+  }
+  
+  pub fn draw_texture(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
     if let Some(present_index) = self.vulkan.start_render() {
       for (data, texture) in draw_data {
         self.texture_handler.draw(&mut self.vulkan, data, texture);
       }
+    }
+  }
+  
+  pub fn draw_model(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
+    if let Some(present_index) = self.vulkan.start_render() {
+      for (data, model) in draw_data {
+        self.model_handler.draw(&mut self.vulkan, data, model);
+      }
       self.vulkan.end_render(present_index);
+    }
+    
+    if self.model_handler.mut_camera().is_updated() {
+      self.model_handler.update_uniform_buffer(self.vulkan.device());
     }
   }
   

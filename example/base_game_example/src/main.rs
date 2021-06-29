@@ -9,7 +9,7 @@ use winit::{
 
 use std::time::Instant;
 
-use maat_graphics::{MaatGraphics, VkWindow};
+use maat_graphics::{MaatGraphics, VkWindow, Camera};
 
 use maat_graphics::ash::vk;
 
@@ -30,17 +30,26 @@ fn main() {
   vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
   vulkan.load_texture("rust_crab", "./textures/rust.png");
   
-  let mut _delta_time = 0.0;
+  vulkan.load_model("floor", "./models/owned/floor.glb");
+  vulkan.load_model("orientation_test", "./models/OrientationTest.glb");
+  vulkan.load_model("animation_test", "./models/CesiumMan.glb");
+  
+  let mut delta_time = 0.0;
   let mut last_time = Instant::now();
   
   let mut total_delta_time = 0.0;
   
+  let mut last_mouse_pos = [0.0, 0.0];
+  let mut dxy = [0.0, 0.0];
+  
+  vulkan.mut_camera().set_movement_speed(1000.0);
+  
   event_loop.run(move |event, _, control_flow| {
       *control_flow = ControlFlow::Poll;
       
-      _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+      delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
       last_time = Instant::now();
-      total_delta_time += _delta_time as f32;
+      total_delta_time += delta_time as f32;
       
       if total_delta_time > DELTA_STEP {
         let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
@@ -73,11 +82,11 @@ fn main() {
                 screen_resolution.height = dimensions.height;
               },
               event => {
-                handle_event(event, screen_resolution);
+                handle_event(event, screen_resolution, &mut last_mouse_pos, &mut dxy, vulkan.mut_camera(), delta_time);
               },
           },
           Event::MainEventsCleared => {
-            vulkan.draw(vec!(
+            /*vulkan.draw_texture(vec!(
               (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
                     0.0, 0.0, 1.0, 1.0, // r g b a
                     1.0, 45.0), // use texture, rotation
@@ -86,6 +95,11 @@ fn main() {
                     1.0, 0.0, 1.0, 1.0,
                     1.0, 0.0), 
                "rust_crab"),
+            ));*/
+            vulkan.draw_model(vec!(
+              //(Vec::new(), "floor"),
+              (Vec::new(), "orientation_test"),
+              (Vec::new(), "animation_test"),
             ));
           },
           Event::LoopDestroyed => {
@@ -96,19 +110,57 @@ fn main() {
   });
 }
 
-fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D) {
+fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D,
+                last_mouse_pos: &mut [f32; 2], dxy: &mut [f32; 2], camera: &mut Camera, delta_time: f32) {
+  
   match event {
     WindowEvent::KeyboardInput {device_id: _, input: key, is_synthetic: _} => {
       if let Some(key_code) = key.virtual_keycode {
         println!("KeyInput: {:?}", key_code);
+        match key_code {
+          VirtualKeyCode::W => {
+            camera.forward(delta_time);
+          },
+          VirtualKeyCode::A => {
+            camera.left(delta_time);
+          },
+          VirtualKeyCode::S => {
+            camera.backward(delta_time);
+          },
+          VirtualKeyCode::D => {
+            camera.right(delta_time);
+          },
+          _ => {
+            
+          }
+        }
+      }
+    },
+    WindowEvent::MouseWheel { device_id: _, delta, phase: _, ..} => {
+      match delta {
+        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+          camera.update_translate([0.0, 0.0, y as f32 * 0.5]);
+        },
+        _ => {},
+        /*winit::event::MouseScrollDelta::PixelData(phys_pos) => {
+          
+        }*/
       }
     },
     WindowEvent::CursorMoved { device_id: _, position: pos, ..} => {
-      let _x: f64 = pos.x;
-      let _y: f64 = screen_resolution.height as f64 - pos.y;
+      let x: f64 = pos.x;
+      let y: f64 = screen_resolution.height as f64 - pos.y;
       
+      dxy[0] = last_mouse_pos[0]-x as f32;
+      dxy[1] = y as f32-last_mouse_pos[1];
+      
+      camera.update_rotate([dxy[1], -dxy[0], 0.0]);
+      
+      *last_mouse_pos = [x as f32, y as f32];
     },
     WindowEvent::MouseInput {device_id: _, state, button, ..} => {
+      //camera.update_rotate([dxy[1], -dxy[0], 0.0]);
+      
       match state {
         ElementState::Pressed => {
           
@@ -123,10 +175,10 @@ fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D) {
           
         },
         MouseButton::Right => {
-          
+          //camera.update_translate([0.0, 0.0, dxy[1]*0.005]);
         },
         MouseButton::Middle => {
-          
+          //camera.update_translate([-dxy[0]*0.01, -dxy[1] * 0.01, 0.0]);
         },
         MouseButton::Other(_id) => {
           

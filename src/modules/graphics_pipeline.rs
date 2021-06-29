@@ -32,6 +32,7 @@ pub struct GraphicsPipelineBuilder {
   front_face: vk::FrontFace,
   polygon_mode: vk::PolygonMode,
   samples: vk::SampleCountFlags,
+  cull_mode: vk::CullModeFlags,
 }
 
 impl GraphicsPipelineBuilder {
@@ -41,12 +42,14 @@ impl GraphicsPipelineBuilder {
     let front_face: vk::FrontFace = Default::default();
     let polygon_mode: vk::PolygonMode = Default::default();
     let samples: vk::SampleCountFlags = Default::default();
+    let cull_mode: vk::CullModeFlags = Default::default();
     
     GraphicsPipelineBuilder {
       topology,
       front_face,
       polygon_mode,
       samples,
+      cull_mode,
     }
   }
   
@@ -87,6 +90,26 @@ impl GraphicsPipelineBuilder {
   
   pub fn front_face_clockwise(mut self) -> GraphicsPipelineBuilder {
     self.front_face = vk::FrontFace::CLOCKWISE;
+    self
+  }
+  
+  pub fn cull_none(mut self) -> GraphicsPipelineBuilder {
+    self.cull_mode = vk::CullModeFlags::NONE;
+    self
+  }
+  
+  pub fn cull_front(mut self) -> GraphicsPipelineBuilder {
+    self.cull_mode = vk::CullModeFlags::FRONT;
+    self
+  }
+  
+  pub fn cull_back(mut self) -> GraphicsPipelineBuilder {
+    self.cull_mode = vk::CullModeFlags::BACK;
+    self
+  }
+  
+  pub fn cull_front_and_back(mut self) -> GraphicsPipelineBuilder {
+    self.cull_mode = vk::CullModeFlags::FRONT_AND_BACK;
     self
   }
   
@@ -163,6 +186,7 @@ impl GraphicsPipelineBuilder {
         front_face: self.front_face,
         line_width: 1.0,
         polygon_mode: self.polygon_mode,
+        cull_mode: self.cull_mode,
         ..Default::default()
     };
     let multisample_state_info = vk::PipelineMultisampleStateCreateInfo {

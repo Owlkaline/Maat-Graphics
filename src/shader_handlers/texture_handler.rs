@@ -143,7 +143,7 @@ impl TextureHandler {
                 data);
   }
   
-  fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+  pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     image::ImageBuffer::from_fn(2, 2, |x, y| {
       if (x + y) % 2 == 0 {
         image::Rgba([0, 0, 0, 255])
@@ -153,7 +153,7 @@ impl TextureHandler {
     })
   }
   
-  fn create_device_local_texture_from_image(vulkan: &mut Vulkan, image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> Image {
+  pub fn create_device_local_texture_from_image(vulkan: &mut Vulkan, image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> Image {
     let dimensions = image.dimensions();
     let image_data = image.into_raw();
     
@@ -227,7 +227,7 @@ impl TextureHandler {
                                            offset_of!(ComboVertex, colour) as u32,
                                            offset_of!(ComboVertex, uv) as u32), 
                                       graphics_pipeline_builder,
-                                      vulkan.renderpass(),
+                                      vulkan.texture_renderpass(),
                                       vulkan.viewports(), 
                                       vulkan.scissors(),
                                       descriptor_sets.layouts());

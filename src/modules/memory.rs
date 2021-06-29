@@ -51,7 +51,7 @@ impl<T: Copy> Memory<T> {
     }
   }
   
-  pub fn  new_buffer_memory(device: &VkDevice, buffer: &vk::Buffer, memory_property: vk::MemoryPropertyFlags,
+  pub fn new_buffer_memory(device: &VkDevice, buffer: &vk::Buffer, memory_property: vk::MemoryPropertyFlags,
                                data: &Vec<T>) -> Memory<T> {
     
     let requirements = Memory::<T>::buffer_memory_requirements(device, *buffer);
@@ -93,8 +93,8 @@ impl<T: Copy> Memory<T> {
     unsafe { device.internal().get_image_memory_requirements(image) }
   }
   
-  pub fn buffer_memory_requirements(device: &VkDevice, image: vk::Buffer) -> vk::MemoryRequirements {
-    unsafe { device.internal().get_buffer_memory_requirements(image) }
+  pub fn buffer_memory_requirements(device: &VkDevice, buffer: vk::Buffer) -> vk::MemoryRequirements {
+    unsafe { device.internal().get_buffer_memory_requirements(buffer) }
   }
   
   pub fn map_data_to_memory(device: &VkDevice, memory: vk::DeviceMemory, 

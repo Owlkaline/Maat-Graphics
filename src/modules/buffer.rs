@@ -26,6 +26,15 @@ impl<T: Sized + Copy> Buffer<T> {
     }
   }
   
+  pub fn update_data(&mut self, device: &VkDevice, data: Vec<T>) {
+    let memory_properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+    let requirements = Memory::<T>::buffer_memory_requirements(device, self.buffer);
+    
+    Memory::<T>::map_data_to_memory(device, self.memory.internal(), requirements, &data);
+    
+    self.data = data;
+  }
+  
   pub fn retrieve_buffer_data(&self, device: &VkDevice) -> Vec<T> {
     self.memory.data_from_memory(device, self.data.len())
   }
