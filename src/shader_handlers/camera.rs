@@ -92,7 +92,7 @@ impl Camera {
     
     let ms = self.movement_speed * delta_time;
     
-    self.position = Camera::vec3_minus(self.position, Camera::vec3_sacle(Camera::vec3_normalise(Camera::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+    self.position = Camera::vec3_add(self.position, Camera::vec3_sacle(Camera::vec3_normalise(Camera::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
     
     self.update_view_matrix();
   }
@@ -102,7 +102,7 @@ impl Camera {
     
     let ms = self.movement_speed * delta_time;
     
-    self.position = Camera::vec3_add(self.position, Camera::vec3_sacle(Camera::vec3_normalise(Camera::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+    self.position = Camera::vec3_minus(self.position, Camera::vec3_sacle(Camera::vec3_normalise(Camera::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
     
     self.update_view_matrix();
   }

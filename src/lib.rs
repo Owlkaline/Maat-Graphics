@@ -78,15 +78,17 @@ impl MaatGraphics {
   }
   
   pub fn draw_texture(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
-    if let Some(present_index) = self.vulkan.start_render() {
+    if let Some(present_index) = self.vulkan.start_texture_render(self.texture_handler.shader(),
+                                                                  self.texture_handler.uniform_descriptor()) {
       for (data, texture) in draw_data {
         self.texture_handler.draw(&mut self.vulkan, data, texture);
       }
+      self.vulkan.end_render(present_index);
     }
   }
   
   pub fn draw_model(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
-    if let Some(present_index) = self.vulkan.start_render() {
+    if let Some(present_index) = self.vulkan.start_model_render() {
       for (data, model) in draw_data {
         self.model_handler.draw(&mut self.vulkan, data, model);
       }

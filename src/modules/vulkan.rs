@@ -6,9 +6,9 @@ use crate::shader_handlers::Camera;
 
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
-                     PassDescription, VkWindow, Buffer, GraphicsPipeline, Shader, DescriptorSet,
+                     PassDescription, VkWindow, Buffer, Shader, DescriptorSet,
                      ComputeShader, DescriptorWriter};
-use crate::shader_handlers::gltf_loader::{GltfModel, Node, MeshImage, Material, Texture};
+use crate::shader_handlers::gltf_loader::{GltfModel, Node, MeshImage, Skin, Material, Texture};
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]
@@ -118,7 +118,7 @@ impl Vulkan {
     ];
     let model_renderpass = Renderpass::new(&device, passes);
     
-    let framebuffer = VkFrameBuffer::new(&device, &mut swapchain, &depth_image, &model_renderpass);
+    let framebuffer = VkFrameBuffer::new(&device, &mut swapchain, &depth_image, &texture_renderpass);
     
     let draw_commands_reuse_fence = Fence::new_signaled(&device);
     let setup_commands_reuse_fence = Fence::new_signaled(&device);
@@ -197,7 +197,7 @@ impl Vulkan {
                                               1, 1, vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
                                      .build_device_local(&self.device);
     
-    self.framebuffer = VkFrameBuffer::new(&self.device, &mut self.swapchain, &self.depth_image, &self.model_renderpass);
+    self.framebuffer = VkFrameBuffer::new(&self.device, &mut self.swapchain, &self.depth_image, &self.texture_renderpass);
 
     self.scissors = Scissors::new().add_scissor(0, 0, extent.width, extent.height);
 
@@ -206,7 +206,7 @@ impl Vulkan {
                                    -(extent.height as f32),
                                    0.0, 1.0);
   }
-
+/*
   pub fn render_triangle<T: Copy, L: Copy>(
       &mut self,
       vertex_buffer: &Buffer<T>,
@@ -318,7 +318,7 @@ impl Vulkan {
       }
     };
   }
-  
+  */
   pub fn render_texture<T: Copy, L: Copy>(
     &mut self,
     descriptor_sets: &DescriptorSet,//&Vec<vk::DescriptorSet>,
@@ -806,8 +806,73 @@ impl Vulkan {
     }
   }
   
+  pub fn start_texture_render<T: Copy>(&mut self, shader: &Shader<T>, uniform_descriptor: &DescriptorSet) -> Option<u32> {
+    let present_index_result = unsafe {
+      self.swapchain.swapchain_loader()
+          .acquire_next_image(
+              *self.swapchain.internal(),
+              std::u64::MAX,
+              self.present_complete_semaphore.internal(),
+              vk::Fence::null(),
+          )
+    };
+    
+    let (present_index, _) = match present_index_result {
+      Ok(index) => index,
+      Err(_) => {
+        self.recreate_swapchain();
+        return None;
+      }
+    };
+    
+    let clear_values = self.clear_values.build();
+    let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
+        .render_pass(self.texture_renderpass.internal())
+        .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
+        .render_area(vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: self.swapchain.extent(),
+        })
+        .clear_values(&clear_values);
+    
+    unsafe {
+      self.draw_commands_reuse_fence.wait(&self.device);
+      self.draw_commands_reuse_fence.reset(&self.device);
+      
+      self.device
+        .reset_command_buffer(
+          self.draw_command_buffer,
+          vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+        )
+        .expect("Reset command buffer failed.");
+
+      let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
+          .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+      self.device
+        .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)
+        .expect("Begin commandbuffer");
+      
+      self.device.cmd_begin_render_pass(
+        self.draw_command_buffer,
+        &render_pass_begin_info,
+        vk::SubpassContents::INLINE,
+      );
+      
+      self.device.cmd_bind_descriptor_sets(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        0,
+        &uniform_descriptor.internal()[..],
+        &[],
+      );
+    }
+    
+    Some(present_index)
+  }
   
-  pub fn start_render(&mut self) -> Option<u32> {
+  pub fn start_model_render(&mut self) -> Option<u32> {
     let present_index_result = unsafe {
       self.swapchain.swapchain_loader()
           .acquire_next_image(
@@ -928,9 +993,9 @@ impl Vulkan {
     };
   }
   
-  pub fn draw<T: Copy, L: Copy>(
+  pub fn draw_texture<T: Copy, L: Copy>(
     &mut self,
-    descriptor_sets: &DescriptorSet, 
+    texture_descriptor: &DescriptorSet, 
     shader: &Shader<T>, 
     vertex_buffer: &Buffer<T>, 
     index_buffer: &Buffer<L>,
@@ -964,8 +1029,8 @@ impl Vulkan {
         self.draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
-        0,
-        &descriptor_sets.internal()[..],
+        1,
+        &texture_descriptor.internal()[..],
         &[],
       );
       
@@ -1054,18 +1119,18 @@ impl Vulkan {
     }
     
     for node in model.nodes() {
-      self.draw_node(shader, node, model.images(), &model.textures(), &model.materials(), 
+      self.draw_node(shader, node, model.images(), &model.skins(), &model.textures(), &model.materials(), 
                      dummy_descriptor_set, vec!(), 1);
     }
   }
   
-  fn draw_node<T: Copy>(&self, shader: &Shader<T>, node: &Node, images: &Vec<MeshImage>,
+  fn draw_node<T: Copy>(&self, shader: &Shader<T>, node: &Node, images: &Vec<MeshImage>, skins: &Vec<Skin>,
                         textures: &Vec<Texture>, materials: &Vec<Material>,
                         dummy_descriptor_set: &DescriptorSet, mut previous_matrix: Vec<[f32; 16]>, depth: u32) {
     if node.mesh.primitives.len() > 0 {
       let mut push_constant_data: [u8; 128] = [0; 128];
       let mut matrix = node.matrix;//Camera::mat4_identity();
-      for i in (0..previous_matrix.len()) {
+      for i in 0..previous_matrix.len() {
         matrix = Camera::mat4_mul(matrix, previous_matrix[i]);
       }
       
@@ -1086,9 +1151,22 @@ impl Vulkan {
           &push_constant_data);
       }
       
+     // if skins.len() > 0 && node.skin != -1 {
+        unsafe {
+          self.device.cmd_bind_descriptor_sets(
+            self.draw_command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            shader.pipeline_layout(),
+            1,
+            &skins[node.skin as usize].descriptor_set.internal()[..],
+            &[],
+          );
+        }
+    //  }
+      
       for primitive in &node.mesh.primitives {
         if primitive.index_count > 0 {
-          let descriptor = {
+          let image_descriptor = {
             if images.len() == 0 {
               dummy_descriptor_set
             } else {
@@ -1096,18 +1174,17 @@ impl Vulkan {
               &images[idx].descriptor_set
             }
           };
+          
           unsafe {
             self.device.cmd_bind_descriptor_sets(
               self.draw_command_buffer,
               vk::PipelineBindPoint::GRAPHICS,
               shader.pipeline_layout(),
-              1,
-              &descriptor.internal()[..],
+              2,
+              &image_descriptor.internal()[..],
               &[],
             );
-          }
-          
-          unsafe {
+            
             self.device.cmd_draw_indexed(
               self.draw_command_buffer,
               primitive.index_count,
@@ -1123,7 +1200,7 @@ impl Vulkan {
     
     previous_matrix.push(node.matrix);
     for children in &node.children {
-      self.draw_node(shader, &children, images, textures, materials, dummy_descriptor_set, previous_matrix.clone(), depth + 1);
+      self.draw_node(shader, &children, images, skins, textures, materials, dummy_descriptor_set, previous_matrix.clone(), depth + 1);
     }
   }
 }

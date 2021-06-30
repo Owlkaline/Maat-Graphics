@@ -27,6 +27,7 @@ pub struct TextureHandler {
   descriptor_pool: vk::DescriptorPool,
   sampler: Sampler,
   uniform_buffer: Buffer<UniformBuffer>,
+  uniform_descriptor: DescriptorSet,
   combo_shader: Shader<ComboVertex>,
   combo_index_buffer: Buffer<u32>,
   combo_vertex_buffer: Buffer<ComboVertex>,
@@ -58,22 +59,30 @@ impl TextureHandler {
     
     let uniform_buffer = Buffer::<UniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
     
-    let descriptor_sets = DescriptorSet::builder()
-                                      .combined_image_sampler_fragment()
+    let descriptor_set0 = DescriptorSet::builder()
                                       .uniform_buffer_vertex()
                                       .build(vulkan.device(), &descriptor_pool);
     
-    let (combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, &descriptor_sets);
+    let descriptor_set1 = DescriptorSet::builder()
+                                      .combined_image_sampler_fragment()
+                                      .build(vulkan.device(), &descriptor_pool);
+    
+    let uniform_descriptor_set_writer = DescriptorWriter::builder()
+                                                        .update_uniform_buffer(&uniform_buffer, &descriptor_set0);
+    
+    uniform_descriptor_set_writer.build(vulkan.device());
+    
+    let (combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, 
+                                                                                                      &vec![descriptor_set0.clone(), 
+                                                                                                            descriptor_set1.clone()]);
     
     let checked_image = TextureHandler::create_checked_image();
     let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, checked_image);
     let dummy_descriptor_set = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
-                                      .uniform_buffer_vertex()
                                       .build(vulkan.device(), &descriptor_pool);
     let dummy_descriptor_set_writer = DescriptorWriter::builder()
-                                                        .update_image(&dummy_texture, &sampler, &dummy_descriptor_set)
-                                                        .update_uniform_buffer(&uniform_buffer, &dummy_descriptor_set);
+                                                        .update_image(&dummy_texture, &sampler, &dummy_descriptor_set);
     
     dummy_descriptor_set_writer.build(vulkan.device());
     
@@ -81,6 +90,7 @@ impl TextureHandler {
       descriptor_pool,
       sampler,
       uniform_buffer,
+      uniform_descriptor: descriptor_set0,
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
@@ -109,6 +119,14 @@ impl TextureHandler {
     self.sampler.destroy(vulkan.device());
   }
   
+  pub fn shader(&self) -> &Shader<ComboVertex> {
+    &self.combo_shader
+  }
+  
+  pub fn uniform_descriptor(&self) -> &DescriptorSet {
+    &self.uniform_descriptor
+  }
+  
   pub fn load_texture(&mut self, vulkan: &mut Vulkan, texture_ref: &str, texture: &str) {
     let image = image::open(&texture.clone()).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba8();
     
@@ -116,11 +134,9 @@ impl TextureHandler {
     
     let descriptor_sets = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
-                                      .uniform_buffer_vertex()
                                       .build(vulkan.device(), &self.descriptor_pool);
     let descriptor_set_writer = DescriptorWriter::builder()
-                                                  .update_image(&dl_texture, &self.sampler, &descriptor_sets)
-                                                  .update_uniform_buffer(&self.uniform_buffer, &descriptor_sets);
+                                                  .update_image(&dl_texture, &self.sampler, &descriptor_sets);
     
     descriptor_set_writer.build(vulkan.device());
     
@@ -128,7 +144,7 @@ impl TextureHandler {
   }
   
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, texture: &str) {
-    let descriptor_set = {
+    let texture_descriptor = {
       if let Some((_, texture_descriptor)) = self.textures.get(texture) {
         texture_descriptor
       } else {
@@ -136,11 +152,11 @@ impl TextureHandler {
       }
     };
     
-    vulkan.draw(&descriptor_set,
-                &self.combo_shader,
-                &self.combo_vertex_buffer,
-                &self.combo_index_buffer,
-                data);
+    vulkan.draw_texture(&texture_descriptor,
+                        &self.combo_shader,
+                        &self.combo_vertex_buffer,
+                        &self.combo_index_buffer,
+                        data);
   }
   
   pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -168,7 +184,7 @@ impl TextureHandler {
     dst_image
   }
   
-  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &DescriptorSet) -> (Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
+  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
     let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];//vec![3, 2, 0, 2, 0, 1];
     let z = -1.0;
     let combo_vertices = vec![
@@ -219,6 +235,15 @@ impl TextureHandler {
                                                                       .polygon_mode_fill()
                                                                       .samples_1();
     
+    let layouts = {
+      let mut sets = Vec::new();
+      for i in 0..descriptor_sets.len() {
+        sets.push(descriptor_sets[i].layouts()[0]);
+      }
+      
+      sets
+    };
+    
     let combo_shader = Shader::new(vulkan.device(),
                                       Cursor::new(&include_bytes!("../../shaders/combo_vert.spv")[..]),
                                       Cursor::new(&include_bytes!("../../shaders/combo_frag.spv")[..]),
@@ -230,7 +255,7 @@ impl TextureHandler {
                                       vulkan.texture_renderpass(),
                                       vulkan.viewports(), 
                                       vulkan.scissors(),
-                                      descriptor_sets.layouts());
+                                      &layouts);
     
     (combo_shader, combo_index_buffer, combo_vertex_buffer)
   }

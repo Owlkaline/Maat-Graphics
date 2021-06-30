@@ -86,7 +86,7 @@ fn main() {
               },
           },
           Event::MainEventsCleared => {
-            /*vulkan.draw_texture(vec!(
+            vulkan.draw_texture(vec!(
               (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
                     0.0, 0.0, 1.0, 1.0, // r g b a
                     1.0, 45.0), // use texture, rotation
@@ -95,12 +95,14 @@ fn main() {
                     1.0, 0.0, 1.0, 1.0,
                     1.0, 0.0), 
                "rust_crab"),
-            ));*/
-            vulkan.draw_model(vec!(
-              //(Vec::new(), "floor"),
-              (Vec::new(), "orientation_test"),
-              (Vec::new(), "animation_test"),
             ));
+           /* vulkan.draw_model(
+              vec!(
+                //(Vec::new(), "floor"),
+                // (Vec::new(), "orientation_test"),
+                (Vec::new(), "animation_test"),
+              )
+            );*/
           },
           Event::LoopDestroyed => {
             vulkan.destroy();
@@ -138,7 +140,7 @@ fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D,
     },
     WindowEvent::MouseWheel { device_id: _, delta, phase: _, ..} => {
       match delta {
-        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+        winit::event::MouseScrollDelta::LineDelta(_x, y) => {
           camera.update_translate([0.0, 0.0, y as f32 * 0.5]);
         },
         _ => {},
@@ -154,7 +156,7 @@ fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D,
       dxy[0] = last_mouse_pos[0]-x as f32;
       dxy[1] = y as f32-last_mouse_pos[1];
       
-      camera.update_rotate([dxy[1], -dxy[0], 0.0]);
+      camera.update_rotate([dxy[1], dxy[0], 0.0]);
       
       *last_mouse_pos = [x as f32, y as f32];
     },

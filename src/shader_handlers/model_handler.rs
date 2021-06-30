@@ -34,8 +34,9 @@ pub struct ModelHandler {
 impl ModelHandler {
   pub fn new(vulkan: &mut Vulkan, screen_resolution: vk::Extent2D) -> ModelHandler {
     let descriptor_pool = DescriptorPoolBuilder::new()
-                                                .num_combined_image_samplers(30)
                                                 .num_uniform_buffers(30)
+                                                .num_storage(30)
+                                                .num_combined_image_samplers(30)
                                                 .build(vulkan.device());
     
     let sampler = Sampler::builder()
@@ -51,10 +52,15 @@ impl ModelHandler {
                                       .uniform_buffer_vertex()
                                       .build(vulkan.device(), &descriptor_pool);
     let descriptor_set1 = DescriptorSet::builder()
+                                  .storage_vertex()
+                                  .build(vulkan.device(), &descriptor_pool);
+    let descriptor_set2 = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
                                       .build(vulkan.device(), &descriptor_pool);
     
-    let mesh_shader = ModelHandler::create_mesh_shader(vulkan, vec![descriptor_set0.clone(), descriptor_set1.clone()]);
+    let mesh_shader = ModelHandler::create_mesh_shader(vulkan, vec![descriptor_set0.clone(), 
+                                                                    descriptor_set1.clone(),
+                                                                    descriptor_set2.clone()]);
     
     let mut camera = Camera::new();
     camera.update_aspect_ratio(screen_resolution.width as f32 / screen_resolution.height as f32);
@@ -75,7 +81,7 @@ impl ModelHandler {
     let image = ModelHandler::create_blank_image();
     let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
     let descriptor_set_writer = DescriptorWriter::builder()
-                                                 .update_image(&dummy_texture, &sampler, &descriptor_set1);
+                                                 .update_image(&dummy_texture, &sampler, &descriptor_set2);
     
     descriptor_set_writer.build(vulkan.device());
     
@@ -86,13 +92,13 @@ impl ModelHandler {
       models: HashMap::new(),
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
-      dummy_descriptor_set: descriptor_set1,
+      dummy_descriptor_set: descriptor_set2,
       descriptor_pool,
     }
   }
   
   pub fn create_blank_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-    image::ImageBuffer::from_fn(2, 2, |x, y| {
+    image::ImageBuffer::from_fn(2, 2, |_x, _y| {
         image::Rgba([255, 255, 255, 255])
     })
   }
@@ -114,7 +120,7 @@ impl ModelHandler {
     &mut self.camera
   }
   
-  pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {
+  pub fn draw(&mut self, vulkan: &mut Vulkan, _data: Vec<f32>, model_ref: &str) {
     if let Some(model) = &self.models.get(model_ref) {
       vulkan.draw_mesh(&self.mesh_shader,
                        &self.uniform_descriptor_set,
@@ -129,6 +135,8 @@ impl ModelHandler {
       normal: [0.0, 0.0, 0.0],
       uv: [0.0, 0.0],
       colour: [0.0, 0.0, 0.0],
+      joint_indices: [0.0, 0.0, 0.0, 0.0],
+      joint_weights: [0.0, 0.0, 0.0, 0.0]
     };
     
     let graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
@@ -147,13 +155,15 @@ impl ModelHandler {
     };
     
     let mesh_shader = Shader::new(vulkan.device(),
-                                  Cursor::new(&include_bytes!("../../shaders/mesh_vert.spv")[..]),
-                                  Cursor::new(&include_bytes!("../../shaders/mesh_frag.spv")[..]),
+                                  Cursor::new(&include_bytes!("../../shaders/mesh_animated_vert.spv")[..]),
+                                  Cursor::new(&include_bytes!("../../shaders/mesh_animated_frag.spv")[..]),
                                   template_mesh_vertex, 
                                   vec!(offset_of!(MeshVertex, pos) as u32,
                                        offset_of!(MeshVertex, normal) as u32, 
                                        offset_of!(MeshVertex, uv) as u32,
-                                       offset_of!(MeshVertex, colour) as u32), 
+                                       offset_of!(MeshVertex, colour) as u32, 
+                                       offset_of!(MeshVertex, joint_indices) as u32,
+                                       offset_of!(MeshVertex, joint_weights) as u32),
                                   graphics_pipeline_builder,
                                   vulkan.model_renderpass(),
                                   vulkan.viewports(), 

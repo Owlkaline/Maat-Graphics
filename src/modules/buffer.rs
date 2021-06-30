@@ -27,7 +27,6 @@ impl<T: Sized + Copy> Buffer<T> {
   }
   
   pub fn update_data(&mut self, device: &VkDevice, data: Vec<T>) {
-    let memory_properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
     let requirements = Memory::<T>::buffer_memory_requirements(device, self.buffer);
     
     Memory::<T>::map_data_to_memory(device, self.memory.internal(), requirements, &data);
@@ -63,6 +62,13 @@ impl<T: Sized + Copy> Buffer<T> {
   pub fn new_uniform_buffer(device: &VkDevice, data: &Vec<T>) -> Buffer<T> {
     let memory_properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
     let usage = vk::BufferUsageFlags::UNIFORM_BUFFER;
+    
+    Buffer::new_generic(device, data.to_vec(), memory_properties, usage)
+  }
+  
+  pub fn new_storage_buffer(device: &VkDevice, data: &Vec<T>) -> Buffer<T> {
+    let memory_properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+    let usage = vk::BufferUsageFlags::STORAGE_BUFFER;
     
     Buffer::new_generic(device, data.to_vec(), memory_properties, usage)
   }

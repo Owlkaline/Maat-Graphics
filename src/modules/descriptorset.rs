@@ -73,6 +73,18 @@ impl DescriptorSetBuilder {
     self
   }
   
+  pub fn storage_vertex(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self.stages.push(vk::ShaderStageFlags::VERTEX);
+    self
+  }
+  
+  pub fn storage_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self.stages.push(vk::ShaderStageFlags::FRAGMENT);
+    self
+  }
+  
   pub fn storage_compute(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::STORAGE_BUFFER);
     self.stages.push(vk::ShaderStageFlags::COMPUTE);
