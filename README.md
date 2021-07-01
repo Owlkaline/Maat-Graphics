@@ -2,22 +2,24 @@
 
 # Maat-Graphics
 Graphics engine for rendering with vulkan, cross platform for windows, mac and Linux.
-Engine to create order from chaos
+Engine to create order from chaos.
 
-### Windows Specific Setup
-### MacOs Specific Setup
-### Linux Specific Setup
+Should compile without issue on Linux and Windows.
+I don't have access to a Mac so I'm unable to confirm if it functions correctly on MacOs.
 
-Use your package manager to install the required dev-tools and vulkan drivers
+### Setup
 
-For example on ubuntu:
+Use your native package manager to install the required dev-tools and vulkan drivers for Rust.
+
+Ubuntu:
 ```
-sudo apt-get install build-essential git python cmake libvulkan-dev vulkan-utils
+sudo apt-get install build-essential git libvulkan-dev vulkan-utils
 ```
 
 ## Donate
 
-Lilith645 (Original and Current maintainer) [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/AoAkuma)
+Lilith645 (Original and Current maintainer) 
+[![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/AoAkuma)
 
 ## Contributing
 
