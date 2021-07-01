@@ -27,7 +27,9 @@ pub struct ModelHandler {
   models: HashMap<String, GltfModel>,
   uniform_buffer: Buffer<MeshUniformBuffer>,
   uniform_descriptor_set: DescriptorSet,
-  dummy_descriptor_set: DescriptorSet,
+  dummy_texture: DescriptorSet,
+  dummy_skin_buffer: Buffer<f32>,
+  dummy_skin: DescriptorSet,
   descriptor_pool: vk::DescriptorPool,
 }
 
@@ -85,6 +87,16 @@ impl ModelHandler {
     
     descriptor_set_writer.build(vulkan.device());
     
+    
+    let dummy_buffer = Buffer::<f32>::new_storage_buffer(vulkan.device(), &Camera::mat4_identity().to_vec());
+    let dummy_skin = DescriptorSet::builder()
+                                  .storage_vertex()
+                                  .build(vulkan.device(), &descriptor_pool);
+    let descriptor_set_writer = DescriptorWriter::builder()
+                                                 .update_storage_buffer(&dummy_buffer, &dummy_skin);
+    
+    descriptor_set_writer.build(vulkan.device());
+    
     ModelHandler {
       camera,
       sampler,
@@ -92,7 +104,9 @@ impl ModelHandler {
       models: HashMap::new(),
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
-      dummy_descriptor_set: descriptor_set2,
+      dummy_texture: descriptor_set2,
+      dummy_skin_buffer: dummy_buffer,
+      dummy_skin,
       descriptor_pool,
     }
   }
@@ -124,7 +138,8 @@ impl ModelHandler {
     if let Some(model) = &self.models.get(model_ref) {
       vulkan.draw_mesh(&self.mesh_shader,
                        &self.uniform_descriptor_set,
-                       &self.dummy_descriptor_set,
+                       &self.dummy_texture,
+                       &self.dummy_skin,
                        model);
     }
   }
@@ -136,7 +151,7 @@ impl ModelHandler {
       uv: [0.0, 0.0],
       colour: [0.0, 0.0, 0.0],
       joint_indices: [0.0, 0.0, 0.0, 0.0],
-      joint_weights: [0.0, 0.0, 0.0, 0.0]
+      joint_weights: [1.0, 1.0, 1.0, 1.0]
     };
     
     let graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
@@ -164,7 +179,7 @@ impl ModelHandler {
                                        offset_of!(MeshVertex, colour) as u32, 
                                        offset_of!(MeshVertex, joint_indices) as u32,
                                        offset_of!(MeshVertex, joint_weights) as u32),
-                                  graphics_pipeline_builder,
+                                  &graphics_pipeline_builder,
                                   vulkan.model_renderpass(),
                                   vulkan.viewports(), 
                                   vulkan.scissors(),

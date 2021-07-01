@@ -29,7 +29,7 @@ pub struct Camera {
 impl Camera {
   pub fn new() -> Camera {
     Camera {
-      fov: 60.0,
+      fov: 71.0,
       znear: 0.1,
       zfar: 256.0,
       
@@ -40,12 +40,12 @@ impl Camera {
       rotation_speed: 1.0,
       movement_speed: 1.0,
       
-      perspective: Camera::perspective(60.0, 1280.0/720.0, 0.1, 256.0, true),
+      perspective: Camera::perspective(71.0, 1280.0/720.0, 0.1, 256.0, true),
       view: Camera::view([1.0, 0.0, 4.0], [0.0, 150.0, 0.0], CameraType::LookAt, true),
       
       camera_type: CameraType::FirstPerson,
       
-      flip_y: true,
+      flip_y: false,
       
       updated: false,
     }
@@ -122,6 +122,15 @@ impl Camera {
   
   pub fn update_rotate(&mut self, delta: [f32; 3]) {
     self.rotation = Camera::vec3_add(self.rotation, delta);
+    
+    let angle_limit = 85.0;
+    
+    if self.rotation[0] > 180.0+angle_limit {
+      self.rotation[0] = 180.0+angle_limit;
+    }
+    if self.rotation[0] < 180.0-angle_limit {
+      self.rotation[0] = 180.0-angle_limit;
+    }
     self.update_view_matrix();
   }
   
@@ -136,6 +145,8 @@ impl Camera {
     let r = 4;
     
     let mut matrix = [0.0; 16];
+    
+    let s = 1.0 / tan_half_fovy;
     matrix[r*0 + 0] = 1.0 / (aspect * tan_half_fovy);
     matrix[r*1 + 1] = -1.0 / (tan_half_fovy);
     matrix[r*2 + 2] = -(zfar - znear) / (zfar - znear);

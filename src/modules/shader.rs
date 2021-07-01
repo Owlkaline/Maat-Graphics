@@ -20,7 +20,7 @@ pub struct Shader<T: Sized + Copy> {
 
 impl<T: Sized + Copy> Shader<T> {
   pub fn new<W: Read + Seek>(device: &VkDevice, mut vertex_shader: W, mut fragment_shader: W, 
-             vertex_struct: T, offsets: Vec<u32>, graphics_pipeline_builder: GraphicsPipelineBuilder,
+             vertex_struct: T, offsets: Vec<u32>, graphics_pipeline_builder: &GraphicsPipelineBuilder,
              renderpass: &Renderpass, viewport: &Viewport, scissors: &Scissors, 
              descriptor_set_layouts: &Vec<vk::DescriptorSetLayout>) -> Shader<T> {
     let vertex_code = read_spv(&mut vertex_shader).expect("Failed to read vertex shader");

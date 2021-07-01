@@ -56,6 +56,10 @@ impl MaatGraphics {
     }
   }
   
+  pub fn load_text(&mut self, text_ref: &str, text: &str, size: f32) {
+    self.texture_handler.load_text(&mut self.vulkan, text_ref, text, size);
+  }
+  
   pub fn load_texture(&mut self, texture_ref: &str, texture: &str) {
     self.texture_handler.load_texture(&mut self.vulkan, texture_ref, texture);
   }
@@ -77,11 +81,15 @@ impl MaatGraphics {
     self.model_handler.mut_camera()
   }
   
-  pub fn draw_texture(&mut self, draw_data: Vec<(Vec<f32>, &str)>) {
+  pub fn draw_texture(&mut self, draw_data: Vec<(Vec<f32>, &str, Option<&str>)>) {
     if let Some(present_index) = self.vulkan.start_texture_render(self.texture_handler.shader(),
                                                                   self.texture_handler.uniform_descriptor()) {
-      for (data, texture) in draw_data {
-        self.texture_handler.draw(&mut self.vulkan, data, texture);
+      for (data, texture, some_text) in draw_data {
+        if let Some(text) = some_text {
+          self.texture_handler.draw_text(&mut self.vulkan, data, text, texture);
+        } else {
+          self.texture_handler.draw(&mut self.vulkan, data, texture);
+        }
       }
       self.vulkan.end_render(present_index);
     }

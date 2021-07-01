@@ -536,7 +536,7 @@ fn load_node(gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>,
             uv: if uvs.len() <= i { [0.0, 0.0] } else { uvs[i] },
             colour: [colour[0], colour[1], colour[2]],
             joint_indices: if joint_indices.len() <= i { [0.0, 0.0, 0.0, 0.0] } else { joint_indices[i] },
-            joint_weights: if joint_weights.len() <= i { [0.0, 0.0, 0.0, 0.0] } else { joint_weights[i] },
+            joint_weights: if joint_weights.len() <= i { [1.0, 1.0, 1.0, 1.0] } else { joint_weights[i] },
           }
         );
       }

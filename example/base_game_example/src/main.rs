@@ -30,6 +30,8 @@ fn main() {
   vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
   vulkan.load_texture("rust_crab", "./textures/rust.png");
   
+  vulkan.load_text("test", "Hello, Please kill me", 10.0);
+  
   vulkan.load_model("floor", "./models/owned/floor.glb");
   vulkan.load_model("orientation_test", "./models/OrientationTest.glb");
   vulkan.load_model("animation_test", "./models/CesiumMan.glb");
@@ -86,23 +88,35 @@ fn main() {
               },
           },
           Event::MainEventsCleared => {
-            vulkan.draw_texture(vec!(
+           /* vulkan.draw_texture(vec!(
               (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
                     0.0, 0.0, 1.0, 1.0, // r g b a
                     1.0, 45.0), // use texture, rotation
-               "orientation"),
+               "orientation", None),
               (vec!(150.0, 150.0, 573.0, 300.0,
                     1.0, 0.0, 1.0, 1.0,
                     1.0, 0.0), 
-               "rust_crab"),
-            ));
-           /* vulkan.draw_model(
+               "rust_crab", None),
+               
+              // Example using pre calculated text that doesn't change (Very fast)
+              (vec!(0.0, 20.0, 0.0, 0.0, // x, y
+                    1.0, 1.0, 1.0, 1.0, //  r g b a (outline colour)
+                    0.5, 0.1), // outline, width
+               "test", Some("")),
+              
+              // Example using text that changes every or most fames (slower)
+              (vec!(0.0, 0.0, 0.0, 0.0, // x, y
+                    1.0, 1.0, 1.0, 1.0, // r g b a (outline colour)
+                    0.5, 0.1), // outline, width
+               "", Some("Nah, dont kill me")),
+            ));*/
+            vulkan.draw_model(
               vec!(
-                //(Vec::new(), "floor"),
-                // (Vec::new(), "orientation_test"),
+                (Vec::new(), "floor"),
+                (Vec::new(), "orientation_test"),
                 (Vec::new(), "animation_test"),
               )
-            );*/
+            );
           },
           Event::LoopDestroyed => {
             vulkan.destroy();
@@ -153,8 +167,11 @@ fn handle_event(event: WindowEvent, screen_resolution: vk::Extent2D,
       let x: f64 = pos.x;
       let y: f64 = screen_resolution.height as f64 - pos.y;
       
-      dxy[0] = last_mouse_pos[0]-x as f32;
-      dxy[1] = y as f32-last_mouse_pos[1];
+      let dx = last_mouse_pos[0]-x as f32;
+      let dy = y as f32-last_mouse_pos[1];
+      
+      dxy[0] = if dx > 0.0 { 1.0 } else if dx < 0.0 { -1.0 } else { 0.0 };
+      dxy[1] = if dy > 0.0 { 1.0 } else if dy < 0.0 { -1.0 } else { 0.0 };
       
       camera.update_rotate([dxy[1], dxy[0], 0.0]);
       

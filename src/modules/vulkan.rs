@@ -1079,7 +1079,8 @@ impl Vulkan {
     &mut self,
     shader: &Shader<T>, 
     uniform_descriptor: &DescriptorSet,
-    dummy_descriptor_set: &DescriptorSet,
+    dummy_texture: &DescriptorSet,
+    dummy_skin: &DescriptorSet,
     model: &GltfModel
   ) {
     unsafe {
@@ -1120,13 +1121,15 @@ impl Vulkan {
     
     for node in model.nodes() {
       self.draw_node(shader, node, model.images(), &model.skins(), &model.textures(), &model.materials(), 
-                     dummy_descriptor_set, vec!(), 1);
+                     dummy_texture, dummy_skin, vec!(), 1);
     }
   }
   
   fn draw_node<T: Copy>(&self, shader: &Shader<T>, node: &Node, images: &Vec<MeshImage>, skins: &Vec<Skin>,
                         textures: &Vec<Texture>, materials: &Vec<Material>,
-                        dummy_descriptor_set: &DescriptorSet, mut previous_matrix: Vec<[f32; 16]>, depth: u32) {
+                        dummy_texture: &DescriptorSet,
+                        dummy_skin: &DescriptorSet,
+                        mut previous_matrix: Vec<[f32; 16]>, depth: u32) {
     if node.mesh.primitives.len() > 0 {
       let mut push_constant_data: [u8; 128] = [0; 128];
       let mut matrix = node.matrix;//Camera::mat4_identity();
@@ -1151,7 +1154,7 @@ impl Vulkan {
           &push_constant_data);
       }
       
-     // if skins.len() > 0 && node.skin != -1 {
+      if skins.len() > 0 && node.skin != -1 {
         unsafe {
           self.device.cmd_bind_descriptor_sets(
             self.draw_command_buffer,
@@ -1162,13 +1165,24 @@ impl Vulkan {
             &[],
           );
         }
-    //  }
+      } else {
+        unsafe {
+          self.device.cmd_bind_descriptor_sets(
+            self.draw_command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            shader.pipeline_layout(),
+            1,
+            &dummy_skin.internal()[..],
+            &[],
+          );
+        }
+      }
       
       for primitive in &node.mesh.primitives {
         if primitive.index_count > 0 {
           let image_descriptor = {
             if images.len() == 0 {
-              dummy_descriptor_set
+              dummy_texture
             } else {
               let idx = textures[materials[primitive.material_index as usize].base_colour_texture_index as usize].image_index as usize;
               &images[idx].descriptor_set
@@ -1200,7 +1214,8 @@ impl Vulkan {
     
     previous_matrix.push(node.matrix);
     for children in &node.children {
-      self.draw_node(shader, &children, images, skins, textures, materials, dummy_descriptor_set, previous_matrix.clone(), depth + 1);
+      self.draw_node(shader, &children, images, skins, textures, materials, dummy_texture,
+                     dummy_skin, previous_matrix.clone(), depth + 1);
     }
   }
 }

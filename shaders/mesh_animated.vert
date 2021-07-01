@@ -43,7 +43,7 @@ void main() {
                   joint_weights.z * joint_matrices[int(joint_indices.z)] +
                   joint_weights.w * joint_matrices[int(joint_indices.w)];
   
-  gl_Position = ubo.projection * ubo.view * push_constants.model /* skin_mat */* vec4(pos.xyz, 1.0);
+  gl_Position = ubo.projection * ubo.view * push_constants.model * skin_mat * vec4(pos.xyz, 1.0);
   
   vec4 pos = ubo.view * vec4(pos, 1.0);
   o_normal = mat3(ubo.view) * normal;
