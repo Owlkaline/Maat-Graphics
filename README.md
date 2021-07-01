@@ -5,6 +5,7 @@ Graphics engine for rendering with vulkan, cross platform for windows, mac and L
 Engine to create order from chaos.
 
 Should compile without issue on Linux and Windows.
+
 I don't have access to a Mac so I'm unable to confirm if it functions correctly on MacOs.
 
 ### Setup
