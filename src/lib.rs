@@ -108,6 +108,10 @@ impl MaatGraphics {
     }
   }
   
+  pub fn update_animations(&mut self, delta_time: f32) {
+    self.model_handler.update_animations(&mut self.vulkan, delta_time);
+  }
+  
   pub fn destroy(&mut self) {
     unsafe {
       self.vulkan.device().internal().device_wait_idle().unwrap();

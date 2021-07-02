@@ -1,11 +1,19 @@
 use crate::modules::{Vulkan, DescriptorSet, DescriptorPoolBuilder, DescriptorWriter, Buffer, Sampler};
-use crate::shader_handlers::{Camera, TextureHandler};
+use crate::shader_handlers::{Math, TextureHandler};
 
 use crate::Image as vkimage;
 
 use ash::vk;
 
 use gltf;
+use gltf::animation::Property;
+
+#[derive(Clone)]
+pub enum AnimationInterpolation {
+  Linear,
+  Step,
+  CubicSpline,
+}
 
 #[derive(Copy, Clone)]
 pub struct MeshVertex {
@@ -19,9 +27,9 @@ pub struct MeshVertex {
 
 pub struct Skin {
   name: String,
-  skeleton_root: Option<u32>,
+  skeleton_root: i32,
   inverse_bind_matrices: Vec<[f32; 16]>,
-  joints: Vec<u32>,
+  joints: Vec<i32>,
   inverse_bind_matrix_buffer: Buffer<f32>,
   pub descriptor_set: DescriptorSet,
 }
@@ -29,28 +37,23 @@ pub struct Skin {
 pub struct Animation {
   name: String,
   samplers: Vec<AnimationSampler>,
-  //channels: Vec<AnimationChannel>,
+  channels: Vec<AnimationChannel>,
   start: f32,
   end: f32,
   current_time: f32,
 }
 
 pub struct AnimationChannel {
-  path: String,
-  node: Vec<Node>,
-  sampler_index: u32,
+  property: Property,
+  node: i32,
+  sampler_index: i32,
 }
 
-pub enum AnimationInterpolation {
-  Linear,
-  Step,
-  CubicSpline,
-}
-
+#[derive(Clone)]
 pub struct AnimationSampler {
   interpolation: AnimationInterpolation,
   inputs: Vec<f32>,
-  outputs_vec4: Vec<[f32; 4]>,
+  outputs: Vec<[f32; 4]>,
 }
 
 #[derive(Debug)]
@@ -69,10 +72,50 @@ pub struct Mesh {
 #[derive(Debug)]
 pub struct Node {
   pub idx: u32,
-  pub children: Vec<Node>,
   pub mesh: Mesh,
-  pub matrix: [f32; 16],
   pub skin: i32,
+  pub parent: i32,
+  pub children: Vec<usize>,
+  
+  pub translation: [f32; 3],
+  pub rotation: [f32; 4], //quaternion
+  pub scale: [f32; 3],
+  matrix: [f32; 16],
+}
+
+impl Node {
+  pub fn calculate_local_matrix(&self) -> [f32; 16] {
+    let matrix = self.matrix;
+    let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
+    let rotation = Math::quat_to_mat4(self.rotation);
+    
+    let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
+    
+    let mut m = Math::mat4_mul(translation, rotation);
+    m = Math::mat4_mul(m, scale);
+    m = Math::mat4_mul(m, matrix);
+    
+    matrix
+  }
+  
+  
+  pub fn get_node_matrix(nodes: &Vec<Node>, idx: usize) -> [f32; 16] {
+    let mut matrix = nodes[idx].calculate_local_matrix();
+    
+    let mut last_parent = nodes[idx].parent;
+    while (last_parent != -1) {
+      let p_matrix = nodes[last_parent as usize].calculate_local_matrix();
+      matrix = Math::mat4_mul(p_matrix, matrix);
+      
+      last_parent = nodes[last_parent as usize].parent;
+    }
+    
+    matrix
+  }
+  
+  pub fn matrix(&self) -> [f32; 16] {
+    self.matrix
+  }
 }
 
 #[derive(Debug)]
@@ -86,9 +129,9 @@ pub struct MeshImage {
   pub descriptor_set: DescriptorSet,
 }
 
-#[derive(Debug)]
 pub struct Texture {
   pub image_index: i32,
+  pub sampler: Sampler,
 }
 
 pub struct GltfModel {
@@ -97,10 +140,11 @@ pub struct GltfModel {
   mesh_vertex_buffer: Buffer<MeshVertex>,
   mesh_images: Vec<MeshImage>,
   mesh_skins: Vec<Skin>,
-  mesh_animations: Vec<Animation>,
+  animations: Vec<Animation>,
   textures: Vec<Texture>,
   materials: Vec<Material>,
   descriptor_pool: vk::DescriptorPool,
+  active_animation: i32,
 }
 
 impl GltfModel {
@@ -131,18 +175,93 @@ impl GltfModel {
   pub fn skins(&self) -> &Vec<Skin> {
     &self.mesh_skins
   }
+  
+  pub fn update_animation(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
+    if self.active_animation != -1 && self.active_animation < self.animations.len() as i32 {
+      
+      let anim_idx = self.active_animation as usize;
+      
+      self.animations[anim_idx].current_time += delta_time;
+      if self.animations[anim_idx].current_time > self.animations[anim_idx].end {
+        self.animations[anim_idx].current_time -= self.animations[anim_idx].end;
+      }
+      
+      let current_time = self.animations[anim_idx].current_time;
+      
+      for i in 0..self.animations[anim_idx].channels.len() {
+        let sampler = self.animations[anim_idx].samplers[self.animations[anim_idx].channels[i].sampler_index as usize].clone();
+        
+        for j in 0..sampler.inputs.len()-1 {
+          match sampler.interpolation {
+            AnimationInterpolation::Linear => {
+              if current_time >= sampler.inputs[j] && current_time <= sampler.inputs[j + 1] {
+                
+                let a = (current_time - sampler.inputs[j]) / (sampler.inputs[j + 1] - sampler.inputs[j]);
+                
+                let node_idx = self.animations[anim_idx].channels[i].node as usize;
+                match self.animations[anim_idx].channels[i].property {
+                  Property::Translation => {
+                    let mut translation = Math::vec4_mix(sampler.outputs[j], sampler.outputs[j + 1], a);
+                    self.nodes[node_idx].translation = [translation[0], translation[1], translation[2]];
+                  },
+                  Property::Rotation => {
+                    let q1 = sampler.outputs[j];
+                    let q2 = sampler.outputs[j+1];
+                    
+                    self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_slerp(q1, q2, a));
+                  },
+                  Property::Scale => {
+                    let scale = Math::vec4_mix(sampler.outputs[j], sampler.outputs[j+1], a);
+                    self.nodes[node_idx].scale = [scale[0], scale[1], scale[2]];
+                  },
+                  _ => {
+                    // weights
+                  }
+                }
+              }
+            },
+            _ => { println!("Warning (model): Only linear interpolation is implemented"); },
+          }
+        }
+      }
+      
+      for i in 0..self.nodes.len() {
+        update_joints(vulkan, &mut self.mesh_skins, &mut self.nodes, i);
+      }
+    }
+  }
 }
 
-fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>, animations: &mut Vec<Animation>) {
+fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>, 
+                  nodes: &Vec<Node>, animations: &mut Vec<Animation>) {
   let gltf_animations = gltf.animations();
   
   for animation in gltf_animations {
     let name = animation.name().unwrap_or("AnimationHasNoName").to_string();
-    let mut start = 0.0;
+    let mut start = 10000000000000000000000.0;
     let mut end = 0.0;
     
     let mut samplers = Vec::new();
-    for sampler in animation.samplers() {
+    let mut channels = Vec::new();
+    
+    for channel in animation.channels() {
+      let target = channel.target();
+      
+      let node = {
+        let mut node_idx: i32 = -1;
+        let target_idx = target.node().index() as u32;
+        for i in 0..nodes.len() {
+          if nodes[i].idx == target_idx {
+            node_idx = i as i32;
+            break;
+          }
+        }
+        
+        node_idx
+      };
+      
+      let sampler = channel.sampler();
+      
       let interpolation = {
         match sampler.interpolation() {
           gltf::animation::Interpolation::Linear => {
@@ -162,8 +281,14 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>, anim
       
       let input_accessor = sampler.input();
       
-      start = input_accessor.min().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
-      end = input_accessor.max().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
+      let sampler_start = input_accessor.min().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
+      let sampler_end = input_accessor.max().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
+      if sampler_start < start {
+        start = sampler_start;
+      }
+      if sampler_end > end {
+        end = sampler_end;
+      }
       
       let in_view = input_accessor.view().unwrap();
       
@@ -171,7 +296,6 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>, anim
       let begin = in_view.offset();
       let end = begin + in_view.length();
       let input_data_u8 = &data[begin..end];
-      //let mut input_data = Vec::new();
       
       for bytes in input_data_u8.chunks(4) {
         inputs.push(f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
@@ -206,28 +330,27 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>, anim
         }
       }
       
+      let sampler_index = samplers.len() as i32;
       samplers.push(AnimationSampler {
         interpolation,
         inputs,
-        outputs_vec4: outputs,
+        outputs,
       });
+      
+      channels.push(
+        AnimationChannel {
+          property: target.property(),
+          node,
+          sampler_index,
+        }
+      );
     }
-    
-    //let mut channels = Vec::new();
-    /*for channel in animation.channels() {
-      let target = channel.target().node()
-      AnimationChannel {
-        path: String,
-        node: Vec<Node>,
-        sampler_index: u32,
-      }
-    }*/
     
     animations.push(
       Animation {
         name,
         samplers,
-        //channels,
+        channels,
         start,
         end,
         current_time: 0.0,
@@ -257,16 +380,27 @@ fn load_skins(vulkan: &mut Vulkan, gltf: &gltf::Document, buffers: &Vec<gltf::bu
     let name = skin.name().unwrap_or("").to_string();
     
     let skeleton_root = {
-      if let Some(node) = skin.skeleton() {
-        Some(node.index() as u32)
-      } else {
-        None
+      let mut root_idx = -1;
+      if let Some(root) = skin.skeleton() {
+        for i in 0..nodes.len() {
+          if nodes[i].idx == root.index() as u32 {
+            root_idx = i as i32;
+            break;
+          }
+        }
       }
+      
+      root_idx
     };
     
     let mut joints = Vec::new();
     for joint in skin.joints() {
-      joints.push(joint.index() as u32);
+      for i in 0..nodes.len() {
+        if nodes[i].idx == joint.index() as u32 {
+          joints.push(i as i32);
+          break;
+        }
+      }
     }
     
     let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
@@ -276,7 +410,7 @@ fn load_skins(vulkan: &mut Vulkan, gltf: &gltf::Document, buffers: &Vec<gltf::bu
     
     if let Some(inverse_bind_matrices) = reader.read_inverse_bind_matrices() {
       for matrix in inverse_bind_matrices {
-        let mut new_matrix = Camera::mat4_identity();
+        let mut new_matrix = Math::mat4_identity();
         
         new_matrix[0] = matrix[0][0];
         new_matrix[1] = matrix[0][1];
@@ -363,11 +497,65 @@ fn load_images(vulkan: &mut Vulkan, gltf: &gltf::Document, buffers: &Vec<gltf::b
 }
 
 
-fn load_textures(gltf: &gltf::Document, textures: &mut Vec<Texture>) {
+fn load_textures(vulkan: &mut Vulkan, gltf: &gltf::Document, textures: &mut Vec<Texture>) {
   let gltf_textures = gltf.textures();
   for texture in gltf_textures {
+    let t_sampler = texture.sampler();
+    
+    let mut sampler = Sampler::builder().mipmap_mode_linear()
+                                        .border_colour_float_opaque_white()
+                                        .compare_op_never();
+    
+    if let Some(min) = t_sampler.min_filter() {
+      sampler = {
+        match min {
+          gltf::texture::MinFilter::Nearest => {
+            sampler.min_filter_nearest()
+          },
+          gltf::texture::MinFilter::Linear => {
+            sampler.min_filter_linear()
+          },
+          _ => {
+            sampler.min_filter_linear()
+          }
+        }
+      };
+    } else {
+      sampler = sampler.min_filter_linear();
+    }
+    
+    if let Some(mag) = t_sampler.mag_filter() {
+      sampler = {
+        match mag {
+          gltf::texture::MagFilter::Nearest => {
+            sampler.mag_filter_nearest()
+          },
+          gltf::texture::MagFilter::Linear => {
+            sampler.mag_filter_linear()
+          }
+        }
+      };
+    } else {
+      sampler = sampler.mag_filter_linear();
+    }
+    
+    match t_sampler.wrap_s() {
+      gltf::texture::WrappingMode::ClampToEdge => {
+        sampler = sampler.address_mode_clamp_to_edge();
+      },
+      gltf::texture::WrappingMode::MirroredRepeat => {
+        sampler = sampler.address_mode_mirrored_repeat();
+      },
+      gltf::texture::WrappingMode::Repeat => {
+        sampler = sampler.address_mode_repeat();
+      }
+    }
+    
+    let sampler = sampler.build(vulkan.device());
+    
     textures.push(Texture {
       image_index: texture.source().index() as i32,
+      sampler,
     });
   }
 }
@@ -387,65 +575,72 @@ fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
   }
 }
 
-fn load_node(gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, 
-              index_buffer: &mut Vec<u32>, vertex_buffer: &mut Vec<MeshVertex>, depth: i32) -> Option<Node> {
+fn load_node(nodes: &mut Vec<Node>, parent: i32,
+             gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, 
+             index_buffer: &mut Vec<u32>, vertex_buffer: &mut Vec<MeshVertex>) {
   let mut first_index = index_buffer.len();
   let mut vertex_start = vertex_buffer.len();
   let mut index_count = 0;
-  //let mut vertex_count = 0;
-  //println!("Depth: {}", depth);
-  let mut node = Node {
+  
+  let node_idx = nodes.len();
+  
+  nodes.push(Node {
     idx: gltf_node.index() as u32,
-    children: Vec::new(),
     mesh: Mesh {
       primitives: Vec::new(),
     },
-    matrix: Camera::mat4_identity(),
     skin: if let Some(skin) = gltf_node.skin() {
       skin.index() as i32
     } else {
       -1
     },
-  };
+    parent,
+    children: Vec::new(),
+    
+    translation: [0.0; 3],
+    rotation: [0.0; 4],
+    scale: [1.0; 3],
+    matrix: Math::mat4_identity(),
+  });
   
-  /*
+  
   let (translation, rotation, scale) = gltf_node.transform().decomposed();
-  let mut recomposed_matrix = Camera::mat4_identity();
-  recomposed_matrix = Camera::translate(recomposed_matrix, translation);
-  recomposed_matrix = Camera::mat4_mul(recomposed_matrix, Camera::quat_to_mat4(rotation));
-  recomposed_matrix = Camera::mat4_scale(recomposed_matrix, scale);
-  */
+  
+  nodes[node_idx].translation = translation;
+  nodes[node_idx].rotation = rotation;
+  nodes[node_idx].scale = scale;
+  
   let matrix = gltf_node.transform().matrix();
   
-  node.matrix[0] = matrix[0][0];
-  node.matrix[1] = matrix[0][1];
-  node.matrix[2] = matrix[0][2];
-  node.matrix[3] = matrix[0][3];
+  nodes[node_idx].matrix[0] = matrix[0][0];
+  nodes[node_idx].matrix[1] = matrix[0][1];
+  nodes[node_idx].matrix[2] = matrix[0][2];
+  nodes[node_idx].matrix[3] = matrix[0][3];
   
-  node.matrix[4] = matrix[1][0];
-  node.matrix[5] = matrix[1][1];
-  node.matrix[6] = matrix[1][2];
-  node.matrix[7] = matrix[1][3];
+  nodes[node_idx].matrix[4] = matrix[1][0];
+  nodes[node_idx].matrix[5] = matrix[1][1];
+  nodes[node_idx].matrix[6] = matrix[1][2];
+  nodes[node_idx].matrix[7] = matrix[1][3];
   
-  node.matrix[8] = matrix[2][0];
-  node.matrix[9] = matrix[2][1];
-  node.matrix[10] = matrix[2][2];
-  node.matrix[11] = matrix[2][3];
+  nodes[node_idx].matrix[8] = matrix[2][0];
+  nodes[node_idx].matrix[9] = matrix[2][1];
+  nodes[node_idx].matrix[10] = matrix[2][2];
+  nodes[node_idx].matrix[11] = matrix[2][3];
   
-  node.matrix[12] = matrix[3][0];
-  node.matrix[13] = matrix[3][1];
-  node.matrix[14] = matrix[3][2];
-  node.matrix[15] = matrix[3][3];
+  nodes[node_idx].matrix[12] = matrix[3][0];
+  nodes[node_idx].matrix[13] = matrix[3][1];
+  nodes[node_idx].matrix[14] = matrix[3][2];
+  nodes[node_idx].matrix[15] = matrix[3][3];
   
   for child in gltf_node.children() {
-    if let Some(new_node) = load_node(&child, buffers, index_buffer, vertex_buffer, depth + 1) {
-      node.children.push(new_node);
-    }
+    let child_idx = nodes.len();
+    nodes[node_idx].children.push(child_idx);
+    load_node(nodes, node_idx as i32, &child, buffers, index_buffer, vertex_buffer);
   }
   
   if let Some(mesh) = gltf_node.mesh() {
     for primitive in mesh.primitives() {
-      //println!("prim");
+      
       let mut vertices = Vec::new();
       let mut normals = Vec::new();
       let mut uvs = Vec::new();
@@ -455,7 +650,7 @@ fn load_node(gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>,
       let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
       
       if let Some(iter) = reader.read_positions() {
-        //vertex_count = iter.len();
+        
         for position in iter {
           vertices.push([position[0], position[1], position[2]]);
         }
@@ -549,7 +744,7 @@ fn load_node(gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>,
         }
       };
       
-      node.mesh.primitives.push(Primitive {
+      nodes[node_idx].mesh.primitives.push(Primitive {
         first_index: first_index as u32,
         index_count: index_count as u32,
         material_index: mat_idx as i32,
@@ -558,31 +753,36 @@ fn load_node(gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>,
       
       vertex_start = vertex_buffer.len();
     }
-    
-    //println!("Primitives: {:?}", node.mesh.primitives);
   }
-  
-  Some(node)
 }
-/*
-pub fn update_joints(node: &mut Node) {
 
-  if node.skin != -1 {
-    let inverse_transform = nodes[i].matrix;
-    let skin = skins[nodes[i].skin];
+pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec<Node>, idx: usize) {
+  if nodes[idx].skin != -1 {
+    let mut matrix = Node::get_node_matrix(nodes, idx);
     
-    let num_joints = skin.joints.len();
+    let inverse_transform = Math::mat4_inverse(matrix);
+    let skin_idx = nodes[idx].skin as usize;
+    
+    let num_joints = skins[skin_idx].joints.len();
     
     let mut joint_matrices = Vec::new();
     for j in 0..num_joints {
-      joint_matrices.push();
+      joint_matrices.push([0.0; 16]);
     }
+    
+    let mut joint_data: Vec<f32> = Vec::new();
+    for i in 0..num_joints {
+      let joint_idx = skins[skin_idx].joints[i] as usize;
+      let mut joint_matrix = Node::get_node_matrix(nodes, joint_idx);
+      
+      joint_matrices[i] = Math::mat4_mul(joint_matrix, skins[skin_idx].inverse_bind_matrices[i]);
+      joint_matrices[i] = Math::mat4_mul(inverse_transform, joint_matrices[i]);
+      joint_data.append(&mut joint_matrices[i].to_vec());
+    }
+    
+    skins[nodes[idx].skin as usize].inverse_bind_matrix_buffer.update_data(vulkan.device(), joint_data);
   }
-  
-  for i in 0..node.children().len() {
-    gltf_loader::update_joints(&mut node.children()[i])
-  }
-}*/
+}
 
 pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> GltfModel {
   let mut images: Vec<vkimage> = Vec::new();
@@ -599,15 +799,13 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
   
   for scene in gltf.scenes() {
     for node in scene.nodes() {
-      if let Some(new_node) = load_node(&node, &buffers, &mut index_buffer, &mut vertex_buffer, 1) {
-        nodes.push(new_node);
-      }
+      load_node(&mut nodes, -1, &node, &buffers, &mut index_buffer, &mut vertex_buffer);
     }
   }
   
   load_materials(&gltf, &mut materials);
   
-  load_textures(&gltf, &mut textures);
+  load_textures(vulkan, &gltf, &mut textures);
   
   load_images(vulkan, &gltf, &buffers, &mut images);
   
@@ -619,16 +817,28 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
   
   load_skins(vulkan, &gltf, &buffers, &descriptor_pool, &mut nodes, &mut mesh_skins);
   
-  load_animation(&gltf, &buffers, &mut mesh_animations); 
+  load_animation(&gltf, &buffers, &nodes, &mut mesh_animations); 
   
   let mut mesh_images: Vec<MeshImage> = Vec::new();
   
+  let mut i = 0;
   for image in images {
+    let sampler = {
+      let mut s = sampler;
+      for j in 0..textures.len() {
+        if textures[j].image_index == i as i32 {
+          s = &textures[j].sampler;
+        }
+      }
+      
+      s
+    };
+    
     let descriptor_set = DescriptorSet::builder()
                                       .combined_image_sampler_fragment()
                                       .build(vulkan.device(), &descriptor_pool);
     let descriptor_set_writer = DescriptorWriter::builder()
-                                                 .update_image(&image, sampler, &descriptor_set);
+                                                 .update_image(&image, &sampler, &descriptor_set);
     
     descriptor_set_writer.build(vulkan.device());
     mesh_images.push(
@@ -637,13 +847,16 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
         descriptor_set,
       }
     );
+    
+    i += 1;
   }
   
   let mesh_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), index_buffer);
   let mesh_vertex_buffer = Buffer::<MeshVertex>::new_vertex(vulkan.device(), vertex_buffer);
   
-   //  for i in 0..nodes.len() {
-  
+  for i in 0..nodes.len() {
+    update_joints(vulkan, &mut mesh_skins, &mut nodes, i);
+  }
   
   GltfModel {
     nodes,
@@ -651,9 +864,10 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
     mesh_vertex_buffer,
     mesh_images,
     mesh_skins,
-    mesh_animations,
+    animations: mesh_animations,
     textures,
     materials,
     descriptor_pool,
+    active_animation: 0,
   }
 }

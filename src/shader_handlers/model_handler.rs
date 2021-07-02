@@ -7,7 +7,7 @@ use ash::vk;
 use crate::modules::{VkDevice, Vulkan, Shader, GraphicsPipelineBuilder, DescriptorSet, DescriptorPoolBuilder,
                      Sampler, Buffer, DescriptorWriter};
 
-use crate::shader_handlers::{Camera, TextureHandler};
+use crate::shader_handlers::{Camera, Math, TextureHandler};
 use crate::shader_handlers::gltf_loader;
 use crate::shader_handlers::gltf_loader::{MeshVertex, GltfModel};
 
@@ -88,7 +88,7 @@ impl ModelHandler {
     descriptor_set_writer.build(vulkan.device());
     
     
-    let dummy_buffer = Buffer::<f32>::new_storage_buffer(vulkan.device(), &Camera::mat4_identity().to_vec());
+    let dummy_buffer = Buffer::<f32>::new_storage_buffer(vulkan.device(), & Math::mat4_identity().to_vec());
     let dummy_skin = DescriptorSet::builder()
                                   .storage_vertex()
                                   .build(vulkan.device(), &descriptor_pool);
@@ -132,6 +132,12 @@ impl ModelHandler {
   
   pub fn mut_camera(&mut self) -> &mut Camera {
     &mut self.camera
+  }
+  
+  pub fn update_animations(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
+    for (model_ref, model) in &mut self.models {
+      model.update_animation(vulkan, delta_time);
+    }
   }
   
   pub fn draw(&mut self, vulkan: &mut Vulkan, _data: Vec<f32>, model_ref: &str) {
