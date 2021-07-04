@@ -125,9 +125,9 @@ impl ModelHandler {
     self.uniform_buffer.update_data(device, vec!(data));
   }
   
-  pub fn load_model(&mut self, vulkan: &mut Vulkan, model_ref: &str, model: &str) {
+  pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: T) {
     let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model);
-    self.models.insert(model_ref.to_string(), gltf_model);
+    self.models.insert(model_ref.into(), gltf_model);
   }
   
   pub fn mut_camera(&mut self) -> &mut Camera {
@@ -162,6 +162,7 @@ impl ModelHandler {
     
     let graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
                                                                   .polygon_mode_fill()
+                                                                  //.polygon_mode_line()
                                                                   .front_face_counter_clockwise()
                                                                   //.cull_back()
                                                                   .samples_1();

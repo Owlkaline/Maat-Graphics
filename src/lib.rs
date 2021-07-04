@@ -28,7 +28,8 @@ pub struct MaatGraphics {
 }
 
 impl MaatGraphics {
-  pub fn new(window: &mut VkWindow, screen_resolution: vk::Extent2D) -> MaatGraphics {
+  pub fn new(window: &mut VkWindow, screen_resolution: [u32; 2]) -> MaatGraphics {
+    let screen_resolution = vk::Extent2D { width: screen_resolution[0], height: screen_resolution[1] };
     let mut vulkan = Vulkan::new(window, screen_resolution);
     
     let compute_descriptor_pool = DescriptorPoolBuilder::new()
@@ -55,16 +56,16 @@ impl MaatGraphics {
       compute_descriptor_sets,
     }
   }
-  
+  /*
   pub fn load_text(&mut self, text_ref: &str, text: &str, size: f32) {
     self.texture_handler.load_text(&mut self.vulkan, text_ref, text, size);
-  }
+  }*/
   
-  pub fn load_texture(&mut self, texture_ref: &str, texture: &str) {
+  pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self.texture_handler.load_texture(&mut self.vulkan, texture_ref, texture);
   }
   
-  pub fn load_model(&mut self, model_ref: &str, model: &str) {
+  pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: T) {
     self.model_handler.load_model(&mut self.vulkan, model_ref, model);
   }
   
@@ -81,14 +82,17 @@ impl MaatGraphics {
     self.model_handler.mut_camera()
   }
   
-  pub fn draw_texture(&mut self, draw_data: Vec<(Vec<f32>, &str, Option<&str>)>) {
+  pub fn draw_texture<T: Into<String>, L: Into<String>>(
+                     &mut self, 
+                     draw_data: Vec<(Vec<f32>, T, Option<L>)>) {
+    
     if let Some(present_index) = self.vulkan.start_texture_render(self.texture_handler.shader(),
                                                                   self.texture_handler.uniform_descriptor()) {
       for (data, texture, some_text) in draw_data {
         if let Some(text) = some_text {
-          self.texture_handler.draw_text(&mut self.vulkan, data, text, texture);
+          self.texture_handler.draw_text(&mut self.vulkan, data, &text.into(), &texture.into());
         } else {
-          self.texture_handler.draw(&mut self.vulkan, data, texture);
+          self.texture_handler.draw(&mut self.vulkan, data, &texture.into());
         }
       }
       self.vulkan.end_render(present_index);

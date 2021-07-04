@@ -90,12 +90,22 @@ impl Node {
     let rotation = Math::quat_to_mat4(self.rotation);
     
     let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
+    /*
+    let mut m = Math::mat4_mul(scale, rotation);
+    
+    m = Math::mat4_mul(m, translation);
+    m = Math::mat4_mul(m, matrix);*/
+    
+    /*
+    let mut m = Math::mat4_mul(scale, rotation);
+    m = Math::mat4_mul(m, translation);
+    m = Math::mat4_mul(m, matrix);*/
     
     let mut m = Math::mat4_mul(translation, rotation);
     m = Math::mat4_mul(m, scale);
     m = Math::mat4_mul(m, matrix);
     
-    matrix
+    m
   }
   
   
@@ -199,19 +209,27 @@ impl GltfModel {
                 let a = (current_time - sampler.inputs[j]) / (sampler.inputs[j + 1] - sampler.inputs[j]);
                 
                 let node_idx = self.animations[anim_idx].channels[i].node as usize;
+                
+                let j_0 = j%sampler.outputs.len();
+                let j_1 = (j+1)%sampler.outputs.len();
+                
                 match self.animations[anim_idx].channels[i].property {
                   Property::Translation => {
-                    let mut translation = Math::vec4_mix(sampler.outputs[j], sampler.outputs[j + 1], a);
+                    let mut translation = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
                     self.nodes[node_idx].translation = [translation[0], translation[1], translation[2]];
                   },
                   Property::Rotation => {
-                    let q1 = sampler.outputs[j];
-                    let q2 = sampler.outputs[j+1];
+                    
+                    let q1 = sampler.outputs[j_0];
+                    let q2 = sampler.outputs[j_1];
+                    
+                    let old_rotation = self.nodes[node_idx].rotation;
                     
                     self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_slerp(q1, q2, a));
+                    //self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_short_mix(q1, q2, a));
                   },
                   Property::Scale => {
-                    let scale = Math::vec4_mix(sampler.outputs[j], sampler.outputs[j+1], a);
+                    let scale = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
                     self.nodes[node_idx].scale = [scale[0], scale[1], scale[2]];
                   },
                   _ => {
@@ -237,9 +255,9 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
   let gltf_animations = gltf.animations();
   
   for animation in gltf_animations {
-    let name = animation.name().unwrap_or("AnimationHasNoName").to_string();
-    let mut start = 10000000000000000000000.0;
-    let mut end = 0.0;
+    let name = animation.name().unwrap_or("DefaultAnim").to_string();
+    let mut animation_start = 10000000000000000000000.0;
+    let mut animation_end: f32 = 0.0;
     
     let mut samplers = Vec::new();
     let mut channels = Vec::new();
@@ -281,15 +299,6 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
       
       let input_accessor = sampler.input();
       
-      let sampler_start = input_accessor.min().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
-      let sampler_end = input_accessor.max().unwrap().as_array().unwrap()[0].as_f64().unwrap() as f32;
-      if sampler_start < start {
-        start = sampler_start;
-      }
-      if sampler_end > end {
-        end = sampler_end;
-      }
-      
       let in_view = input_accessor.view().unwrap();
       
       let data = &buffers[in_view.buffer().index()].0;
@@ -300,6 +309,17 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
       for bytes in input_data_u8.chunks(4) {
         inputs.push(f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
       }
+      
+      for i in 0..inputs.len() {
+        if inputs[i] < animation_start {
+          animation_start = inputs[i];
+        }
+        if inputs[i] > animation_end {
+          animation_end = inputs[i];
+        }
+      }
+      
+      //println!("Input Data: {:?}", inputs);
       
       let output_accessor = sampler.output();
       let out_view = output_accessor.view().unwrap();
@@ -316,8 +336,20 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
       
       match output_accessor.dimensions() {
         gltf::accessor::Dimensions::Vec3 => {
+          let mut remaing = Vec::new();
+          let left_over = output_data.len() % 3;
+          if left_over != 0 {
+            for i in (output_data.len()-left_over)..output_data.len() {
+              remaing.push(outputs[i]);
+            }
+          }
+          
           for vec3 in output_data.chunks(3) {
             outputs.push([vec3[0], vec3[1], vec3[2], 0.0]);
+          }
+          
+          for remain in remaing {
+            outputs.push(remain);
           }
         },
         gltf::accessor::Dimensions::Vec4 => {
@@ -329,6 +361,9 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
           
         }
       }
+      
+      //println!("Inputs: {:?}", inputs);
+      //println!("Outputs: {:?}", outputs);
       
       let sampler_index = samplers.len() as i32;
       samplers.push(AnimationSampler {
@@ -351,8 +386,8 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
         name,
         samplers,
         channels,
-        start,
-        end,
+        start: animation_start,
+        end: animation_end,
         current_time: 0.0,
       }
     );
@@ -605,10 +640,10 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
   
   
   let (translation, rotation, scale) = gltf_node.transform().decomposed();
-  
+  /*
   nodes[node_idx].translation = translation;
   nodes[node_idx].rotation = rotation;
-  nodes[node_idx].scale = scale;
+  nodes[node_idx].scale = scale;*/
   
   let matrix = gltf_node.transform().matrix();
   
@@ -784,7 +819,9 @@ pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec
   }
 }
 
-pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> GltfModel {
+pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> GltfModel {
+  let location = &location.into();
+  
   let mut images: Vec<vkimage> = Vec::new();
   let mut textures: Vec<Texture> = Vec::new();
   let mut materials: Vec<Material> = Vec::new();
@@ -858,6 +895,11 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
     update_joints(vulkan, &mut mesh_skins, &mut nodes, i);
   }
   
+  println!("Animations: {:?}", mesh_animations.len());
+  for animation in &mesh_animations {
+    println!("    Name: {:?}", animation.name);
+  }
+  
   GltfModel {
     nodes,
     mesh_index_buffer,
@@ -868,6 +910,6 @@ pub fn load_gltf(vulkan: &mut Vulkan, sampler: &Sampler, location: &str) -> Gltf
     textures,
     materials,
     descriptor_pool,
-    active_animation: 0,
+    active_animation: 1,
   }
 }

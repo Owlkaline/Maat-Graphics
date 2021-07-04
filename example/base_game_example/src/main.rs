@@ -21,23 +21,32 @@ const ANIMATION_DELTA_STEP: f32 = 0.01;
 
 fn main() {
   let create_window_size: [u32; 2] = [1280, 720];
-  let mut screen_resolution = vk::Extent2D { width: 1, height: 1};
+  let mut screen_resolution = [1, 1];
   
   let event_loop = EventLoop::new();
   let mut window = VkWindow::new(APP_NAME, create_window_size[0], create_window_size[1], &event_loop, &mut screen_resolution);
   
   let mut vulkan = MaatGraphics::new(&mut window, screen_resolution);
   
-  vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
+  //vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
   vulkan.load_texture("rust_crab", "./textures/rust.png");
   
-  vulkan.load_text("test", "Hello, Please kill me", 10.0);
+  //vulkan.load_text("test", "The quick brown fox jumps over the lazy dog.", 10.0);
   
   //vulkan.load_model("floor", "./models/owned/floor.glb");
   //vulkan.load_model("orientation_test", "./models/OrientationTest.glb");
   //vulkan.load_model("animation_test", "./models/CesiumMan.glb");
-  vulkan.load_model("aniamted_box", "./models/AnimatedBox.glb");
+  //vulkan.load_model("aniamted_cube", "./models/AnimatedCube.glb");
   //vulkan.load_model("helmet", "./models/DamagedHelmet.glb");
+  //vulkan.load_model("box_animated", "./models/BoxAnimated.glb");
+  //vulkan.load_model("simple_rigged", "./models/RiggedSimple.glb");
+  //vulkan.load_model("simple_skin", "./models/SimpleSkin.glb");
+  vulkan.load_model("interpolation_text", "./models/InterpolationTest.glb");
+  //vulkan.load_model("gearbox", "./models/GearboxAssy.glb");
+  //vulkan.load_model("milk_truck", "./models/CesiumMilkTruck.glb");
+  //vulkan.load_model("brain_stem", "./models/BrainStem.glb");
+  //vulkan.load_model("vc", "./models/vc.glb");
+  //vulkan.load_model("vertex_colour_test", "./models/VertexColorTest.glb");
   
   let mut delta_time = 0.0;
   let mut last_time = Instant::now();
@@ -93,34 +102,39 @@ fn main() {
       
       // Get draw data
       texture_data = vec!(
-        (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
+        /*(vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
               0.0, 0.0, 1.0, 1.0, // r g b a
               1.0, 45.0), // use texture, rotation
-         "orientation", None),
+         format!("orientation"), None),*/
         (vec!(150.0, 150.0, 573.0, 300.0,
               1.0, 0.0, 1.0, 1.0,
               1.0, 0.0), 
          "rust_crab", None),
          
         // Example using pre calculated text that doesn't change (Very fast)
-        (vec!(0.0, 20.0, 0.0, 0.0, // x, y
+       /* (vec!(0.0, 20.0, 10.0, 0.0, // x, y
               1.0, 1.0, 1.0, 1.0, //  r g b a (outline colour)
               0.5, 0.1), // outline, width
-         "test", Some("")),
+         format!("test"), Some(format!(""))),*/
         
         // Example using text that changes every or most fames (slower)
-        (vec!(0.0, 0.0, 0.0, 0.0, // x, y
+        (vec!(0.0, 0.0, 64.0, 0.0, // x, y
               1.0, 1.0, 1.0, 1.0, // r g b a (outline colour)
               0.5, 0.1), // outline, width
-         "", Some("Nah, dont kill me")),
+         "", Some("Hello, welcome gg")),
       );
       
       model_data = vec!(
         //(Vec::new(), "floor"),
         //(Vec::new(), "orientation_test"),
         //(Vec::new(), "animation_test"),
-        (Vec::new(), "aniamted_box")
+        //(Vec::new(), "box_animated")
         //(Vec::new(), "helmet")
+        //(Vec::new(), "simple_rigged")
+        //(Vec::new(), "simple_skin")
+        (Vec::new(), "interpolation_text"),
+        //(Vec::new(), "brain_stem"),
+        //(Vec::new(), "vertex_colour_test"),
       );
       
       match event {
@@ -141,8 +155,8 @@ fn main() {
               WindowEvent::Resized(dimensions) => {
                 //println!("resized");
                 vulkan.recreate_swapchain(dimensions.width, dimensions.height);
-                screen_resolution.width = dimensions.width;
-                screen_resolution.height = dimensions.height;
+                screen_resolution[0] = dimensions.width;
+                screen_resolution[1] = dimensions.height;
               },
               window_event => {
                 handle_window_event(window_event, delta_time);
@@ -154,8 +168,8 @@ fn main() {
             }
           },
           Event::MainEventsCleared => {
-            //vulkan.draw_texture(texture_data);
-            vulkan.draw_model(model_data);
+            vulkan.draw_texture(texture_data);
+            //vulkan.draw_model(model_data);
           },
           Event::LoopDestroyed => {
             vulkan.destroy();

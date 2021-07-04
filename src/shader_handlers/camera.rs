@@ -30,6 +30,8 @@ pub struct Camera {
 
 impl Camera {
   pub fn new() -> Camera {
+    let mut flip_y = true;
+    
     Camera {
       fov: 71.0,
       znear: 0.1,
@@ -42,12 +44,12 @@ impl Camera {
       rotation_speed: 1.0,
       movement_speed: 1.0,
       
-      perspective:  Math::perspective(71.0, 1280.0/720.0, 0.1, 256.0, true),
-      view:  Camera::view([1.0, 0.0, 4.0], [0.0, 150.0, 0.0], CameraType::LookAt, true),
+      perspective:  Math::perspective(71.0, 1280.0/720.0, 0.1, 256.0, flip_y),
+      view:  Camera::view([1.0, 0.0, 4.0], [0.0, 150.0, 0.0], CameraType::LookAt, flip_y),
       
       camera_type: CameraType::FirstPerson,
       
-      flip_y: false,
+      flip_y,
       
       updated: false,
     }

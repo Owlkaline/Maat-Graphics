@@ -12,7 +12,7 @@ pub struct VkWindow {
 
 impl VkWindow {
   pub fn new(app_name: &str, window_width: u32, window_height: u32, event_loop: &EventLoop<()>,
-             screen_resolution: &mut vk::Extent2D) -> VkWindow {
+             screen_resolution: &mut [u32; 2]) -> VkWindow {
     let (logical_window_size, physical_window_size) = {
         let dpi = event_loop.primary_monitor().unwrap().scale_factor();
         let logical: LogicalSize<u32> = (window_width, window_height).into();
@@ -20,11 +20,11 @@ impl VkWindow {
 
         (logical, physical)
     };
-
-    *screen_resolution = vk::Extent2D {
-      width: physical_window_size.width,
-      height: physical_window_size.height,
-    };
+    
+    *screen_resolution = [
+      physical_window_size.width,
+      physical_window_size.height,
+    ];
     
     let window = WindowBuilder::new()
         .with_title(app_name)

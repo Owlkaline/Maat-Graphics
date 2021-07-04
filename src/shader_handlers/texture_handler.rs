@@ -30,7 +30,7 @@ pub struct TextureHandler {
   uniform_buffer: Buffer<UniformBuffer>,
   uniform_descriptor: DescriptorSet,
   font: Font,
-  text_shader: Shader<ComboVertex>,
+  //text_shader: Shader<ComboVertex>,
   letter_shader: Shader<ComboVertex>,
   combo_shader: Shader<ComboVertex>,
   combo_index_buffer: Buffer<u32>,
@@ -81,7 +81,7 @@ impl TextureHandler {
     
     uniform_descriptor_set_writer.build(vulkan.device());
     
-    let (text_shader, letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, 
+    let (/*text_shader,*/ letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, 
                                                                                                       &vec![descriptor_set0.clone(), 
                                                                                                             descriptor_set1.clone()]);
     
@@ -101,7 +101,7 @@ impl TextureHandler {
       uniform_buffer,
       uniform_descriptor: descriptor_set0,
       font,
-      text_shader,
+      //text_shader,
       letter_shader,
       combo_shader,
       combo_index_buffer,
@@ -139,14 +139,16 @@ impl TextureHandler {
   pub fn uniform_descriptor(&self) -> &DescriptorSet {
     &self.uniform_descriptor
   }
-  
+  /*
   pub fn load_text(&mut self, vulkan: &mut Vulkan, text_ref: &str, text: &str, size: f32) {
     let (string_index, string_vertex) = self.font.generate_text(vulkan, size, text);
     self.strings.insert(text_ref.to_string(), (string_index, string_vertex));
-  }
+  }*/
   
-  pub fn load_texture(&mut self, vulkan: &mut Vulkan, texture_ref: &str, texture: &str) {
-    let image = image::open(&texture.clone()).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba8();
+  pub fn load_texture<T: Into<String>>(&mut self, vulkan: &mut Vulkan, texture_ref: T, texture: T) {
+    let texture = texture.into();
+    
+    let image = image::open(&texture).expect(&("Failed to load texture: ".to_string() + &texture)).fliph().to_rgba8();
     
     let dl_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
     
@@ -158,7 +160,7 @@ impl TextureHandler {
     
     descriptor_set_writer.build(vulkan.device());
     
-    self.textures.insert(texture_ref.to_string(), (dl_texture, descriptor_sets));
+    self.textures.insert(texture_ref.into(), (dl_texture, descriptor_sets));
   }
   
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, texture: &str) {
@@ -184,6 +186,8 @@ impl TextureHandler {
       data.push(0.0);
     }
     
+    let text_size = data[2].max(0.1);
+    /*
     if let Some((string_index, string_vertex)) = self.strings.get(texture) {
       let descriptor = self.font.descriptor();
       
@@ -192,8 +196,8 @@ impl TextureHandler {
                           &string_vertex,
                           &string_index,
                           data);
-    } else {
-      let letter_data = self.font.generate_letter_draws(10.0, text.to_string());
+    } else {*/
+      let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
       
       let x = data[0];
       let y = data[1];
@@ -217,7 +221,7 @@ impl TextureHandler {
                             &self.combo_index_buffer,
                             data.clone());
       }
-    }
+    //}
   }
   
   pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -245,7 +249,7 @@ impl TextureHandler {
     dst_image
   }
   
-  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (Shader<ComboVertex>, Shader<ComboVertex>, Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
+  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (/*Shader<ComboVertex>,*/ Shader<ComboVertex>, Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
     let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];//vec![3, 2, 0, 2, 0, 1];
     let z = -1.0;
     let combo_vertices = vec![
@@ -317,7 +321,7 @@ impl TextureHandler {
                                       vulkan.viewports(), 
                                       vulkan.scissors(),
                                       &layouts);
-    
+    /*
     let text_shader = Shader::new(vulkan.device(),
                               Cursor::new(&include_bytes!("../../shaders/sdf_vert.spv")[..]),
                               Cursor::new(&include_bytes!("../../shaders/sdf_frag.spv")[..]),
@@ -329,7 +333,7 @@ impl TextureHandler {
                               vulkan.texture_renderpass(),
                               vulkan.viewports(), 
                               vulkan.scissors(),
-                              &layouts);
+                              &layouts);*/
     
     let letter_shader = Shader::new(vulkan.device(),
                               Cursor::new(&include_bytes!("../../shaders/letter_sdf_vert.spv")[..]),
@@ -344,7 +348,7 @@ impl TextureHandler {
                               vulkan.scissors(),
                               &layouts);
     
-    (text_shader, letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
+    (/*text_shader, */letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
   }
 }
 
