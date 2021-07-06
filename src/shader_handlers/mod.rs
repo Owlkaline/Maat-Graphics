@@ -7,6 +7,6 @@ pub use self::math::Math;
 mod texture_handler;
 mod model_handler;
 mod camera;
-mod font;
+pub mod font;
 mod math;
 pub mod gltf_loader;

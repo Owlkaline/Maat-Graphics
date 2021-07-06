@@ -61,6 +61,8 @@ pub struct Primitive {
   pub first_index: u32,
   pub index_count: u32,
   pub material_index: i32,
+  pub bounding_box_min: [f32; 3],
+  pub bounding_box_max: [f32; 3],
 }
 
 #[derive(Debug)]
@@ -80,7 +82,7 @@ pub struct Node {
   pub translation: [f32; 3],
   pub rotation: [f32; 4], //quaternion
   pub scale: [f32; 3],
-  matrix: [f32; 16],
+  pub matrix: [f32; 16],
 }
 
 impl Node {
@@ -90,18 +92,9 @@ impl Node {
     let rotation = Math::quat_to_mat4(self.rotation);
     
     let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
-    /*
-    let mut m = Math::mat4_mul(scale, rotation);
     
-    m = Math::mat4_mul(m, translation);
-    m = Math::mat4_mul(m, matrix);*/
-    
-    /*
-    let mut m = Math::mat4_mul(scale, rotation);
-    m = Math::mat4_mul(m, translation);
-    m = Math::mat4_mul(m, matrix);*/
-    
-    let mut m = Math::mat4_mul(translation, rotation);
+    let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
+    m = Math::mat4_mul(m, rotation);
     m = Math::mat4_mul(m, scale);
     m = Math::mat4_mul(m, matrix);
     
@@ -116,6 +109,7 @@ impl Node {
     while (last_parent != -1) {
       let p_matrix = nodes[last_parent as usize].calculate_local_matrix();
       matrix = Math::mat4_mul(p_matrix, matrix);
+      //matrix = Math::mat4_mul(matrix, nodes[idx].matrix);
       
       last_parent = nodes[last_parent as usize].parent;
     }
@@ -184,6 +178,29 @@ impl GltfModel {
   
   pub fn skins(&self) -> &Vec<Skin> {
     &self.mesh_skins
+  }
+  
+  pub fn bounds(&self) -> ([f32; 3], [f32; 3]) {
+    let mut min: [f32; 3] = [f32::MAX, f32::MAX, f32::MAX];
+    let mut max: [f32; 3] = [f32::MIN, f32::MIN, f32::MIN];
+    
+    for i in 0..self.nodes.len() {
+      for j in 0..self.nodes[i].mesh.primitives.len() {
+        let bb_min = self.nodes[i].mesh.primitives[j].bounding_box_min;
+        let bb_max = self.nodes[i].mesh.primitives[j].bounding_box_max;
+        for k in 0..3 {
+          if bb_min[k] < min[k] {
+            min[k] = bb_min[k];
+          }
+          
+          if bb_max[k] > max[k] {
+            max[k] = bb_max[k];
+          }
+        }
+      }
+    }
+    
+    (min, max)
   }
   
   pub fn update_animation(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
@@ -779,10 +796,21 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         }
       };
       
+      let b_box_min;
+      let b_box_max;
+      match primitive.bounding_box() {
+        gltf::mesh::BoundingBox { min, max } => {
+          b_box_min = min;
+          b_box_max = max;
+        }
+      }
+      
       nodes[node_idx].mesh.primitives.push(Primitive {
         first_index: first_index as u32,
         index_count: index_count as u32,
         material_index: mat_idx as i32,
+        bounding_box_min: b_box_min,
+        bounding_box_max: b_box_max,
       });
       first_index += index_count;
       
@@ -910,6 +938,6 @@ pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, locati
     textures,
     materials,
     descriptor_pool,
-    active_animation: 1,
+    active_animation: 0,
   }
 }

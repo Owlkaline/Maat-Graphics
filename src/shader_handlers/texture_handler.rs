@@ -8,7 +8,7 @@ use crate::offset_of;
 
 use crate::modules::{Vulkan, Image, ImageBuilder, Shader, Sampler, Buffer, DescriptorSet, DescriptorPoolBuilder,
                      DescriptorWriter, GraphicsPipelineBuilder};
-use crate::shader_handlers::Font;
+use crate::shader_handlers::{Font, font::FontChar};
 
 use crate::ash::version::DeviceV1_0;
 
@@ -110,6 +110,10 @@ impl TextureHandler {
       textures: HashMap::new(),
       dummy_texture: (dummy_texture, dummy_descriptor_set),
     }
+  }
+  
+  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
+    self.font.get_font_data()
   }
   
   pub fn destroy(&mut self, vulkan: &mut Vulkan) {

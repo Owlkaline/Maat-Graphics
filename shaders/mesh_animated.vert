@@ -23,8 +23,8 @@ layout (set = 0, binding = 0) uniform UBO {
 
 layout(push_constant) uniform PushConstants {
   mat4 model;
-  vec4 attrib0;
-  vec4 attrib1; 
+  vec4 offset; // x y z
+  vec4 scale; // sx sy sz
   vec4 attrib2;
   vec4 attrib3;
 } push_constants;
@@ -33,19 +33,32 @@ layout(set = 1, binding = 0) readonly buffer JointMatrices {
   mat4 joint_matrices[];
 };
 
+mat4 scale_matrix(vec3 scale) {
+  mat4 s_m = mat4(1.0);
+  
+  s_m[0][0] = scale[0];
+  s_m[1][1] = scale[1];
+  s_m[2][2] = scale[2];
+  
+  return s_m;
+}
+
 void main() {
   o_normal = normal;
   o_colour = colour;
   o_uv = uv;
+  
+  vec3 obj_pos = pos + push_constants.offset.xyz;
+  mat4 scale_matrix = scale_matrix(push_constants.scale.xyz);
   
   mat4 skin_mat = joint_weights.x * joint_matrices[int(joint_indices.x)] +
                   joint_weights.y * joint_matrices[int(joint_indices.y)] +
                   joint_weights.z * joint_matrices[int(joint_indices.z)] +
                   joint_weights.w * joint_matrices[int(joint_indices.w)];
   
-  gl_Position = ubo.projection * ubo.view * push_constants.model * skin_mat * vec4(pos.xyz, 1.0);
+  gl_Position = ubo.projection * ubo.view * scale_matrix * push_constants.model  * skin_mat * vec4(obj_pos.xyz, 1.0);
   
-  vec4 pos = ubo.view * vec4(pos, 1.0);
+  vec4 pos = ubo.view * vec4(obj_pos, 1.0);
   o_normal = mat3(ubo.view) * normal;
   vec3 l_pos = mat3(ubo.view) * ubo.light_pos.xyz;
   o_light_vec = l_pos - pos.xyz;

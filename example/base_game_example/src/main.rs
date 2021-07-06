@@ -1,6 +1,6 @@
 extern crate maat_graphics;
 
-use maat_graphics::{winit};
+use maat_graphics::{winit, Math};
 
 use winit::{
   event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, WindowEvent, DeviceEvent},
@@ -33,7 +33,7 @@ fn main() {
   
   //vulkan.load_text("test", "The quick brown fox jumps over the lazy dog.", 10.0);
   
-  //vulkan.load_model("floor", "./models/owned/floor.glb");
+  vulkan.load_model("floor", "./models/owned/floor.glb");
   //vulkan.load_model("orientation_test", "./models/OrientationTest.glb");
   //vulkan.load_model("animation_test", "./models/CesiumMan.glb");
   //vulkan.load_model("aniamted_cube", "./models/AnimatedCube.glb");
@@ -41,12 +41,19 @@ fn main() {
   //vulkan.load_model("box_animated", "./models/BoxAnimated.glb");
   //vulkan.load_model("simple_rigged", "./models/RiggedSimple.glb");
   //vulkan.load_model("simple_skin", "./models/SimpleSkin.glb");
-  vulkan.load_model("interpolation_text", "./models/InterpolationTest.glb");
-  //vulkan.load_model("gearbox", "./models/GearboxAssy.glb");
+  //vulkan.load_model("interpolation_text", "./models/InterpolationTest.glb");
+  //vulkan.load_model("cesium", "./models/CesiumMan.glb");
   //vulkan.load_model("milk_truck", "./models/CesiumMilkTruck.glb");
   //vulkan.load_model("brain_stem", "./models/BrainStem.glb");
   //vulkan.load_model("vc", "./models/vc.glb");
   //vulkan.load_model("vertex_colour_test", "./models/VertexColorTest.glb");
+ // vulkan.load_model("Ult_animation_test", "./models/owned/offsetscale.glb");
+  vulkan.load_model("space_ship", "./models/owned/scorpionspaceship.glb");
+  vulkan.load_model("axis", "./models/owned/Axis.glb");
+  
+  let ship_size = vulkan.model_bounding_box("space_ship");
+  let floor_size = vulkan.model_bounding_box("floor");
+  //println!("ship: {:?}, floor: {:?}", ship_size, floor_size);
   
   let mut delta_time = 0.0;
   let mut last_time = Instant::now();
@@ -57,6 +64,10 @@ fn main() {
   vulkan.mut_camera().set_movement_speed(10.0);
   
   let mut device_keys = Vec::new();
+  
+  let mut ship_pos = [0.0, 50.0, 0.0];
+  let fall_speed = 10.0;
+  let ship_speed = 1.0;
   
   event_loop.run(move |event, _, control_flow| {
       *control_flow = ControlFlow::Poll;
@@ -75,17 +86,37 @@ fn main() {
         let camera = vulkan.mut_camera();
         for _ in 0..delta_steps {
           if device_keys.contains(&VirtualKeyCode::W) {
-            camera.forward(delta_time);
+            camera.forward(DELTA_STEP);
           }
           if device_keys.contains(&VirtualKeyCode::A) {
-            camera.left(delta_time);
+            camera.left(DELTA_STEP);
           }
           if device_keys.contains(&VirtualKeyCode::S) {
-            camera.backward(delta_time);
+            camera.backward(DELTA_STEP);
           }
           if device_keys.contains(&VirtualKeyCode::D) {
-            camera.right(delta_time);
+            camera.right(DELTA_STEP);
           }
+          
+          if device_keys.contains(&VirtualKeyCode::R) {
+            ship_pos = [0.0, 50.0, 0.0];
+          }
+          
+          if device_keys.contains(&VirtualKeyCode::Up) {
+            ship_pos[2] += ship_speed*DELTA_STEP;
+          }
+          if device_keys.contains(&VirtualKeyCode::Down) {
+            ship_pos[2] -= ship_speed*DELTA_STEP;
+          }
+          
+          if device_keys.contains(&VirtualKeyCode::Left) {
+            ship_pos[0] -= ship_speed*DELTA_STEP;
+          }
+          if device_keys.contains(&VirtualKeyCode::Right) {
+            ship_pos[0] += ship_speed*DELTA_STEP;
+          }
+          
+          example_collision_update(&mut ship_pos, &ship_size, &floor_size, fall_speed, DELTA_STEP);
           
           //F(DELTA_STEP); // update
           total_delta_time -= DELTA_STEP;
@@ -125,18 +156,29 @@ fn main() {
       );
       
       model_data = vec!(
-        //(Vec::new(), "floor"),
         //(Vec::new(), "orientation_test"),
         //(Vec::new(), "animation_test"),
         //(Vec::new(), "box_animated")
         //(Vec::new(), "helmet")
         //(Vec::new(), "simple_rigged")
         //(Vec::new(), "simple_skin")
-        (Vec::new(), "interpolation_text"),
-        //(Vec::new(), "brain_stem"),
+        //(Vec::new(), "interpolation_text"),
+        //(Vec::new(), "cesium"),
         //(Vec::new(), "vertex_colour_test"),
+        (vec!(ship_pos[0], ship_pos[1], ship_pos[2], 0.0,
+              1.0, 1.0, 1.0), "space_ship"),
+        (vec!( 0.0, 0.0,  0.0, 0.0,
+              1.0, 1.0, 1.0), "floor"),
+        (vec!(0.0, 0.0, 0.0, 0.0,
+              1.0, 1.0, 1.0), "axis"),
       );
-      
+      /*
+      for x in 0..10 {
+        for z in 0..10 {
+          model_data.push((vec!(2.0*x as f32 - 10.0, 0.0, 2.0*z as f32-10.0), "floor"));
+        }
+      }
+      */
       match event {
           Event::WindowEvent { event, .. } => match event {
               WindowEvent::CloseRequested => {
@@ -168,8 +210,8 @@ fn main() {
             }
           },
           Event::MainEventsCleared => {
-            vulkan.draw_texture(texture_data);
-            //vulkan.draw_model(model_data);
+            //vulkan.draw_texture(texture_data);
+            vulkan.draw_model(model_data);
           },
           Event::LoopDestroyed => {
             vulkan.destroy();
@@ -179,9 +221,86 @@ fn main() {
   });
 }
 
+fn example_collision_update(ship_pos: &mut [f32; 3], ship_size: &([f32; 3], [f32; 3]), floor_size: &([f32; 3], [f32; 3]), 
+                            fall_speed: f32, delta_time: f32) {
+  ship_pos[1] -= fall_speed*DELTA_STEP;
+  
+  let mut collision_confirmed = false;
+
+  let floor_x = 0.0;
+  let floor_z = 0.0;
+  let floor_pos = [floor_x, 0.0, floor_z];
+  
+  let ship_min_x = Math::vec3_add(*ship_pos, ship_size.0);
+  let ship_max_x = Math::vec3_add(*ship_pos, ship_size.1);
+  
+  let floor_min_x = Math::vec3_add(floor_pos, floor_size.0);
+  let floor_max_x = Math::vec3_add(floor_pos, floor_size.1);
+  
+  if intersect_AABB(ship_min_x, ship_max_x, floor_min_x, floor_max_x) {
+    ship_pos[1] = 0.0+floor_size.1[1];
+    collision_confirmed = true;
+  }
+}
+
+pub fn is_point_inside_AABB(point: [f32; 3], box_location: [f32; 3], box_size: [f32; 3]) -> bool {
+  let min_x = box_location[0] - box_size[0]*0.5;
+  let max_x = box_location[0] + box_size[0]*0.5;
+  let min_y = box_location[1] - box_size[1]*0.5;
+  let max_y = box_location[1] + box_size[1]*0.5;
+  let min_z = box_location[2] - box_size[2]*0.5;
+  let max_z = box_location[2] + box_size[2]*0.5;
+  
+  (point[0] >= min_x && point[0] <= max_x) && 
+  (point[1] >= min_y && point[1] <= max_y) && 
+  (point[2] >= min_z && point[2] <= max_z)
+}
+
+pub fn intersect_AABB(box_a_min: [f32; 3], box_a_max: [f32; 3], box_b_min: [f32; 3], box_b_max: [f32; 3]) -> bool {
+  let a_min_x = box_a_min[0];
+  let a_max_x = box_a_max[0];
+  let a_min_y = box_a_min[1];
+  let a_max_y = box_a_max[1];
+  let a_min_z = box_a_min[2];
+  let a_max_z = box_a_max[2];
+  
+  let b_min_x = box_b_min[0];
+  let b_max_x = box_b_max[0];
+  let b_min_y = box_b_min[1];
+  let b_max_y = box_b_max[1];
+  let b_min_z = box_b_min[2];
+  let b_max_z = box_b_max[2];
+  
+  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
+  (a_min_y <= b_max_y && a_max_y >= b_min_y) &&
+  (a_min_z <= b_max_z && a_max_z >= b_min_z)
+}
+/*
+pub fn intersect_AABB(box_a_location: [f32; 3], box_a_size: [f32; 3], box_b_location: [f32; 3], box_b_size: [f32; 3]) -> bool {
+  let a_min_x = box_a_location[0] - box_a_size[0]*0.5;
+  let a_max_x = box_a_location[0] + box_a_size[0]*0.5;
+  let a_min_y = box_a_location[1] - box_a_size[1]*0.5;
+  let a_max_y = box_a_location[1] + box_a_size[1]*0.5;
+  let a_min_z = box_a_location[2] - box_a_size[2]*0.5;
+  let a_max_z = box_a_location[2] + box_a_size[2]*0.5;
+  
+  let b_min_x = box_b_location[0] - box_b_size[0]*0.5;
+  let b_max_x = box_b_location[0] + box_b_size[0]*0.5;
+  let b_min_y = box_b_location[1] - box_b_size[1]*0.5;
+  let b_max_y = box_b_location[1] + box_b_size[1]*0.5;
+  let b_min_z = box_b_location[2] - box_b_size[2]*0.5;
+  let b_max_z = box_b_location[2] + box_b_size[2]*0.5;
+  
+  (a_min_x <= b_max_x && a_max_x >= b_min_x) &&
+  (a_min_y <= b_max_y && a_max_y >= b_min_y) &&
+  (a_min_z <= b_max_z && a_max_z >= b_min_z)
+}*/
+
 fn handle_device_event(event: DeviceEvent, device_keys: &mut Vec<VirtualKeyCode>, camera: &mut Camera, delta_time: f32) {
   match event {
     DeviceEvent::MouseMotion { delta: (mx, my) } => {
+      let sens = 5.0;
+
       let dx = -mx as f32;
       let dy = -my as f32;
       

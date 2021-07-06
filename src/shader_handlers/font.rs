@@ -8,7 +8,7 @@ use crate::modules::{Vulkan, Buffer, DescriptorSet, Sampler, DescriptorPoolBuild
 use crate::modules::Image as vkImage;
 use crate::shader_handlers::{TextureHandler, ComboVertex};
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct FontChar {
   pub x1: f32,
   pub y1: f32,
@@ -63,7 +63,7 @@ impl Font {
   }
   
   fn load_font(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    let location = "./fonts/SourceCodePro";
+    let location = "./fonts/DOSVGA";
     
     let image = image::open(location.to_owned() + ".png").expect(&("Failed to load font: ".to_string() + location)).fliph().to_rgba8();
     let image_width = image.width() as f32;
@@ -158,11 +158,15 @@ impl Font {
       height: image_height as u32,
       
       line_height,
-      size: 64, // TODO: Load from file
+      size: 71, // TODO: Load from file
       
       min_offset_y: min_off_y,
       avg_xadvance: avg_advance,
     }
+  }
+  
+  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
+    (self.chars.clone(), self.line_height, self.size)
   }
   
   pub fn descriptor(&self) -> &DescriptorSet {
@@ -191,7 +195,7 @@ impl Font {
       let width = text_size * (char_info.width as f32 / self.avg_xadvance);
       let height = text_size * (char_info.height as f32 / line_height);
       
-      let x_offset = text_size * (char_info.x_offset as f32 / self.avg_xadvance);
+      let x_offset = text_size * ((char_info.x_offset as f32/self.size as f32) / self.avg_xadvance);
       let y_offset = text_size * ((char_info.y_offset as f32/self.size as f32) / line_height);
       
       let x = pos_x - x_offset;

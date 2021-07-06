@@ -126,7 +126,7 @@ impl Math {
   }
   
   pub fn mat4_scale_vec3(mat4: [f32; 16], s: [f32; 3]) -> [f32; 16] {
-    let mut scale_matrix =  Math::mat4_identity();
+    let mut scale_matrix =  mat4;
     /*let row_0 = Math::vec4_mul_f32([mat4[0], mat4[1], mat4[2], mat4[3]], s[0]);
     let row_1 = Math::vec4_mul_f32([mat4[4], mat4[5], mat4[6], mat4[7]], s[1]);
     let row_2 = Math::vec4_mul_f32([mat4[8], mat4[9], mat4[10], mat4[11]], s[2]);
@@ -141,13 +141,15 @@ impl Math {
       scale_matrix[r*3 + i] = row_3[i];
     }*/
     
-    scale_matrix[0] *= s[0];
-    scale_matrix[5] *= s[1];
-    scale_matrix[10] *= s[2];
+    let r = 4;
+    
+    scale_matrix[r*0 + 0] *= s[0];
+    scale_matrix[r*1 + 1] *= s[1];
+    scale_matrix[r*2 + 2] *= s[2];
     
     scale_matrix
   }
-  
+  /*
   pub fn mat4_scale_vec4(mat4: [f32; 16], s: [f32; 4]) -> [f32; 16] {
     let mut scale_matrix =  Math::mat4_identity();
     scale_matrix[0] *= s[0];
@@ -156,7 +158,7 @@ impl Math {
     scale_matrix[15] *= s[3];
     
      Math::mat4_mul(scale_matrix, mat4)
-  }
+  }*/
   
   pub fn mat4_from_mat2(m2: [f32; 4]) -> [f32; 16] {
     let mut m = Math::mat4_identity();
@@ -378,6 +380,13 @@ impl Math {
     m[r*3 + 3] = row[3];
     
     m
+    /*
+    let mut translation = Math::mat4_identity();
+    translation[r*0 + 3] = v[0];
+    translation[r*1 + 3] = v[1];
+    translation[r*2 + 3] = v[2];
+    
+    Math::mat4_mul(m, translation)*/
   }
   
   pub fn mat4_mul(a: [f32; 16], b: [f32 ; 16]) -> [f32; 16] {

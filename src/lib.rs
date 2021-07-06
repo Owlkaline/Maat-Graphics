@@ -16,7 +16,7 @@ use crate::ash::version::DeviceV1_0;
 
 use crate::modules::{Vulkan, Image, DescriptorSet, ComputeShader, DescriptorPoolBuilder};
 use crate::shader_handlers::{TextureHandler, ModelHandler};
-pub use crate::shader_handlers::Camera;
+pub use crate::shader_handlers::{Camera, font::FontChar, Math};
 
 pub struct MaatGraphics {
   vulkan: Vulkan,
@@ -67,6 +67,18 @@ impl MaatGraphics {
   
   pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: T) {
     self.model_handler.load_model(&mut self.vulkan, model_ref, model);
+  }
+  
+  pub fn model_bounding_box<T: Into<String>>(&self, model_ref: T) -> ([f32; 3], [f32; 3]) {
+    self.model_handler.model_bounding_box(model_ref)
+  }
+  
+  pub fn all_model_bounding_boxes(&self) -> Vec<(String, ([f32; 3], [f32; 3]))> {
+    self.model_handler.all_model_bounding_boxes()
+  }
+  
+  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
+    self.texture_handler.get_font_data()
   }
   
   pub fn recreate_swapchain(&mut self, width: u32, height: u32) {

@@ -111,6 +111,24 @@ impl ModelHandler {
     }
   }
   
+  pub fn model_bounding_box<T: Into<String>>(&self, model_ref: T) -> ([f32; 3], [f32; 3]) {
+    let mut data = ([0.0; 3], [0.0; 3]);
+    if let Some(model) = self.models.get(&model_ref.into()) {
+      data = model.bounds();
+    }
+    
+    data
+  }
+  
+  pub fn all_model_bounding_boxes(&self) -> Vec<(String, ([f32; 3], [f32; 3]))> {
+    let mut data = Vec::new();
+    for (model_ref, model) in &self.models {
+      data.push((model_ref.to_string(), model.bounds()));
+    }
+    
+    data
+  }
+  
   pub fn create_blank_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     image::ImageBuffer::from_fn(2, 2, |_x, _y| {
         image::Rgba([255, 255, 255, 255])
@@ -140,12 +158,13 @@ impl ModelHandler {
     }
   }
   
-  pub fn draw(&mut self, vulkan: &mut Vulkan, _data: Vec<f32>, model_ref: &str) {
+  pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {
     if let Some(model) = &self.models.get(model_ref) {
       vulkan.draw_mesh(&self.mesh_shader,
                        &self.uniform_descriptor_set,
                        &self.dummy_texture,
                        &self.dummy_skin,
+                       data,
                        model);
     }
   }

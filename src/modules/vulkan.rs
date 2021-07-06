@@ -969,6 +969,7 @@ impl Vulkan {
     uniform_descriptor: &DescriptorSet,
     dummy_texture: &DescriptorSet,
     dummy_skin: &DescriptorSet,
+    data: Vec<f32>,
     model: &GltfModel
   ) {
     unsafe {
@@ -1007,8 +1008,17 @@ impl Vulkan {
       );
     }
     
+    let mut byte_data = Vec::new();
+    for i in 0..(data.len().min(16)) {
+      let bytes = data[i].to_le_bytes();
+      byte_data.push(bytes[0]);
+      byte_data.push(bytes[1]);
+      byte_data.push(bytes[2]);
+      byte_data.push(bytes[3]);
+    }
+    
     for i in 0..model.nodes().len() {
-      self.draw_node(shader, i,
+      self.draw_node(shader, i, &byte_data,
                      model.nodes(), 
                      model.images(), 
                      &model.skins(), 
@@ -1018,7 +1028,7 @@ impl Vulkan {
     }
   }
   
-  fn draw_node<T: Copy>(&self, shader: &Shader<T>, idx: usize,
+  fn draw_node<T: Copy>(&self, shader: &Shader<T>, idx: usize, data: &Vec<u8>,
                         nodes: &Vec<Node>, images: &Vec<MeshImage>, skins: &Vec<Skin>,
                         textures: &Vec<Texture>, materials: &Vec<Material>,
                         dummy_texture: &DescriptorSet,
@@ -1033,6 +1043,11 @@ impl Vulkan {
         push_constant_data[i*4 + 1] = bytes[1];
         push_constant_data[i*4 + 2] = bytes[2];
         push_constant_data[i*4 + 3] = bytes[3];
+      }
+      
+      let mut current_idx = matrix.len()*4;
+      for i in current_idx..(current_idx+data.len()).min(128) {
+        push_constant_data[i] = data[i-current_idx];
       }
       
       unsafe {
@@ -1103,7 +1118,7 @@ impl Vulkan {
     }
     
     for child_idx in &nodes[idx].children {
-      self.draw_node(shader, *child_idx as usize, nodes,
+      self.draw_node(shader, *child_idx as usize, data, nodes,
                      images, skins, textures, materials, 
                      dummy_texture, dummy_skin);
     }
