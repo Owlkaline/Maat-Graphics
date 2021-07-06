@@ -153,7 +153,7 @@ impl ModelHandler {
   }
   
   pub fn update_animations(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
-    for (model_ref, model) in &mut self.models {
+    for (_model_ref, model) in &mut self.models {
       model.update_animation(vulkan, delta_time);
     }
   }

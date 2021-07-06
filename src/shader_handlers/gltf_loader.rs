@@ -82,23 +82,26 @@ pub struct Node {
   pub translation: [f32; 3],
   pub rotation: [f32; 4], //quaternion
   pub scale: [f32; 3],
-  pub matrix: [f32; 16],
+  pub matrix: Option<[f32; 16]>,
 }
 
 impl Node {
   pub fn calculate_local_matrix(&self) -> [f32; 16] {
-    let matrix = self.matrix;
-    let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
-    let rotation = Math::quat_to_mat4(self.rotation);
-    
-    let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
-    
-    let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
-    m = Math::mat4_mul(m, rotation);
-    m = Math::mat4_mul(m, scale);
-    m = Math::mat4_mul(m, matrix);
-    
-    m
+    if let Some(matrix) = self.matrix {
+      matrix
+    } else {
+      let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
+      let rotation = Math::quat_to_mat4(self.rotation);
+      println!("Rotation: {:?} {:?}", self.rotation, rotation);
+      let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
+      
+      let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
+      m = Math::mat4_mul(m, rotation);
+      m = Math::mat4_mul(m, scale);
+      //m = Math::mat4_mul(m, matrix);
+      
+      m
+    }
   }
   
   
@@ -106,7 +109,7 @@ impl Node {
     let mut matrix = nodes[idx].calculate_local_matrix();
     
     let mut last_parent = nodes[idx].parent;
-    while (last_parent != -1) {
+    while last_parent != -1 {
       let p_matrix = nodes[last_parent as usize].calculate_local_matrix();
       matrix = Math::mat4_mul(p_matrix, matrix);
       //matrix = Math::mat4_mul(matrix, nodes[idx].matrix);
@@ -118,7 +121,11 @@ impl Node {
   }
   
   pub fn matrix(&self) -> [f32; 16] {
-    self.matrix
+    if let Some(matrix) = self.matrix {
+      matrix
+    } else {
+      Math::mat4_identity()
+    }
   }
 }
 
@@ -232,15 +239,13 @@ impl GltfModel {
                 
                 match self.animations[anim_idx].channels[i].property {
                   Property::Translation => {
-                    let mut translation = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
+                    let translation = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
                     self.nodes[node_idx].translation = [translation[0], translation[1], translation[2]];
                   },
                   Property::Rotation => {
                     
                     let q1 = sampler.outputs[j_0];
                     let q2 = sampler.outputs[j_1];
-                    
-                    let old_rotation = self.nodes[node_idx].rotation;
                     
                     self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_slerp(q1, q2, a));
                     //self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_short_mix(q1, q2, a));
@@ -652,37 +657,46 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
     translation: [0.0; 3],
     rotation: [0.0; 4],
     scale: [1.0; 3],
-    matrix: Math::mat4_identity(),
+    matrix: None,//Math::mat4_identity(),
   });
-  
-  
-  let (translation, rotation, scale) = gltf_node.transform().decomposed();
   /*
-  nodes[node_idx].translation = translation;
-  nodes[node_idx].rotation = rotation;
-  nodes[node_idx].scale = scale;*/
-  
   let matrix = gltf_node.transform().matrix();
-  
-  nodes[node_idx].matrix[0] = matrix[0][0];
-  nodes[node_idx].matrix[1] = matrix[0][1];
-  nodes[node_idx].matrix[2] = matrix[0][2];
-  nodes[node_idx].matrix[3] = matrix[0][3];
-  
-  nodes[node_idx].matrix[4] = matrix[1][0];
-  nodes[node_idx].matrix[5] = matrix[1][1];
-  nodes[node_idx].matrix[6] = matrix[1][2];
-  nodes[node_idx].matrix[7] = matrix[1][3];
-  
-  nodes[node_idx].matrix[8] = matrix[2][0];
-  nodes[node_idx].matrix[9] = matrix[2][1];
-  nodes[node_idx].matrix[10] = matrix[2][2];
-  nodes[node_idx].matrix[11] = matrix[2][3];
-  
-  nodes[node_idx].matrix[12] = matrix[3][0];
-  nodes[node_idx].matrix[13] = matrix[3][1];
-  nodes[node_idx].matrix[14] = matrix[3][2];
-  nodes[node_idx].matrix[15] = matrix[3][3];
+  println!("{:?}", matrix);
+  if matrix[0][3] != 0.0  ||
+     matrix[1][3] != 0.0  ||
+     matrix[2][3] != 0.0 ||
+     matrix[3][3] != 1.0 {
+     
+    nodes[node_idx].matrix = Some(Math::mat4_identity());
+    if let Some(nmatrix) = &mut nodes[node_idx].matrix {
+      /*nodes[node_idx].*/nmatrix[0] = matrix[0][0];
+      /*nodes[node_idx].*/nmatrix[1] = matrix[0][1];
+      /*nodes[node_idx].*/nmatrix[2] = matrix[0][2];
+      /*nodes[node_idx].*/nmatrix[3] = matrix[0][3];
+      
+      /*nodes[node_idx].*/nmatrix[4] = matrix[1][0];
+      /*nodes[node_idx].*/nmatrix[5] = matrix[1][1];
+      /*nodes[node_idx].*/nmatrix[6] = matrix[1][2];
+      /*nodes[node_idx].*/nmatrix[7] = matrix[1][3];
+      
+      /*nodes[node_idx].*/nmatrix[8] = matrix[2][0];
+      /*nodes[node_idx].*/nmatrix[9] = matrix[2][1];
+      /*nodes[node_idx].*/nmatrix[10] = matrix[2][2];
+      /*nodes[node_idx].*/nmatrix[11] = matrix[2][3];
+      
+      /*nodes[node_idx].*/nmatrix[12] = matrix[3][0];
+      /*nodes[node_idx].*/nmatrix[13] = matrix[3][1];
+      /*nodes[node_idx].*/nmatrix[14] = matrix[3][2];
+      /*nodes[node_idx].*/nmatrix[15] = matrix[3][3];
+    }
+  } else {*/
+    let (translation, rotation, scale) = gltf_node.transform().decomposed();
+    println!("T: {:?} R: {:?} S: {:?}", translation, rotation, scale);
+    
+    nodes[node_idx].translation = translation;
+    nodes[node_idx].rotation = rotation;
+    nodes[node_idx].scale = scale;
+ // }
   
   for child in gltf_node.children() {
     let child_idx = nodes.len();
@@ -821,7 +835,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
 
 pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec<Node>, idx: usize) {
   if nodes[idx].skin != -1 {
-    let mut matrix = Node::get_node_matrix(nodes, idx);
+    let matrix = Node::get_node_matrix(nodes, idx);
     
     let inverse_transform = Math::mat4_inverse(matrix);
     let skin_idx = nodes[idx].skin as usize;
@@ -829,14 +843,14 @@ pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec
     let num_joints = skins[skin_idx].joints.len();
     
     let mut joint_matrices = Vec::new();
-    for j in 0..num_joints {
+    for _ in 0..num_joints {
       joint_matrices.push([0.0; 16]);
     }
     
     let mut joint_data: Vec<f32> = Vec::new();
     for i in 0..num_joints {
       let joint_idx = skins[skin_idx].joints[i] as usize;
-      let mut joint_matrix = Node::get_node_matrix(nodes, joint_idx);
+      let joint_matrix = Node::get_node_matrix(nodes, joint_idx);
       
       joint_matrices[i] = Math::mat4_mul(joint_matrix, skins[skin_idx].inverse_bind_matrices[i]);
       joint_matrices[i] = Math::mat4_mul(inverse_transform, joint_matrices[i]);

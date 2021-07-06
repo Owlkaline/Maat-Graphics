@@ -450,8 +450,7 @@ impl Math {
   
   pub fn mat4_inverse(m: [f32; 16]) -> [f32; 16] {
     let mut inv = [0.0; 16];
-    let mut det = 1.0;
-    let mut i = 0;
+    let mut det;
 
     inv[0] = m[5]  * m[10] * m[15] - 
              m[5]  * m[11] * m[14] - 
@@ -689,7 +688,7 @@ impl Math {
   
   //  Quaternion normalized linear interpolation.
   pub fn quat_mix(x: [f32; 4], y: [f32; 4], a: f32) -> [f32; 4] {
-    Math::vec4_normalise(Math::quat_add(Math::quat_mul_f32(x, (1.0 - a)), Math::quat_mul_f32(y, a)))
+    Math::vec4_normalise(Math::quat_add(Math::quat_mul_f32(x, 1.0 - a), Math::quat_mul_f32(y, a)))
   }
   
   pub fn quat_length_sqrd(q: [f32; 4]) -> f32 {
@@ -788,7 +787,7 @@ impl Math {
     
     let mut matrix = [0.0; 16];
     
-    let s = 1.0 / tan_half_fovy;
+    //let s = 1.0 / tan_half_fovy;
     matrix[r*0 + 0] = 1.0 / (aspect * tan_half_fovy);
     matrix[r*1 + 1] = -1.0 / (tan_half_fovy);
     matrix[r*2 + 2] = -(zfar - znear) / (zfar - znear);

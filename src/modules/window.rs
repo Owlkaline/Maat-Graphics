@@ -1,5 +1,3 @@
-use ash::vk;
-
 use winit::{
   dpi::{LogicalSize, PhysicalSize},
   event_loop::{EventLoop},

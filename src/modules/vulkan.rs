@@ -2,8 +2,6 @@ use ash::version::{DeviceV1_0};
 use ash::{vk};
 use std::default::Default;
 
-use crate::shader_handlers::Math;
-
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
                      ClearValues, Viewport, Fence, Semaphore, ImageBuilder, Image, Renderpass, 
                      PassDescription, VkWindow, Buffer, Shader, DescriptorSet,
@@ -1035,7 +1033,7 @@ impl Vulkan {
                         dummy_skin: &DescriptorSet) {
     if nodes[idx].mesh.primitives.len() > 0 {
       let mut push_constant_data: [u8; 128] = [0; 128];
-      let mut matrix = Node::get_node_matrix(nodes, idx);
+      let matrix = Node::get_node_matrix(nodes, idx);
       
       for i in 0..matrix.len() {
         let bytes = matrix[i].to_le_bytes();
@@ -1045,7 +1043,7 @@ impl Vulkan {
         push_constant_data[i*4 + 3] = bytes[3];
       }
       
-      let mut current_idx = matrix.len()*4;
+      let current_idx = matrix.len()*4;
       for i in current_idx..(current_idx+data.len()).min(128) {
         push_constant_data[i] = data[i-current_idx];
       }

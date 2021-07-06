@@ -56,9 +56,9 @@ impl TextureHandler {
                            .compare_op_never()
                            .build(vulkan.device());
     
-    let mut font = Font::new(vulkan, &sampler);
+    let font = Font::new(vulkan, &sampler);
     
-    let mut strings = HashMap::new();
+    let strings = HashMap::new();
     
     let uniform_data = vec![
       UniformBuffer {
@@ -183,7 +183,7 @@ impl TextureHandler {
                         data);
   }
   
-  pub fn draw_text(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, text: &str, texture: &str) {
+  pub fn draw_text(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, text: &str, _texture: &str) {
     let mut data = data;
     
     while data.len() < 16 {
@@ -206,7 +206,7 @@ impl TextureHandler {
       let x = data[0];
       let y = data[1];
       
-      for ((x_offset, y_offset, width, height, uvx0, uvx1, uvy0, uvy1)) in letter_data {
+      for (x_offset, y_offset, width, height, uvx0, uvx1, uvy0, uvy1) in letter_data {
         let descriptor = self.font.descriptor();
         
         data[0] = x + x_offset;

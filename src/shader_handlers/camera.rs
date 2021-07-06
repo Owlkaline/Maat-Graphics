@@ -30,7 +30,7 @@ pub struct Camera {
 
 impl Camera {
   pub fn new() -> Camera {
-    let mut flip_y = false;
+    let flip_y = false;
     
     Camera {
       fov: 71.0,

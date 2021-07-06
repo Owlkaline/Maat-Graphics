@@ -4,9 +4,9 @@ use std::io::{BufRead, BufReader};
 use image;
 use ash::vk;
 
-use crate::modules::{Vulkan, Buffer, DescriptorSet, Sampler, DescriptorPoolBuilder, DescriptorWriter};
+use crate::modules::{Vulkan, DescriptorSet, Sampler, DescriptorPoolBuilder, DescriptorWriter};
 use crate::modules::Image as vkImage;
-use crate::shader_handlers::{TextureHandler, ComboVertex};
+use crate::shader_handlers::TextureHandler;
 
 #[derive(Clone)]
 pub struct FontChar {
@@ -89,18 +89,18 @@ impl Font {
       if segment_0.contains("char") && !segments[0].contains("count") {
         let idx = Font::value_from_string_pair(segments.remove(0).to_string()) as usize;
         
-        while(idx+1 > font_chars.len()) {
+        while idx+1 > font_chars.len() {
           font_chars.push(FontChar::new_empty());
         }
         
-        let mut x = Font::value_from_string_pair(segments[0].to_string()) as u32;
-        let mut y = Font::value_from_string_pair(segments[1].to_string()) as u32;
-        let mut width = Font::value_from_string_pair(segments[2].to_string()) as u32;
-        let mut height = Font::value_from_string_pair(segments[3].to_string()) as u32;
-        let mut x_offset = Font::value_from_string_pair(segments[4].to_string());
-        let mut y_offset = Font::value_from_string_pair(segments[5].to_string());
-        let mut x_advance = Font::value_from_string_pair(segments[6].to_string());
-        let mut page = Font::value_from_string_pair(segments[7].to_string()) as u32;
+        let x = Font::value_from_string_pair(segments[0].to_string()) as u32;
+        let y = Font::value_from_string_pair(segments[1].to_string()) as u32;
+        let width = Font::value_from_string_pair(segments[2].to_string()) as u32;
+        let height = Font::value_from_string_pair(segments[3].to_string()) as u32;
+        let x_offset = Font::value_from_string_pair(segments[4].to_string());
+        let y_offset = Font::value_from_string_pair(segments[5].to_string());
+        let x_advance = Font::value_from_string_pair(segments[6].to_string());
+        let page = Font::value_from_string_pair(segments[7].to_string()) as u32;
         
         let x1  = x as f32;//x as f32 / image_width;
         let x2  = x as f32;//(x as f32 + width as f32) / image_width;
@@ -181,12 +181,10 @@ impl Font {
     
     let mut text_data = Vec::new();
     
-    let mut letter_idx = 0;
-    
     let mut pos_x = 0.0;
     
     for c in text.chars() {
-      let mut char_info = &mut self.chars[c as i32 as usize];
+      let char_info = &mut self.chars[c as i32 as usize];
       
       let w = self.texture.width() as f32;
       
@@ -215,7 +213,6 @@ impl Font {
       text_data.push((x, -y, width, height, uv_x0, uv_x1, uv_y0, uv_y1));
       
       pos_x += text_size * (char_info.x_advance as f32 / self.size as f32);
-      letter_idx += 1;
     }
     
     /*
