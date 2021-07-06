@@ -92,7 +92,7 @@ impl Node {
     } else {
       let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
       let rotation = Math::quat_to_mat4(self.rotation);
-      println!("Rotation: {:?} {:?}", self.rotation, rotation);
+      //println!("Rotation: {:?} {:?}", self.rotation, rotation);
       let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
       
       let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
@@ -691,7 +691,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
     }
   } else {*/
     let (translation, rotation, scale) = gltf_node.transform().decomposed();
-    println!("T: {:?} R: {:?} S: {:?}", translation, rotation, scale);
+    //println!("T: {:?} R: {:?} S: {:?}", translation, rotation, scale);
     
     nodes[node_idx].translation = translation;
     nodes[node_idx].rotation = rotation;
