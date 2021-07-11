@@ -1,17 +1,19 @@
 extern crate maat_graphics;
 
 use maat_graphics::winit::{
-  event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, WindowEvent, DeviceEvent},
+  event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, 
+          MouseScrollDelta, WindowEvent, DeviceEvent},
   event_loop::{ControlFlow, EventLoop}
 };
 
 use std::time::Instant;
 
-use maat_graphics::{MaatGraphics, VkWindow};
+use maat_graphics::{MaatGraphics, VkWindow, Camera};
 
-const APP_NAME: &str = "MaatGraphics - Minimal 2D Example";
+const APP_NAME: &str = "MaatGraphics - Minimal 3D Example";
 
 const DELTA_STEP: f32 = 0.001;
+const ANIMATION_DELTA_STEP: f32 = 0.01;
 
 fn main() {
   let create_window_size: [u32; 2] = [1280, 720];
@@ -24,10 +26,20 @@ fn main() {
   
   vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
   vulkan.load_texture("rust_crab", "./textures/rust.png");
-
+  
+  vulkan.load_model("example_model", "./models/sample_model.glb"); // example importing model
+  
+  // Retrieve the actual size of the model once loaded.
+  // Useful for collisions
+  let _example_model_size = vulkan.model_bounding_box("example_model");
+  
   let mut _delta_time = 0.0;
   let mut last_time = Instant::now();
+  
   let mut total_delta_time = 0.0;
+  let mut total_animation_delta_time = 0.0;
+  
+  vulkan.mut_camera().set_movement_speed(10.0);
   
   let mut device_keys = Vec::new();
   
@@ -37,15 +49,39 @@ fn main() {
       _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
       last_time = Instant::now();
       total_delta_time += _delta_time as f32;
+      total_animation_delta_time += _delta_time as f32;
       
+      let model_data: Vec<(Vec<f32>, &str)>;
       let texture_data;
       
       if total_delta_time > DELTA_STEP {
         let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
         
+        let camera = vulkan.mut_camera();
         for _ in 0..delta_steps {
+          if device_keys.contains(&VirtualKeyCode::W) {
+            camera.forward(DELTA_STEP);
+          }
+          if device_keys.contains(&VirtualKeyCode::A) {
+            camera.left(DELTA_STEP);
+          }
+          if device_keys.contains(&VirtualKeyCode::S) {
+            camera.backward(DELTA_STEP);
+          }
+          if device_keys.contains(&VirtualKeyCode::D) {
+            camera.right(DELTA_STEP);
+          }
+          
           //F(DELTA_STEP); // update
           total_delta_time -= DELTA_STEP;
+        }
+      }
+      
+      if total_animation_delta_time > ANIMATION_DELTA_STEP {
+        let delta_steps = (total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize;
+        for _ in 0..delta_steps {
+          vulkan.update_animations(ANIMATION_DELTA_STEP);
+          total_animation_delta_time -= ANIMATION_DELTA_STEP;
         }
       }
       
@@ -58,7 +94,7 @@ fn main() {
       
       // Get draw data
       texture_data = vec!(
-        (vec!(0.0, 0.0, 720.0, 720.0,  // x y scale_x scale_y
+        (vec!(0.0, 0.0, 500.0, 500.0,  // x y scale_x scale_y
               0.0, 0.0, 1.0, 1.0, // r g b a
               1.0, 0.0), // use texture, rotation
               "orientation", // Texture reference name
@@ -78,6 +114,14 @@ fn main() {
                text_outline, text_edge_width), // text outline, text edge width, this are Signed Distanced feild parameters for text.
          "", Some("jumped over the fence.")),
          
+      );
+      
+      model_data = vec!(
+        (
+          vec!(0.0, 0.0, 0.0, 0.0, // (x y z nothing) defines where it should place the model, 4th parameter is not used.
+               1.0, 1.0, 1.0),     // (scale x y z) defines what it should scale by.
+               "example_model"     // Reference name for the model loaded in with vulkan.model_load function.
+        ),
       );
       
       match event {
@@ -109,12 +153,12 @@ fn main() {
           },
           Event::DeviceEvent { event, .. } => match event {
             device_event => {
-              handle_device_event(device_event, &mut device_keys, _delta_time);
+              handle_device_event(device_event, &mut device_keys, vulkan.mut_camera(), _delta_time);
             }
           },
           Event::MainEventsCleared => {
             // Currently only 2D or only 3D works at a time, in future will fix so both can happen at the same time.
-            vulkan.draw(texture_data, Vec::new() as Vec<(Vec<f32>, String)>);
+            vulkan.draw(texture_data, model_data);
           },
           Event::LoopDestroyed => {
             vulkan.destroy();
@@ -124,10 +168,21 @@ fn main() {
   });
 }
 
-fn handle_device_event(event: DeviceEvent, device_keys: &mut Vec<VirtualKeyCode>, _delta_time: f32) {
+fn handle_device_event(event: DeviceEvent, device_keys: &mut Vec<VirtualKeyCode>, camera: &mut Camera, delta_time: f32) {
   match event {
-    DeviceEvent::MouseMotion { delta: (_mx, _my) } => {
+    DeviceEvent::MouseMotion { delta: (mx, my) } => {
+      let dx = -mx as f32*0.1;
+      let dy = -my as f32*0.1;
       
+      camera.update_rotate([dy, dx, 0.0]);
+    },
+    DeviceEvent::MouseWheel { delta } => {
+      match delta {
+        MouseScrollDelta::LineDelta(_x, y) => {
+          camera.update_translate([0.0, 0.0, y as f32 * 1000.0 * delta_time]);
+        },
+        _ => {},
+      }
     },
     // Hardware inputs, useful for things like game movements
     DeviceEvent::Key(key) => {
@@ -162,7 +217,6 @@ fn handle_window_event(event: WindowEvent, _delta_time: f32) {
       let _key_code = input.scancode;
     },
     WindowEvent::MouseInput {state, button, ..} => {
-      
       match state {
         ElementState::Pressed => {
           
@@ -172,7 +226,6 @@ fn handle_window_event(event: WindowEvent, _delta_time: f32) {
         },
       }
       
-      // Mouse buttons
       match button {
         MouseButton::Left => {
           
@@ -180,7 +233,7 @@ fn handle_window_event(event: WindowEvent, _delta_time: f32) {
         MouseButton::Right => {
           
         },
-        MouseButton::Middle => {  
+        MouseButton::Middle => {
           
         },
         MouseButton::Other(_id) => {

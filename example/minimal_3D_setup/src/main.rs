@@ -124,7 +124,7 @@ fn main() {
           },
           Event::MainEventsCleared => {
             // Currently only 2D or only 3D works at a time, in future will fix so both can happen at the same time.
-            vulkan.draw_model(model_data);
+            vulkan.draw(Vec::new() as Vec<(Vec<f32>, String, Option<String>)>, model_data);
           },
           Event::LoopDestroyed => {
             vulkan.destroy();

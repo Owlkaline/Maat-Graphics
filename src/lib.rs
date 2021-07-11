@@ -118,37 +118,7 @@ impl MaatGraphics {
         }
       }
       self.vulkan.end_renderpass();
-      self.vulkan.new_end_render(present_index);
-    }
-  }
-  
-  pub fn draw_texture<T: Into<String>, L: Into<String>>(
-                     &mut self, 
-                     draw_data: Vec<(Vec<f32>, T, Option<L>)>) {
-    
-    if let Some(present_index) = self.vulkan.start_texture_render(self.texture_handler.shader(),
-                                                                  self.texture_handler.uniform_descriptor()) {
-      for (data, texture, some_text) in draw_data {
-        if let Some(text) = some_text {
-          self.texture_handler.draw_text(&mut self.vulkan, data, &text.into(), &texture.into());
-        } else {
-          self.texture_handler.draw(&mut self.vulkan, data, &texture.into());
-        }
-      }
       self.vulkan.end_render(present_index);
-    }
-  }
-  
-  pub fn draw_model<T: Into<String>>(&mut self, draw_data: Vec<(Vec<f32>, T)>) {
-    if let Some(present_index) = self.vulkan.start_model_render() {
-      for (data, model) in draw_data {
-        self.model_handler.draw(&mut self.vulkan, data, &model.into());
-      }
-      self.vulkan.end_render(present_index);
-    }
-    
-    if self.model_handler.mut_camera().is_updated() {
-      self.model_handler.update_uniform_buffer(self.vulkan.device());
     }
   }
   
