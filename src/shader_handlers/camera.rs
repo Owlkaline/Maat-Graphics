@@ -172,6 +172,7 @@ impl Camera {
   
   pub fn update_aspect_ratio(&mut self, aspect: f32) {
     self.perspective = Math::perspective(self.fov, aspect, self.znear, self.zfar, self.flip_y);
+    self.update_view_matrix();
   }
   
   pub fn view(position: [f32; 3], rotation: [f32; 3], camera_type: CameraType, flip_y: bool) -> [f32; 16] {
