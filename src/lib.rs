@@ -11,12 +11,32 @@ pub use crate::modules::{VkWindow};
 
 use ash::vk;
 use std::io::Cursor;
+use std::time::Instant;
 
 use crate::ash::version::DeviceV1_0;
 
 use crate::modules::{Vulkan, Image, DescriptorSet, ComputeShader, DescriptorPoolBuilder};
 use crate::shader_handlers::{TextureHandler, ModelHandler};
 pub use crate::shader_handlers::{Camera, font::FontChar, Math};
+
+use winit::{
+  event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, WindowEvent, DeviceEvent},
+  event_loop::{ControlFlow, EventLoop}
+};
+
+const DELTA_STEP: f32 = 0.001;
+const ANIMATION_DELTA_STEP: f32 = 0.01;
+
+pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
+  Draw(&'a mut Vec<(Vec<f32>, T, Option<L>)>, &'a mut Vec<(Vec<f32>, S)>),
+  Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
+  RealTimeInput(&'a Vec<VirtualKeyCode>, &'a mut Camera, f32),
+  MouseMoved(f64, f64, &'a mut Camera),
+  ScrollDelta(f32, &'a mut Camera),
+  Resized(u32, u32),
+  UnhandledWindowEvent(WindowEvent<'a>),
+  UnhandledDeviceEvent(DeviceEvent)
+}
 
 pub struct MaatGraphics {
   vulkan: Vulkan,
@@ -141,5 +161,156 @@ impl MaatGraphics {
     unsafe {
       self.vulkan.device().destroy_descriptor_pool(self.compute_descriptor_pool, None);
     }
+  }
+  
+  pub fn run<T, L, S, V>(mut vulkan: MaatGraphics, event_loop: EventLoop<()>, mut callback: T) -> !
+         where
+            T: 'static + FnMut(MaatEvent<L, S, V>),
+            L: Into<String>,
+            S: Into<String>,
+            V: Into<String>, {
+    let mut device_keys = Vec::new();
+    let mut software_keys = Vec::new();
+    
+    let mut _delta_time = 0.0;
+    let mut last_time = Instant::now();
+    
+    let mut total_delta_time = 0.0;
+    let mut total_animation_delta_time = 0.0;
+    
+    event_loop.run(move |event, _, control_flow| {
+      *control_flow = ControlFlow::Poll;
+      
+      _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+      last_time = Instant::now();
+      total_delta_time += _delta_time as f32;
+      total_animation_delta_time += _delta_time as f32;
+      
+      callback(MaatEvent::RealTimeInput(&device_keys, vulkan.mut_camera(), _delta_time));
+      if total_delta_time > DELTA_STEP {
+        let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
+        
+        for _ in 0..delta_steps {
+          callback(MaatEvent::Update(&device_keys, &software_keys, vulkan.mut_camera(), DELTA_STEP));
+          total_delta_time -= DELTA_STEP;
+        }
+      }
+      
+      if total_animation_delta_time > ANIMATION_DELTA_STEP {
+        let delta_steps = (total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize;
+        for _ in 0..delta_steps {
+          vulkan.update_animations(ANIMATION_DELTA_STEP);
+          total_animation_delta_time -= ANIMATION_DELTA_STEP;
+        }
+      }
+      
+      let mut texture_data = Vec::new();
+      let mut model_data = Vec::new();
+      
+      callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+      
+      match event {
+          Event::WindowEvent { event, .. } => match event {
+            WindowEvent::CloseRequested => {
+                *control_flow = ControlFlow::Exit;
+            },
+            WindowEvent::KeyboardInput {
+                input:
+                KeyboardInput {
+                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                    ..
+                },
+                ..
+            } => {
+              *control_flow = ControlFlow::Exit
+            },
+            WindowEvent::Resized(dimensions) => {
+              vulkan.recreate_swapchain(dimensions.width, dimensions.height);
+              callback(MaatEvent::Resized(dimensions.width, dimensions.height));
+            },
+            WindowEvent::KeyboardInput {input, ..} => {
+              let key_code = input.scancode;
+              software_keys.push(key_code);
+            },
+            // TODO:
+            WindowEvent::MouseInput {state, button, ..} => {
+              match state {
+                ElementState::Pressed => {
+                  
+                },
+                ElementState::Released => {
+                  
+                },
+              }
+              
+              match button {
+                MouseButton::Left => {
+                  
+                },
+                MouseButton::Right => {
+                  
+                },
+                MouseButton::Middle => {
+                  
+                },
+                MouseButton::Other(_id) => {
+                  
+                },
+              }
+            },
+            window_event => {
+              callback(MaatEvent::UnhandledWindowEvent(window_event));
+             // handle_window_event(window_event, _delta_time);
+            },
+        },
+        Event::DeviceEvent { event, .. } => match event {
+          DeviceEvent::MouseMotion { delta: (mx, my) } => {
+            callback(MaatEvent::MouseMoved(mx, my, vulkan.mut_camera()));
+          },
+          DeviceEvent::MouseWheel { delta } => {
+            match delta {
+              winit::event::MouseScrollDelta::LineDelta(_x, y) => {
+                callback(MaatEvent::ScrollDelta(y, vulkan.mut_camera()));
+              },
+              _ => {},
+            }
+          },
+          DeviceEvent::Key(key) => {
+            match key.state {
+              ElementState::Pressed => {
+                if let Some(key_code) = key.virtual_keycode {
+                  device_keys.push(key_code);
+                }
+              },
+              ElementState::Released => {
+                if let Some(key_code) = key.virtual_keycode {
+                  let mut i = 0;
+                  while i < device_keys.len() {
+                    if device_keys[i] == key_code {
+                      device_keys.remove(i);
+                    }
+                    
+                    i += 1;
+                  }
+                }
+              }
+            }
+          },
+          device_event => {
+            callback(MaatEvent::UnhandledDeviceEvent(device_event));
+            //handle_device_event(device_event, &mut device_keys, vulkan.mut_camera(), _delta_time);
+          }
+        },
+        Event::MainEventsCleared => {
+          vulkan.draw(texture_data, model_data);
+        },
+        Event::LoopDestroyed => {
+          vulkan.destroy();
+        }
+        _unhandled_event => {
+          
+        },
+      }
+    })
   }
 }

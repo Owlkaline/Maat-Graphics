@@ -159,10 +159,6 @@ impl ModelHandler {
     }
   }
   
-  pub fn begin_renderpass(&mut self, vulkan: &mut Vulkan) {
-    
-  }
-  
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {
     if let Some(model) = &self.models.get(model_ref) {
       vulkan.draw_mesh(&self.mesh_shader,
