@@ -143,11 +143,6 @@ impl TextureHandler {
   pub fn uniform_descriptor(&self) -> &DescriptorSet {
     &self.uniform_descriptor
   }
-  /*
-  pub fn load_text(&mut self, vulkan: &mut Vulkan, text_ref: &str, text: &str, size: f32) {
-    let (string_index, string_vertex) = self.font.generate_text(vulkan, size, text);
-    self.strings.insert(text_ref.to_string(), (string_index, string_vertex));
-  }*/
   
   pub fn load_texture<T: Into<String>>(&mut self, vulkan: &mut Vulkan, texture_ref: T, texture: T) {
     let texture = texture.into();
