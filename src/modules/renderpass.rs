@@ -97,6 +97,16 @@ impl PassDescription {
     self
   }
   
+  pub fn initial_layout_read_only(mut self) -> PassDescription {
+    self.initial_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+    self
+  }
+  
+  pub fn initial_layout_present_src(mut self) -> PassDescription {
+    self.initial_layout = vk::ImageLayout::PRESENT_SRC_KHR;
+    self
+  }
+  
   pub fn initial_layout_undefined(mut self) -> PassDescription {
     self.initial_layout = vk::ImageLayout::UNDEFINED;
     self
@@ -184,6 +194,7 @@ impl PassDescription {
       load_op: self.load_op,
       store_op: self.store_op,
       stencil_load_op: self.stencil_load_op,
+      initial_layout: self.initial_layout,
       final_layout: self.final_layout,
       ..Default::default()
     }

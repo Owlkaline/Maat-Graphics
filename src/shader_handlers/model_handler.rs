@@ -123,6 +123,7 @@ impl ModelHandler {
   pub fn all_model_bounding_boxes(&self) -> Vec<(String, ([f32; 3], [f32; 3]))> {
     let mut data = Vec::new();
     for (model_ref, model) in &self.models {
+      println!("Model: {}", model_ref);
       data.push((model_ref.to_string(), model.bounds()));
     }
     
@@ -156,6 +157,10 @@ impl ModelHandler {
     for (_model_ref, model) in &mut self.models {
       model.update_animation(vulkan, delta_time);
     }
+  }
+  
+  pub fn begin_renderpass(&mut self, vulkan: &mut Vulkan) {
+    
   }
   
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {

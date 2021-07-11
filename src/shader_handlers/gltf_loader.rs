@@ -92,7 +92,6 @@ impl Node {
     } else {
       let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
       let rotation = Math::quat_to_mat4(self.rotation);
-      //println!("Rotation: {:?} {:?}", self.rotation, rotation);
       let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
       
       let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
@@ -103,7 +102,6 @@ impl Node {
       m
     }
   }
-  
   
   pub fn get_node_matrix(nodes: &Vec<Node>, idx: usize) -> [f32; 16] {
     let mut matrix = nodes[idx].calculate_local_matrix();
@@ -195,6 +193,7 @@ impl GltfModel {
       for j in 0..self.nodes[i].mesh.primitives.len() {
         let bb_min = self.nodes[i].mesh.primitives[j].bounding_box_min;
         let bb_max = self.nodes[i].mesh.primitives[j].bounding_box_max;
+        
         for k in 0..3 {
           if bb_min[k] < min[k] {
             min[k] = bb_min[k];
@@ -341,8 +340,6 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
         }
       }
       
-      //println!("Input Data: {:?}", inputs);
-      
       let output_accessor = sampler.output();
       let out_view = output_accessor.view().unwrap();
       
@@ -383,9 +380,6 @@ fn load_animation(gltf: &gltf::Document, buffers: &Vec<gltf::buffer::Data>,
           
         }
       }
-      
-      //println!("Inputs: {:?}", inputs);
-      //println!("Outputs: {:?}", outputs);
       
       let sampler_index = samplers.len() as i32;
       samplers.push(AnimationSampler {
@@ -620,7 +614,7 @@ fn load_textures(vulkan: &mut Vulkan, gltf: &gltf::Document, textures: &mut Vec<
 fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
   for material in gltf.materials() {
     let pbr = material.pbr_metallic_roughness();
-    //println!("Colour: {:?}", pbr.base_color_factor());
+    
     materials.push(Material {
       base_colour_factor: pbr.base_color_factor(),
       base_colour_texture_index: if let Some(texture_info) = pbr.base_color_texture() {
@@ -810,14 +804,21 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         }
       };
       
-      let b_box_min;
-      let b_box_max;
+      let mut b_box_min: [f32; 3] = [0.0; 3];
+      let mut b_box_max: [f32; 3] = [0.0; 3];
+      
       match primitive.bounding_box() {
         gltf::mesh::BoundingBox { min, max } => {
-          b_box_min = min;
-          b_box_max = max;
+          b_box_min[0] = min[0]*nodes[node_idx].scale[0];
+          b_box_max[0] = max[0]*nodes[node_idx].scale[0];
+          b_box_min[1] = min[1]*nodes[node_idx].scale[1];
+          b_box_max[1] = max[1]*nodes[node_idx].scale[1];
+          b_box_min[2] = min[2]*nodes[node_idx].scale[2];
+          b_box_max[2] = max[2]*nodes[node_idx].scale[2];
         }
       }
+      
+      
       
       nodes[node_idx].mesh.primitives.push(Primitive {
         first_index: first_index as u32,

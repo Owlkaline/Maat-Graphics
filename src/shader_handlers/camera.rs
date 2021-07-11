@@ -32,31 +32,61 @@ impl Camera {
   pub fn new() -> Camera {
     let flip_y = false;
     
-    Camera {
+    let camera_type = CameraType::FirstPerson;
+    
+    let (position, rotation) = match camera_type {
+      CameraType::FirstPerson => {
+        ([0.4351558, -6.641949, 3.27347],
+         [121.0, 0.0, 0.0])
+      },
+      CameraType::LookAt => {
+        ([-0.21398444, 0.36948895, -7.2325215],
+         [122.20079, 91.60079, 0.0])
+      }
+    };
+    
+    let mut cam = Camera {
       fov: 71.0,
       znear: 0.1,
       zfar: 256.0,
       
-      rotation: [0.0, -135.0, 0.0],
-      position: [0.0, 0.5, -1.0],
+      rotation,
+      position,
       view_pos: [0.0; 4],
       
       rotation_speed: 1.0,
       movement_speed: 1.0,
       
       perspective:  Math::perspective(71.0, 1280.0/720.0, 0.1, 256.0, flip_y),
-      view:  Camera::view([1.0, 0.0, 4.0], [0.0, 150.0, 0.0], CameraType::LookAt, flip_y),
+      view:  Camera::view(position, rotation, camera_type, flip_y),
       
-      camera_type: CameraType::FirstPerson,
+      camera_type,
       
       flip_y,
       
       updated: false,
-    }
+    };
+    
+    cam.update_view_matrix();
+    
+    cam
   }
   
   pub fn set_movement_speed(&mut self, speed: f32) {
     self.movement_speed = speed;
+  }
+  
+  pub fn set_first_person(&mut self) {
+    self.camera_type = CameraType::FirstPerson;
+  }
+  
+  pub fn set_look_at(&mut self) {
+    self.camera_type = CameraType::LookAt;
+  }
+  
+  pub fn look_at_position(&mut self, object: [f32; 3]) {
+    self.position = object;
+    self.update_view_matrix();
   }
   
   pub fn perspective_matrix(&self) -> [f32; 16] {
@@ -76,7 +106,7 @@ impl Camera {
     
     let ms = self.movement_speed * delta_time;
     
-    self.position =  Math::vec3_add(self.position,  Math::vec3_mul_f32(camera_front, ms));
+    self.position =  Math::vec3_add(self.position, Math::vec3_mul_f32(camera_front, ms));
     
     self.update_view_matrix();
   }
@@ -86,7 +116,7 @@ impl Camera {
     
     let ms = self.movement_speed * delta_time;
     
-    self.position =  Math::vec3_minus(self.position,  Math::vec3_mul_f32(camera_front, ms));
+    self.position =  Math::vec3_minus(self.position, Math::vec3_mul_f32(camera_front, ms));
     
     self.update_view_matrix();
   }
@@ -96,7 +126,7 @@ impl Camera {
     
     let ms = self.movement_speed * delta_time;
     
-    self.position =  Math::vec3_add(self.position,  Math::vec3_mul_f32( Math::vec3_normalise( Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+    self.position =  Math::vec3_add(self.position,  Math::vec3_mul_f32(Math::vec3_normalise( Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
     
     self.update_view_matrix();
   }
@@ -112,8 +142,10 @@ impl Camera {
   }
   
   pub fn update_view_matrix(&mut self) {
-    self.view = Camera::view(self.position, self.rotation, CameraType::FirstPerson, self.flip_y);
-    self.view_pos = [-self.position[0], self.position[1], -self.position[2], 1.0];
+    self.view = Camera::view(self.position, self.rotation, self.camera_type, self.flip_y);
+    //self.view_pos = [-self.position[0], self.position[1], -self.position[2], 1.0];
+    self.view_pos = Math::vec4_mul([self.position[0], self.position[1], self.position[2], 0.0],
+                                   [-1.0, 1.0, -1.0, 1.0]);
     
     self.updated = true;
   }
@@ -162,7 +194,7 @@ impl Camera {
       },
       CameraType::LookAt => {
         // trans_m * rot_m
-         Math::mat4_mul(rot_m, trans_m)
+        Math::mat4_mul(rot_m, trans_m)
       }
     }
   }

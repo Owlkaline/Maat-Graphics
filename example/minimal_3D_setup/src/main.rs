@@ -137,8 +137,8 @@ fn main() {
 fn handle_device_event(event: DeviceEvent, device_keys: &mut Vec<VirtualKeyCode>, camera: &mut Camera, delta_time: f32) {
   match event {
     DeviceEvent::MouseMotion { delta: (mx, my) } => {
-      let dx = -mx as f32;
-      let dy = -my as f32;
+      let dx = -mx as f32*0.1;
+      let dy = -my as f32*0.1;
       
       camera.update_rotate([dy, dx, 0.0]);
     },

@@ -12,7 +12,6 @@ use maat_graphics::{MaatGraphics, VkWindow};
 const APP_NAME: &str = "MaatGraphics - Minimal 2D Example";
 
 const DELTA_STEP: f32 = 0.001;
-const ANIMATION_DELTA_STEP: f32 = 0.01;
 
 fn main() {
   let create_window_size: [u32; 2] = [1280, 720];
@@ -28,6 +27,7 @@ fn main() {
 
   let mut _delta_time = 0.0;
   let mut last_time = Instant::now();
+  let mut total_delta_time = 0.0;
   
   let mut device_keys = Vec::new();
   
@@ -37,7 +37,6 @@ fn main() {
       _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
       last_time = Instant::now();
       total_delta_time += _delta_time as f32;
-      total_animation_delta_time += _delta_time as f32;
       
       let texture_data;
       
@@ -47,15 +46,6 @@ fn main() {
         for _ in 0..delta_steps {
           //F(DELTA_STEP); // update
           total_delta_time -= DELTA_STEP;
-        }
-      }
-      
-      // This is used for model animations, although it could be possible to use it for 2D animations if you wish
-      if total_animation_delta_time > ANIMATION_DELTA_STEP {
-        let delta_steps = (total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize;
-        for _ in 0..delta_steps {
-          vulkan.update_animations(ANIMATION_DELTA_STEP);
-          total_animation_delta_time -= ANIMATION_DELTA_STEP;
         }
       }
       

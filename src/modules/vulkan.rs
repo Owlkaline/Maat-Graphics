@@ -84,9 +84,10 @@ impl Vulkan {
     let passes = vec![
       PassDescription::new(device.surface_format().format)
                        .samples_1()
-                       .attachment_load_op_clear()
+                       .attachment_load_op_load()
                        .attachment_store_op_store()
                        .attachment_layout_colour()
+                       .initial_layout_present_src()
                        .final_layout_present_src(),
       PassDescription::new(vk::Format::D16_UNORM)
                        .samples_1()
@@ -366,7 +367,9 @@ impl Vulkan {
           );
         }
         
-        let buffer_copy_regions = vk::BufferImageCopy::builder()
+        let mut buffer_copy_regions = Vec::new();
+        
+         buffer_copy_regions.push(vk::BufferImageCopy::builder()
             .image_subresource(
               vk::ImageSubresourceLayers::builder()
                 .aspect_mask(vk::ImageAspectFlags::COLOR)
@@ -377,7 +380,7 @@ impl Vulkan {
               width: dst_image.width(),//image_dimensions.0,
               height: dst_image.height(),//image_dimensions.1,
               depth: 1,
-            });
+            }).build());
         
         unsafe {
           device.cmd_copy_buffer_to_image(
@@ -385,7 +388,7 @@ impl Vulkan {
             *src_buffer.internal(),
             dst_image.internal(),
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            &[buffer_copy_regions.build()],
+            &buffer_copy_regions[..],//&[buffer_copy_regions.build()],
           );
         }
         
@@ -1119,6 +1122,157 @@ impl Vulkan {
       self.draw_node(shader, *child_idx as usize, data, nodes,
                      images, skins, textures, materials, 
                      dummy_texture, dummy_skin);
+    }
+  }
+  
+  pub fn end_renderpass(&mut self) {
+    unsafe {
+      self.device.cmd_end_render_pass(self.draw_command_buffer);
+    }
+  }
+  
+  pub fn start_render(&mut self) -> Option<u32> {
+    let present_index_result = unsafe {
+      self.swapchain.swapchain_loader()
+          .acquire_next_image(
+              *self.swapchain.internal(),
+              std::u64::MAX,
+              self.present_complete_semaphore.internal(),
+              vk::Fence::null(),
+          )
+    };
+    
+    let (present_index, _) = match present_index_result {
+      Ok(index) => index,
+      Err(_) => {
+        self.recreate_swapchain();
+        return None;
+      }
+    };
+    
+    unsafe {
+      self.draw_commands_reuse_fence.wait(&self.device);
+      self.draw_commands_reuse_fence.reset(&self.device);
+      
+      self.device
+        .reset_command_buffer(
+          self.draw_command_buffer,
+          vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+        )
+        .expect("Reset command buffer failed.");
+
+      let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
+          .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+      self.device
+        .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)
+        .expect("Begin commandbuffer");
+    }
+    
+    Some(present_index)
+  }
+  
+   pub fn new_end_render(&mut self, present_index: u32) {
+    let wait_mask = &[vk::PipelineStageFlags::BOTTOM_OF_PIPE];
+    let submit_queue = self.device.present_queue();
+    
+    unsafe {
+      // Or draw without the index buffer
+      // device.cmd_draw(draw_command_buffer, 3, 1, 0, 0);
+      //self.device.cmd_end_render_pass(self.draw_command_buffer);
+      
+      self.device
+        .end_command_buffer(self.draw_command_buffer)
+        .expect("End commandbuffer");
+    }
+    
+    let command_buffers = vec![self.draw_command_buffer];
+    
+    let wait_semaphore = [self.present_complete_semaphore.internal()];
+    let signal_semaphore = [self.rendering_complete_semaphore.internal()];
+    let submit_info = vk::SubmitInfo::builder()
+        .wait_semaphores(&wait_semaphore)
+        .wait_dst_stage_mask(wait_mask)
+        .command_buffers(&command_buffers)
+        .signal_semaphores(&signal_semaphore);
+    
+    unsafe {
+      self.device
+        .queue_submit(
+          submit_queue,
+          &[submit_info.build()],
+          self.draw_commands_reuse_fence.internal(),
+        )
+        .expect("queue submit failed.");
+    }
+    
+    let present_info = vk::PresentInfoKHR {
+      wait_semaphore_count: 1,
+      p_wait_semaphores: &self.rendering_complete_semaphore.internal(),
+      swapchain_count: 1,
+      p_swapchains: self.swapchain.internal(),
+      p_image_indices: &present_index,
+      ..Default::default()
+    };
+    
+    unsafe {
+        match self.swapchain.swapchain_loader()
+            .queue_present(self.device.present_queue(), &present_info) {
+        Ok(_) => {
+          
+        },
+        Err(vk_e) => {
+          match vk_e {
+            vk::Result::ERROR_OUT_OF_DATE_KHR => { //VK_ERROR_OUT_OF_DATE_KHR
+              self.recreate_swapchain();
+              return;
+            },
+            e => {
+              panic!("Error: {}", e);
+            }
+          }
+        }
+      }
+    };
+  }
+  
+  pub fn begin_renderpass_texture(&mut self, present_index: u32) {
+    let clear_values = self.clear_values.build();
+    let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
+        .render_pass(self.texture_renderpass.internal())
+        .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
+        .render_area(vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: self.swapchain.extent(),
+        })
+        .clear_values(&clear_values);
+    
+    unsafe {
+      self.device.cmd_begin_render_pass(
+        self.draw_command_buffer,
+        &render_pass_begin_info,
+        vk::SubpassContents::INLINE,
+      );
+    }
+  }
+  
+  pub fn begin_renderpass_model(&mut self, present_index: u32) {
+    let clear_values = self.clear_values.build();
+    let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
+        .render_pass(self.model_renderpass.internal())
+        .framebuffer(self.framebuffer.framebuffers()[present_index as usize])
+        .render_area(vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: self.swapchain.extent(),
+        })
+        .clear_values(&clear_values);
+    
+    unsafe {
+      self.device.cmd_begin_render_pass(
+        self.draw_command_buffer,
+        &render_pass_begin_info,
+        vk::SubpassContents::INLINE,
+      );
     }
   }
 }
