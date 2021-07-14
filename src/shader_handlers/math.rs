@@ -64,6 +64,14 @@ impl Math {
     ]
   }
   
+  pub fn vec3_squared_mag(a: [f32; 3]) -> f32 {
+    a[0]*a[0] + a[1]*a[1] + a[2]*a[2]
+  }
+  
+  pub fn vec3_mag(a: [f32; 3]) -> f32 {
+    (Math::vec3_squared_mag(a)).sqrt()
+  }
+  
   pub fn vec4_equals(p: [f32; 4], q: [f32; 4]) -> bool {
     p[0] == q[0] && p[1] == q[1] && p[2] == q[2] && p[3] == q[3]
   }
@@ -125,21 +133,8 @@ impl Math {
      0.0, 0.0, 0.0, 1.0]
   }
   
-  pub fn mat4_scale_vec3(mat4: [f32; 16], s: [f32; 3]) -> [f32; 16] {
+  pub fn mat4_scale(mat4: [f32; 16], s: [f32; 3]) -> [f32; 16] {
     let mut scale_matrix =  mat4;
-    /*let row_0 = Math::vec4_mul_f32([mat4[0], mat4[1], mat4[2], mat4[3]], s[0]);
-    let row_1 = Math::vec4_mul_f32([mat4[4], mat4[5], mat4[6], mat4[7]], s[1]);
-    let row_2 = Math::vec4_mul_f32([mat4[8], mat4[9], mat4[10], mat4[11]], s[2]);
-    let row_3 = [mat4[12], mat4[13], mat4[14], mat4[15]];
-    
-    let r = 4;
-    
-    for i in 0..4 {
-      scale_matrix[r*0 + i] = row_0[i];
-      scale_matrix[r*1 + i] = row_1[i];
-      scale_matrix[r*2 + i] = row_2[i];
-      scale_matrix[r*3 + i] = row_3[i];
-    }*/
     
     let r = 4;
     
@@ -149,16 +144,6 @@ impl Math {
     
     scale_matrix
   }
-  /*
-  pub fn mat4_scale_vec4(mat4: [f32; 16], s: [f32; 4]) -> [f32; 16] {
-    let mut scale_matrix =  Math::mat4_identity();
-    scale_matrix[0] *= s[0];
-    scale_matrix[5] *= s[1];
-    scale_matrix[10] *= s[2];
-    scale_matrix[15] *= s[3];
-    
-     Math::mat4_mul(scale_matrix, mat4)
-  }*/
   
   pub fn mat4_from_mat2(m2: [f32; 4]) -> [f32; 16] {
     let mut m = Math::mat4_identity();
@@ -577,6 +562,55 @@ impl Math {
     }
     
     inverse
+  }
+  
+  pub fn mat4_rotate_eular_axis(mat4: [f32; 16], angle: f32, axis: [f32; 3]) -> [f32; 16] {
+    let a = angle;
+    let c = a.cos();
+    let s = a.sin();
+    
+    let axis = axis;
+    let temp =  Math::vec3_mul_f32(axis, 1.0 - c);
+    
+    let mut rotate = [0.0; 16];
+    
+    let r = 4;
+    
+    rotate[r*0 + 0] = c + temp[0] * axis[0];
+    rotate[r*0 + 1] = 0.0 + temp[0] * axis[1] + s * axis[2];
+    rotate[r*0 + 2] = 0.0 + temp[0] * axis[2] - s * axis[1];
+    
+    rotate[r*1 + 0] = 0.0 + temp[1] * axis[0] - s * axis[2];
+    rotate[r*1 + 1] = c + temp[1] * axis[1];
+    rotate[r*1 + 2] = 0.0 + temp[1] * axis[2] + s * axis[0];
+    
+    rotate[r*2 + 0] = 0.0 + temp[2] * axis[0] + s * axis[1];
+    rotate[r*2 + 1] = 0.0 + temp[2] * axis[1] - s * axis[0];
+    rotate[r*2 + 2] = c + temp[2] * axis[2];
+    
+    let mut result = [0.0; 16];
+    
+    result[r*0 + 0] = mat4[r*0 + 0] * rotate[r*0 + 0] + mat4[r*1 + 0] * rotate[r*0 + 1] + mat4[r*2 + 0] * rotate[r*0 + 2];
+    result[r*0 + 1] = mat4[r*0 + 1] * rotate[r*0 + 0] + mat4[r*1 + 1] * rotate[r*0 + 1] + mat4[r*2 + 1] * rotate[r*0 + 2];
+    result[r*0 + 2] = mat4[r*0 + 2] * rotate[r*0 + 0] + mat4[r*1 + 2] * rotate[r*0 + 1] + mat4[r*2 + 2] * rotate[r*0 + 2];
+    result[r*0 + 3] = mat4[r*0 + 3] * rotate[r*0 + 0] + mat4[r*1 + 3] * rotate[r*0 + 1] + mat4[r*2 + 3] * rotate[r*0 + 2];
+    
+    result[r*1 + 0] = mat4[r*0 + 0] * rotate[r*1 + 0] + mat4[r*1 + 0] * rotate[r*1 + 1] + mat4[r*2 + 0] * rotate[r*1 + 2];
+    result[r*1 + 1] = mat4[r*0 + 1] * rotate[r*1 + 0] + mat4[r*1 + 1] * rotate[r*1 + 1] + mat4[r*2 + 1] * rotate[r*1 + 2];
+    result[r*1 + 2] = mat4[r*0 + 2] * rotate[r*1 + 0] + mat4[r*1 + 2] * rotate[r*1 + 1] + mat4[r*2 + 2] * rotate[r*1 + 2];
+    result[r*1 + 3] = mat4[r*0 + 3] * rotate[r*1 + 0] + mat4[r*1 + 3] * rotate[r*1 + 1] + mat4[r*2 + 3] * rotate[r*1 + 2];
+    
+    result[r*2 + 0] = mat4[r*0 + 0] * rotate[r*2 + 0] + mat4[r*1 + 0] * rotate[r*2 + 1] + mat4[r*2 + 0] * rotate[r*2 + 2];
+    result[r*2 + 1] = mat4[r*0 + 1] * rotate[r*2 + 0] + mat4[r*1 + 1] * rotate[r*2 + 1] + mat4[r*2 + 1] * rotate[r*2 + 2];
+    result[r*2 + 2] = mat4[r*0 + 2] * rotate[r*2 + 0] + mat4[r*1 + 2] * rotate[r*2 + 1] + mat4[r*2 + 2] * rotate[r*2 + 2];
+    result[r*2 + 3] = mat4[r*0 + 3] * rotate[r*2 + 0] + mat4[r*1 + 3] * rotate[r*2 + 1] + mat4[r*2 + 3] * rotate[r*2 + 2];
+    
+    result[r*3 + 0] = mat4[r*3 + 0];
+    result[r*3 + 1] = mat4[r*3 + 1];
+    result[r*3 + 2] = mat4[r*3 + 2];
+    result[r*3 + 3] = mat4[r*3 + 3];
+    
+    result
   }
   
   pub fn quat_identity() -> [f32; 4] {

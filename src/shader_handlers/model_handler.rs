@@ -111,20 +111,28 @@ impl ModelHandler {
     }
   }
   
-  pub fn model_bounding_box<T: Into<String>>(&self, model_ref: T) -> ([f32; 3], [f32; 3]) {
-    let mut data = ([0.0; 3], [0.0; 3]);
-    if let Some(model) = self.models.get(&model_ref.into()) {
-      data = model.bounds();
+  pub fn all_model_bounding_boxes(&self) -> Vec<(String, Vec<([f32; 3], [f32; 3], [f32; 3])>)> {
+    let mut data = Vec::new();
+    for (model_ref, model) in &self.models {
+      data.push((model_ref.to_string(), model.bounds()));
     }
     
     data
   }
   
-  pub fn all_model_bounding_boxes(&self) -> Vec<(String, ([f32; 3], [f32; 3]))> {
+  pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {
     let mut data = Vec::new();
     for (model_ref, model) in &self.models {
-      println!("Model: {}", model_ref);
-      data.push((model_ref.to_string(), model.bounds()));
+      let mut vertices = Vec::new();
+      let mut indicies = Vec::new();
+      for vertex in model.vertex_buffer().data() {
+        vertices.push(vertex.pos);
+      }
+      for index in model.index_buffer().data() {
+        indicies.push(*index);
+      }
+      
+      data.push((model_ref.to_string(), vertices, indicies));
     }
     
     data

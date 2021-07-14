@@ -15,7 +15,7 @@ pub enum AnimationInterpolation {
   CubicSpline,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MeshVertex {
   pub pos: [f32; 3],
   pub normal: [f32; 3],
@@ -61,6 +61,7 @@ pub struct Primitive {
   pub first_index: u32,
   pub index_count: u32,
   pub material_index: i32,
+  pub displacement: [f32; 3],
   pub bounding_box_min: [f32; 3],
   pub bounding_box_max: [f32; 3],
 }
@@ -90,14 +91,14 @@ impl Node {
     if let Some(matrix) = self.matrix {
       matrix
     } else {
-      let scale = Math::mat4_scale_vec3(Math::mat4_identity(), self.scale);
+      let scale = Math::mat4_scale(Math::mat4_identity(), self.scale);
       let rotation = Math::quat_to_mat4(self.rotation);
       let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
       
       let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
       m = Math::mat4_mul(m, rotation);
       m = Math::mat4_mul(m, scale);
-      //m = Math::mat4_mul(m, matrix);
+      //m = Math::mat4_mul(m, self.matrix);
       
       m
     }
@@ -185,6 +186,21 @@ impl GltfModel {
     &self.mesh_skins
   }
   
+  pub fn bounds(&self) -> Vec<([f32; 3], [f32; 3], [f32; 3])> {
+    let mut bounds = Vec::new();
+    for i in 0..self.nodes.len() {
+      for j in 0..self.nodes[i].mesh.primitives.len() {
+        let displacement = self.nodes[i].mesh.primitives[j].displacement;
+        let bb_min = self.nodes[i].mesh.primitives[j].bounding_box_min;
+        let bb_max = self.nodes[i].mesh.primitives[j].bounding_box_max;
+        
+        bounds.push((displacement, bb_min, bb_max));
+      }
+    }
+    
+    bounds
+  }
+  /*
   pub fn bounds(&self) -> ([f32; 3], [f32; 3]) {
     let mut min: [f32; 3] = [f32::MAX, f32::MAX, f32::MAX];
     let mut max: [f32; 3] = [f32::MIN, f32::MIN, f32::MIN];
@@ -207,7 +223,7 @@ impl GltfModel {
     }
     
     (min, max)
-  }
+  }*/
   
   pub fn update_animation(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
     if self.active_animation != -1 && self.active_animation < self.animations.len() as i32 {
@@ -629,6 +645,7 @@ fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
 fn load_node(nodes: &mut Vec<Node>, parent: i32,
              gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, 
              index_buffer: &mut Vec<u32>, vertex_buffer: &mut Vec<MeshVertex>) {
+  
   let mut first_index = index_buffer.len();
   let mut vertex_start = vertex_buffer.len();
   let mut index_count = 0;
@@ -700,34 +717,37 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
   
   if let Some(mesh) = gltf_node.mesh() {
     for primitive in mesh.primitives() {
+      let mut displacement = [0.0; 3];
       
       let mut vertices = Vec::new();
       let mut normals = Vec::new();
       let mut uvs = Vec::new();
       let mut joint_indices = Vec::new();
       let mut joint_weights = Vec::new();
-       
+      
       let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
       
       if let Some(iter) = reader.read_positions() {
-        
-        for position in iter {
-          vertices.push([position[0], position[1], position[2]]);
+        for vertex in iter {
+          displacement = Math::vec3_add(displacement, vertex);
+          vertices.push(vertex);
+          
         }
+        /*vertices.extend(iter);
+        for vertex in &vertices {
+          displacement = Math::vec3_add(displacement, *vertex);
+          
+        }*/
       }
       
       if let Some(iter) = reader.read_normals() {
-        for normal in iter {
-          normals.push([normal[0], normal[1], normal[2]]);
-        }
+        normals.extend(iter);
       }
       
       if let Some(read_tex_coords) = reader.read_tex_coords(0) {
         match read_tex_coords {
           gltf::mesh::util::ReadTexCoords::F32(iter) => {
-            for texcoord in iter {
-              uvs.push([texcoord[0], texcoord[1]]);
-            }
+            uvs.extend(iter);
           },
           _ => {
             println!("tex coords is other from f32");
@@ -748,7 +768,6 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
             }
           }
         }
-        
       }
       
       if let Some(some_read_weights) = reader.read_weights(0) {
@@ -763,10 +782,8 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
               joint_weights.push([weights[0] as f32, weights[1] as f32, weights[2] as f32, weights[3] as f32]);
             }
           },
-          gltf::mesh::util::ReadWeights::F32(read_weights) => {
-            for weights in read_weights {
-              joint_weights.push(weights);
-            }
+          gltf::mesh::util::ReadWeights::F32(iter) => {
+            joint_weights.extend(iter);
           },
         }
       }
@@ -818,12 +835,13 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         }
       }
       
-      
+      displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
       
       nodes[node_idx].mesh.primitives.push(Primitive {
         first_index: first_index as u32,
         index_count: index_count as u32,
         material_index: mat_idx as i32,
+        displacement,
         bounding_box_min: b_box_min,
         bounding_box_max: b_box_max,
       });

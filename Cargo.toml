@@ -11,7 +11,8 @@ ash = "0.32.0"
 ash-window = "0.6.0"
 winit = "0.25.0"
 image = "0.23.14"
+gltf-utils = "0.9.3"
 
 [dependencies.gltf]
 version = "0.16.0"
-#features = ["extras", "names"]
+#features = ["extras", "names", "utils"]
