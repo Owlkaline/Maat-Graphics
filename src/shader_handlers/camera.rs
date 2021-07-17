@@ -2,7 +2,9 @@ use crate::shader_handlers::Math;
 
 #[derive(Copy, Clone)]
 pub enum CameraType {
+  Fly,
   FirstPerson,
+  ThirdPerson,
   LookAt,
 }
 
@@ -11,12 +13,17 @@ pub struct Camera {
   znear: f32,
   zfar: f32,
   
+  // First and fly camera variables
   rotation: [f32; 3],
   position: [f32; 3],
   view_pos: [f32; 4],
   
-  rotation_speed: f32,
+  // Third person camera variables
+  target: [f32; 3],
+  offset: [f32; 3],
+  
   movement_speed: f32,
+  rotation_speed: f32,
   
   perspective: [f32; 16],
   view: [f32; 16],
@@ -25,17 +32,17 @@ pub struct Camera {
   
   flip_y: bool,
   
-  updated: bool,
+  updated: bool, // Indicator if uniform buffers should be updated
 }
 
 impl Camera {
   pub fn new() -> Camera {
     let flip_y = false;
     
-    let camera_type = CameraType::FirstPerson;
+    let camera_type = CameraType::ThirdPerson;
     
     let (position, rotation) = match camera_type {
-      CameraType::FirstPerson => {
+      CameraType::FirstPerson | CameraType::Fly | CameraType::ThirdPerson => {
         ([0.4351558, -6.641949, 3.27347],
          [121.0, 0.0, 0.0])
       },
@@ -44,6 +51,8 @@ impl Camera {
          [122.20079, 91.60079, 0.0])
       }
     };
+    
+    let target = [0.0; 3];
     
     let mut cam = Camera {
       fov: 71.0,
@@ -54,8 +63,11 @@ impl Camera {
       position,
       view_pos: [0.0; 4],
       
-      rotation_speed: 1.0,
+      target,
+      offset: [0.0, -8.0, 5.0],
+      
       movement_speed: 1.0,
+      rotation_speed: 90.0,// degrees per second
       
       perspective:  Math::perspective(71.0, 1280.0/720.0, 0.1, 256.0, flip_y),
       view:  Camera::view(position, rotation, camera_type, flip_y),
@@ -84,9 +96,17 @@ impl Camera {
     self.camera_type = CameraType::LookAt;
   }
   
-  pub fn look_at_position(&mut self, object: [f32; 3]) {
-    self.position = object;
-    self.update_view_matrix();
+  pub fn set_rotation(&mut self, rot: [f32; 3]) {
+    self.rotation = rot;
+  }
+  
+  pub fn follow_target(&mut self, target: [f32; 3]) {
+    if !Math::vec3_equals(self.target, target) {
+      self.target = [-target[0], -target[1], -target[2]];
+      self.position = Math::vec3_add(self.target, self.offset);
+
+      self.update_view_matrix();
+    }
   }
   
   pub fn perspective_matrix(&self) -> [f32; 16] {
@@ -98,21 +118,62 @@ impl Camera {
   }
   
   pub fn is_updated(&self) -> bool {
-    self.updated
+    self.updated 
   }
   
   pub fn forward(&mut self, delta_time: f32) {
-    let camera_front = Camera::camera_front(self.rotation);
+    let camera_front = {
+      match self.camera_type { 
+        CameraType::Fly => {
+          Camera::camera_front(self.rotation)
+        },
+        CameraType::FirstPerson => {
+          Camera::camera_front([180.0, self.rotation[1], self.rotation[2]])
+        },
+        CameraType::ThirdPerson => {
+          let front = Camera::camera_front(self.rotation);
+
+          let zoom_speed = self.movement_speed*delta_time;  
+          self.offset = Math::vec3_add(self.offset, Math::vec3_mul(front, [zoom_speed;3]));
+          [0.0, 0.0, 1.0]
+        },
+        _ => {
+          [0.0, 0.0, 0.0]
+        },
+      }
+    };
+    
     
     let ms = self.movement_speed * delta_time;
     
-    self.position =  Math::vec3_add(self.position, Math::vec3_mul_f32(camera_front, ms));
+    self.position = Math::vec3_add(self.position, Math::vec3_mul_f32(camera_front, ms));
     
     self.update_view_matrix();
   }
   
   pub fn backward(&mut self, delta_time: f32) {
-    let camera_front = Camera::camera_front(self.rotation);
+    let camera_front = {
+      match self.camera_type { 
+        CameraType::Fly => {
+          Camera::camera_front(self.rotation)
+        },
+        CameraType::FirstPerson => {
+          Camera::camera_front([-180.0, self.rotation[1], self.rotation[2]])
+          
+        },
+        CameraType::ThirdPerson => {
+          let front = Camera::camera_front(self.rotation);
+          let zoom_speed = -self.movement_speed*delta_time;  
+          
+          self.offset = Math::vec3_add(self.offset, Math::vec3_mul(front, [zoom_speed;3]));
+
+          [0.0, 0.0, 1.0]
+        },
+        _ => {
+          [0.0, 0.0, 0.0]
+        },
+      }
+    };
     
     let ms = self.movement_speed * delta_time;
     
@@ -122,74 +183,98 @@ impl Camera {
   }
   
   pub fn left(&mut self, delta_time: f32) {
-    let camera_front = Camera::camera_front(self.rotation);
-    
-    let ms = self.movement_speed * delta_time;
-    
-    self.position =  Math::vec3_add(self.position,  Math::vec3_mul_f32(Math::vec3_normalise( Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+    match self.camera_type {
+      CameraType::Fly | CameraType::FirstPerson => {
+        let camera_front = Camera::camera_front(self.rotation);
+        
+        let ms = self.movement_speed * delta_time;
+        
+        self.position =  Math::vec3_add(self.position, Math::vec3_mul_f32(Math::vec3_normalise( Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+      },
+      CameraType::ThirdPerson => {
+        let length = Math::vec3_mag(self.offset);
+        self.rotation[1] -= self.rotation_speed*delta_time;
+        let new_camera_front = Camera::camera_front(self.rotation);
+        let new_offset = Math::vec3_set_mag(new_camera_front, -length);
+        self.offset = new_offset;
+      },
+      _ => {},
+    }
     
     self.update_view_matrix();
   }
   
   pub fn right(&mut self, delta_time: f32) {
-    let camera_front = Camera::camera_front(self.rotation);
-    
-    let ms = self.movement_speed * delta_time;
-    
-    self.position = Math::vec3_minus(self.position, Math::vec3_mul_f32(Math::vec3_normalise(Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
-    
+    match self.camera_type {
+      CameraType::Fly | CameraType::FirstPerson => {
+        let camera_front = Camera::camera_front(self.rotation);
+        
+        let ms = self.movement_speed * delta_time;
+        
+        self.position = Math::vec3_minus(self.position, Math::vec3_mul_f32(Math::vec3_normalise(Math::vec3_cross(camera_front, [0.0, 1.0, 0.0])), ms));
+      },
+      CameraType::ThirdPerson => {
+        
+        let length = Math::vec3_mag(self.offset);
+        self.rotation[1] += self.rotation_speed*delta_time;
+        let new_camera_front = Camera::camera_front(self.rotation);
+        let new_offset = Math::vec3_set_mag(new_camera_front, -length);
+        self.offset = new_offset;
+      },
+      _ => {},
+    }
     self.update_view_matrix();
   }
   
   pub fn update_view_matrix(&mut self) {
     self.view = Camera::view(self.position, self.rotation, self.camera_type, self.flip_y);
-    //self.view_pos = [-self.position[0], self.position[1], -self.position[2], 1.0];
     self.view_pos = Math::vec4_mul([self.position[0], self.position[1], self.position[2], 0.0],
                                    [-1.0, 1.0, -1.0, 1.0]);
     
     self.updated = true;
   }
   
-  // camera.translate(glm::vec3(0.0f, 0.0f, (float)wheelDelta * 0.005f));
-  pub fn update_translate(&mut self, delta: [f32; 3]) {
-    self.position = Math::vec3_add(self.position, delta);
-    self.update_view_matrix();
-  }
-  
-  pub fn update_rotate(&mut self, delta: [f32; 3]) {
-    self.rotation = Math::vec3_add(self.rotation, delta);
-    
-    let angle_limit = 85.0;
-    
-    if self.rotation[0] > 180.0+angle_limit {
-      self.rotation[0] = 180.0+angle_limit;
+  // Rotate camera by degrees along the (x, y, z) axis
+  pub fn rotate_by_degrees(&mut self, delta: [f32; 3]) {
+    match self.camera_type {
+      CameraType::Fly | CameraType::FirstPerson => {
+        self.rotation = Math::vec3_add(self.rotation, delta);
+        
+        let angle_limit = 85.0;
+        
+        if self.rotation[0] > 180.0+angle_limit {
+          self.rotation[0] = 180.0+angle_limit;
+        }
+        if self.rotation[0] < 180.0-angle_limit {
+          self.rotation[0] = 180.0-angle_limit;
+        }
+        self.update_view_matrix();
+      },
+      _ => {}
     }
-    if self.rotation[0] < 180.0-angle_limit {
-      self.rotation[0] = 180.0-angle_limit;
-    }
-    self.update_view_matrix();
   }
   
   pub fn update_aspect_ratio(&mut self, aspect: f32) {
     self.perspective = Math::perspective(self.fov, aspect, self.znear, self.zfar, self.flip_y);
     self.update_view_matrix();
   }
-  
+
   pub fn view(position: [f32; 3], rotation: [f32; 3], camera_type: CameraType, flip_y: bool) -> [f32; 16] {
     let mut rot_m =  Math::mat4_identity();
     
-    rot_m = Camera::rotate(rot_m, (rotation[0] * if flip_y { -1.0 } else { 1.0 }).to_radians(), [1.0, 0.0, 0.0]);
-    rot_m = Camera::rotate(rot_m, (rotation[1]).to_radians(), [0.0, 1.0, 0.0]);
-    rot_m = Camera::rotate(rot_m, (rotation[2]).to_radians(), [0.0, 0.0, 1.0]);
+    rot_m = Math::mat4_axis_rotate(rot_m, (rotation[0] * if flip_y { -1.0 } else { 1.0 }).to_radians(), [1.0, 0.0, 0.0]);
+    rot_m = Math::mat4_axis_rotate(rot_m, (rotation[1]).to_radians(), [0.0, 1.0, 0.0]);
+    rot_m = Math::mat4_axis_rotate(rot_m, (rotation[2]).to_radians(), [0.0, 0.0, 1.0]);
     
     let mut translation = position;
     if flip_y {
       translation[1] *= -1.0;
     }
+    
     let trans_m = Math::mat4_translate_vec3(Math::mat4_identity(), translation);
     
     match camera_type {
-      CameraType::FirstPerson => {
+      CameraType::FirstPerson | CameraType::Fly | CameraType::ThirdPerson => {
         // rot_m * trans_m
          Math::mat4_mul(trans_m, rot_m)
       },
@@ -198,55 +283,6 @@ impl Camera {
         Math::mat4_mul(rot_m, trans_m)
       }
     }
-  }
-  
-  pub fn rotate(mat4: [f32; 16], angle: f32, axis: [f32; 3]) -> [f32; 16] {
-    let a = angle;
-    let c = a.cos();
-    let s = a.sin();
-    
-    let axis = axis;
-    let temp =  Math::vec3_mul_f32(axis, 1.0 - c);
-    
-    let mut rotate = [0.0; 16];
-    
-    let r = 4;
-    
-    rotate[r*0 + 0] = c + temp[0] * axis[0];
-    rotate[r*0 + 1] = 0.0 + temp[0] * axis[1] + s * axis[2];
-    rotate[r*0 + 2] = 0.0 + temp[0] * axis[2] - s * axis[1];
-    
-    rotate[r*1 + 0] = 0.0 + temp[1] * axis[0] - s * axis[2];
-    rotate[r*1 + 1] = c + temp[1] * axis[1];
-    rotate[r*1 + 2] = 0.0 + temp[1] * axis[2] + s * axis[0];
-    
-    rotate[r*2 + 0] = 0.0 + temp[2] * axis[0] + s * axis[1];
-    rotate[r*2 + 1] = 0.0 + temp[2] * axis[1] - s * axis[0];
-    rotate[r*2 + 2] = c + temp[2] * axis[2];
-    
-    let mut result = [0.0; 16];
-    
-    result[r*0 + 0] = mat4[r*0 + 0] * rotate[r*0 + 0] + mat4[r*1 + 0] * rotate[r*0 + 1] + mat4[r*2 + 0] * rotate[r*0 + 2];
-    result[r*0 + 1] = mat4[r*0 + 1] * rotate[r*0 + 0] + mat4[r*1 + 1] * rotate[r*0 + 1] + mat4[r*2 + 1] * rotate[r*0 + 2];
-    result[r*0 + 2] = mat4[r*0 + 2] * rotate[r*0 + 0] + mat4[r*1 + 2] * rotate[r*0 + 1] + mat4[r*2 + 2] * rotate[r*0 + 2];
-    result[r*0 + 3] = mat4[r*0 + 3] * rotate[r*0 + 0] + mat4[r*1 + 3] * rotate[r*0 + 1] + mat4[r*2 + 3] * rotate[r*0 + 2];
-    
-    result[r*1 + 0] = mat4[r*0 + 0] * rotate[r*1 + 0] + mat4[r*1 + 0] * rotate[r*1 + 1] + mat4[r*2 + 0] * rotate[r*1 + 2];
-    result[r*1 + 1] = mat4[r*0 + 1] * rotate[r*1 + 0] + mat4[r*1 + 1] * rotate[r*1 + 1] + mat4[r*2 + 1] * rotate[r*1 + 2];
-    result[r*1 + 2] = mat4[r*0 + 2] * rotate[r*1 + 0] + mat4[r*1 + 2] * rotate[r*1 + 1] + mat4[r*2 + 2] * rotate[r*1 + 2];
-    result[r*1 + 3] = mat4[r*0 + 3] * rotate[r*1 + 0] + mat4[r*1 + 3] * rotate[r*1 + 1] + mat4[r*2 + 3] * rotate[r*1 + 2];
-    
-    result[r*2 + 0] = mat4[r*0 + 0] * rotate[r*2 + 0] + mat4[r*1 + 0] * rotate[r*2 + 1] + mat4[r*2 + 0] * rotate[r*2 + 2];
-    result[r*2 + 1] = mat4[r*0 + 1] * rotate[r*2 + 0] + mat4[r*1 + 1] * rotate[r*2 + 1] + mat4[r*2 + 1] * rotate[r*2 + 2];
-    result[r*2 + 2] = mat4[r*0 + 2] * rotate[r*2 + 0] + mat4[r*1 + 2] * rotate[r*2 + 1] + mat4[r*2 + 2] * rotate[r*2 + 2];
-    result[r*2 + 3] = mat4[r*0 + 3] * rotate[r*2 + 0] + mat4[r*1 + 3] * rotate[r*2 + 1] + mat4[r*2 + 3] * rotate[r*2 + 2];
-    
-    result[r*3 + 0] = mat4[r*3 + 0];
-    result[r*3 + 1] = mat4[r*3 + 1];
-    result[r*3 + 2] = mat4[r*3 + 2];
-    result[r*3 + 3] = mat4[r*3 + 3];
-    
-    result
   }
   
   fn camera_front(rotation: [f32; 3]) -> [f32; 3] {

@@ -26,6 +26,7 @@ use winit::{
 
 const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
+const MAX_DELTA_TIME: f32 = 1.0;
 
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Draw(&'a mut Vec<(Vec<f32>, T, Option<L>)>, &'a mut Vec<(Vec<f32>, S)>),
@@ -187,6 +188,12 @@ impl MaatGraphics {
       total_animation_delta_time += _delta_time as f32;
       
       callback(MaatEvent::RealTimeInput(&device_keys, vulkan.mut_camera(), _delta_time));
+      
+      // If stored up delta time grows too large reset delta buffer
+      if total_delta_time >= MAX_DELTA_TIME {
+        total_delta_time = DELTA_STEP;
+      }
+      
       if total_delta_time > DELTA_STEP {
         let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
         

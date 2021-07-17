@@ -23,7 +23,7 @@ impl Math {
   }
   
   pub fn vec3_normalise(a: [f32; 3]) -> [f32; 3] {
-    let mag = (a[0]*a[0] + a[1]*a[1] + a[2]*a[2]).sqrt();
+    let mag = Math::vec3_mag(a);
     
     [a[0] / mag, a[1] / mag, a[2] / mag]
   }
@@ -70,6 +70,17 @@ impl Math {
   
   pub fn vec3_mag(a: [f32; 3]) -> f32 {
     (Math::vec3_squared_mag(a)).sqrt()
+  }
+  
+  pub fn vec3_set_mag(a: [f32; 3], l: f32) -> [f32; 3] {
+    let mut a = a;
+    
+    let len = Math::vec3_mag(a);
+    a[0] *= l / len;
+    a[1] *= l / len;
+    a[2] *= l / len;
+    
+    a
   }
   
   pub fn vec4_equals(p: [f32; 4], q: [f32; 4]) -> bool {
@@ -565,6 +576,55 @@ impl Math {
   }
   
   pub fn mat4_rotate_eular_axis(mat4: [f32; 16], angle: f32, axis: [f32; 3]) -> [f32; 16] {
+    let a = angle;
+    let c = a.cos();
+    let s = a.sin();
+    
+    let axis = axis;
+    let temp =  Math::vec3_mul_f32(axis, 1.0 - c);
+    
+    let mut rotate = [0.0; 16];
+    
+    let r = 4;
+    
+    rotate[r*0 + 0] = c + temp[0] * axis[0];
+    rotate[r*0 + 1] = 0.0 + temp[0] * axis[1] + s * axis[2];
+    rotate[r*0 + 2] = 0.0 + temp[0] * axis[2] - s * axis[1];
+    
+    rotate[r*1 + 0] = 0.0 + temp[1] * axis[0] - s * axis[2];
+    rotate[r*1 + 1] = c + temp[1] * axis[1];
+    rotate[r*1 + 2] = 0.0 + temp[1] * axis[2] + s * axis[0];
+    
+    rotate[r*2 + 0] = 0.0 + temp[2] * axis[0] + s * axis[1];
+    rotate[r*2 + 1] = 0.0 + temp[2] * axis[1] - s * axis[0];
+    rotate[r*2 + 2] = c + temp[2] * axis[2];
+    
+    let mut result = [0.0; 16];
+    
+    result[r*0 + 0] = mat4[r*0 + 0] * rotate[r*0 + 0] + mat4[r*1 + 0] * rotate[r*0 + 1] + mat4[r*2 + 0] * rotate[r*0 + 2];
+    result[r*0 + 1] = mat4[r*0 + 1] * rotate[r*0 + 0] + mat4[r*1 + 1] * rotate[r*0 + 1] + mat4[r*2 + 1] * rotate[r*0 + 2];
+    result[r*0 + 2] = mat4[r*0 + 2] * rotate[r*0 + 0] + mat4[r*1 + 2] * rotate[r*0 + 1] + mat4[r*2 + 2] * rotate[r*0 + 2];
+    result[r*0 + 3] = mat4[r*0 + 3] * rotate[r*0 + 0] + mat4[r*1 + 3] * rotate[r*0 + 1] + mat4[r*2 + 3] * rotate[r*0 + 2];
+    
+    result[r*1 + 0] = mat4[r*0 + 0] * rotate[r*1 + 0] + mat4[r*1 + 0] * rotate[r*1 + 1] + mat4[r*2 + 0] * rotate[r*1 + 2];
+    result[r*1 + 1] = mat4[r*0 + 1] * rotate[r*1 + 0] + mat4[r*1 + 1] * rotate[r*1 + 1] + mat4[r*2 + 1] * rotate[r*1 + 2];
+    result[r*1 + 2] = mat4[r*0 + 2] * rotate[r*1 + 0] + mat4[r*1 + 2] * rotate[r*1 + 1] + mat4[r*2 + 2] * rotate[r*1 + 2];
+    result[r*1 + 3] = mat4[r*0 + 3] * rotate[r*1 + 0] + mat4[r*1 + 3] * rotate[r*1 + 1] + mat4[r*2 + 3] * rotate[r*1 + 2];
+    
+    result[r*2 + 0] = mat4[r*0 + 0] * rotate[r*2 + 0] + mat4[r*1 + 0] * rotate[r*2 + 1] + mat4[r*2 + 0] * rotate[r*2 + 2];
+    result[r*2 + 1] = mat4[r*0 + 1] * rotate[r*2 + 0] + mat4[r*1 + 1] * rotate[r*2 + 1] + mat4[r*2 + 1] * rotate[r*2 + 2];
+    result[r*2 + 2] = mat4[r*0 + 2] * rotate[r*2 + 0] + mat4[r*1 + 2] * rotate[r*2 + 1] + mat4[r*2 + 2] * rotate[r*2 + 2];
+    result[r*2 + 3] = mat4[r*0 + 3] * rotate[r*2 + 0] + mat4[r*1 + 3] * rotate[r*2 + 1] + mat4[r*2 + 3] * rotate[r*2 + 2];
+    
+    result[r*3 + 0] = mat4[r*3 + 0];
+    result[r*3 + 1] = mat4[r*3 + 1];
+    result[r*3 + 2] = mat4[r*3 + 2];
+    result[r*3 + 3] = mat4[r*3 + 3];
+    
+    result
+  }
+  
+  pub fn mat4_axis_rotate(mat4: [f32; 16], angle: f32, axis: [f32; 3]) -> [f32; 16] {
     let a = angle;
     let c = a.cos();
     let s = a.sin();
