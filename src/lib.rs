@@ -7,7 +7,7 @@ pub extern crate image;
 mod modules;
 mod shader_handlers;
 
-pub use crate::modules::{VkWindow};
+pub use crate::modules::VkWindow;
 
 use ash::vk;
 use std::io::Cursor;
@@ -26,14 +26,14 @@ use winit::{
 
 const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
-const MAX_DELTA_TIME: f32 = 1.0;
+const MAX_LOOPS_PER_FRAME: u32 = 5;
 
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Draw(&'a mut Vec<(Vec<f32>, T, Option<L>)>, &'a mut Vec<(Vec<f32>, S)>),
+  FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
-  RealTimeInput(&'a Vec<VirtualKeyCode>, &'a mut Camera, f32),
   MouseMoved(f64, f64, &'a mut Camera),
-  ScrollDelta(f32, &'a mut Camera),
+  ScrollDelta(f32, f32, &'a mut Camera),
   Resized(u32, u32),
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent)
@@ -77,10 +77,6 @@ impl MaatGraphics {
       compute_descriptor_sets,
     }
   }
-  /*
-  pub fn load_text(&mut self, text_ref: &str, text: &str, size: f32) {
-    self.texture_handler.load_text(&mut self.vulkan, text_ref, text, size);
-  }*/
   
   pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self.texture_handler.load_texture(&mut self.vulkan, texture_ref, texture);
@@ -187,24 +183,24 @@ impl MaatGraphics {
       total_delta_time += _delta_time as f32;
       total_animation_delta_time += _delta_time as f32;
       
-      callback(MaatEvent::RealTimeInput(&device_keys, vulkan.mut_camera(), _delta_time));
+      callback(MaatEvent::Update(&device_keys, &software_keys, vulkan.mut_camera(), _delta_time));
       
       // If stored up delta time grows too large reset delta buffer
-      if total_delta_time >= MAX_DELTA_TIME {
-        total_delta_time = DELTA_STEP;
-      }
+      //if total_delta_time >= MAX_DELTA_TIME {
+      //  total_delta_time = DELTA_STEP;
+      //}
       
       if total_delta_time > DELTA_STEP {
-        let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
+        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
         
         for _ in 0..delta_steps {
-          callback(MaatEvent::Update(&device_keys, &software_keys, vulkan.mut_camera(), DELTA_STEP));
+          callback(MaatEvent::FixedUpdate(&device_keys, &software_keys, vulkan.mut_camera(), DELTA_STEP));
           total_delta_time -= DELTA_STEP;
         }
       }
       
       if total_animation_delta_time > ANIMATION_DELTA_STEP {
-        let delta_steps = (total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize;
+        let delta_steps = ((total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize).max(5);
         for _ in 0..delta_steps {
           vulkan.update_animations(ANIMATION_DELTA_STEP);
           total_animation_delta_time -= ANIMATION_DELTA_STEP;
@@ -267,7 +263,6 @@ impl MaatGraphics {
             },
             window_event => {
               callback(MaatEvent::UnhandledWindowEvent(window_event));
-             // handle_window_event(window_event, _delta_time);
             },
         },
         Event::DeviceEvent { event, .. } => match event {
@@ -276,8 +271,8 @@ impl MaatGraphics {
           },
           DeviceEvent::MouseWheel { delta } => {
             match delta {
-              winit::event::MouseScrollDelta::LineDelta(_x, y) => {
-                callback(MaatEvent::ScrollDelta(y, vulkan.mut_camera()));
+              winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                callback(MaatEvent::ScrollDelta(x, y, vulkan.mut_camera()));
               },
               _ => {},
             }
@@ -305,7 +300,6 @@ impl MaatGraphics {
           },
           device_event => {
             callback(MaatEvent::UnhandledDeviceEvent(device_event));
-            //handle_device_event(device_event, &mut device_keys, vulkan.mut_camera(), _delta_time);
           }
         },
         Event::MainEventsCleared => {

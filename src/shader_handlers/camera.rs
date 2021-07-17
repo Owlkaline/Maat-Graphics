@@ -131,11 +131,19 @@ impl Camera {
           Camera::camera_front([180.0, self.rotation[1], self.rotation[2]])
         },
         CameraType::ThirdPerson => {
-          let front = Camera::camera_front(self.rotation);
+          let length = Math::vec3_mag(self.offset);
+          
+          self.rotation[0] -= self.rotation_speed*delta_time;
+          if self.rotation[0] <= 89.0 {
+            self.rotation[0] = 89.0;
+          }
 
-          let zoom_speed = self.movement_speed*delta_time;  
-          self.offset = Math::vec3_add(self.offset, Math::vec3_mul(front, [zoom_speed;3]));
-          [0.0, 0.0, 1.0]
+          let new_camera_front = Camera::camera_front(self.rotation);
+          let new_offset = Math::vec3_set_mag(new_camera_front, -length);
+          
+          self.offset = new_offset;
+          
+          [0.0, 0.0, 0.0]
         },
         _ => {
           [0.0, 0.0, 0.0]
@@ -162,12 +170,19 @@ impl Camera {
           
         },
         CameraType::ThirdPerson => {
-          let front = Camera::camera_front(self.rotation);
-          let zoom_speed = -self.movement_speed*delta_time;  
+          let length = Math::vec3_mag(self.offset);
           
-          self.offset = Math::vec3_add(self.offset, Math::vec3_mul(front, [zoom_speed;3]));
+          self.rotation[0] += self.rotation_speed*delta_time;
+          if self.rotation[0] >= 189.0 {
+            self.rotation[0] = 189.0;
+          }
 
-          [0.0, 0.0, 1.0]
+          let new_camera_front = Camera::camera_front(self.rotation);
+          let new_offset = Math::vec3_set_mag(new_camera_front, -length);
+          
+          self.offset = new_offset;
+
+          [0.0; 3]
         },
         _ => {
           [0.0, 0.0, 0.0]
@@ -234,6 +249,20 @@ impl Camera {
     self.updated = true;
   }
   
+  pub fn zoom(&mut self, offset: f32) {
+    match self.camera_type {
+      CameraType::ThirdPerson => {
+        let front = Camera::camera_front(self.rotation);
+        let zoom_speed = -offset;
+
+        self.offset = Math::vec3_add(self.offset, Math::vec3_mul(front, [zoom_speed; 3]));
+    
+        self.update_view_matrix();
+      },
+      _ => {}
+    }
+  }
+
   // Rotate camera by degrees along the (x, y, z) axis
   pub fn rotate_by_degrees(&mut self, delta: [f32; 3]) {
     match self.camera_type {
