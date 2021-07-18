@@ -10,30 +10,26 @@ use crate::shader_handlers::TextureHandler;
 
 #[derive(Clone)]
 pub struct FontChar {
-  pub x1: f32,
-  pub y1: f32,
-  pub x2: f32,
-  pub y2: f32,
-  pub width: u32,
-  pub height: u32,
-  pub x_offset: i32,
-  pub y_offset: i32,
-  pub x_advance: i32, // not used?
+  pub x: f32,
+  pub y: f32,
+  pub width: f32,
+  pub height: f32,
+  pub x_offset: f32,
+  pub y_offset: f32,
+  pub x_advance: f32, // not used?
   pub page: u32,
 }
 
 impl FontChar {
   pub fn new_empty() -> FontChar {
     FontChar {
-      x1: 0.0,
-      y1: 0.0,
-      x2: 0.0,
-      y2: 0.0,
-      width: 0,
-      height: 0,
-      x_offset: 0,
-      y_offset: 0,
-      x_advance: 0,
+      x: 0.0,
+      y: 0.0,
+      width: 0.0,
+      height: 0.0,
+      x_offset: 0.0,
+      y_offset: 0.0,
+      x_advance: 0.0,
       page: 0,
     }
   }
@@ -53,7 +49,7 @@ pub struct  Font {
   // size of font (width)
   pub size: u32,
   
-  pub min_offset_y: i32,
+  pub min_offset_y: f32,
   pub avg_xadvance: f32,
 }
 
@@ -63,13 +59,13 @@ impl Font {
   }
   
   fn load_font(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    let location = "./fonts/DOSVGA";
+    let location = "./fonts/DOSVGA"; //SourceCodePro";
     
     let image = image::open(location.to_owned() + ".png").expect(&("Failed to load font: ".to_string() + location)).fliph().to_rgba8();
     let image_width = image.width() as f32;
     let image_height = image.height() as f32;
     
-    let mut min_off_y = 100000;
+    let mut min_off_y = 100000.0;
     let mut xadvance_sum = 0.0;
     
     let mut line_height = 1;
@@ -93,29 +89,27 @@ impl Font {
           font_chars.push(FontChar::new_empty());
         }
         
-        let x = Font::value_from_string_pair(segments[0].to_string()) as u32;
-        let y = Font::value_from_string_pair(segments[1].to_string()) as u32;
-        let width = Font::value_from_string_pair(segments[2].to_string()) as u32;
-        let height = Font::value_from_string_pair(segments[3].to_string()) as u32;
-        let x_offset = Font::value_from_string_pair(segments[4].to_string());
-        let y_offset = Font::value_from_string_pair(segments[5].to_string());
-        let x_advance = Font::value_from_string_pair(segments[6].to_string());
-        let page = Font::value_from_string_pair(segments[7].to_string()) as u32;
+        let x =         Font::value_from_string_pair(segments[0].to_string()) as f32 /512.0;
+        let y =         Font::value_from_string_pair(segments[1].to_string()) as f32 /512.0;
+        let width =     Font::value_from_string_pair(segments[2].to_string()) as f32 /512.0;
+        let height =    Font::value_from_string_pair(segments[3].to_string()) as f32 /512.0;
+        let x_offset =  Font::value_from_string_pair(segments[4].to_string()) as f32 /512.0;
+        let y_offset =  Font::value_from_string_pair(segments[5].to_string()) as f32 /512.0;
+        let x_advance = width/(Font::value_from_string_pair(segments[6].to_string()) as f32 /512.0);
+        let page =      Font::value_from_string_pair(segments[7].to_string()) as u32;
         
-        let x1  = x as f32;//x as f32 / image_width;
-        let x2  = x as f32;//(x as f32 + width as f32) / image_width;
-        let y1  = y as f32;//y as f32 / image_height;
-        let y2  = y as f32;//(y as f32 + height as f32) / image_height;
+        //let x1  = x as f32;//x as f32 / image_width;
+        //let x2  = x as f32;//(x as f32 + width as f32) / image_width;
+        //let y1  = y as f32;//y as f32 / image_height;
+        //let y2  = y as f32;//(y as f32 + height as f32) / image_height;
         if y_offset < min_off_y {
           min_off_y = y_offset;
         }
         xadvance_sum += x_advance as f32;
         
         font_chars[idx] = FontChar {
-          x1,
-          y1,
-          x2,
-          y2,
+          x,
+          y,
           width,
           height,
           x_offset,
@@ -185,7 +179,41 @@ impl Font {
     
     for c in text.chars() {
       let char_info = &mut self.chars[c as i32 as usize];
+ 
+      if char_info.width == 0.0 || char_info.height == 0.0 {
+        pos_x += text_size; 
+        continue;
+      }
+
+      // 97 a
+      // x 72 
+      // y 378
+      // width 47 
+      // height 47
+      //
+      // 72/512 = 0.140625
+      // 378/512 = 0.73828125
+      // 47/512 = 0.091796875
+      //
+      //
+      let w_h_ratio = char_info.height/char_info.width;
       
+      let height = text_size;
+      let width = text_size*w_h_ratio;
+
+      let x = pos_x + char_info.x_offset*width;
+      let y = (1.0-char_info.y_offset) * height -height;
+     
+      let uv_x0 = char_info.x;
+      let uv_y0 = 1.0-char_info.y;
+      let uv_x1 = char_info.x+char_info.width;
+      let uv_y1 = (1.0-char_info.y)-char_info.height;
+      
+      text_data.push((x, y, width, height, 1.0-uv_x0, 1.0-uv_y1, 1.0-uv_x1, 1.0-uv_y0));
+
+      pos_x += char_info.x_advance*width;
+
+      /* 
       let w = self.texture.width() as f32;
       
       let line_height = self.line_height as f32;
@@ -200,10 +228,10 @@ impl Font {
       //println!("{}: char_height: {} y_offset: {} line height: {}", c, char_info.height, char_info.y_offset, line_height);
       let y = y_offset;
       
-      let us = (w-char_info.x1 as f32)/ w;
-      let ue = ((w-char_info.x1 as f32) - char_info.width as f32) / w;
-      let ts = char_info.y1 as f32 / w;
-      let te = (char_info.y1 as f32 + char_info.height as f32) / w;
+      let us = (w-char_info.x as f32)/ w;
+      let ue = ((w-char_info.x as f32) - char_info.width as f32) / w;
+      let ts = char_info.y as f32 / w;
+      let te = (char_info.y as f32 + char_info.height as f32) / w;
       
       let uv_x0 = ue;
       let uv_x1 = us;
@@ -213,6 +241,7 @@ impl Font {
       text_data.push((x, -y, width, height, uv_x0, uv_x1, uv_y0, uv_y1));
       
       pos_x += text_size * (char_info.x_advance as f32 / self.size as f32);
+      */
     }
     
     /*

@@ -38,15 +38,15 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
 
 void main() {  
   if (uv.x > 0.0) {
-    o_uv.x = push_constants.uvs.z;
-  } else {
     o_uv.x = push_constants.uvs.x;
+  } else {
+    o_uv.x = push_constants.uvs.z;
   }
   
   if (uv.y > 0.0) {
-    o_uv.y = push_constants.uvs.w;
-  } else {
     o_uv.y = push_constants.uvs.y;
+  } else {
+    o_uv.y = push_constants.uvs.w;
   }
   
   o_outline_colour = push_constants.outline_colour;

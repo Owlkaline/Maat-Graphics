@@ -201,7 +201,7 @@ impl TextureHandler {
       let x = data[0];
       let y = data[1];
       
-      for (x_offset, y_offset, width, height, uvx0, uvx1, uvy0, uvy1) in letter_data {
+      for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1) in letter_data {
         let descriptor = self.font.descriptor();
         
         data[0] = x + x_offset;
