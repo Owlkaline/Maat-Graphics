@@ -86,6 +86,10 @@ impl MaatGraphics {
     self.model_handler.load_model(&mut self.vulkan, model_ref, model);
   }
   
+  pub fn instance_render_model<T: Into<String>>(&mut self, model_ref: T) {
+    self.model_handler.create_instance_render_buffer(&mut self.vulkan, model_ref);
+  }
+
   pub fn all_model_bounding_boxes(&self) -> Vec<(String, Vec<([f32; 3], [f32; 3], [f32; 3])>)> {
     self.model_handler.all_model_bounding_boxes()
   }
@@ -128,6 +132,9 @@ impl MaatGraphics {
       for (data, model) in model_data {
         self.model_handler.draw(&mut self.vulkan, data, &model.into());
       }
+      
+      //self.model_handler.draw_instanced_models(&mut self.vulkan);
+
       self.vulkan.end_renderpass();
       self.vulkan.begin_renderpass_texture(present_index);
       

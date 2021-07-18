@@ -670,7 +670,110 @@ impl Vulkan {
       }
     }
   }
-  
+
+  /* 
+  pub fn draw_instanced_mesh<T: Copy, S: Copy>(
+    &mut self,
+    index_buffer: &Buffer<u32>,
+    vertex_buffer: &Buffer<T>,
+    shader: &Shader<T>, 
+    uniform_descriptor: &DescriptorSet,
+    dummy_texture: &DescriptorSet,
+    dummy_skin: &DescriptorSet,
+    buffer: &Buffer<S>,
+    instance_count: usize,
+    prim_info: &Vec<(u32, u32)>,
+  ) {
+    unsafe {
+      self.device.cmd_bind_descriptor_sets(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        0,
+        &uniform_descriptor.internal()[..],
+        &[],
+      );
+      
+      self.device.cmd_bind_pipeline(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        *shader.graphics_pipeline().internal(),
+      );
+      
+      self.device.cmd_set_viewport(self.draw_command_buffer, 0, &[self.viewports.build()]);
+      self.device.cmd_set_scissor(self.draw_command_buffer, 0, &self.scissors.build());
+    }
+    
+    unsafe {
+      self.device.cmd_bind_vertex_buffers(
+        self.draw_command_buffer,
+        0,
+        &[*vertex_buffer.internal()],
+        &[0],
+      );
+      
+      self.device.cmd_bind_vertex_buffers(
+        self.draw_command_buffer,
+        1,
+        &[*buffer.internal()],
+        &[0],
+      );
+
+      self.device.cmd_bind_index_buffer(
+        self.draw_command_buffer,
+        *index_buffer.internal(),
+        0,
+        vk::IndexType::UINT32,
+      );
+    }
+    
+    unsafe {
+     self.device.cmd_bind_descriptor_sets(
+       self.draw_command_buffer,
+       vk::PipelineBindPoint::GRAPHICS,
+       shader.pipeline_layout(),
+       1,
+       &dummy_skin.internal()[..],
+       &[],
+     );
+   }
+     
+      
+    let image_descriptor = dummy_texture;/*{
+            if images.len() == 0 {
+              dummy_texture
+            } else {
+              let idx = textures[materials[primitive.material_index as usize].base_colour_texture_index as usize].image_index as usize;
+              &images[idx].descriptor_set
+            }
+          };*/
+          
+    unsafe {
+      self.device.cmd_bind_descriptor_sets(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        2,
+        &image_descriptor.internal()[..],
+        &[],
+      );
+      
+      let mut start_offset = 0;
+
+      for (index_count, first_index) in prim_info {
+        start_offset += index_count;
+        self.device.cmd_draw_indexed(
+          self.draw_command_buffer,
+          *index_count,
+          instance_count as u32,
+          0,
+          0,
+          0,
+        );
+      }
+    }
+  }*/
+
   pub fn draw_mesh<T: Copy>(
     &mut self,
     shader: &Shader<T>, 
@@ -825,11 +928,11 @@ impl Vulkan {
       }
     }
     
-    for child_idx in &nodes[idx].children {
-      self.draw_node(shader, *child_idx as usize, data, nodes,
-                     images, skins, textures, materials, 
-                     dummy_texture, dummy_skin);
-    }
+//    for child_idx in &nodes[idx].children {
+//      self.draw_node(shader, *child_idx as usize, data, nodes,
+//                     images, skins, textures, materials, 
+//                     dummy_texture, dummy_skin);
+//    }
   }
   
   pub fn end_renderpass(&mut self) {

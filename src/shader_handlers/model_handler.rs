@@ -13,6 +13,8 @@ use crate::shader_handlers::gltf_loader::{MeshVertex, GltfModel};
 
 use crate::offset_of;
 
+const MAX_INSTANCES: usize = 4096;
+
 #[derive(Clone, Copy)]
 pub struct MeshUniformBuffer {
   projection: [f32; 16],
@@ -21,13 +23,36 @@ pub struct MeshUniformBuffer {
   window_size: [f32; 2],
 }
 
+#[derive(Clone, Copy)]
+pub struct InstancedMeshData {
+  model: [f32; 16],
+  offset: [f32; 3],
+  scale: [f32; 3],
+}
+
+impl InstancedMeshData {
+  pub fn new() -> InstancedMeshData {
+    InstancedMeshData {
+      model: [0.0; 16],
+      offset: [0.0; 3],
+      scale: [0.0; 3],
+    }
+  }
+}
+
 pub struct ModelHandler {
   camera: Camera,
   sampler: Sampler,
-  mesh_shader: Shader<MeshVertex>,
+  
   models: HashMap<String, GltfModel>,
+  mesh_shader: Shader<MeshVertex>,
+  
+  instanced_mesh_shader: Shader<MeshVertex>,
+  instanced_mesh_buffer: HashMap<String, (Buffer<InstancedMeshData>, usize, Vec<(u32, u32)>)>,
+
   uniform_buffer: Buffer<MeshUniformBuffer>,
   uniform_descriptor_set: DescriptorSet,
+  
   dummy_texture: DescriptorSet,
   dummy_skin_buffer: Buffer<f32>,
   dummy_skin: DescriptorSet,
@@ -64,9 +89,9 @@ impl ModelHandler {
                                       .combined_image_sampler_fragment()
                                       .build(vulkan.device(), &descriptor_pool);
     
-    let mesh_shader = ModelHandler::create_mesh_shader(vulkan, vec![descriptor_set0.clone(), 
-                                                                    descriptor_set1.clone(),
-                                                                    descriptor_set2.clone()]);
+    let (mesh_shader, instanced_mesh_shader) = ModelHandler::create_mesh_shaders(vulkan, vec![descriptor_set0.clone(), 
+                                                                                             descriptor_set1.clone(),
+                                                                                             descriptor_set2.clone()]);
     
     let mut camera = Camera::new();
     camera.update_aspect_ratio(screen_resolution.width as f32 / screen_resolution.height as f32);
@@ -106,10 +131,16 @@ impl ModelHandler {
     ModelHandler {
       camera,
       sampler,
-      mesh_shader,
+      
       models: HashMap::new(),
+      mesh_shader,
+      
+      instanced_mesh_shader,
+      instanced_mesh_buffer: HashMap::new(),
+
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
+      
       dummy_texture: descriptor_set2,
       dummy_skin_buffer: dummy_buffer,
       dummy_skin,
@@ -120,6 +151,28 @@ impl ModelHandler {
     }
   }
   
+  pub fn create_instance_render_buffer<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T) {
+    let mut prim_info = Vec::new();
+    
+    let model_ref = model_ref.into();
+
+    if let Some(model) = self.models.get_mut(&model_ref.to_string()) {
+      for i in 0..model.nodes().len() {
+        for primitive in &model.nodes()[i].mesh.primitives {
+          let index_count = primitive.index_count;
+          let first_index = primitive.first_index;
+          prim_info.push((index_count, first_index));
+        }
+      }
+
+      let dummy_instanced_data = vec![InstancedMeshData::new(); MAX_INSTANCES];
+
+      let buffer = Buffer::<InstancedMeshData>::new_vertex(vulkan.device(), dummy_instanced_data);
+    
+      self.instanced_mesh_buffer.insert(model_ref.to_string(), (buffer, 0, prim_info));
+    }
+  }
+
   pub fn all_model_bounding_boxes(&self) -> Vec<(String, Vec<([f32; 3], [f32; 3], [f32; 3])>)> {
     let mut data = Vec::new();
     for (model_ref, model) in &self.models {
@@ -184,16 +237,47 @@ impl ModelHandler {
   
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {
     if let Some(model) = &self.models.get(model_ref) {
-      vulkan.draw_mesh(&self.mesh_shader,
+      /*if let Some((buffer, count, _)) = self.instanced_mesh_buffer.get_mut(model_ref) {
+        for i in 0..model.nodes().len() {
+          let matrix = Node::get_node_matrix(model.nodes(), i);
+
+          buffer.data[*count].model = matrix;
+          buffer.data[*count].offset = [data[0], data[1], data[2]];
+          buffer.data[*count].scale = [data[4], data[5], data[6]];
+
+          *count += 1;
+        }
+      } else {*/
+        vulkan.draw_mesh(&self.mesh_shader,
                        &self.uniform_descriptor_set,
                        &self.dummy_texture,
                        &self.dummy_skin,
                        data,
                        model);
+      //}
     }
   }
-  
-  fn create_mesh_shader(vulkan: &Vulkan, descriptor_sets: Vec<DescriptorSet>) -> Shader<MeshVertex> {
+ /*
+  pub fn draw_instanced_models(&mut self, vulkan: &mut Vulkan) {
+    for (model, (buffer, count, prim_info)) in &mut self.instanced_mesh_buffer {
+      buffer.update_data(vulkan.device(), buffer.data.clone());
+
+      if let Some(model) = self.models.get(model) {
+        vulkan.draw_instanced_mesh(&model.index_buffer(),
+                                   model.vertex_buffer(),
+                                   &self.instanced_mesh_shader,
+                                   &self.uniform_descriptor_set,
+                                   &self.dummy_texture,
+                                   &self.dummy_skin,
+                                   buffer,
+                                   *count,
+                                   prim_info);
+      }
+      *count = 0;
+    }
+  }*/
+
+  fn create_mesh_shaders(vulkan: &Vulkan, descriptor_sets: Vec<DescriptorSet>) -> (Shader<MeshVertex>, Shader<MeshVertex>) {
     let template_mesh_vertex = MeshVertex {
       pos: [0.0, 0.0, 0.0],
       normal: [0.0, 0.0, 0.0],
@@ -202,6 +286,8 @@ impl ModelHandler {
       joint_indices: [0.0, 0.0, 0.0, 0.0],
       joint_weights: [1.0, 1.0, 1.0, 1.0]
     };
+
+    let template_instanced_data = InstancedMeshData::new();
     
     let graphics_pipeline_builder = GraphicsPipelineBuilder::new().topology_triangle_list()
                                                                   .polygon_mode_fill()
@@ -235,7 +321,33 @@ impl ModelHandler {
                                   vulkan.scissors(),
                                   &layouts, 
                                   None as Option<(u32, Vec<u32>)>);
+ 
+    let instanced_mesh_shader = Shader::new(vulkan.device(),
+                                  Cursor::new(&include_bytes!("../../shaders/instanced_mesh_animated_vert.spv")[..]),
+                                  Cursor::new(&include_bytes!("../../shaders/mesh_animated_frag.spv")[..]),
+                                  template_mesh_vertex, 
+                                  vec!(offset_of!(MeshVertex, pos) as u32,
+                                       offset_of!(MeshVertex, normal) as u32, 
+                                       offset_of!(MeshVertex, uv) as u32,
+                                       offset_of!(MeshVertex, colour) as u32, 
+                                       offset_of!(MeshVertex, joint_indices) as u32,
+                                       offset_of!(MeshVertex, joint_weights) as u32),
+                                  &graphics_pipeline_builder,
+                                  vulkan.model_renderpass(),
+                                  vulkan.viewports(), 
+                                  vulkan.scissors(),
+                                  &layouts, 
+                                  Some(
+                                    (
+                                      template_instanced_data,
+                                      vec!(
+                                        offset_of!(InstancedMeshData, model) as u32,
+                                        offset_of!(InstancedMeshData, offset) as u32,
+                                        offset_of!(InstancedMeshData, scale) as u32,
+                                      )
+                                    )
+                                  ));
     
-    mesh_shader
+    (mesh_shader, instanced_mesh_shader)
   }
 }

@@ -702,7 +702,6 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
     }
   } else {*/
     let (translation, rotation, scale) = gltf_node.transform().decomposed();
-    //println!("T: {:?} R: {:?} S: {:?}", translation, rotation, scale);
     
     nodes[node_idx].translation = translation;
     nodes[node_idx].rotation = rotation;
@@ -731,13 +730,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         for vertex in iter {
           displacement = Math::vec3_add(displacement, vertex);
           vertices.push(vertex);
-          
         }
-        /*vertices.extend(iter);
-        for vertex in &vertices {
-          displacement = Math::vec3_add(displacement, *vertex);
-          
-        }*/
       }
       
       if let Some(iter) = reader.read_normals() {
@@ -851,7 +844,38 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
     }
   }
 }
+/*
+pub fn load_collision_data(gltf: &gltf::Node) {
+  for mesh in gltf.meshes() {
+    for primitive in mesh.primitives() {
+      let mut reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+      
+      let mut displacement = [0.0; 3];
+      
+      let mut verticies = Vec::new();
+      let mut indices = Vec::new();
 
+      if let Some(iter) = reader.read_positions() {
+        for vertex in iter {
+          displacement = Math::vec3_add(displacement, vertex);
+          vertices.push(vertex);
+        }
+      }
+      
+      if let Some(indices) = reader.read_indices() {
+        let indices = indices.into_u32();
+        index_count = indices.len();
+        
+        for index in indices {
+          index_buffer.push(index + vertex_start as u32);
+        }
+      }
+      
+
+    }
+  }
+}
+*/
 pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec<Node>, idx: usize) {
   if nodes[idx].skin != -1 {
     let matrix = Node::get_node_matrix(nodes, idx);
@@ -881,7 +905,7 @@ pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec
 }
 
 pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> GltfModel {
-  let location = &location.into();
+  let mut location = location.into();
   
   let mut images: Vec<vkimage> = Vec::new();
   let mut textures: Vec<Texture> = Vec::new();
@@ -893,7 +917,7 @@ pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, locati
   let mut index_buffer = Vec::new();
   let mut vertex_buffer = Vec::new();
   
-  let (gltf, buffers, _images) = gltf::import(location).unwrap();
+  let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
   
   for scene in gltf.scenes() {
     for node in scene.nodes() {
@@ -960,7 +984,32 @@ pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, locati
   for animation in &mesh_animations {
     println!("    Name: {:?}", animation.name);
   }
+  /* 
+  location.remove(location.len()-1);
+  location.remove(location.len()-1);
+  location.remove(location.len()-1);
+  location.remove(location.len()-1);
+  location = format!("{}_collision.glb", location);
+  let (collision_gltf, collision_buffers, _) = gltf::import(location).unwrap();
+   
+  load_collision_data(collision_gltf);
   
+  let collision_vertices: Vec<[f32; 3]> = collision_gltf
+    .meshes()
+    .flat_map(|mesh| mesh.primitives())
+    .flat_map(|primitive| primitive.reader(|buffer| Some(&buffers[buffer.index()])).read_positions())
+    .flat_map(|positions| positions)
+    .collect();
+  
+  let collision_indices: Vec<[u32; 3]> = collision_gltf
+    .meshes()
+    .flat_map(|mesh| mesh.primitives())
+    .flat_map(|primitive| primitive.reader(|buffer| Some(&buffers[buffer.index()])).read_indices().unwrap().into_u32())
+    .collect::<Vec<u32>>()
+    .chunks(3)
+    .map(|x| [x[0], x[1], x[2]])
+    .collect();
+  */
   GltfModel {
     nodes,
     mesh_index_buffer,
