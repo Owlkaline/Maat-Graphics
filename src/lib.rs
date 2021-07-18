@@ -107,7 +107,7 @@ impl MaatGraphics {
     self.vulkan.recreate_swapchain();
     
     self.texture_handler.update_uniform_buffer(&self.vulkan.device(), width, height);
-    self.model_handler.mut_camera().update_aspect_ratio(width as f32/height as f32);
+    self.model_handler.window_resized(width, height);
   }
   
   pub fn mut_camera(&mut self) -> &mut Camera {

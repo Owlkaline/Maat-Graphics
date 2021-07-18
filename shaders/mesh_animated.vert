@@ -19,6 +19,7 @@ layout (set = 0, binding = 0) uniform UBO {
   mat4 projection;
   mat4 view;
   vec4 light_pos;
+  vec2 window_size;
 } ubo;
 
 layout(push_constant) uniform PushConstants {

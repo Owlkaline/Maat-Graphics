@@ -18,6 +18,7 @@ pub struct MeshUniformBuffer {
   projection: [f32; 16],
   model: [f32; 16],
   light_pos: [f32; 4],
+  window_size: [f32; 2],
 }
 
 pub struct ModelHandler {
@@ -30,6 +31,9 @@ pub struct ModelHandler {
   dummy_texture: DescriptorSet,
   dummy_skin_buffer: Buffer<f32>,
   dummy_skin: DescriptorSet,
+
+  window_size: [f32; 2],
+
   descriptor_pool: vk::DescriptorPool,
 }
 
@@ -67,10 +71,12 @@ impl ModelHandler {
     let mut camera = Camera::new();
     camera.update_aspect_ratio(screen_resolution.width as f32 / screen_resolution.height as f32);
     
+    let window_size = [screen_resolution.width as f32, screen_resolution.height as f32];
     let uniform_data = vec!(MeshUniformBuffer {
       projection: camera.perspective_matrix(),
       model: camera.view_matrix(),
       light_pos: [5.0, 5.0, -5.0, 1.0],
+      window_size,
     });
     
     let uniform_buffer = Buffer::<MeshUniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
@@ -107,6 +113,9 @@ impl ModelHandler {
       dummy_texture: descriptor_set2,
       dummy_skin_buffer: dummy_buffer,
       dummy_skin,
+
+      window_size,
+
       descriptor_pool,
     }
   }
@@ -144,10 +153,16 @@ impl ModelHandler {
     })
   }
   
+  pub fn window_resized(&mut self, width: u32, height: u32) {
+    self.window_size = [width as f32, height as f32];
+    self.camera.update_aspect_ratio(width as f32 / height as f32);
+  }
+
   pub fn update_uniform_buffer(&mut self, device: &VkDevice) {
     let mut data = self.uniform_buffer.data()[0];
     data.projection = self.camera.perspective_matrix();
     data.model = self.camera.view_matrix();
+    data.window_size = self.window_size;
     
     self.uniform_buffer.update_data(device, vec!(data));
   }
