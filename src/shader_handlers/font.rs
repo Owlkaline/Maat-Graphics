@@ -98,10 +98,6 @@ impl Font {
         let x_advance = width/(Font::value_from_string_pair(segments[6].to_string()) as f32 /512.0);
         let page =      Font::value_from_string_pair(segments[7].to_string()) as u32;
         
-        //let x1  = x as f32;//x as f32 / image_width;
-        //let x2  = x as f32;//(x as f32 + width as f32) / image_width;
-        //let y1  = y as f32;//y as f32 / image_height;
-        //let y2  = y as f32;//(y as f32 + height as f32) / image_height;
         if y_offset < min_off_y {
           min_off_y = y_offset;
         }
@@ -185,17 +181,6 @@ impl Font {
         continue;
       }
 
-      // 97 a
-      // x 72 
-      // y 378
-      // width 47 
-      // height 47
-      //
-      // 72/512 = 0.140625
-      // 378/512 = 0.73828125
-      // 47/512 = 0.091796875
-      //
-      //
       let w_h_ratio = char_info.height/char_info.width;
       
       let height = text_size;
@@ -212,195 +197,9 @@ impl Font {
       text_data.push((x, y, width, height, 1.0-uv_x0, 1.0-uv_y1, 1.0-uv_x1, 1.0-uv_y0));
 
       pos_x += char_info.x_advance*width;
-
-      /* 
-      let w = self.texture.width() as f32;
-      
-      let line_height = self.line_height as f32;
-      
-      let width = text_size * (char_info.width as f32 / self.avg_xadvance);
-      let height = text_size * (char_info.height as f32 / line_height);
-      
-      let x_offset = text_size * ((char_info.x_offset as f32/self.size as f32) / self.avg_xadvance);
-      let y_offset = text_size * ((char_info.y_offset as f32/self.size as f32) / line_height);
-      
-      let x = pos_x - x_offset;
-      //println!("{}: char_height: {} y_offset: {} line height: {}", c, char_info.height, char_info.y_offset, line_height);
-      let y = y_offset;
-      
-      let us = (w-char_info.x as f32)/ w;
-      let ue = ((w-char_info.x as f32) - char_info.width as f32) / w;
-      let ts = char_info.y as f32 / w;
-      let te = (char_info.y as f32 + char_info.height as f32) / w;
-      
-      let uv_x0 = ue;
-      let uv_x1 = us;
-      let uv_y0 = ts;
-      let uv_y1 = te;
-      
-      text_data.push((x, -y, width, height, uv_x0, uv_x1, uv_y0, uv_y1));
-      
-      pos_x += text_size * (char_info.x_advance as f32 / self.size as f32);
-      */
     }
-    
-    /*
-    let mut index_offset = 0;
-    
-    let w = self.texture.width() as f32;
-    
-    let mut pos_x = 0.0;
-    let mut pos_y;
-    
-    let mut base_size = 36.0;
-    
-    for c in text.chars() {
-      let mut char_info = &mut self.chars[c as i32 as usize];
-      
-      if char_info.width == 0 {
-        char_info.width = 36;
-      }
-      
-      let charw = char_info.width as f32 / base_size;
-      let dimx = text_size * charw;
-      let charh = char_info.height as f32 / base_size;
-      let dimy = text_size * charh;
-      
-      let us = (w-char_info.x as f32)/ w;
-      let ue = ((w-char_info.x as f32) - char_info.width as f32) / w;
-      let ts = char_info.y as f32 / w;
-      let te = (char_info.y as f32 + char_info.height as f32) / w;
-      
-      let xo = char_info.x_offset as f32 / base_size;
-      let yo = char_info.y_offset as f32 / base_size;
-      
-      pos_y = -yo;
-      
-      let x = pos_x + xo;
-      let y = pos_y;
-      let width = dimx;
-      let height = dimy;
-      let uv_x0 = ue;
-      let uv_x1 = us;
-      let uv_y0 = ts;
-      let uv_y1 = te;
-      
-      text_data.push((x, y, width, height, uv_x0, uv_x1, uv_y0, uv_y1));
-      
-      let advance = char_info.x_advance as f32/base_size * text_size;
-      pos_x += advance;
-    }*/
     
     text_data
   }
-  /*
-  pub fn generate_text(&mut self, vulkan: &mut Vulkan, text_size: f32, text: &str) -> (Buffer::<u32>, Buffer::<ComboVertex>) {
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
-    
-    vertices.push(
-      ComboVertex {
-        pos: [0.0, 0.0, 0.0, 0.0],
-        colour: [1.0, 1.0, 1.0, 1.0],
-        uv: [0.0, 0.0],
-      }
-    );
-    indices.push(0);
-    
-    let mut index_offset = 0;
-    
-    let w = self.texture.width() as f32;
-    
-    let mut pos_x = 0.0;
-    let mut pos_y;
-    
-    let mut base_size = 36.0;
-    
-    let text = text.to_string() + " ";
-    for c in text.chars() {
-      let mut char_info = &mut self.chars[c as i32 as usize];
-      
-      if char_info.width == 0 {
-        char_info.width = 36;
-      }
-      
-      let charw = char_info.width as f32 / base_size;
-      let dimx = text_size * charw;
-      let charh = char_info.height as f32 / base_size;
-      let dimy = text_size * charh;
-      
-      let us = (w-char_info.x as f32)/ w;
-      let ue = ((w-char_info.x as f32) - char_info.width as f32) / w;
-      let ts = char_info.y as f32 / w;
-      let te = (char_info.y as f32 + char_info.height as f32) / w;
-      
-      let xo = char_info.x_offset as f32 / base_size;
-      let yo = char_info.y_offset as f32 / base_size;
-      
-      pos_y = -yo;
-      
-      let z = -1.0;
-      let w = 1.0;
-      
-      vertices.push(
-        ComboVertex {
-          pos: [pos_x + dimx + xo, pos_y + dimy, z, w],
-          colour: [1.0, 1.0, 1.0, 1.0],
-          uv: [ue, ts],
-        }
-      );
-      
-      vertices.push(
-        ComboVertex {
-          pos: [pos_x + xo, pos_y + dimy, z, w],
-          colour: [1.0, 1.0, 1.0, 1.0],
-          uv: [us, ts],
-        }
-      );
-      
-      vertices.push(
-        ComboVertex {
-          pos: [pos_x + xo, pos_y, z, w],
-          colour: [1.0, 1.0, 1.0, 1.0],
-          uv: [us, te],
-        }
-      );
-      
-      vertices.push(
-        ComboVertex {
-          pos: [pos_x + dimx + xo, pos_y, z, w],
-          colour: [1.0, 1.0, 1.0, 1.0],
-          uv: [ue, te],
-        }
-      );
-      
-      let letter_indices = vec!(0, 1, 2, 2, 3, 0);
-      for letter in letter_indices {
-        indices.push(index_offset + letter as i32 as u32);
-      }
-      index_offset += 4;
-      
-      let advance = char_info.x_advance as f32/base_size * text_size;
-      pos_x += advance;
-    }
-    
-    //for v in &mut vertices {
-     // v.pos[0] -= pos_x / 2.0;
-    //  v.pos[1] -= 0.5;
-    //}
-    
-    let text_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), indices);
-    let text_vertex_buffer = Buffer::<ComboVertex>::new_vertex(vulkan.device(), vertices);
-    
-    (text_index_buffer, text_vertex_buffer)
-  }*/
 }
-
-
-
-
-
-
-
-
 

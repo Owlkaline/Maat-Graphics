@@ -1,5 +1,5 @@
-use ash::version::{DeviceV1_0};
-use ash::{vk};
+use ash::version::DeviceV1_0;
+use ash::vk;
 use std::default::Default;
 
 use crate::modules::{VkDevice, VkInstance, VkCommandPool, VkSwapchain, VkFrameBuffer, Scissors, 
@@ -573,6 +573,7 @@ impl Vulkan {
   pub fn draw_texture<T: Copy, L: Copy>(
     &mut self,
     texture_descriptor: &DescriptorSet, 
+    uniform_descriptor: &DescriptorSet,
     shader: &Shader<T>, 
     vertex_buffer: &Buffer<T>, 
     index_buffer: &Buffer<L>,
@@ -602,6 +603,15 @@ impl Vulkan {
     push_constant_data[31*4 + 3] = height_bytes[3];
     
     unsafe {
+      self.device.cmd_bind_descriptor_sets(
+        self.draw_command_buffer,
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        0,
+        &uniform_descriptor.internal()[..],
+        &[],
+      );
+
       self.device.cmd_bind_descriptor_sets(
         self.draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,

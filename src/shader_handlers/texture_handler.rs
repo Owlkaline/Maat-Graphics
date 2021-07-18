@@ -6,7 +6,7 @@ use ash::vk;
 
 use crate::offset_of;
 
-use crate::modules::{Vulkan, Image, ImageBuilder, Shader, Sampler, Buffer, DescriptorSet, DescriptorPoolBuilder,
+use crate::modules::{Vulkan, VkDevice, Image, ImageBuilder, Shader, Sampler, Buffer, DescriptorSet, DescriptorPoolBuilder,
                      DescriptorWriter, GraphicsPipelineBuilder};
 use crate::shader_handlers::{Font, font::FontChar};
 
@@ -20,14 +20,14 @@ pub struct ComboVertex {
 }
 
 #[derive(Clone, Debug, Copy)]
-struct UniformBuffer {
-  colour: [f32; 4],
+struct TextureUniformBuffer {
+  window_size: [f32; 2],
 }
 
 pub struct TextureHandler {
   descriptor_pool: vk::DescriptorPool,
   sampler: Sampler,
-  uniform_buffer: Buffer<UniformBuffer>,
+  uniform_buffer: Buffer<TextureUniformBuffer>,
   uniform_descriptor: DescriptorSet,
   font: Font,
   //text_shader: Shader<ComboVertex>,
@@ -61,12 +61,12 @@ impl TextureHandler {
     let strings = HashMap::new();
     
     let uniform_data = vec![
-      UniformBuffer {
-        colour: [screen_size.width as f32, screen_size.height as f32, 0.0, 0.0],
+      TextureUniformBuffer {
+        window_size: [screen_size.width as f32, screen_size.height as f32],
       }
     ];
     
-    let uniform_buffer = Buffer::<UniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
+    let uniform_buffer = Buffer::<TextureUniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
     
     let descriptor_set0 = DescriptorSet::builder()
                                       .uniform_buffer_vertex()
@@ -143,6 +143,17 @@ impl TextureHandler {
   pub fn uniform_descriptor(&self) -> &DescriptorSet {
     &self.uniform_descriptor
   }
+
+  pub fn update_uniform_buffer(&mut self, device: &VkDevice, width: u32, height: u32) {
+    let mut data = self.uniform_buffer.data()[0];
+    data.window_size = [width as f32, height as f32];
+    self.uniform_buffer.update_data(device, vec!(data)); 
+    
+    let uniform_descriptor_set_writer = DescriptorWriter::builder()
+                                                        .update_uniform_buffer(&self.uniform_buffer, &self.uniform_descriptor);
+    
+    uniform_descriptor_set_writer.build(device);
+  }
   
   pub fn load_texture<T: Into<String>>(&mut self, vulkan: &mut Vulkan, texture_ref: T, texture: T) {
     let texture = texture.into();
@@ -172,6 +183,7 @@ impl TextureHandler {
     };
     
     vulkan.draw_texture(&texture_descriptor,
+                        &self.uniform_descriptor,
                         &self.combo_shader,
                         &self.combo_vertex_buffer,
                         &self.combo_index_buffer,
@@ -181,21 +193,11 @@ impl TextureHandler {
   pub fn draw_text(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, text: &str, _texture: &str) {
     let mut data = data;
     
-    while data.len() < 16 {
+    while data.len() < 32 {
       data.push(0.0);
     }
     
     let text_size = data[2].max(0.1);
-    /*
-    if let Some((string_index, string_vertex)) = self.strings.get(texture) {
-      let descriptor = self.font.descriptor();
-      
-      vulkan.draw_texture(&descriptor,
-                          &self.text_shader,
-                          &string_vertex,
-                          &string_index,
-                          data);
-    } else {*/
       let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
       
       let x = data[0];
@@ -209,18 +211,18 @@ impl TextureHandler {
         data[2] = width;
         data[3] = height;
         
-        data[12] = uvx0;
-        data[13] = uvy0;
-        data[14] = uvx1;
-        data[15] = uvy1;
-        
+        data[24] = uvx0;
+        data[25] = uvy0;
+        data[26] = uvx1;
+        data[27] = uvy1;
+
         vulkan.draw_texture(&descriptor,
+                            &self.uniform_descriptor,
                             &self.letter_shader,
                             &self.combo_vertex_buffer,
                             &self.combo_index_buffer,
                             data.clone());
       }
-    //}
   }
   
   pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -249,7 +251,7 @@ impl TextureHandler {
   }
   
   fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (/*Shader<ComboVertex>,*/ Shader<ComboVertex>, Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
-    let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];//vec![3, 2, 0, 2, 0, 1];
+    let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];
     let z = -1.0;
     let combo_vertices = vec![
       ComboVertex {
@@ -320,23 +322,10 @@ impl TextureHandler {
                                       vulkan.viewports(), 
                                       vulkan.scissors(),
                                       &layouts);
-    /*
-    let text_shader = Shader::new(vulkan.device(),
-                              Cursor::new(&include_bytes!("../../shaders/sdf_vert.spv")[..]),
-                              Cursor::new(&include_bytes!("../../shaders/sdf_frag.spv")[..]),
-                              combo_vertex, 
-                              vec!(offset_of!(ComboVertex, pos) as u32, 
-                                   offset_of!(ComboVertex, colour) as u32,
-                                   offset_of!(ComboVertex, uv) as u32), 
-                              &graphics_pipeline_builder,
-                              vulkan.texture_renderpass(),
-                              vulkan.viewports(), 
-                              vulkan.scissors(),
-                              &layouts);*/
     
     let letter_shader = Shader::new(vulkan.device(),
                               Cursor::new(&include_bytes!("../../shaders/letter_sdf_vert.spv")[..]),
-                              Cursor::new(&include_bytes!("../../shaders/sdf_frag.spv")[..]),
+                              Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
                               combo_vertex, 
                               vec!(offset_of!(ComboVertex, pos) as u32, 
                                    offset_of!(ComboVertex, colour) as u32,
@@ -347,7 +336,7 @@ impl TextureHandler {
                               vulkan.scissors(),
                               &layouts);
     
-    (/*text_shader, */letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
+    (letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
   }
 }
 
