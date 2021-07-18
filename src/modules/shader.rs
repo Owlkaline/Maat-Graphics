@@ -19,10 +19,17 @@ pub struct Shader<T: Sized + Copy> {
 }
 
 impl<T: Sized + Copy> Shader<T> {
-  pub fn new<W: Read + Seek>(device: &VkDevice, mut vertex_shader: W, mut fragment_shader: W, 
-             vertex_struct: T, offsets: Vec<u32>, graphics_pipeline_builder: &GraphicsPipelineBuilder,
-             renderpass: &Renderpass, viewport: &Viewport, scissors: &Scissors, 
-             descriptor_set_layouts: &Vec<vk::DescriptorSetLayout>) -> Shader<T> {
+  pub fn new<W: Read + Seek, S>(device: &VkDevice, 
+                             mut vertex_shader: W, mut fragment_shader: W, 
+                             vertex_struct: T, 
+                             offsets: Vec<u32>, 
+                             graphics_pipeline_builder: &GraphicsPipelineBuilder,
+                             renderpass: &Renderpass, 
+                             viewport: &Viewport, 
+                             scissors: &Scissors, 
+                             descriptor_set_layouts: &Vec<vk::DescriptorSetLayout>,
+                             instanced: Option<(S, Vec<u32>)>) -> Shader<T> {
+
     let vertex_code = read_spv(&mut vertex_shader).expect("Failed to read vertex shader");
     let fragment_code = read_spv(&mut fragment_shader).expect("Failed to read fragment shader");
     
@@ -74,14 +81,24 @@ impl<T: Sized + Copy> Shader<T> {
       },
     ];
     
-    let vertex_input_binding = 
-    [
+    let mut vertex_input_binding = 
+    vec![
       vk::VertexInputBindingDescription {
         binding: 0,
         stride: mem::size_of::<T>() as u32,
         input_rate: vk::VertexInputRate::VERTEX,
-      }
+      },
     ];
+
+    if instanced.is_some() {
+      vertex_input_binding.push(
+        vk::VertexInputBindingDescription {
+          binding: 1,
+          stride: mem::size_of::<S>() as u32,
+          input_rate: vk::VertexInputRate::INSTANCE,
+        }
+      );
+    }
     
     let mut vertex_input_attributes = Vec::new();
     for i in 0..offsets.len() {
@@ -93,6 +110,19 @@ impl<T: Sized + Copy> Shader<T> {
           offset: offsets[i] as u32,
         }
       );
+    }
+    
+    if let Some((_, instanced_offsets)) = instanced {
+      for i in 0..instanced_offsets.len() {
+        vertex_input_attributes.push(
+          vk::VertexInputAttributeDescription {
+            location: i as u32 + offsets.len() as u32,
+            binding: 1,
+            format: vk::Format::R32G32B32A32_SFLOAT,
+            offset: instanced_offsets[i] as u32,
+          }
+        );
+      }
     }
     
     let vertex_input_state = vk::PipelineVertexInputStateCreateInfo {
@@ -107,7 +137,6 @@ impl<T: Sized + Copy> Shader<T> {
                                                             &pipeline_layout, 
                                                             shader_stage_create_info.to_vec(),
                                                             vertex_input_state,
-                                                           // vertex_input_attributes,
                                                             viewport, scissors, renderpass);
     
     Shader {

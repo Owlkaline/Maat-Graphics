@@ -233,7 +233,8 @@ impl ModelHandler {
                                   vulkan.model_renderpass(),
                                   vulkan.viewports(), 
                                   vulkan.scissors(),
-                                  &layouts);
+                                  &layouts, 
+                                  None as Option<(u32, Vec<u32>)>);
     
     mesh_shader
   }

@@ -12,11 +12,38 @@ use crate::shader_handlers::{Font, font::FontChar};
 
 use crate::ash::version::DeviceV1_0;
 
+const MAX_INSTANCES: usize = 8192;
+
 #[derive(Clone, Debug, Copy)]
 pub struct ComboVertex {
   pub pos: [f32; 4],
   pub colour: [f32; 4],
   pub uv: [f32; 2],
+}
+
+#[derive(Clone, Copy)]
+pub struct InstancedTextData {
+  pub pos: [f32; 2],
+  pub size: [f32; 2],
+  pub uv: [f32; 4],
+  pub text_height: f32,
+  pub colour: [f32; 4],
+  pub outline_colour: [f32; 4],
+  pub width_edge: [f32; 4],
+}
+
+impl InstancedTextData {
+  pub fn new() -> InstancedTextData {
+    InstancedTextData {
+       pos: [0.0; 2],
+       size: [0.0; 2],
+       uv: [0.0; 4],
+       text_height: 0.0,
+       colour: [0.0; 4],
+       outline_colour: [0.0; 4],
+       width_edge: [0.0; 4],
+    }
+  }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -27,15 +54,20 @@ struct TextureUniformBuffer {
 pub struct TextureHandler {
   descriptor_pool: vk::DescriptorPool,
   sampler: Sampler,
+  
   uniform_buffer: Buffer<TextureUniformBuffer>,
   uniform_descriptor: DescriptorSet,
+  
   font: Font,
-  //text_shader: Shader<ComboVertex>,
+  
   letter_shader: Shader<ComboVertex>,
+  instanced_letter_shader: Shader<ComboVertex>,
+  instanced_letter_buffer: Buffer<InstancedTextData>,
+
   combo_shader: Shader<ComboVertex>,
   combo_index_buffer: Buffer<u32>,
   combo_vertex_buffer: Buffer<ComboVertex>,
-  strings: HashMap<String, (Buffer<u32>, Buffer<ComboVertex>)>,
+  
   textures: HashMap<String, (Image, DescriptorSet)>,
   dummy_texture: (Image, DescriptorSet),
 }
@@ -58,8 +90,6 @@ impl TextureHandler {
     
     let font = Font::new(vulkan, &sampler);
     
-    let strings = HashMap::new();
-    
     let uniform_data = vec![
       TextureUniformBuffer {
         window_size: [screen_size.width as f32, screen_size.height as f32],
@@ -81,9 +111,10 @@ impl TextureHandler {
     
     uniform_descriptor_set_writer.build(vulkan.device());
     
-    let (/*text_shader,*/ letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer) = TextureHandler::create_combo_shader(&vulkan, 
-                                                                                                      &vec![descriptor_set0.clone(), 
-                                                                                                            descriptor_set1.clone()]);
+    let (letter_shader, instanced_letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer) = 
+        TextureHandler::create_combo_shader(&vulkan, 
+                                            &vec![descriptor_set0.clone(), 
+                                                  descriptor_set1.clone()]);
     
     let checked_image = TextureHandler::create_checked_image();
     let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, checked_image);
@@ -95,18 +126,27 @@ impl TextureHandler {
     
     dummy_descriptor_set_writer.build(vulkan.device());
     
+    let dummy_instanced_data = vec![InstancedTextData::new(); MAX_INSTANCES]; 
+    let instanced_letter_buffer = Buffer::<InstancedTextData>::new_vertex(vulkan.device(), dummy_instanced_data);
+
     TextureHandler {
       descriptor_pool,
       sampler,
+      
       uniform_buffer,
       uniform_descriptor: descriptor_set0,
+      
       font,
-      //text_shader,
+      
       letter_shader,
+      instanced_letter_shader,
+      instanced_letter_buffer,
+
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
-      strings,
+      
+      //strings,
       textures: HashMap::new(),
       dummy_texture: (dummy_texture, dummy_descriptor_set),
     }
@@ -187,42 +227,53 @@ impl TextureHandler {
                         &self.combo_shader,
                         &self.combo_vertex_buffer,
                         &self.combo_index_buffer,
+                        None as Option<&Buffer<u32>>,
+                        0,
                         data);
   }
   
-  pub fn draw_text(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, text: &str, _texture: &str) {
-    let mut data = data;
+  pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {
+    let descriptor = self.font.descriptor();
     
-    while data.len() < 32 {
+    self.instanced_letter_buffer.update_data(vulkan.device(), self.instanced_letter_buffer.data.clone()); 
+
+    vulkan.draw_texture(&descriptor,
+                        &self.uniform_descriptor,
+                        &self.instanced_letter_shader,
+                        &self.combo_vertex_buffer,
+                        &self.combo_index_buffer,
+                        Some(&self.instanced_letter_buffer),
+                        instance_count,
+                        vec!());
+  }
+
+  pub fn add_text_data(&mut self, idx: &mut usize, data: Vec<f32>, text: &str, _texture: &str) {
+     let mut data = data;
+    
+    while data.len() < 16 {
       data.push(0.0);
     }
     
     let text_size = data[2].max(0.1);
-      let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
+    let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
       
-      let x = data[0];
-      let y = data[1];
-      
-      for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1) in letter_data {
-        let descriptor = self.font.descriptor();
+    let x = data[0];
+    let y = data[1];
+    
+    for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1) in letter_data {
+      let pos_x = x + x_offset;
+      let pos_y = y + y_offset;
         
-        data[0] = x + x_offset;
-        data[1] = y + y_offset;
-        data[2] = width;
-        data[3] = height;
-        
-        data[24] = uvx0;
-        data[25] = uvy0;
-        data[26] = uvx1;
-        data[27] = uvy1;
-
-        vulkan.draw_texture(&descriptor,
-                            &self.uniform_descriptor,
-                            &self.letter_shader,
-                            &self.combo_vertex_buffer,
-                            &self.combo_index_buffer,
-                            data.clone());
-      }
+      self.instanced_letter_buffer.data[*idx].pos = [pos_x, pos_y];
+      self.instanced_letter_buffer.data[*idx].size = [width, height];
+      self.instanced_letter_buffer.data[*idx].uv = [uvx0, uvy0, uvx1, uvy1];
+      self.instanced_letter_buffer.data[*idx].text_height = data[2];
+      self.instanced_letter_buffer.data[*idx].colour = [data[4], data[5], data[6], data[7]]; 
+      self.instanced_letter_buffer.data[*idx].outline_colour = [data[8], data[9], data[10], data[11]];
+      self.instanced_letter_buffer.data[*idx].width_edge = [data[12], data[13], data[14], data[15]];
+  
+      *idx += 1;
+    }     
   }
   
   pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -250,7 +301,7 @@ impl TextureHandler {
     dst_image
   }
   
-  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (/*Shader<ComboVertex>,*/ Shader<ComboVertex>, Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
+  fn create_combo_shader(vulkan: &Vulkan, descriptor_sets: &Vec<DescriptorSet>) -> (Shader<ComboVertex>, Shader<ComboVertex>, Shader<ComboVertex>, Buffer<u32>, Buffer<ComboVertex>) {
     let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];
     let z = -1.0;
     let combo_vertices = vec![
@@ -292,6 +343,7 @@ impl TextureHandler {
       colour: [0.0, 0.0, 0.0, 0.0],
       uv: [0.0, 0.0],
     };
+    let instaced_text = InstancedTextData::new();
     
     let combo_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), combo_index_buffer_data);
     let combo_vertex_buffer = Buffer::<ComboVertex>::new_vertex(vulkan.device(), combo_vertices);
@@ -321,7 +373,8 @@ impl TextureHandler {
                                       vulkan.texture_renderpass(),
                                       vulkan.viewports(), 
                                       vulkan.scissors(),
-                                      &layouts);
+                                      &layouts,
+                                      None as Option<(InstancedTextData, Vec<u32>)>);
     
     let letter_shader = Shader::new(vulkan.device(),
                               Cursor::new(&include_bytes!("../../shaders/letter_sdf_vert.spv")[..]),
@@ -334,9 +387,34 @@ impl TextureHandler {
                               vulkan.texture_renderpass(),
                               vulkan.viewports(), 
                               vulkan.scissors(),
-                              &layouts);
-    
-    (letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
+                              &layouts,
+                              None as Option<(InstancedTextData, Vec<u32>)>);
+    let instanced_letter_shader = Shader::new(vulkan.device(),
+                              Cursor::new(&include_bytes!("../../shaders/instanced_letter_sdf_vert.spv")[..]),
+                              Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
+                              combo_vertex, 
+                              vec!(offset_of!(ComboVertex, pos) as u32, 
+                                   offset_of!(ComboVertex, colour) as u32,
+                                   offset_of!(ComboVertex, uv) as u32), 
+                              &graphics_pipeline_builder,
+                              vulkan.texture_renderpass(),
+                              vulkan.viewports(), 
+                              vulkan.scissors(),
+                              &layouts,
+                              Some((
+                                instaced_text,
+                                vec!(offset_of!(InstancedTextData, pos) as u32,
+                                     offset_of!(InstancedTextData, size) as u32,
+                                     offset_of!(InstancedTextData, uv) as u32,
+                                     offset_of!(InstancedTextData, text_height) as u32,
+                                     offset_of!(InstancedTextData, colour) as u32,
+                                     offset_of!(InstancedTextData, outline_colour) as u32,
+                                     offset_of!(InstancedTextData, width_edge) as u32,
+                                    ),
+                              ))
+                            );
+
+    (letter_shader, instanced_letter_shader, combo_shader, combo_index_buffer, combo_vertex_buffer)
   }
 }
 

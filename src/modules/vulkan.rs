@@ -570,13 +570,15 @@ impl Vulkan {
     }
   }
   
-  pub fn draw_texture<T: Copy, L: Copy>(
+  pub fn draw_texture<T: Copy, L: Copy, S: Copy>(
     &mut self,
     texture_descriptor: &DescriptorSet, 
     uniform_descriptor: &DescriptorSet,
     shader: &Shader<T>, 
     vertex_buffer: &Buffer<T>, 
     index_buffer: &Buffer<L>,
+    instanced_buffer: Option<&Buffer<S>>,
+    instance_count: usize,
     data: Vec<f32>,
   ) {
     
@@ -588,19 +590,6 @@ impl Vulkan {
       push_constant_data[i*4 + 2] = bytes[2];
       push_constant_data[i*4 + 3] = bytes[3];
     }
-    
-    // Pass in window size
-    // TODO: Move to specialisation constant or uniform buffer
-    let width_bytes = self.viewports.width().to_le_bytes();
-    push_constant_data[30*4 + 0] = width_bytes[0];
-    push_constant_data[30*4 + 1] = width_bytes[1];
-    push_constant_data[30*4 + 2] = width_bytes[2];
-    push_constant_data[30*4 + 3] = width_bytes[3];
-    let height_bytes = self.viewports.height().to_le_bytes();
-    push_constant_data[31*4 + 0] = height_bytes[0];
-    push_constant_data[31*4 + 1] = height_bytes[1];
-    push_constant_data[31*4 + 2] = height_bytes[2];
-    push_constant_data[31*4 + 3] = height_bytes[3];
     
     unsafe {
       self.device.cmd_bind_descriptor_sets(
@@ -637,6 +626,15 @@ impl Vulkan {
         &[0],
       );
       
+      if let Some(buffer) = instanced_buffer {
+        self.device.cmd_bind_vertex_buffers(
+          self.draw_command_buffer,
+          1,
+          &[*buffer.internal()],
+          &[0],
+        );
+      }
+      
       self.device.cmd_bind_index_buffer(
         self.draw_command_buffer,
         *index_buffer.internal(),
@@ -651,14 +649,25 @@ impl Vulkan {
         0,
         &push_constant_data);
       
-      self.device.cmd_draw_indexed(
-        self.draw_command_buffer,
-        index_buffer.data().len() as u32,
-        1,
-        0,
-        0,
-        1,
-      );
+      if instanced_buffer.is_some() {
+        self.device.cmd_draw_indexed(
+          self.draw_command_buffer,
+          index_buffer.data().len() as u32,
+          instance_count as u32,
+          0,
+          0,
+          0,
+        );
+      } else {
+        self.device.cmd_draw_indexed(
+          self.draw_command_buffer,
+          index_buffer.data().len() as u32,
+          1,
+          0,
+          0,
+          1,
+        );
+      }
     }
   }
   

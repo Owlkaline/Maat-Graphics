@@ -130,13 +130,19 @@ impl MaatGraphics {
       }
       self.vulkan.end_renderpass();
       self.vulkan.begin_renderpass_texture(present_index);
+      
+      let mut text_count = 0;
+
       for (data, texture, some_text) in texture_data {
         if let Some(text) = some_text {
-          self.texture_handler.draw_text(&mut self.vulkan, data, &text.into(), &texture.into());
+          self.texture_handler.add_text_data(&mut text_count, data, &text.into(), &texture.into());
         } else {
           self.texture_handler.draw(&mut self.vulkan, data, &texture.into());
         }
       }
+      
+      self.texture_handler.draw_instanced_text(&mut self.vulkan, text_count);
+
       self.vulkan.end_renderpass();
       self.vulkan.end_render(present_index);
     }

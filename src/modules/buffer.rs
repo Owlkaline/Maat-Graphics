@@ -6,7 +6,7 @@ use crate::modules::{VkDevice, Memory};
 pub struct Buffer<T: Sized + Copy> {
   buffer: vk::Buffer,
   memory: Memory<T>,
-  data: Vec<T>
+  pub data: Vec<T>
 }
 
 impl<T: Sized + Copy> Buffer<T> {

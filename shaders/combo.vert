@@ -9,7 +9,7 @@ layout (location = 2) in vec2 uv;
 layout (location = 0) out vec4 o_colour;
 layout (location = 1) out vec3 o_uv_textured;
 
-layout (set = 0, binding = 1) uniform UBO {
+layout (set = 0, binding = 0) uniform UBO {
   vec3 window_size;
 } ubo;
 
@@ -21,7 +21,7 @@ layout(push_constant) uniform PushConstants {
   vec4 attrib4;
   vec4 attrib5; 
   vec4 attrib6;
-  vec4 window_size; // empty x2 width height 
+  vec4 attrib7;
 } push_constants;
 
 mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
@@ -39,7 +39,7 @@ void main() {
   o_uv_textured = vec3(uv, push_constants.is_textured_rotation.x);
   o_colour = push_constants.colour;
   
-  mat4 ortho_matrix = ortho_projection(0.0, push_constants.window_size.w, 0.0, push_constants.window_size.z, 0.1, 1.0);
+  mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);
                                                                  //720.0, 0.0, 1280.0, 0.1, 1.0);
   
   vec2 unrotated_pos = pos.xy - vec2(0.5, 0.5);
