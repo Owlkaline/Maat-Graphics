@@ -295,7 +295,9 @@ impl MaatGraphics {
             match key.state {
               ElementState::Pressed => {
                 if let Some(key_code) = key.virtual_keycode {
-                  device_keys.push(key_code);
+                  if !device_keys.contains(&key_code) {
+                    device_keys.push(key_code);
+                  }
                 }
               },
               ElementState::Released => {
