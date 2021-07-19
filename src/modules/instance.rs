@@ -90,14 +90,14 @@ impl InstanceV1_0 for VkInstance {
 }
 
 fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
-  let app_name = CString::new("VulkanTriangle").unwrap();
-  
-  let layer_names = [CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
+  let app_name = CString::new("Maat_Graphics").unwrap();
+ /* 
+  let layer_names = [];//CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
   let layers_names_raw: Vec<*const i8> = layer_names
       .iter()
       .map(|raw_name| raw_name.as_ptr())
       .collect();
-  
+ */ 
   let surface_extensions = ash_window::enumerate_required_extensions(window.internal()).unwrap();
   let mut extension_names_raw = surface_extensions
     .iter()
@@ -114,7 +114,7 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
 
   let create_info = vk::InstanceCreateInfo::builder()
     .application_info(&appinfo)
-    .enabled_layer_names(&layers_names_raw)
+    .enabled_layer_names(&[])
     .enabled_extension_names(&extension_names_raw);
 
   let instance: Instance = unsafe {
