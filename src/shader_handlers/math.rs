@@ -136,6 +136,142 @@ impl Math {
     
     m[0] + m[1] + m[2] + m[3]
   }
+ 
+  pub fn mat3_identity() -> [f32; 9] {
+    [1.0, 0.0, 0.0,
+     0.0, 1.0, 0.0,
+     0.0, 0.0, 1.0]
+  }
+
+  pub fn mat3_from_3_vec3(v0: [f32; 3], v1: [f32; 3], v2: [f32; 3]) -> [f32; 9] {
+    let mut m = Math::mat3_identity();
+    
+    let r = 3;
+    m[r*0 + 1] = v0[0];
+    m[r*0 + 2] = v0[1];
+    m[r*0 + 3] = v0[2];
+    m[r*1 + 1] = v1[0];
+    m[r*1 + 2] = v1[1];
+    m[r*1 + 3] = v1[2];
+    m[r*2 + 1] = v2[0];
+    m[r*2 + 2] = v2[1];
+    m[r*2 + 3] = v2[2];
+
+    m
+  }
+
+  pub fn mat3_into_3_vec3(m: [f32; 9]) -> ([f32; 3], [f32; 3], [f32; 3]) {
+    let m0 = [m[0], m[1], m[2]];
+    let m1 = [m[3], m[4], m[5]];
+    let m2 = [m[6], m[7], m[8]];
+    
+    (m0, m1, m2)  
+  }
+
+  pub fn mat3_add(m: [f32; 9], n: [f32; 9]) -> [f32; 9] {
+    let (m0, m1, m2) = Math::mat3_into_3_vec3(m);
+    let (n0, n1, n2) = Math::mat3_into_3_vec3(n);
+
+    let mn0 = Math::vec3_add(m0, n0);
+    let mn1 = Math::vec3_add(m1, n1);
+    let mn2 = Math::vec3_add(m2, n2);
+
+    Math::mat3_from_3_vec3(mn0, mn1, mn2)
+  }
+
+  pub fn mat3_minus(m: [f32; 9], n: [f32; 9]) -> [f32; 9] {
+    let (m0, m1, m2) = Math::mat3_into_3_vec3(m);
+    let (n0, n1, n2) = Math::mat3_into_3_vec3(n);
+
+    let mn0 = Math::vec3_minus(m0, n0);
+    let mn1 = Math::vec3_minus(m1, n1);
+    let mn2 = Math::vec3_minus(m2, n2);
+
+    Math::mat3_from_3_vec3(mn0, mn1, mn2)
+  }
+
+  pub fn mat3_mul(m: [f32; 9], n: [f32; 9]) -> [f32; 9] {
+    let mut result = Math::mat3_identity();
+    
+    let r = 3;
+    result[r*0 + 0] = m[r*0 + 0] * n[r*0 + 0] + m[r*1 + 0] * n[r*0 + 1] + m[r*2 + 0] * n[r*0 + 2];
+    result[r*0 + 1] = m[r*0 + 1] * n[r*0 + 0] + m[r*1 + 1] * n[r*0 + 1] + m[r*2 + 1] * n[r*0 + 2];
+    result[r*0 + 2] = m[r*0 + 2] * n[r*0 + 0] + m[r*1 + 2] * n[r*0 + 1] + m[r*2 + 2] * n[r*0 + 2];
+    result[r*1 + 0] = m[r*0 + 0] * n[r*1 + 0] + m[r*1 + 0] * n[r*1 + 1] + m[r*2 + 0] * n[r*1 + 2];
+    result[r*1 + 1] = m[r*0 + 1] * n[r*1 + 0] + m[r*1 + 1] * n[r*1 + 1] + m[r*2 + 1] * n[r*1 + 2];
+    result[r*1 + 2] = m[r*0 + 2] * n[r*1 + 0] + m[r*1 + 2] * n[r*1 + 1] + m[r*2 + 2] * n[r*1 + 2];
+    result[r*2 + 0] = m[r*0 + 0] * n[r*2 + 0] + m[r*1 + 0] * n[r*2 + 1] + m[r*2 + 0] * n[r*2 + 2];
+    result[r*2 + 1] = m[r*0 + 1] * n[r*2 + 0] + m[r*1 + 1] * n[r*2 + 1] + m[r*2 + 1] * n[r*2 + 2];
+    result[r*2 + 2] = m[r*0 + 2] * n[r*2 + 0] + m[r*1 + 2] * n[r*2 + 1] + m[r*2 + 2] * n[r*2 + 2];
+
+    result
+  }
+
+  pub fn mat3_mul_f32(m: [f32; 9], s: f32) -> [f32; 9] {
+    let (v0, v1, v2) = Math::mat3_into_3_vec3(m);
+
+    let m0 = Math::vec3_mul_f32(v0, s);
+    let m1 = Math::vec3_mul_f32(v1, s);
+    let m2 = Math::vec3_mul_f32(v2, s);
+
+    Math::mat3_from_3_vec3(m0, m1, m2)
+  }
+
+  pub fn mat3_div_f32(m: [f32; 9], s: f32) -> [f32; 9] {
+    let (v0, v1, v2) = Math::mat3_into_3_vec3(m);
+
+    let m0 = Math::vec3_div_f32(v0, s);
+    let m1 = Math::vec3_div_f32(v1, s);
+    let m2 = Math::vec3_div_f32(v2, s);
+
+    Math::mat3_from_3_vec3(m0, m1, m2)
+  }
+  
+  pub fn mat3_transpose(m: [f32; 9]) -> [f32; 9] {
+    let mut n = Math::mat3_identity();
+
+    let r = 3;
+    n[r*0 + 0] = m[r*0 + 0];
+    n[r*0 + 1] = m[r*1 + 0];
+    n[r*0 + 2] = m[r*2 + 0];
+    
+    n[r*1 + 0] = m[r*0 + 1];
+    n[r*1 + 1] = m[r*1 + 1];
+    n[r*1 + 2] = m[r*2 + 1];
+    
+    n[r*1 + 0] = m[r*0 + 2];
+    n[r*1 + 1] = m[r*1 + 2];
+    n[r*1 + 2] = m[r*2 + 2];
+
+    n
+  }
+
+  pub fn mat3_determinant(m: [f32; 9]) -> f32 {
+    let r = 3;
+
+     m[r*0 + 0] * (m[r*1 + 1] * m[r*2 + 2] - m[r*2 + 1] * m[r*1 + 2])
+    -m[r*1 + 0] * (m[r*0 + 1] * m[r*2 + 2] - m[r*2 + 1] * m[r*0 + 2])
+    +m[r*2 + 0] * (m[r*0 + 1] * m[r*1 + 2] - m[r*1 + 1] * m[r*0 + 2])
+  }
+
+  pub fn mat3_inverse(m: [f32; 9]) -> [f32; 9] {
+    let mut inverse = Math::mat3_identity();
+    
+    let one_over_det = 1.0 / Math::mat3_determinant(m);
+    
+    let r = 3;
+    inverse[r*0 + 0] = (m[r*1 + 1] * m[r*2 + 2] - m[r*2 + 1] * m[r*1 + 2]) * one_over_det;
+    inverse[r*1 + 0] = (m[r*1 + 0] * m[r*2 + 2] - m[r*2 + 0] * m[r*1 + 2]) * one_over_det;
+    inverse[r*2 + 0] = (m[r*1 + 0] * m[r*2 + 1] - m[r*2 + 0] * m[r*1 + 1]) * one_over_det;
+    inverse[r*0 + 1] = (m[r*0 + 1] * m[r*2 + 2] - m[r*2 + 1] * m[r*0 + 2]) * one_over_det;
+    inverse[r*1 + 1] = (m[r*0 + 0] * m[r*2 + 2] - m[r*2 + 0] * m[r*0 + 2]) * one_over_det;
+    inverse[r*2 + 1] = (m[r*0 + 0] * m[r*2 + 1] - m[r*2 + 0] * m[r*0 + 1]) * one_over_det;
+    inverse[r*0 + 2] = (m[r*0 + 1] * m[r*1 + 2] - m[r*1 + 1] * m[r*0 + 2]) * one_over_det;
+    inverse[r*1 + 2] = (m[r*0 + 0] * m[r*1 + 2] - m[r*1 + 0] * m[r*0 + 2]) * one_over_det;
+    inverse[r*2 + 2] = (m[r*0 + 0] * m[r*1 + 1] - m[r*1 + 0] * m[r*0 + 1]) * one_over_det;
+
+    inverse
+  }
   
   pub fn mat4_identity() -> [f32; 16] {
     [1.0, 0.0, 0.0, 0.0,
