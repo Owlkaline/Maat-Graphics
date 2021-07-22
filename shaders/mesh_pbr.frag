@@ -53,8 +53,8 @@ void main() {
 
   vec3 f0 = vec3(0.04);
 
-  perceptualRoughness = 0.5; //material.roughnessFactor;
-  metallic = 0.2; //material.metallicFactor;
+  perceptualRoughness = 0.6; //material.roughnessFactor;
+  metallic = 0.4; //material.metallicFactor;
   
   perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
   metallic = clamp(metallic, 0.0, 1.0);
