@@ -11,7 +11,6 @@ pub struct Viewport {
 
 impl Viewport {
   pub fn new(x: f32, y: f32, width: f32, height: f32, min_depth: f32, max_depth: f32) -> Viewport {
-    
     Viewport {
       x,
       y,
@@ -21,7 +20,7 @@ impl Viewport {
       max_depth,
     }
   }
-  
+
   pub fn build(&self) -> vk::Viewport {
     vk::Viewport {
       x: self.x,
@@ -32,11 +31,11 @@ impl Viewport {
       max_depth: self.max_depth,
     }
   }
-  
+
   pub fn width(&self) -> f32 {
     self.width
   }
-  
+
   pub fn height(&self) -> f32 {
     self.y
   }

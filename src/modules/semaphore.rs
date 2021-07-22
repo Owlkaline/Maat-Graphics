@@ -1,5 +1,5 @@
-use ash::vk;
 use ash::version::DeviceV1_0;
+use ash::vk;
 
 use crate::modules::VkDevice;
 
@@ -9,20 +9,20 @@ pub struct Semaphore {
 
 impl Semaphore {
   pub fn new(device: &VkDevice) -> Semaphore {
-    
     let semaphore_create_info = vk::SemaphoreCreateInfo::default();
-    
+
     let semaphore: vk::Semaphore;
-    
+
     unsafe {
-      semaphore = device.internal().create_semaphore(&semaphore_create_info, None).expect("Create Semaphore failed.");
+      semaphore = device
+        .internal()
+        .create_semaphore(&semaphore_create_info, None)
+        .expect("Create Semaphore failed.");
     }
-    
-    Semaphore {
-      semaphore,
-    }
+
+    Semaphore { semaphore }
   }
-  
+
   pub fn internal(&self) -> vk::Semaphore {
     self.semaphore
   }

@@ -1,12 +1,12 @@
-pub use self::texture_handler::{TextureHandler, ComboVertex};
-pub use self::model_handler::ModelHandler;
 pub use self::camera::{Camera, CameraType};
 pub use self::font::Font;
 pub use self::math::Math;
+pub use self::model_handler::ModelHandler;
+pub use self::texture_handler::{ComboVertex, TextureHandler};
 
-mod texture_handler;
-mod model_handler;
 mod camera;
 pub mod font;
-mod math;
 pub mod gltf_loader;
+mod math;
+mod model_handler;
+mod texture_handler;
