@@ -330,7 +330,7 @@ impl ModelHandler {
     let mesh_shader = Shader::new(
       vulkan.device(),
       Cursor::new(&include_bytes!("../../shaders/mesh_animated_vert.spv")[..]),
-      Cursor::new(&include_bytes!("../../shaders/mesh_animated_frag.spv")[..]),
+      Cursor::new(&include_bytes!("../../shaders/mesh_pbr_frag.spv")[..]),
       template_mesh_vertex,
       vec![
         offset_of!(MeshVertex, pos) as u32,
