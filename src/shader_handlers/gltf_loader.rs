@@ -9,6 +9,25 @@ use gltf;
 use gltf::animation::Property;
 
 #[derive(Clone)]
+pub struct CollisionObject {
+  name: String,
+  displacement: [f32; 3],
+  indices: Vec<u32>,
+  positions: Vec<[f32; 3]>,
+  min_bounds: [f32; 3],
+  max_bounds: [f32; 3],
+}
+
+#[derive(Clone)]
+pub struct CollisionInformation {
+  name: String,
+  objects: Vec<CollisionObject>,
+  displacement: [f32; 3],
+  min_bounds: [f32; 3],
+  max_bounds: [f32; 3],
+}
+
+#[derive(Clone)]
 pub enum AnimationInterpolation {
   Linear,
   Step,
@@ -86,6 +105,208 @@ pub struct Node {
   pub matrix: Option<[f32; 16]>,
 }
 
+#[derive(Debug)]
+pub struct Material {
+  base_colour_factor: [f32; 4],
+  pub base_colour_texture_index: u32,
+}
+
+pub struct MeshImage {
+  pub texture: vkimage,
+  pub descriptor_set: DescriptorSet,
+}
+
+pub struct Texture {
+  pub image_index: i32,
+  pub sampler: Sampler,
+}
+
+pub struct GltfModel {
+  nodes: Vec<Node>,
+  collision_info: CollisionInformation,
+
+  mesh_index_buffer: Buffer<u32>,
+  mesh_vertex_buffer: Buffer<MeshVertex>,
+  mesh_images: Vec<MeshImage>,
+  mesh_skins: Vec<Skin>,
+  
+  animations: Vec<Animation>,
+  
+  textures: Vec<Texture>,
+  materials: Vec<Material>,
+  
+  descriptor_pool: vk::DescriptorPool,
+  active_animation: i32,
+}
+
+impl CollisionObject {
+  pub fn new<T: Into<String>>(name: T, displacement: [f32; 3], indices: Vec<u32>, positions: Vec<[f32; 3]>, min_bounds: [f32; 3], max_bounds: [f32; 3]) -> CollisionObject {
+
+    CollisionObject {
+      name: name.into(),
+      displacement,
+      indices,
+      positions,
+      min_bounds,
+      max_bounds,
+    }
+  }
+
+  pub fn name(&self) -> String {
+    self.name.to_string()
+  }
+
+  pub fn displacement(&self) -> [f32; 3] {
+    self.displacement
+  }
+
+  pub fn indices(&self) -> &Vec<u32> {
+    &self.indices
+  }
+
+  pub fn vertices(&self) -> &Vec<[f32; 3]> {
+    &self.positions
+  }
+
+  pub fn min_bounds(&self) -> [f32; 3] {
+    self.min_bounds
+  }
+
+  pub fn max_bounds(&self) -> [f32; 3] {
+    self.max_bounds
+  }
+}
+
+impl CollisionInformation {
+  pub fn default() -> CollisionInformation {
+    CollisionInformation {
+      name: format!(""),
+      objects: Vec::new(),
+      displacement: [0.0; 3],
+      min_bounds: [0.0; 3],
+      max_bounds: [0.0; 3],
+    }
+  }
+
+  pub fn new(reference: String, location: String, mut collision_objects: Vec<CollisionObject>) -> CollisionInformation {
+    let mut location = location;
+
+    location.pop();
+    location.pop();
+    location.pop();
+    location.pop();
+
+    location = format!("{}_collision.glb", location);
+
+    let mut object_displacement = [0.0; 3];
+    let mut object_min_bounds = [f32::MAX; 3];
+    let mut object_max_bounds = [f32::MIN; 3];
+
+    if std::path::Path::new(&location).exists() {
+      println!("Found collision model");
+      collision_objects.clear();
+      
+      let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
+      for scene in gltf.scenes() {
+        for node in scene.nodes() {
+          if let Some(mesh) = node.mesh() {
+            for primitive in mesh.primitives() {
+              let mut displacement = [0.0; 3];
+      
+              let mut vertices = Vec::new();
+              let mut indexs = Vec::new();
+
+              let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+              
+              let (_translation, _rotation, scale) = node.transform().decomposed();
+              
+              if let Some(iter) = reader.read_positions() {
+                for vertex in iter {
+                  let scaled_vertex = Math::vec3_mul(vertex, scale);
+                  displacement = Math::vec3_add(displacement, scaled_vertex);
+                  vertices.push(scaled_vertex);
+                }
+              }
+
+              if let Some(indices) = reader.read_indices() {
+                let indices_u32 = indices.into_u32();
+                
+                for index in indices_u32 {
+                  indexs.push(index);
+                }
+              }
+
+              let mut min_bounds: [f32; 3] = [0.0; 3];
+              let mut max_bounds: [f32; 3] = [0.0; 3];
+              
+              match primitive.bounding_box() {
+                gltf::mesh::BoundingBox { min, max } => {
+                  min_bounds[0] = min[0]*scale[0];
+                  max_bounds[0] = max[0]*scale[0];
+                  min_bounds[1] = min[1]*scale[1];
+                  max_bounds[1] = max[1]*scale[1];
+                  min_bounds[2] = min[2]*scale[2];
+                  max_bounds[2] = max[2]*scale[2];
+                }
+              }
+
+              for k in 0..3 {
+                if min_bounds[k] < object_min_bounds[k] {
+                  object_min_bounds[k] = min_bounds[k];
+                }
+                if max_bounds[k] < object_max_bounds[k] {
+                  object_max_bounds[k] = max_bounds[k];
+                }
+              }
+
+              let name = mesh.name().unwrap();
+
+              displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
+              
+              object_displacement = Math::vec3_add(object_displacement, displacement);
+
+              collision_objects.push(
+                CollisionObject::new(name, displacement, indexs, vertices, min_bounds, max_bounds)
+              );
+            }
+          }
+        }
+      }
+    } else {
+      println!("No collision model found.");
+      for object in &collision_objects {
+        object_displacement = Math::vec3_add(object_displacement, object.displacement());
+      }
+    }
+
+    object_displacement = Math::vec3_div_f32(object_displacement, collision_objects.len() as f32);
+
+    CollisionInformation {
+      name: reference,
+      objects: collision_objects,
+      displacement: object_displacement,
+      min_bounds: object_min_bounds,
+      max_bounds: object_max_bounds,
+    }
+  }
+
+  pub fn objects(&self) -> &Vec<CollisionObject> {
+    &self.objects
+  }
+
+  pub fn displacement(&self) -> [f32; 3] {
+    self.displacement
+  }
+
+  pub fn min_bounds(&self) -> [f32; 3] {
+    self.min_bounds
+  }
+
+  pub fn max_bounds(&self) -> [f32; 3] {
+    self.max_bounds
+  }
+}
+
 impl Node {
   pub fn calculate_local_matrix(&self) -> [f32; 16] {
     if let Some(matrix) = self.matrix {
@@ -128,34 +349,7 @@ impl Node {
   }
 }
 
-#[derive(Debug)]
-pub struct Material {
-  base_colour_factor: [f32; 4],
-  pub base_colour_texture_index: u32,
-}
 
-pub struct MeshImage {
-  pub texture: vkimage,
-  pub descriptor_set: DescriptorSet,
-}
-
-pub struct Texture {
-  pub image_index: i32,
-  pub sampler: Sampler,
-}
-
-pub struct GltfModel {
-  nodes: Vec<Node>,
-  mesh_index_buffer: Buffer<u32>,
-  mesh_vertex_buffer: Buffer<MeshVertex>,
-  mesh_images: Vec<MeshImage>,
-  mesh_skins: Vec<Skin>,
-  animations: Vec<Animation>,
-  textures: Vec<Texture>,
-  materials: Vec<Material>,
-  descriptor_pool: vk::DescriptorPool,
-  active_animation: i32,
-}
 
 impl GltfModel {
   pub fn nodes(&self) -> &Vec<Node> {
@@ -186,44 +380,9 @@ impl GltfModel {
     &self.mesh_skins
   }
   
-  pub fn bounds(&self) -> Vec<([f32; 3], [f32; 3], [f32; 3])> {
-    let mut bounds = Vec::new();
-    for i in 0..self.nodes.len() {
-      for j in 0..self.nodes[i].mesh.primitives.len() {
-        let displacement = self.nodes[i].mesh.primitives[j].displacement;
-        let bb_min = self.nodes[i].mesh.primitives[j].bounding_box_min;
-        let bb_max = self.nodes[i].mesh.primitives[j].bounding_box_max;
-        
-        bounds.push((displacement, bb_min, bb_max));
-      }
-    }
-    
-    bounds
+  pub fn collision_info(&self) -> &CollisionInformation {
+    &self.collision_info
   }
-  /*
-  pub fn bounds(&self) -> ([f32; 3], [f32; 3]) {
-    let mut min: [f32; 3] = [f32::MAX, f32::MAX, f32::MAX];
-    let mut max: [f32; 3] = [f32::MIN, f32::MIN, f32::MIN];
-    
-    for i in 0..self.nodes.len() {
-      for j in 0..self.nodes[i].mesh.primitives.len() {
-        let bb_min = self.nodes[i].mesh.primitives[j].bounding_box_min;
-        let bb_max = self.nodes[i].mesh.primitives[j].bounding_box_max;
-        
-        for k in 0..3 {
-          if bb_min[k] < min[k] {
-            min[k] = bb_min[k];
-          }
-          
-          if bb_max[k] > max[k] {
-            max[k] = bb_max[k];
-          }
-        }
-      }
-    }
-    
-    (min, max)
-  }*/
   
   pub fn update_animation(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
     if self.active_animation != -1 && self.active_animation < self.animations.len() as i32 {
@@ -643,7 +802,7 @@ fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
 }
 
 fn load_node(nodes: &mut Vec<Node>, parent: i32,
-             gltf_node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, 
+             gltf_node: &gltf::Node, collision_objects: &mut Vec<CollisionObject>, buffers: &Vec<gltf::buffer::Data>, 
              index_buffer: &mut Vec<u32>, vertex_buffer: &mut Vec<MeshVertex>) {
   
   let mut first_index = index_buffer.len();
@@ -711,7 +870,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
   for child in gltf_node.children() {
     let child_idx = nodes.len();
     nodes[node_idx].children.push(child_idx);
-    load_node(nodes, node_idx as i32, &child, buffers, index_buffer, vertex_buffer);
+    load_node(nodes, node_idx as i32, &child, collision_objects, buffers, index_buffer, vertex_buffer);
   }
   
   if let Some(mesh) = gltf_node.mesh() {
@@ -724,6 +883,9 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
       let mut joint_indices = Vec::new();
       let mut joint_weights = Vec::new();
       
+      let mut all_verticies = Vec::new();
+      let mut all_indices = Vec::new();
+
       let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
       
       if let Some(iter) = reader.read_positions() {
@@ -787,6 +949,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         
         for index in indices {
           index_buffer.push(index + vertex_start as u32);
+          all_indices.push(index);
         }
       }
       
@@ -794,6 +957,8 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
       let colour = pbr.base_color_factor();
       
       for i in 0..vertices.len() {
+        all_verticies.push(Math::vec3_mul(vertices[i], nodes[node_idx].scale));
+
         vertex_buffer.push(
           MeshVertex {
             pos: vertices[i],
@@ -828,8 +993,11 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
         }
       }
       
-      displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
-      
+      displacement = Math::vec3_div_f32(Math::vec3_mul(displacement, nodes[node_idx].scale), vertices.len() as f32);
+      let name = mesh.name().unwrap();
+
+      collision_objects.push(CollisionObject::new(name, displacement, all_indices, all_verticies, b_box_min, b_box_max));
+
       nodes[node_idx].mesh.primitives.push(Primitive {
         first_index: first_index as u32,
         index_count: index_count as u32,
@@ -844,38 +1012,7 @@ fn load_node(nodes: &mut Vec<Node>, parent: i32,
     }
   }
 }
-/*
-pub fn load_collision_data(gltf: &gltf::Node) {
-  for mesh in gltf.meshes() {
-    for primitive in mesh.primitives() {
-      let mut reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-      
-      let mut displacement = [0.0; 3];
-      
-      let mut verticies = Vec::new();
-      let mut indices = Vec::new();
 
-      if let Some(iter) = reader.read_positions() {
-        for vertex in iter {
-          displacement = Math::vec3_add(displacement, vertex);
-          vertices.push(vertex);
-        }
-      }
-      
-      if let Some(indices) = reader.read_indices() {
-        let indices = indices.into_u32();
-        index_count = indices.len();
-        
-        for index in indices {
-          index_buffer.push(index + vertex_start as u32);
-        }
-      }
-      
-
-    }
-  }
-}
-*/
 pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec<Node>, idx: usize) {
   if nodes[idx].skin != -1 {
     let matrix = Node::get_node_matrix(nodes, idx);
@@ -904,7 +1041,7 @@ pub fn update_joints(vulkan: &mut Vulkan, skins: &mut Vec<Skin>, nodes: &mut Vec
   }
 }
 
-pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> GltfModel {
+pub fn load_gltf<T: Into<String>, L: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, reference: L, location: T) -> GltfModel {
   let mut location = location.into();
   
   let mut images: Vec<vkimage> = Vec::new();
@@ -917,11 +1054,14 @@ pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, locati
   let mut index_buffer = Vec::new();
   let mut vertex_buffer = Vec::new();
   
+  let mut collision_objects = Vec::new();
+  let mut object_displacement = [0.0; 3];
+
   let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
   
   for scene in gltf.scenes() {
     for node in scene.nodes() {
-      load_node(&mut nodes, -1, &node, &buffers, &mut index_buffer, &mut vertex_buffer);
+      load_node(&mut nodes, -1, &node, &mut collision_objects, &buffers, &mut index_buffer, &mut vertex_buffer);
     }
   }
   
@@ -984,41 +1124,23 @@ pub fn load_gltf<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, locati
   for animation in &mesh_animations {
     println!("    Name: {:?}", animation.name);
   }
-  /* 
-  location.remove(location.len()-1);
-  location.remove(location.len()-1);
-  location.remove(location.len()-1);
-  location.remove(location.len()-1);
-  location = format!("{}_collision.glb", location);
-  let (collision_gltf, collision_buffers, _) = gltf::import(location).unwrap();
-   
-  load_collision_data(collision_gltf);
   
-  let collision_vertices: Vec<[f32; 3]> = collision_gltf
-    .meshes()
-    .flat_map(|mesh| mesh.primitives())
-    .flat_map(|primitive| primitive.reader(|buffer| Some(&buffers[buffer.index()])).read_positions())
-    .flat_map(|positions| positions)
-    .collect();
-  
-  let collision_indices: Vec<[u32; 3]> = collision_gltf
-    .meshes()
-    .flat_map(|mesh| mesh.primitives())
-    .flat_map(|primitive| primitive.reader(|buffer| Some(&buffers[buffer.index()])).read_indices().unwrap().into_u32())
-    .collect::<Vec<u32>>()
-    .chunks(3)
-    .map(|x| [x[0], x[1], x[2]])
-    .collect();
-  */
+  let collision_info = CollisionInformation::new(reference.into(), location, collision_objects);
+
   GltfModel {
     nodes,
+    collision_info,
+
     mesh_index_buffer,
     mesh_vertex_buffer,
     mesh_images,
     mesh_skins,
+    
     animations: mesh_animations,
+    
     textures,
     materials,
+    
     descriptor_pool,
     active_animation: 0,
   }

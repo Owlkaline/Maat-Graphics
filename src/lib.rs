@@ -12,12 +12,13 @@ pub use crate::modules::VkWindow;
 use ash::vk;
 use std::io::Cursor;
 use std::time::Instant;
+use std::collections::HashMap;
 
 use crate::ash::version::DeviceV1_0;
 
 use crate::modules::{Vulkan, Image, DescriptorSet, ComputeShader, DescriptorPoolBuilder};
 use crate::shader_handlers::{TextureHandler, ModelHandler};
-pub use crate::shader_handlers::{Camera, font::FontChar, Math};
+pub use crate::shader_handlers::{Camera, font::FontChar, Math, gltf_loader::CollisionInformation};
 
 use winit::{
   event::{Event, KeyboardInput, VirtualKeyCode, MouseButton, ElementState, WindowEvent, DeviceEvent},
@@ -90,8 +91,8 @@ impl MaatGraphics {
     self.model_handler.create_instance_render_buffer(&mut self.vulkan, model_ref);
   }
 
-  pub fn all_model_bounding_boxes(&self) -> Vec<(String, Vec<([f32; 3], [f32; 3], [f32; 3])>)> {
-    self.model_handler.all_model_bounding_boxes()
+  pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
+    self.model_handler.all_collision_models()
   }
   
   pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {

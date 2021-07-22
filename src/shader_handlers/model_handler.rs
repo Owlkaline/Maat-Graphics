@@ -9,7 +9,7 @@ use crate::modules::{VkDevice, Vulkan, Shader, GraphicsPipelineBuilder, Descript
 
 use crate::shader_handlers::{Camera, Math, TextureHandler};
 use crate::shader_handlers::gltf_loader;
-use crate::shader_handlers::gltf_loader::{MeshVertex, GltfModel};
+use crate::shader_handlers::gltf_loader::{MeshVertex, GltfModel, CollisionInformation};
 
 use crate::offset_of;
 
@@ -173,10 +173,10 @@ impl ModelHandler {
     }
   }
 
-  pub fn all_model_bounding_boxes(&self) -> Vec<(String, Vec<([f32; 3], [f32; 3], [f32; 3])>)> {
-    let mut data = Vec::new();
+  pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
+    let mut data = HashMap::new();
     for (model_ref, model) in &self.models {
-      data.push((model_ref.to_string(), model.bounds()));
+      data.insert(model_ref.to_string(), model.collision_info().clone());
     }
     
     data
@@ -221,8 +221,9 @@ impl ModelHandler {
   }
   
   pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: T) {
-    let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model);
-    self.models.insert(model_ref.into(), gltf_model);
+    let model_ref = model_ref.into();
+    let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model_ref.to_string(), model);
+    self.models.insert(model_ref, gltf_model);
   }
   
   pub fn mut_camera(&mut self) -> &mut Camera {
