@@ -1130,7 +1130,6 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
   let mut vertex_buffer = Vec::new();
 
   let mut collision_objects = Vec::new();
-  let object_displacement = [0.0; 3];
 
   let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
 
