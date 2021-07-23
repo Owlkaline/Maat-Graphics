@@ -27,19 +27,11 @@ pub struct Vector4 {
 
 impl Vector3 {
   pub fn new(x: f32, y: f32, z: f32) -> Vector3 {
-    Vector3 {
-      x,
-      y,
-      z
-    }
+    Vector3 { x, y, z }
   }
-  
+
   pub fn from_f32(v: f32) -> Vector3 {
-    Vector3 {
-      x: v,
-      y: v,
-      z: v,
-    }
+    Vector3 { x: v, y: v, z: v }
   }
 
   pub fn from_array(a: [f32; 3]) -> Vector3 {
@@ -63,7 +55,7 @@ impl VectorMath for Vector3 {
   fn dot(self, other: Self) -> f32 {
     let m = self * other;
 
-    m.x + m.y + m.z   
+    m.x + m.y + m.z
   }
 
   fn scale(self, other: f32) -> Self {
@@ -89,7 +81,7 @@ impl VectorMath for Vector3 {
   }
 
   fn squared_magnitude(&self) -> f32 {
-    self.x*self.x + self.y*self.y + self.z*self.z
+    self.x * self.x + self.y * self.y + self.z * self.z
   }
 
   fn magnitude(&self) -> f32 {
@@ -97,7 +89,7 @@ impl VectorMath for Vector3 {
   }
 }
 
-impl Add for Vector3 { 
+impl Add for Vector3 {
   type Output = Self;
 
   fn add(self, other: Self) -> Self {
@@ -381,12 +373,7 @@ impl Into<[f32; 3]> for Vector3 {
 
 impl Vector4 {
   pub fn new(x: f32, y: f32, z: f32, w: f32) -> Vector4 {
-    Vector4 {
-      x,
-      y,
-      z,
-      w,
-    }
+    Vector4 { x, y, z, w }
   }
 
   pub fn from_f32(v: f32) -> Vector4 {
@@ -440,7 +427,7 @@ impl VectorMath for Vector4 {
   }
 
   fn squared_magnitude(&self) -> f32 {
-    self.x*self.x + self.y*self.y + self.z*self.z + self.w*self.w
+    self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
   }
 
   fn magnitude(&self) -> f32 {
@@ -448,7 +435,7 @@ impl VectorMath for Vector4 {
   }
 }
 
-impl Add for Vector4 { 
+impl Add for Vector4 {
   type Output = Self;
 
   fn add(self, other: Self) -> Self {
@@ -461,7 +448,7 @@ impl Add for Vector4 {
   }
 }
 
-impl Add<f32> for Vector4 { 
+impl Add<f32> for Vector4 {
   type Output = Self;
 
   fn add(self, other: f32) -> Self {
@@ -474,7 +461,7 @@ impl Add<f32> for Vector4 {
   }
 }
 
-impl Add<[f32; 4]> for Vector4 { 
+impl Add<[f32; 4]> for Vector4 {
   type Output = Self;
 
   fn add(self, other: [f32; 4]) -> Self {
@@ -495,7 +482,7 @@ impl Sub for Vector4 {
       x: self.x - other.x,
       y: self.y - other.y,
       z: self.z - other.z,
-      w: self.w - other.w
+      w: self.w - other.w,
     }
   }
 }
