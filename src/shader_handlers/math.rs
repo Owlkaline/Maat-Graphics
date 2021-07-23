@@ -1,4 +1,759 @@
+use std::ops::*;
+
 pub struct Math {}
+
+trait VectorMath {
+  fn dot(self, other: Self) -> f32;
+  fn scale(self, other: f32) -> Self;
+  fn set_magnitude(self, magnitude: f32) -> Self;
+  fn mix(self, other: Self, a: f32) -> Self;
+
+  fn magnitude(&self) -> f32;
+  fn squared_magnitude(&self) -> f32;
+}
+
+pub struct Vector3 {
+  pub x: f32,
+  pub y: f32,
+  pub z: f32,
+}
+
+pub struct Vector4 {
+  pub x: f32,
+  pub y: f32,
+  pub z: f32,
+  pub w: f32,
+}
+
+impl Vector3 {
+  pub fn new(x: f32, y: f32, z: f32) -> Vector3 {
+    Vector3 {
+      x,
+      y,
+      z
+    }
+  }
+  
+  pub fn from_f32(v: f32) -> Vector3 {
+    Vector3 {
+      x: v,
+      y: v,
+      z: v,
+    }
+  }
+
+  pub fn from_array(a: [f32; 3]) -> Vector3 {
+    Vector3 {
+      x: a[0],
+      y: a[1],
+      z: a[2],
+    }
+  }
+
+  fn cross(self, other: Vector3) -> Vector3 {
+    Vector3 {
+      x: self.y * other.z - other.y * self.z,
+      y: self.z * other.x - other.z * self.x,
+      z: self.x * other.y - other.x * self.y,
+    }
+  }
+}
+
+impl VectorMath for Vector3 {
+  fn dot(self, other: Self) -> f32 {
+    let m = self * other;
+
+    m.x + m.y + m.z   
+  }
+
+  fn scale(self, other: f32) -> Self {
+    self * other
+  }
+
+  fn set_magnitude(self, magnitude: f32) -> Self {
+    let len = self.magnitude();
+
+    Self {
+      x: self.x * magnitude / len,
+      y: self.y * magnitude / len,
+      z: self.z * magnitude / len,
+    }
+  }
+
+  fn mix(self, other: Self, a: f32) -> Self {
+    Self {
+      x: self.x * (1.0 - a) + other.x * a,
+      y: self.y * (1.0 - a) + other.y * a,
+      z: self.z * (1.0 - a) + other.z * a,
+    }
+  }
+
+  fn squared_magnitude(&self) -> f32 {
+    self.x*self.x + self.y*self.y + self.z*self.z
+  }
+
+  fn magnitude(&self) -> f32 {
+    self.squared_magnitude().sqrt()
+  }
+}
+
+impl Add for Vector3 { 
+  type Output = Self;
+
+  fn add(self, other: Self) -> Self {
+    Self {
+      x: self.x + other.x,
+      y: self.y + other.y,
+      z: self.z + other.z,
+    }
+  }
+}
+
+impl Add<f32> for Vector3 {
+  type Output = Self;
+
+  fn add(self, other: f32) -> Self {
+    Self {
+      x: self.x + other,
+      y: self.y + other,
+      z: self.z + other,
+    }
+  }
+}
+
+impl Add<[f32; 3]> for Vector3 {
+  type Output = Self;
+
+  fn add(self, other: [f32; 3]) -> Self {
+    Self {
+      x: self.x + other[0],
+      y: self.y + other[1],
+      z: self.z + other[2],
+    }
+  }
+}
+
+impl Sub for Vector3 {
+  type Output = Self;
+
+  fn sub(self, other: Self) -> Self {
+    Self {
+      x: self.x - other.x,
+      y: self.y - other.y,
+      z: self.z - other.z,
+    }
+  }
+}
+
+impl Sub<f32> for Vector3 {
+  type Output = Self;
+
+  fn sub(self, other: f32) -> Self {
+    Self {
+      x: self.x - other,
+      y: self.y - other,
+      z: self.z - other,
+    }
+  }
+}
+
+impl Sub<[f32; 3]> for Vector3 {
+  type Output = Self;
+
+  fn sub(self, other: [f32; 3]) -> Self {
+    Self {
+      x: self.x - other[0],
+      y: self.y - other[1],
+      z: self.z - other[2],
+    }
+  }
+}
+
+impl AddAssign for Vector3 {
+  fn add_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x + other.x,
+      y: self.y + other.y,
+      z: self.z + other.z,
+    };
+  }
+}
+
+impl AddAssign<f32> for Vector3 {
+  fn add_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x + other,
+      y: self.y + other,
+      z: self.z + other,
+    };
+  }
+}
+
+impl AddAssign<[f32; 3]> for Vector3 {
+  fn add_assign(&mut self, other: [f32; 3]) {
+    *self = Self {
+      x: self.x + other[0],
+      y: self.y + other[1],
+      z: self.z + other[2],
+    };
+  }
+}
+
+impl SubAssign for Vector3 {
+  fn sub_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x - other.x,
+      y: self.y - other.y,
+      z: self.z - other.z,
+    };
+  }
+}
+
+impl SubAssign<f32> for Vector3 {
+  fn sub_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x - other,
+      y: self.y - other,
+      z: self.z - other,
+    };
+  }
+}
+
+impl SubAssign<[f32; 3]> for Vector3 {
+  fn sub_assign(&mut self, other: [f32; 3]) {
+    *self = Self {
+      x: self.x - other[0],
+      y: self.y - other[1],
+      z: self.z - other[2],
+    };
+  }
+}
+
+impl Mul for Vector3 {
+  type Output = Self;
+
+  fn mul(self, other: Self) -> Self {
+    Self {
+      x: self.x * other.x,
+      y: self.y * other.y,
+      z: self.z * other.z,
+    }
+  }
+}
+
+impl Mul<f32> for Vector3 {
+  type Output = Self;
+
+  fn mul(self, other: f32) -> Self {
+    Self {
+      x: self.x * other,
+      y: self.y * other,
+      z: self.z * other,
+    }
+  }
+}
+
+impl Mul<[f32; 3]> for Vector3 {
+  type Output = Self;
+
+  fn mul(self, other: [f32; 3]) -> Self {
+    Self {
+      x: self.x * other[0],
+      y: self.y * other[1],
+      z: self.z * other[2],
+    }
+  }
+}
+
+impl Div for Vector3 {
+  type Output = Self;
+
+  fn div(self, other: Self) -> Self {
+    Self {
+      x: self.x / other.x,
+      y: self.y / other.y,
+      z: self.z / other.z,
+    }
+  }
+}
+
+impl Div<f32> for Vector3 {
+  type Output = Self;
+
+  fn div(self, other: f32) -> Self {
+    Self {
+      x: self.x / other,
+      y: self.y / other,
+      z: self.z / other,
+    }
+  }
+}
+
+impl Div<[f32; 3]> for Vector3 {
+  type Output = Self;
+
+  fn div(self, other: [f32; 3]) -> Self {
+    Self {
+      x: self.x / other[0],
+      y: self.y / other[1],
+      z: self.z / other[2],
+    }
+  }
+}
+
+impl MulAssign for Vector3 {
+  fn mul_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x * other.x,
+      y: self.y * other.y,
+      z: self.z * other.z,
+    };
+  }
+}
+
+impl MulAssign<f32> for Vector3 {
+  fn mul_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x * other,
+      y: self.y * other,
+      z: self.z * other,
+    };
+  }
+}
+
+impl MulAssign<[f32; 3]> for Vector3 {
+  fn mul_assign(&mut self, other: [f32; 3]) {
+    *self = Self {
+      x: self.x * other[0],
+      y: self.y * other[1],
+      z: self.z * other[2],
+    };
+  }
+}
+
+impl DivAssign for Vector3 {
+  fn div_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x / other.x,
+      y: self.y / other.y,
+      z: self.z / other.z,
+    };
+  }
+}
+
+impl DivAssign<f32> for Vector3 {
+  fn div_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x / other,
+      y: self.y / other,
+      z: self.z / other,
+    };
+  }
+}
+
+impl DivAssign<[f32; 3]> for Vector3 {
+  fn div_assign(&mut self, other: [f32; 3]) {
+    *self = Self {
+      x: self.x / other[0],
+      y: self.y / other[1],
+      z: self.z / other[2],
+    };
+  }
+}
+
+impl Neg for Vector3 {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output {
+    Self {
+      x: -self.x,
+      y: -self.y,
+      z: -self.z,
+    }
+  }
+}
+
+impl Into<[f32; 3]> for Vector3 {
+  fn into(self) -> [f32; 3] {
+    [self.x, self.y, self.z]
+  }
+}
+
+impl Vector4 {
+  pub fn new(x: f32, y: f32, z: f32, w: f32) -> Vector4 {
+    Vector4 {
+      x,
+      y,
+      z,
+      w,
+    }
+  }
+
+  pub fn from_f32(v: f32) -> Vector4 {
+    Vector4 {
+      x: v,
+      y: v,
+      z: v,
+      w: v,
+    }
+  }
+
+  pub fn from_array(a: [f32; 4]) -> Vector4 {
+    Vector4 {
+      x: a[0],
+      y: a[1],
+      z: a[2],
+      w: a[3],
+    }
+  }
+}
+
+impl VectorMath for Vector4 {
+  fn dot(self, other: Self) -> f32 {
+    let m = self * other;
+
+    m.x + m.y + m.z + m.w
+  }
+
+  fn scale(self, other: f32) -> Self {
+    self * other
+  }
+
+  fn set_magnitude(self, magnitude: f32) -> Self {
+    let len = self.magnitude();
+
+    Self {
+      x: self.x * magnitude / len,
+      y: self.y * magnitude / len,
+      z: self.z * magnitude / len,
+      w: self.w * magnitude / len,
+    }
+  }
+
+  fn mix(self, other: Self, a: f32) -> Self {
+    Self {
+      x: self.x * (1.0 - a) + other.x * a,
+      y: self.y * (1.0 - a) + other.y * a,
+      z: self.z * (1.0 - a) + other.z * a,
+      w: self.w * (1.0 - a) + other.w * a,
+    }
+  }
+
+  fn squared_magnitude(&self) -> f32 {
+    self.x*self.x + self.y*self.y + self.z*self.z + self.w*self.w
+  }
+
+  fn magnitude(&self) -> f32 {
+    self.squared_magnitude().sqrt()
+  }
+}
+
+impl Add for Vector4 { 
+  type Output = Self;
+
+  fn add(self, other: Self) -> Self {
+    Self {
+      x: self.x + other.x,
+      y: self.y + other.y,
+      z: self.z + other.z,
+      w: self.w + other.w,
+    }
+  }
+}
+
+impl Add<f32> for Vector4 { 
+  type Output = Self;
+
+  fn add(self, other: f32) -> Self {
+    Self {
+      x: self.x + other,
+      y: self.y + other,
+      z: self.z + other,
+      w: self.w + other,
+    }
+  }
+}
+
+impl Add<[f32; 4]> for Vector4 { 
+  type Output = Self;
+
+  fn add(self, other: [f32; 4]) -> Self {
+    Self {
+      x: self.x + other[0],
+      y: self.y + other[1],
+      z: self.z + other[2],
+      w: self.w + other[3],
+    }
+  }
+}
+
+impl Sub for Vector4 {
+  type Output = Self;
+
+  fn sub(self, other: Self) -> Self {
+    Self {
+      x: self.x - other.x,
+      y: self.y - other.y,
+      z: self.z - other.z,
+      w: self.w - other.w
+    }
+  }
+}
+
+impl Sub<f32> for Vector4 {
+  type Output = Self;
+
+  fn sub(self, other: f32) -> Self {
+    Self {
+      x: self.x - other,
+      y: self.y - other,
+      z: self.z - other,
+      w: self.w - other,
+    }
+  }
+}
+
+impl Sub<[f32; 4]> for Vector4 {
+  type Output = Self;
+
+  fn sub(self, other: [f32; 4]) -> Self {
+    Self {
+      x: self.x - other[0],
+      y: self.y - other[1],
+      z: self.z - other[2],
+      w: self.w - other[3],
+    }
+  }
+}
+
+impl AddAssign for Vector4 {
+  fn add_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x + other.x,
+      y: self.y + other.y,
+      z: self.z + other.z,
+      w: self.w + other.w,
+    };
+  }
+}
+
+impl AddAssign<f32> for Vector4 {
+  fn add_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x + other,
+      y: self.y + other,
+      z: self.z + other,
+      w: self.w + other,
+    };
+  }
+}
+
+impl AddAssign<[f32; 4]> for Vector4 {
+  fn add_assign(&mut self, other: [f32; 4]) {
+    *self = Self {
+      x: self.x + other[0],
+      y: self.y + other[1],
+      z: self.z + other[2],
+      w: self.w + other[3],
+    };
+  }
+}
+
+impl SubAssign for Vector4 {
+  fn sub_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x - other.x,
+      y: self.y - other.y,
+      z: self.z - other.z,
+      w: self.w - other.w,
+    };
+  }
+}
+
+impl SubAssign<f32> for Vector4 {
+  fn sub_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x - other,
+      y: self.y - other,
+      z: self.z - other,
+      w: self.w - other,
+    };
+  }
+}
+
+impl SubAssign<[f32; 4]> for Vector4 {
+  fn sub_assign(&mut self, other: [f32; 4]) {
+    *self = Self {
+      x: self.x - other[0],
+      y: self.y - other[1],
+      z: self.z - other[2],
+      w: self.w - other[3],
+    };
+  }
+}
+
+impl Mul for Vector4 {
+  type Output = Self;
+
+  fn mul(self, other: Self) -> Self {
+    Self {
+      x: self.x * other.x,
+      y: self.y * other.y,
+      z: self.z * other.z,
+      w: self.w * other.w,
+    }
+  }
+}
+
+impl Mul<f32> for Vector4 {
+  type Output = Self;
+
+  fn mul(self, other: f32) -> Self {
+    Self {
+      x: self.x * other,
+      y: self.y * other,
+      z: self.z * other,
+      w: self.w * other,
+    }
+  }
+}
+
+impl Mul<[f32; 4]> for Vector4 {
+  type Output = Self;
+
+  fn mul(self, other: [f32; 4]) -> Self {
+    Self {
+      x: self.x * other[0],
+      y: self.y * other[1],
+      z: self.z * other[2],
+      w: self.w * other[3],
+    }
+  }
+}
+
+impl Div for Vector4 {
+  type Output = Self;
+
+  fn div(self, other: Self) -> Self {
+    Self {
+      x: self.x / other.x,
+      y: self.y / other.y,
+      z: self.z / other.z,
+      w: self.w / other.w,
+    }
+  }
+}
+
+impl Div<f32> for Vector4 {
+  type Output = Self;
+
+  fn div(self, other: f32) -> Self {
+    Self {
+      x: self.x / other,
+      y: self.y / other,
+      z: self.z / other,
+      w: self.w / other,
+    }
+  }
+}
+
+impl Div<[f32; 4]> for Vector4 {
+  type Output = Self;
+
+  fn div(self, other: [f32; 4]) -> Self {
+    Self {
+      x: self.x / other[0],
+      y: self.y / other[1],
+      z: self.z / other[2],
+      w: self.w / other[3],
+    }
+  }
+}
+
+impl MulAssign for Vector4 {
+  fn mul_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x * other.x,
+      y: self.y * other.y,
+      z: self.z * other.z,
+      w: self.w * other.w,
+    };
+  }
+}
+
+impl MulAssign<f32> for Vector4 {
+  fn mul_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x * other,
+      y: self.y * other,
+      z: self.z * other,
+      w: self.w * other,
+    };
+  }
+}
+
+impl MulAssign<[f32; 4]> for Vector4 {
+  fn mul_assign(&mut self, other: [f32; 4]) {
+    *self = Self {
+      x: self.x * other[0],
+      y: self.y * other[1],
+      z: self.z * other[2],
+      w: self.w * other[3],
+    };
+  }
+}
+
+impl DivAssign for Vector4 {
+  fn div_assign(&mut self, other: Self) {
+    *self = Self {
+      x: self.x / other.x,
+      y: self.y / other.y,
+      z: self.z / other.z,
+      w: self.w / other.w,
+    };
+  }
+}
+
+impl DivAssign<f32> for Vector4 {
+  fn div_assign(&mut self, other: f32) {
+    *self = Self {
+      x: self.x / other,
+      y: self.y / other,
+      z: self.z / other,
+      w: self.w / other,
+    };
+  }
+}
+
+impl DivAssign<[f32; 4]> for Vector4 {
+  fn div_assign(&mut self, other: [f32; 4]) {
+    *self = Self {
+      x: self.x / other[0],
+      y: self.y / other[1],
+      z: self.z / other[2],
+      w: self.w / other[3],
+    };
+  }
+}
+
+impl Neg for Vector4 {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output {
+    Self {
+      x: -self.x,
+      y: -self.y,
+      z: -self.z,
+      w: -self.w,
+    }
+  }
+}
+
+impl Into<[f32; 4]> for Vector4 {
+  fn into(self) -> [f32; 4] {
+    [self.x, self.y, self.z, self.w]
+  }
+}
 
 impl Math {
   pub fn vec3_equals(p: [f32; 3], q: [f32; 3]) -> bool {
