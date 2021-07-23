@@ -2,7 +2,7 @@ use std::ops::*;
 
 pub struct Math {}
 
-trait VectorMath {
+pub trait VectorMath {
   fn dot(self, other: Self) -> f32;
   fn scale(self, other: f32) -> Self;
   fn set_magnitude(self, magnitude: f32) -> Self;
@@ -12,12 +12,14 @@ trait VectorMath {
   fn squared_magnitude(&self) -> f32;
 }
 
+#[derive(Clone)]
 pub struct Vector3 {
   pub x: f32,
   pub y: f32,
   pub z: f32,
 }
 
+#[derive(Clone)]
 pub struct Vector4 {
   pub x: f32,
   pub y: f32,
@@ -366,6 +368,12 @@ impl Neg for Vector3 {
 }
 
 impl Into<[f32; 3]> for Vector3 {
+  fn into(self) -> [f32; 3] {
+    [self.x, self.y, self.z]
+  }
+}
+
+impl Into<[f32; 3]> for &Vector3 {
   fn into(self) -> [f32; 3] {
     [self.x, self.y, self.z]
   }
@@ -737,6 +745,12 @@ impl Neg for Vector4 {
 }
 
 impl Into<[f32; 4]> for Vector4 {
+  fn into(self) -> [f32; 4] {
+    [self.x, self.y, self.z, self.w]
+  }
+}
+
+impl Into<[f32; 4]> for &Vector4 {
   fn into(self) -> [f32; 4] {
     [self.x, self.y, self.z, self.w]
   }
