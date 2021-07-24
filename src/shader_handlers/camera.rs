@@ -55,8 +55,8 @@ impl Camera {
 
     let mut cam = Camera {
       fov: 71.0,
-      znear: 0.1,
-      zfar: 256.0,
+      znear: 1.0,
+      zfar: 3.0,
 
       rotation,
       position,
@@ -68,7 +68,7 @@ impl Camera {
       movement_speed: 1.0,
       rotation_speed: 90.0, // degrees per second
 
-      perspective: Math::perspective(71.0, 1280.0 / 720.0, 0.1, 256.0, flip_y),
+      perspective: Math::perspective(71.0, 1280.0 / 720.0, 1.0, 3.0, flip_y),
       view: Camera::view(position, rotation, camera_type, flip_y),
 
       camera_type,
