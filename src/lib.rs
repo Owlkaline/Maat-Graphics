@@ -38,7 +38,7 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   MouseMoved(f64, f64, &'a mut Camera),
-  ScrollDelta(f32, f32, &'a mut Camera),
+  ScrollDelta(f32, f32, &'a mut Camera), // scroll x, y, camera
   Resized(u32, u32),
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent),
@@ -237,11 +237,6 @@ impl MaatGraphics {
         _delta_time,
       ));
 
-      // If stored up delta time grows too large reset delta buffer
-      //if total_delta_time >= MAX_DELTA_TIME {
-      //  total_delta_time = DELTA_STEP;
-      //}
-      
       if total_delta_time >=  0.05 {
         total_delta_time = DELTA_STEP;
       }
