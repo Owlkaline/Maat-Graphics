@@ -7,19 +7,20 @@ pub trait VectorMath {
   fn scale(self, other: f32) -> Self;
   fn set_magnitude(self, magnitude: f32) -> Self;
   fn mix(self, other: Self, a: f32) -> Self;
+  fn normalise(self) -> Self; 
 
   fn magnitude(&self) -> f32;
   fn squared_magnitude(&self) -> f32;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vector3 {
   pub x: f32,
   pub y: f32,
   pub z: f32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vector4 {
   pub x: f32,
   pub y: f32,
@@ -44,7 +45,7 @@ impl Vector3 {
     }
   }
 
-  fn cross(self, other: Vector3) -> Vector3 {
+  pub fn cross(self, other: Vector3) -> Vector3 {
     Vector3 {
       x: self.y * other.z - other.y * self.z,
       y: self.z * other.x - other.z * self.x,
@@ -80,6 +81,12 @@ impl VectorMath for Vector3 {
       y: self.y * (1.0 - a) + other.y * a,
       z: self.z * (1.0 - a) + other.z * a,
     }
+  }
+
+  fn normalise(self) -> Self {
+    let mag = self.magnitude();
+
+    self/mag
   }
 
   fn squared_magnitude(&self) -> f32 {
@@ -432,6 +439,12 @@ impl VectorMath for Vector4 {
       z: self.z * (1.0 - a) + other.z * a,
       w: self.w * (1.0 - a) + other.w * a,
     }
+  }
+  
+  fn normalise(self) -> Self {
+    let mag = self.magnitude();
+
+    self/mag
   }
 
   fn squared_magnitude(&self) -> f32 {

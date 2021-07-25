@@ -4,6 +4,8 @@ pub extern crate ash;
 pub extern crate image;
 pub extern crate winit;
 
+pub use crate::shader_handlers::{font::FontChar, gltf_loader::CollisionInformation, Camera, Math, VectorMath, Vector3, Vector4};
+
 mod modules;
 mod shader_handlers;
 
@@ -22,7 +24,6 @@ use winit::{
 use crate::ash::version::DeviceV1_0;
 pub use crate::modules::VkWindow;
 use crate::modules::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
-pub use crate::shader_handlers::{font::FontChar, gltf_loader::CollisionInformation, Camera, Math};
 use crate::shader_handlers::{ModelHandler, TextureHandler};
 
 const DELTA_STEP: f32 = 0.001;
