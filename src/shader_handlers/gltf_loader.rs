@@ -213,7 +213,6 @@ impl CollisionInformation {
     let mut object_max_bounds = [f32::MIN; 3];
 
     if std::path::Path::new(&location).exists() {
-      println!("Found collision model");
       collision_objects.clear();
 
       let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
@@ -291,7 +290,6 @@ impl CollisionInformation {
         }
       }
     } else {
-      println!("No collision model found.");
       for object in &collision_objects {
         object_displacement = Math::vec3_add(object_displacement, object.displacement().into());
       }
@@ -1205,11 +1203,6 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
 
   for i in 0..nodes.len() {
     update_joints(vulkan, &mut mesh_skins, &mut nodes, i);
-  }
-
-  println!("Animations: {:?}", mesh_animations.len());
-  for animation in &mesh_animations {
-    println!("    Name: {:?}", animation.name);
   }
 
   let collision_info = CollisionInformation::new(reference.into(), location, collision_objects);

@@ -3,10 +3,12 @@
 pub extern crate ash;
 pub extern crate image;
 pub extern crate winit;
+pub extern crate gilrs;
 
 pub use crate::shader_handlers::{
   font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector3, Vector4, VectorMath,
 };
+pub use crate::modules::VkWindow;
 
 mod modules;
 mod shader_handlers;
@@ -14,6 +16,8 @@ mod shader_handlers;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::time::Instant;
+
+use gilrs::{ev::EventType, Event as GpEvent, Gilrs, GamepadId, Button, Axis};
 
 use ash::vk;
 use winit::{
@@ -24,13 +28,110 @@ use winit::{
 };
 
 use crate::ash::version::DeviceV1_0;
-pub use crate::modules::VkWindow;
 use crate::modules::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 use crate::shader_handlers::{ModelHandler, TextureHandler};
 
 const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
+
+pub enum AxisInput {
+  X(Direction, f32),
+  Y(Direction, f32),
+}
+
+pub enum Direction {
+  Up,
+  Down,
+  Left,
+  Right
+}
+
+pub enum ControllerInput {
+  ActionButton(Direction), // A b x y, circle cross triangle square
+  DPad(Direction),
+  Trigger(Direction),
+  Trigger2(Direction),
+  Stick(Direction),
+  Start,
+  Select,
+}
+
+impl AxisInput {
+  pub fn from_axis(axis: Axis, value: f32) -> Option<AxisInput> {
+    match axis {
+      Axis::LeftStickX => {
+        Some(AxisInput::X(Direction::Left, value))
+      },
+      Axis::LeftStickY => {
+        Some(AxisInput::Y(Direction::Left, value))
+      },
+      Axis::RightStickX => {
+        Some(AxisInput::X(Direction::Right, value))
+      },
+      Axis::RightStickY => {
+        Some(AxisInput::Y(Direction::Right, value))
+      },
+      _ => { None }
+    }
+  }
+}
+
+impl ControllerInput {
+  pub fn from_button(button: Button) -> Option<ControllerInput> {
+    match button {
+      Button::North => {
+        Some(ControllerInput::ActionButton(Direction::Up))
+      },
+      Button::East => {
+        Some(ControllerInput::ActionButton(Direction::Right))
+      },
+      Button::South => {
+        Some(ControllerInput::ActionButton(Direction::Down))
+      },
+      Button::West => {
+        Some(ControllerInput::ActionButton(Direction::Left))
+      },
+      Button::LeftTrigger => {
+        Some(ControllerInput::Trigger(Direction::Left))
+      },
+      Button::LeftTrigger2 => {
+        Some(ControllerInput::Trigger2(Direction::Left))
+      },
+      Button::RightTrigger => {
+        Some(ControllerInput::Trigger(Direction::Right))
+      },
+      Button::RightTrigger2 => {
+        Some(ControllerInput::Trigger2(Direction::Right))
+      },
+      Button::LeftThumb => {
+        Some(ControllerInput::Stick(Direction::Left))
+      },
+      Button::RightThumb => {
+        Some(ControllerInput::Stick(Direction::Right))
+      },
+      Button::DPadUp => {
+        Some(ControllerInput::DPad(Direction::Up))
+      },
+      Button::DPadDown => {
+        Some(ControllerInput::DPad(Direction::Down))
+      },
+      Button::DPadLeft => {
+        Some(ControllerInput::DPad(Direction::Left))
+      },
+      Button::DPadRight => {
+        Some(ControllerInput::DPad(Direction::Right))
+      },
+      Button::Start => {
+        Some(ControllerInput::Start)
+      },
+      Button::Select => {
+        Some(ControllerInput::Select)
+      },
+      _ => { None }
+    }
+  }
+}
 
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Draw(
@@ -41,6 +142,8 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   MouseMoved(f64, f64, &'a mut Camera),
   ScrollDelta(f32, f32, &'a mut Camera), // scroll x, y, camera
+  GamepadButton(ControllerInput, bool),
+  GamepadAxis(AxisInput),
   Resized(u32, u32),
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent),
@@ -53,6 +156,9 @@ pub struct MaatGraphics {
   compute_descriptor_pool: vk::DescriptorPool,
   compute_shader: ComputeShader,
   compute_descriptor_sets: DescriptorSet,
+
+  gamepads: Option<Gilrs>,
+  active_controller: Option<GamepadId>,
 }
 
 impl MaatGraphics {
@@ -89,8 +195,38 @@ impl MaatGraphics {
       compute_descriptor_pool,
       compute_shader,
       compute_descriptor_sets,
+
+      gamepads: None,
+      active_controller: None,
     }
   }
+  
+  pub fn enable_gamepad_input(&mut self) {
+    match Gilrs::new() {
+      Ok(gilrs_object) => {
+        for (id, gamepad) in gilrs_object.gamepads() {
+          assert!(gamepad.is_connected());
+          println!("Gamepad with id {} and name {} is connected",
+                   id, gamepad.name());
+          if self.active_controller.is_none() {
+            self.active_controller = Some(id);
+          }
+        }
+
+        self.gamepads = Some(gilrs_object);
+      },
+      _ => {
+        println!("Failed to create gamepad listener.");
+      }
+    }
+  }
+
+  //pub fn get_button_state(gamepad: Gamepad, button: Button, counter: u64) -> bool {
+  //  match gamepad.button_data(button) {
+  //    Some(d) => { d.is_pressed() && d.counter() == counter },
+  //    _ => { false },
+  //  }
+  //}
 
   pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self
@@ -116,7 +252,7 @@ impl MaatGraphics {
 
   pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {
     self.model_handler.model_collision_meshes()
-  }
+  } 
 
   pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
     self.texture_handler.get_font_data()
@@ -270,7 +406,64 @@ impl MaatGraphics {
       let mut model_data = Vec::new();
 
       callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+      
+      if let Some(controllers) = &mut vulkan.gamepads {
+        if let Some(gamepad_id) = &vulkan.active_controller {
+          if let Some(event) = controllers.next_event() {
+            match event {
+              GpEvent { id, event, ..} => {
+                if id == *gamepad_id {
+                  match event {
+                    EventType::ButtonPressed(button, _) => {
+                      if let Some(input) = ControllerInput::from_button(button) {
+                        callback(MaatEvent::GamepadButton(input, true));
+                      }
+                    },
+                    EventType::ButtonReleased(button, _) => {
+                      if let Some(input) = ControllerInput::from_button(button) {
+                        callback(MaatEvent::GamepadButton(input, false));
+                      }
+                    },
+                    EventType::AxisChanged(axis, value, _) => {
+                      if let Some(axis) = AxisInput::from_axis(axis, value) {
+                        callback(MaatEvent::GamepadAxis(axis));
+                      }
+                    },
+                    _ => {},
+                  }
+                }
+              },
+            }
+          }
+        }
+      }
+      
+      //if let Some(controllers) = &mut vulkan.gamepads {
+      //  if let Some(gamepad_id) = &vulkan.active_controller {
+      //    let gamepad = controllers.gamepad(*gamepad_id); 
+      //    let counter = controllers.counter();
 
+      //    let north_button_pressed = MaatGraphics::get_button_state(gamepad, Button::North, counter);
+      //    let east_button_pressed = MaatGraphics::get_button_state(gamepad, Button::East, counter);
+      //    let south_button_pressed = MaatGraphics::get_button_state(gamepad, Button::South, counter);
+      //    let west_button_pressed = MaatGraphics::get_button_state(gamepad, Button::West, counter);
+      //    let left_trigger_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftTrigger, counter);
+      //    let left_trigger2_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftTrigger2, counter);
+      //    let right_trigger_pressed = MaatGraphics::get_button_state(gamepad, Button::RightTrigger, counter);
+      //    let right_trigger2_pressed = MaatGraphics::get_button_state(gamepad, Button::RightTrigger2, counter);
+      //    let select_pressed = MaatGraphics::get_button_state(gamepad, Button::Select, counter);
+      //    let start_pressed = MaatGraphics::get_button_state(gamepad, Button::Start, counter);
+      //    let left_stick_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftThumb, counter);
+      //    let right_stick_pressed = MaatGraphics::get_button_state(gamepad, Button::RightThumb, counter);
+      //    let dpad_up_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadUp, counter);
+      //    let dpad_down_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadDown, counter);
+      //    let dpad_left_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadLeft, counter);
+      //    let dpad_right_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadRight, counter);
+      //    
+      //    println!("North: {}, right trigger: {}, dpad up: {}", north_button_pressed, right_trigger_pressed, dpad_up_pressed);
+      //  }
+      //}
+   
       match event {
         Event::WindowEvent { event, .. } => match event {
           WindowEvent::CloseRequested => {
@@ -355,6 +548,10 @@ impl MaatGraphics {
           vulkan.destroy();
         }
         _unhandled_event => {}
+      }
+      
+      if let Some(gamepad) = &mut vulkan.gamepads {
+        gamepad.inc();
       }
     })
   }
