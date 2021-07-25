@@ -240,9 +240,11 @@ impl MaatGraphics {
       //if total_delta_time >= MAX_DELTA_TIME {
       //  total_delta_time = DELTA_STEP;
       //}
-
+      if total_delta_time >=  0.05 {
+        total_delta_time = 0.0;
+      }
       if total_delta_time > DELTA_STEP {
-        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
+        let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
 
         for _ in 0..delta_steps {
           callback(MaatEvent::FixedUpdate(
