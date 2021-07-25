@@ -240,11 +240,13 @@ impl MaatGraphics {
       //if total_delta_time >= MAX_DELTA_TIME {
       //  total_delta_time = DELTA_STEP;
       //}
+      
       if total_delta_time >=  0.05 {
-        total_delta_time = 0.0;
+        total_delta_time = DELTA_STEP;
       }
+
       if total_delta_time > DELTA_STEP {
-        let delta_steps = (total_delta_time / DELTA_STEP).floor() as usize;
+        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
 
         for _ in 0..delta_steps {
           callback(MaatEvent::FixedUpdate(
@@ -316,6 +318,9 @@ impl MaatGraphics {
           }
           DeviceEvent::MouseWheel { delta } => match delta {
             winit::event::MouseScrollDelta::LineDelta(x, y) => {
+              #[cfg(target_os = "windows")]
+              let y = -y;
+
               callback(MaatEvent::ScrollDelta(x, y, vulkan.mut_camera()));
             }
             _ => {}
