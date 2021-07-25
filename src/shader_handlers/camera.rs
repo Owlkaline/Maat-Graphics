@@ -1,4 +1,4 @@
-use crate::shader_handlers::{Math, VectorMath, Vector3, Vector4};
+use crate::shader_handlers::{Math, Vector3, Vector4, VectorMath};
 
 const TP_X_ROT_MIN: f32 = 89.0;
 const TP_X_ROT_MAX: f32 = 189.0;
@@ -33,7 +33,7 @@ pub struct Camera {
 
   movement_speed: f32,
   rotation_speed: f32,
-  
+
   invert_x_rotation: f32,
   invert_y_rotation: f32,
 
@@ -56,7 +56,10 @@ impl Camera {
 
     let camera_type = CameraType::Fly;
 
-    let (position, rotation) = (Vector3::new(0.4351558, -6.641949, 3.27347), Vector3::new(121.0, 0.0, 0.0));
+    let (position, rotation) = (
+      Vector3::new(0.4351558, -6.641949, 3.27347),
+      Vector3::new(121.0, 0.0, 0.0),
+    );
 
     let target = Vector3::from_f32(0.0);
 
@@ -99,13 +102,13 @@ impl Camera {
   pub fn set_movement_speed(&mut self, speed: f32) {
     self.movement_speed = speed;
   }
-  
+
   pub fn set_fly_mode(&mut self) {
     self.camera_type = CameraType::Fly;
     self.min_x_rotation = None;
     self.max_x_rotation = None;
   }
-   
+
   pub fn set_first_person_mode(&mut self) {
     self.camera_type = CameraType::FirstPerson;
     self.min_x_rotation = Some(FP_X_ROT_MIN);
@@ -157,7 +160,7 @@ impl Camera {
         CameraType::Fly => Camera::camera_front(self.rotation),
         CameraType::FirstPerson => {
           Camera::camera_front(Vector3::new(180.0, self.rotation.y, self.rotation.z))
-        },
+        }
         CameraType::ThirdPerson => {
           let length = self.offset.magnitude();
 
@@ -175,7 +178,7 @@ impl Camera {
           self.offset = new_offset;
 
           Vector3::from_f32(0.0)
-        },
+        }
       }
     };
 
@@ -264,7 +267,8 @@ impl Camera {
 
   pub fn update_view_matrix(&mut self) {
     self.view = Camera::view(self.position, self.rotation, self.camera_type, self.flip_y);
-    self.view_pos = Vector4::new(self.position.x, self.position.y, self.position.z, 0.0) * Vector4::new(-1.0, 1.0, -1.0, 1.0);
+    self.view_pos = Vector4::new(self.position.x, self.position.y, self.position.z, 0.0) *
+      Vector4::new(-1.0, 1.0, -1.0, 1.0);
 
     self.updated = true;
   }
@@ -285,12 +289,16 @@ impl Camera {
 
   // Rotate camera by degrees along the (x, y, z) axis
   pub fn rotate_by_degrees(&mut self, delta: Vector3) {
-    let delta = [delta.x*self.invert_y_rotation, delta.y*self.invert_x_rotation, delta.z];
+    let delta = [
+      delta.x * self.invert_y_rotation,
+      delta.y * self.invert_x_rotation,
+      delta.z,
+    ];
 
     match self.camera_type {
       CameraType::Fly | CameraType::FirstPerson => {
         self.rotation = self.rotation + delta;
-        
+
         if let Some(max_x_rotation) = self.max_x_rotation {
           if self.rotation.x > max_x_rotation {
             self.rotation.x = max_x_rotation;
@@ -302,11 +310,11 @@ impl Camera {
             self.rotation.x = min_x_rotation;
           }
         }
-      },
+      }
       CameraType::ThirdPerson => {
         let length = self.offset.magnitude();
         self.rotation = self.rotation + delta;
-        
+
         if let Some(max_x_rotation) = self.max_x_rotation {
           if self.rotation.x > max_x_rotation {
             self.rotation.x = max_x_rotation;
@@ -322,7 +330,7 @@ impl Camera {
         let new_camera_front = Camera::camera_front(self.rotation);
         let new_offset = new_camera_front.set_magnitude(-length);
         self.offset = new_offset;
-      },
+      }
     }
     self.update_view_matrix();
   }
@@ -359,11 +367,10 @@ impl Camera {
       CameraType::FirstPerson | CameraType::Fly | CameraType::ThirdPerson => {
         // rot_m * trans_m
         Math::mat4_mul(trans_m, rot_m)
-      }
-      //CameraType::LookAt => {
-      //  // trans_m * rot_m
-      //  Math::mat4_mul(rot_m, trans_m)
-      //}
+      } //CameraType::LookAt => {
+        //  // trans_m * rot_m
+        //  Math::mat4_mul(rot_m, trans_m)
+        //}
     }
   }
 

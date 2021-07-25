@@ -7,7 +7,7 @@ pub trait VectorMath {
   fn scale(self, other: f32) -> Self;
   fn set_magnitude(self, magnitude: f32) -> Self;
   fn mix(self, other: Self, a: f32) -> Self;
-  fn normalise(self) -> Self; 
+  fn normalise(self) -> Self;
 
   fn magnitude(&self) -> f32;
   fn squared_magnitude(&self) -> f32;
@@ -86,7 +86,7 @@ impl VectorMath for Vector3 {
   fn normalise(self) -> Self {
     let mag = self.magnitude();
 
-    self/mag
+    self / mag
   }
 
   fn squared_magnitude(&self) -> f32 {
@@ -440,11 +440,11 @@ impl VectorMath for Vector4 {
       w: self.w * (1.0 - a) + other.w * a,
     }
   }
-  
+
   fn normalise(self) -> Self {
     let mag = self.magnitude();
 
-    self/mag
+    self / mag
   }
 
   fn squared_magnitude(&self) -> f32 {

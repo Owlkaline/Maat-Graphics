@@ -4,7 +4,9 @@ pub extern crate ash;
 pub extern crate image;
 pub extern crate winit;
 
-pub use crate::shader_handlers::{font::FontChar, gltf_loader::CollisionInformation, Camera, Math, VectorMath, Vector3, Vector4};
+pub use crate::shader_handlers::{
+  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector3, Vector4, VectorMath,
+};
 
 mod modules;
 mod shader_handlers;
@@ -237,7 +239,7 @@ impl MaatGraphics {
         _delta_time,
       ));
 
-      if total_delta_time >=  0.05 {
+      if total_delta_time >= 0.05 {
         total_delta_time = DELTA_STEP;
       }
 
