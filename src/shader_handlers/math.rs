@@ -13,14 +13,14 @@ pub trait VectorMath {
   fn squared_magnitude(&self) -> f32;
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Vector3 {
   pub x: f32,
   pub y: f32,
   pub z: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Vector4 {
   pub x: f32,
   pub y: f32,
