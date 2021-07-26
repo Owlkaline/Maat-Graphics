@@ -1,6 +1,6 @@
 pub use self::camera::{Camera, CameraType};
 pub use self::font::Font;
-pub use self::math::{Math, Vector3, Vector4, VectorMath};
+pub use self::math::{Math, Vector2, Vector3, Vector4, VectorMath};
 pub use self::model_handler::ModelHandler;
 pub use self::texture_handler::{ComboVertex, TextureHandler};
 

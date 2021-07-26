@@ -6,7 +6,7 @@ pub extern crate winit;
 pub extern crate gilrs;
 
 pub use crate::shader_handlers::{
-  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector3, Vector4, VectorMath,
+  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector2, Vector3, Vector4, VectorMath,
 };
 pub use crate::modules::VkWindow;
 
@@ -22,7 +22,7 @@ use gilrs::{ev::EventType, Event as GpEvent, Gilrs, GamepadId, Button, Axis};
 use ash::vk;
 use winit::{
   event::{
-    DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent,
+    DeviceEvent, ElementState, Event, KeyboardInput, MouseButton as WMouseButton, VirtualKeyCode, WindowEvent,
   },
   event_loop::{ControlFlow, EventLoop},
 };
@@ -34,6 +34,12 @@ use crate::shader_handlers::{ModelHandler, TextureHandler};
 const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
+
+pub enum MouseInput {
+  Left(bool),
+  Right(bool),
+  Middle(bool),
+}
 
 pub enum AxisInput {
   X(Direction, f32),
@@ -140,11 +146,14 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   ),
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
-  MouseMoved(f64, f64, &'a mut Camera),
+  MouseMoved(f64, f64),
+  MouseButton(MouseInput),
+  MouseDelta(f64, f64, &'a mut Camera), // delta x delta y, camera
   ScrollDelta(f32, f32, &'a mut Camera), // scroll x, y, camera
   GamepadButton(ControllerInput, bool),
   GamepadAxis(AxisInput),
   Resized(u32, u32),
+  // NewModelLoaded -> HashMap<>
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent),
 }
@@ -221,13 +230,6 @@ impl MaatGraphics {
     }
   }
 
-  //pub fn get_button_state(gamepad: Gamepad, button: Button, counter: u64) -> bool {
-  //  match gamepad.button_data(button) {
-  //    Some(d) => { d.is_pressed() && d.counter() == counter },
-  //    _ => { false },
-  //  }
-  //}
-
   pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self
       .texture_handler
@@ -250,9 +252,9 @@ impl MaatGraphics {
     self.model_handler.all_collision_models()
   }
 
-  pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {
-    self.model_handler.model_collision_meshes()
-  } 
+  //pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {
+  //  self.model_handler.model_collision_meshes()
+  //} 
 
   pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
     self.texture_handler.get_font_data()
@@ -359,6 +361,8 @@ impl MaatGraphics {
 
     let mut total_delta_time = 0.0;
     let mut total_animation_delta_time = 0.0;
+    
+    let mut window_dimensions = [1280.0, 720.0];
 
     event_loop.run(move |event, _, control_flow| {
       *control_flow = ControlFlow::Poll;
@@ -480,23 +484,31 @@ impl MaatGraphics {
           WindowEvent::Resized(dimensions) => {
             vulkan.recreate_swapchain(dimensions.width, dimensions.height);
             callback(MaatEvent::Resized(dimensions.width, dimensions.height));
+            window_dimensions[0] = dimensions.width as f64;
+            window_dimensions[1] = dimensions.height as f64;
           }
           WindowEvent::KeyboardInput { input, .. } => {
             let key_code = input.scancode;
             software_keys.push(key_code);
-          }
+          },
+
+          WindowEvent::CursorMoved { position, .. } => {
+            callback(MaatEvent::MouseMoved(position.x, window_dimensions[1]-position.y));
+          },
           // TODO:
           WindowEvent::MouseInput { state, button, .. } => {
-            match state {
-              ElementState::Pressed => {}
-              ElementState::Released => {}
-            }
+            let state = match state {
+              ElementState::Pressed => { true }
+              ElementState::Released => { false }
+            };
 
-            match button {
-              MouseButton::Left => {}
-              MouseButton::Right => {}
-              MouseButton::Middle => {}
-              MouseButton::Other(_id) => {}
+            if let Some(button) = match button {
+              WMouseButton::Left => { Some(MouseInput::Left(state)) }
+              WMouseButton::Right => { Some(MouseInput::Right(state)) }
+              WMouseButton::Middle => { Some(MouseInput::Middle(state)) }
+              WMouseButton::Other(_id) => { None }
+            } {
+              callback(MaatEvent::MouseButton(button));
             }
           }
           window_event => {
@@ -505,7 +517,7 @@ impl MaatGraphics {
         },
         Event::DeviceEvent { event, .. } => match event {
           DeviceEvent::MouseMotion { delta: (mx, my) } => {
-            callback(MaatEvent::MouseMoved(mx, my, vulkan.mut_camera()));
+            callback(MaatEvent::MouseDelta(mx, my, vulkan.mut_camera()));
           }
           DeviceEvent::MouseWheel { delta } => match delta {
             winit::event::MouseScrollDelta::LineDelta(x, y) => {
@@ -548,10 +560,6 @@ impl MaatGraphics {
           vulkan.destroy();
         }
         _unhandled_event => {}
-      }
-      
-      if let Some(gamepad) = &mut vulkan.gamepads {
-        gamepad.inc();
       }
     })
   }
