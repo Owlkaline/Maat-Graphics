@@ -1,14 +1,15 @@
 #![allow(dead_code)]
 
 pub extern crate ash;
+pub extern crate gilrs;
 pub extern crate image;
 pub extern crate winit;
-pub extern crate gilrs;
 
-pub use crate::shader_handlers::{
-  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector2, Vector3, Vector4, VectorMath,
-};
 pub use crate::modules::VkWindow;
+pub use crate::shader_handlers::{
+  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector2, Vector3, Vector4,
+  VectorMath,
+};
 
 mod modules;
 mod shader_handlers;
@@ -17,12 +18,11 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::time::Instant;
 
-use gilrs::{ev::EventType, Event as GpEvent, Gilrs, GamepadId, Button, Axis};
-
 use ash::vk;
+use gilrs::{ev::EventType, Axis, Button, Event as GpEvent, GamepadId, Gilrs};
 use winit::{
   event::{
-    DeviceEvent, ElementState, Event, KeyboardInput, MouseButton as WMouseButton, VirtualKeyCode, WindowEvent,
+    DeviceEvent, ElementState, Event, MouseButton as WMouseButton, VirtualKeyCode, WindowEvent,
   },
   event_loop::{ControlFlow, EventLoop},
 };
@@ -50,7 +50,7 @@ pub enum Direction {
   Up,
   Down,
   Left,
-  Right
+  Right,
 }
 
 pub enum ControllerInput {
@@ -66,19 +66,11 @@ pub enum ControllerInput {
 impl AxisInput {
   pub fn from_axis(axis: Axis, value: f32) -> Option<AxisInput> {
     match axis {
-      Axis::LeftStickX => {
-        Some(AxisInput::X(Direction::Left, value))
-      },
-      Axis::LeftStickY => {
-        Some(AxisInput::Y(Direction::Left, value))
-      },
-      Axis::RightStickX => {
-        Some(AxisInput::X(Direction::Right, value))
-      },
-      Axis::RightStickY => {
-        Some(AxisInput::Y(Direction::Right, value))
-      },
-      _ => { None }
+      Axis::LeftStickX => Some(AxisInput::X(Direction::Left, value)),
+      Axis::LeftStickY => Some(AxisInput::Y(Direction::Left, value)),
+      Axis::RightStickX => Some(AxisInput::X(Direction::Right, value)),
+      Axis::RightStickY => Some(AxisInput::Y(Direction::Right, value)),
+      _ => None,
     }
   }
 }
@@ -86,55 +78,23 @@ impl AxisInput {
 impl ControllerInput {
   pub fn from_button(button: Button) -> Option<ControllerInput> {
     match button {
-      Button::North => {
-        Some(ControllerInput::ActionButton(Direction::Up))
-      },
-      Button::East => {
-        Some(ControllerInput::ActionButton(Direction::Right))
-      },
-      Button::South => {
-        Some(ControllerInput::ActionButton(Direction::Down))
-      },
-      Button::West => {
-        Some(ControllerInput::ActionButton(Direction::Left))
-      },
-      Button::LeftTrigger => {
-        Some(ControllerInput::Trigger(Direction::Left))
-      },
-      Button::LeftTrigger2 => {
-        Some(ControllerInput::Trigger2(Direction::Left))
-      },
-      Button::RightTrigger => {
-        Some(ControllerInput::Trigger(Direction::Right))
-      },
-      Button::RightTrigger2 => {
-        Some(ControllerInput::Trigger2(Direction::Right))
-      },
-      Button::LeftThumb => {
-        Some(ControllerInput::Stick(Direction::Left))
-      },
-      Button::RightThumb => {
-        Some(ControllerInput::Stick(Direction::Right))
-      },
-      Button::DPadUp => {
-        Some(ControllerInput::DPad(Direction::Up))
-      },
-      Button::DPadDown => {
-        Some(ControllerInput::DPad(Direction::Down))
-      },
-      Button::DPadLeft => {
-        Some(ControllerInput::DPad(Direction::Left))
-      },
-      Button::DPadRight => {
-        Some(ControllerInput::DPad(Direction::Right))
-      },
-      Button::Start => {
-        Some(ControllerInput::Start)
-      },
-      Button::Select => {
-        Some(ControllerInput::Select)
-      },
-      _ => { None }
+      Button::North => Some(ControllerInput::ActionButton(Direction::Up)),
+      Button::East => Some(ControllerInput::ActionButton(Direction::Right)),
+      Button::South => Some(ControllerInput::ActionButton(Direction::Down)),
+      Button::West => Some(ControllerInput::ActionButton(Direction::Left)),
+      Button::LeftTrigger => Some(ControllerInput::Trigger(Direction::Left)),
+      Button::LeftTrigger2 => Some(ControllerInput::Trigger2(Direction::Left)),
+      Button::RightTrigger => Some(ControllerInput::Trigger(Direction::Right)),
+      Button::RightTrigger2 => Some(ControllerInput::Trigger2(Direction::Right)),
+      Button::LeftThumb => Some(ControllerInput::Stick(Direction::Left)),
+      Button::RightThumb => Some(ControllerInput::Stick(Direction::Right)),
+      Button::DPadUp => Some(ControllerInput::DPad(Direction::Up)),
+      Button::DPadDown => Some(ControllerInput::DPad(Direction::Down)),
+      Button::DPadLeft => Some(ControllerInput::DPad(Direction::Left)),
+      Button::DPadRight => Some(ControllerInput::DPad(Direction::Right)),
+      Button::Start => Some(ControllerInput::Start),
+      Button::Select => Some(ControllerInput::Select),
+      _ => None,
     }
   }
 }
@@ -145,7 +105,13 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
     &'a mut Vec<(Vec<f32>, S)>,
   ),
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
-  Update(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
+  Update(
+    &'a Vec<VirtualKeyCode>,
+    &'a Vec<u32>,
+    &'a mut Camera,
+    f32,
+    &'a mut bool,
+  ),
   MouseMoved(f64, f64),
   MouseButton(MouseInput),
   MouseDelta(f64, f64, &'a mut Camera), // delta x delta y, camera
@@ -209,21 +175,24 @@ impl MaatGraphics {
       active_controller: None,
     }
   }
-  
+
   pub fn enable_gamepad_input(&mut self) {
     match Gilrs::new() {
       Ok(gilrs_object) => {
         for (id, gamepad) in gilrs_object.gamepads() {
           assert!(gamepad.is_connected());
-          println!("Gamepad with id {} and name {} is connected",
-                   id, gamepad.name());
+          println!(
+            "Gamepad with id {} and name {} is connected",
+            id,
+            gamepad.name()
+          );
           if self.active_controller.is_none() {
             self.active_controller = Some(id);
           }
         }
 
         self.gamepads = Some(gilrs_object);
-      },
+      }
       _ => {
         println!("Failed to create gamepad listener.");
       }
@@ -254,7 +223,7 @@ impl MaatGraphics {
 
   //pub fn model_collision_meshes(&self) -> Vec<(String, Vec<[f32; 3]>, Vec<u32>)> {
   //  self.model_handler.model_collision_meshes()
-  //} 
+  //}
 
   pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
     self.texture_handler.get_font_data()
@@ -361,7 +330,7 @@ impl MaatGraphics {
 
     let mut total_delta_time = 0.0;
     let mut total_animation_delta_time = 0.0;
-    
+
     let mut window_dimensions = [1280.0, 720.0];
 
     event_loop.run(move |event, _, control_flow| {
@@ -372,12 +341,18 @@ impl MaatGraphics {
       total_delta_time += _delta_time as f32;
       total_animation_delta_time += _delta_time as f32;
 
+      let mut should_exit = false;
       callback(MaatEvent::Update(
         &device_keys,
         &software_keys,
         vulkan.mut_camera(),
         _delta_time,
+        &mut should_exit,
       ));
+
+      if should_exit {
+        *control_flow = ControlFlow::Exit;
+      }
 
       if total_delta_time >= 0.05 {
         total_delta_time = DELTA_STEP;
@@ -410,77 +385,51 @@ impl MaatGraphics {
       let mut model_data = Vec::new();
 
       callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-      
+
       if let Some(controllers) = &mut vulkan.gamepads {
         if let Some(gamepad_id) = &vulkan.active_controller {
           if let Some(event) = controllers.next_event() {
             match event {
-              GpEvent { id, event, ..} => {
+              GpEvent { id, event, .. } => {
                 if id == *gamepad_id {
                   match event {
                     EventType::ButtonPressed(button, _) => {
                       if let Some(input) = ControllerInput::from_button(button) {
                         callback(MaatEvent::GamepadButton(input, true));
                       }
-                    },
+                    }
                     EventType::ButtonReleased(button, _) => {
                       if let Some(input) = ControllerInput::from_button(button) {
                         callback(MaatEvent::GamepadButton(input, false));
                       }
-                    },
+                    }
                     EventType::AxisChanged(axis, value, _) => {
                       if let Some(axis) = AxisInput::from_axis(axis, value) {
                         callback(MaatEvent::GamepadAxis(axis));
                       }
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                   }
                 }
-              },
+              }
             }
           }
         }
       }
-      
-      //if let Some(controllers) = &mut vulkan.gamepads {
-      //  if let Some(gamepad_id) = &vulkan.active_controller {
-      //    let gamepad = controllers.gamepad(*gamepad_id); 
-      //    let counter = controllers.counter();
 
-      //    let north_button_pressed = MaatGraphics::get_button_state(gamepad, Button::North, counter);
-      //    let east_button_pressed = MaatGraphics::get_button_state(gamepad, Button::East, counter);
-      //    let south_button_pressed = MaatGraphics::get_button_state(gamepad, Button::South, counter);
-      //    let west_button_pressed = MaatGraphics::get_button_state(gamepad, Button::West, counter);
-      //    let left_trigger_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftTrigger, counter);
-      //    let left_trigger2_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftTrigger2, counter);
-      //    let right_trigger_pressed = MaatGraphics::get_button_state(gamepad, Button::RightTrigger, counter);
-      //    let right_trigger2_pressed = MaatGraphics::get_button_state(gamepad, Button::RightTrigger2, counter);
-      //    let select_pressed = MaatGraphics::get_button_state(gamepad, Button::Select, counter);
-      //    let start_pressed = MaatGraphics::get_button_state(gamepad, Button::Start, counter);
-      //    let left_stick_pressed = MaatGraphics::get_button_state(gamepad, Button::LeftThumb, counter);
-      //    let right_stick_pressed = MaatGraphics::get_button_state(gamepad, Button::RightThumb, counter);
-      //    let dpad_up_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadUp, counter);
-      //    let dpad_down_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadDown, counter);
-      //    let dpad_left_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadLeft, counter);
-      //    let dpad_right_pressed = MaatGraphics::get_button_state(gamepad, Button::DPadRight, counter);
-      //    
-      //    println!("North: {}, right trigger: {}, dpad up: {}", north_button_pressed, right_trigger_pressed, dpad_up_pressed);
-      //  }
-      //}
-   
       match event {
         Event::WindowEvent { event, .. } => match event {
           WindowEvent::CloseRequested => {
             *control_flow = ControlFlow::Exit;
           }
-          WindowEvent::KeyboardInput {
-            input:
-              KeyboardInput {
-                virtual_keycode: Some(VirtualKeyCode::Escape),
-                ..
-              },
-            ..
-          } => *control_flow = ControlFlow::Exit,
+          //WindowEvent::KeyboardInput {
+          //  input:
+          //    KeyboardInput {
+          //      virtual_keycode: Some(VirtualKeyCode::Escape),
+          //      ..
+          //    },
+          //  ..
+          //} => *control_flow = ControlFlow::Exit,
           WindowEvent::Resized(dimensions) => {
             vulkan.recreate_swapchain(dimensions.width, dimensions.height);
             callback(MaatEvent::Resized(dimensions.width, dimensions.height));
@@ -490,23 +439,26 @@ impl MaatGraphics {
           WindowEvent::KeyboardInput { input, .. } => {
             let key_code = input.scancode;
             software_keys.push(key_code);
-          },
+          }
 
           WindowEvent::CursorMoved { position, .. } => {
-            callback(MaatEvent::MouseMoved(position.x, window_dimensions[1]-position.y));
-          },
+            callback(MaatEvent::MouseMoved(
+              position.x,
+              window_dimensions[1] - position.y,
+            ));
+          }
           // TODO:
           WindowEvent::MouseInput { state, button, .. } => {
             let state = match state {
-              ElementState::Pressed => { true }
-              ElementState::Released => { false }
+              ElementState::Pressed => true,
+              ElementState::Released => false,
             };
 
             if let Some(button) = match button {
-              WMouseButton::Left => { Some(MouseInput::Left(state)) }
-              WMouseButton::Right => { Some(MouseInput::Right(state)) }
-              WMouseButton::Middle => { Some(MouseInput::Middle(state)) }
-              WMouseButton::Other(_id) => { None }
+              WMouseButton::Left => Some(MouseInput::Left(state)),
+              WMouseButton::Right => Some(MouseInput::Right(state)),
+              WMouseButton::Middle => Some(MouseInput::Middle(state)),
+              WMouseButton::Other(_id) => None,
             } {
               callback(MaatEvent::MouseButton(button));
             }

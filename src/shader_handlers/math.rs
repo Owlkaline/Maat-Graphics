@@ -36,24 +36,15 @@ pub struct Vector4 {
 
 impl Vector2 {
   pub fn new(x: f32, y: f32) -> Vector2 {
-    Vector2 {
-      x,
-      y,
-    }
+    Vector2 { x, y }
   }
 
   pub fn from_f32(v: f32) -> Vector2 {
-    Vector2 {
-      x: v,
-      y: v,
-    }
+    Vector2 { x: v, y: v }
   }
 
   pub fn from_array(a: [f32; 2]) -> Vector2 {
-    Vector2 {
-      x: a[0],
-      y: a[1],
-    }
+    Vector2 { x: a[0], y: a[1] }
   }
 }
 
