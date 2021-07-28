@@ -11,11 +11,11 @@ pub trait Swizzle3 {
   fn xz(&self) -> Vector2;
   fn xyz(&self) -> Vector3;
   fn xzy(&self) -> Vector3;
-  
+
   fn yz(&self) -> Vector2;
   fn yxz(&self) -> Vector3;
   fn yzx(&self) -> Vector3;
-  
+
   fn zx(&self) -> Vector2;
   fn zy(&self) -> Vector2;
   fn zxy(&self) -> Vector3;
@@ -31,7 +31,7 @@ pub trait Swizzle4 {
   fn xyzw(&self) -> Vector4;
   fn xwyz(&self) -> Vector4;
   fn xzwy(&self) -> Vector4;
-  
+
   fn yw(&self) -> Vector2;
   fn yxw(&self) -> Vector3;
   fn ywx(&self) -> Vector3;
@@ -40,7 +40,7 @@ pub trait Swizzle4 {
   fn yxzw(&self) -> Vector4;
   fn ywxz(&self) -> Vector4;
   fn yzwx(&self) -> Vector4;
-  
+
   fn zw(&self) -> Vector2;
   fn zxw(&self) -> Vector3;
   fn zwx(&self) -> Vector3;
@@ -461,7 +461,7 @@ impl Swizzle3 for Vector3 {
   fn xzy(&self) -> Vector3 {
     Vector3::new(self.x, self.z, self.y)
   }
-  
+
   fn yz(&self) -> Vector2 {
     Vector2::new(self.y, self.z)
   }
@@ -473,7 +473,7 @@ impl Swizzle3 for Vector3 {
   fn yzx(&self) -> Vector3 {
     Vector3::new(self.y, self.z, self.x)
   }
-  
+
   fn zx(&self) -> Vector2 {
     Vector2::new(self.z, self.x)
   }
@@ -807,7 +807,7 @@ impl Vector4 {
       x: v0.x,
       y: v0.y,
       z: v1.x,
-      w: v1.y
+      w: v1.y,
     }
   }
 }
@@ -880,7 +880,7 @@ impl Swizzle3 for Vector4 {
   fn xzy(&self) -> Vector3 {
     Vector3::new(self.x, self.z, self.y)
   }
-  
+
   fn yz(&self) -> Vector2 {
     Vector2::new(self.y, self.z)
   }
@@ -892,7 +892,7 @@ impl Swizzle3 for Vector4 {
   fn yzx(&self) -> Vector3 {
     Vector3::new(self.y, self.z, self.x)
   }
-  
+
   fn zx(&self) -> Vector2 {
     Vector2::new(self.z, self.x)
   }
@@ -942,7 +942,7 @@ impl Swizzle4 for Vector4 {
   fn xzwy(&self) -> Vector4 {
     Vector4::new(self.x, self.z, self.w, self.y)
   }
-  
+
   fn yw(&self) -> Vector2 {
     Vector2::new(self.y, self.w)
   }
@@ -974,7 +974,7 @@ impl Swizzle4 for Vector4 {
   fn yzwx(&self) -> Vector4 {
     Vector4::new(self.y, self.z, self.w, self.x)
   }
-  
+
   fn zw(&self) -> Vector2 {
     Vector2::new(self.z, self.w)
   }

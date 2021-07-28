@@ -7,8 +7,8 @@ pub extern crate winit;
 
 pub use crate::modules::VkWindow;
 pub use crate::shader_handlers::{
-  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Vector2, Vector3, Vector4, Swizzle2, Swizzle3, Swizzle4,
-  VectorMath,
+  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Swizzle2, Swizzle3, Swizzle4,
+  Vector2, Vector3, Vector4, VectorMath,
 };
 
 mod modules;
