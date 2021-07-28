@@ -2,6 +2,54 @@ use std::ops::*;
 
 pub struct Math {}
 
+pub trait Swizzle2 {
+  fn xy(&self) -> Vector2;
+  fn yx(&self) -> Vector2;
+}
+
+pub trait Swizzle3 {
+  fn xz(&self) -> Vector2;
+  fn xyz(&self) -> Vector3;
+  fn xzy(&self) -> Vector3;
+  
+  fn yz(&self) -> Vector2;
+  fn yxz(&self) -> Vector3;
+  fn yzx(&self) -> Vector3;
+  
+  fn zx(&self) -> Vector2;
+  fn zy(&self) -> Vector2;
+  fn zxy(&self) -> Vector3;
+  fn zyx(&self) -> Vector3;
+}
+
+pub trait Swizzle4 {
+  fn xw(&self) -> Vector2;
+  fn xyw(&self) -> Vector3;
+  fn xwy(&self) -> Vector3;
+  fn xwz(&self) -> Vector3;
+  fn xzw(&self) -> Vector3;
+  fn xyzw(&self) -> Vector4;
+  fn xwyz(&self) -> Vector4;
+  fn xzwy(&self) -> Vector4;
+  
+  fn yw(&self) -> Vector2;
+  fn yxw(&self) -> Vector3;
+  fn ywx(&self) -> Vector3;
+  fn ywz(&self) -> Vector3;
+  fn yzw(&self) -> Vector3;
+  fn yxzw(&self) -> Vector4;
+  fn ywxz(&self) -> Vector4;
+  fn yzwx(&self) -> Vector4;
+  
+  fn zw(&self) -> Vector2;
+  fn zxw(&self) -> Vector3;
+  fn zwx(&self) -> Vector3;
+  fn zyw(&self) -> Vector3;
+  fn zxyw(&self) -> Vector4;
+  fn zwxy(&self) -> Vector4;
+  fn zywx(&self) -> Vector4;
+}
+
 pub trait VectorMath {
   fn dot(self, other: Self) -> f32;
   fn scale(self, other: f32) -> Self;
@@ -45,6 +93,16 @@ impl Vector2 {
 
   pub fn from_array(a: [f32; 2]) -> Vector2 {
     Vector2 { x: a[0], y: a[1] }
+  }
+}
+
+impl Swizzle2 for Vector2 {
+  fn xy(&self) -> Vector2 {
+    Vector2::new(self.x, self.y)
+  }
+
+  fn yx(&self) -> Vector2 {
+    Vector2::new(self.y, self.x)
   }
 }
 
@@ -381,6 +439,58 @@ impl VectorMath for Vector3 {
   }
 }
 
+impl Swizzle2 for Vector3 {
+  fn xy(&self) -> Vector2 {
+    Vector2::new(self.x, self.y)
+  }
+
+  fn yx(&self) -> Vector2 {
+    Vector2::new(self.y, self.x)
+  }
+}
+
+impl Swizzle3 for Vector3 {
+  fn xz(&self) -> Vector2 {
+    Vector2::new(self.x, self.z)
+  }
+
+  fn xyz(&self) -> Vector3 {
+    Vector3::new(self.x, self.y, self.z)
+  }
+
+  fn xzy(&self) -> Vector3 {
+    Vector3::new(self.x, self.z, self.y)
+  }
+  
+  fn yz(&self) -> Vector2 {
+    Vector2::new(self.y, self.z)
+  }
+
+  fn yxz(&self) -> Vector3 {
+    Vector3::new(self.y, self.x, self.z)
+  }
+
+  fn yzx(&self) -> Vector3 {
+    Vector3::new(self.y, self.z, self.x)
+  }
+  
+  fn zx(&self) -> Vector2 {
+    Vector2::new(self.z, self.x)
+  }
+
+  fn zy(&self) -> Vector2 {
+    Vector2::new(self.z, self.y)
+  }
+
+  fn zxy(&self) -> Vector3 {
+    Vector3::new(self.z, self.x, self.y)
+  }
+
+  fn zyx(&self) -> Vector3 {
+    Vector3::new(self.z, self.y, self.x)
+  }
+}
+
 impl Add for Vector3 {
   type Output = Self;
 
@@ -691,6 +801,15 @@ impl Vector4 {
       w: a[3],
     }
   }
+
+  pub fn from_vec2(v0: Vector2, v1: Vector2) -> Vector4 {
+    Vector4 {
+      x: v0.x,
+      y: v0.y,
+      z: v1.x,
+      w: v1.y
+    }
+  }
 }
 
 impl VectorMath for Vector4 {
@@ -736,6 +855,152 @@ impl VectorMath for Vector4 {
 
   fn magnitude(&self) -> f32 {
     self.squared_magnitude().sqrt()
+  }
+}
+
+impl Swizzle2 for Vector4 {
+  fn xy(&self) -> Vector2 {
+    Vector2::new(self.x, self.y)
+  }
+
+  fn yx(&self) -> Vector2 {
+    Vector2::new(self.y, self.x)
+  }
+}
+
+impl Swizzle3 for Vector4 {
+  fn xz(&self) -> Vector2 {
+    Vector2::new(self.x, self.z)
+  }
+
+  fn xyz(&self) -> Vector3 {
+    Vector3::new(self.x, self.y, self.z)
+  }
+
+  fn xzy(&self) -> Vector3 {
+    Vector3::new(self.x, self.z, self.y)
+  }
+  
+  fn yz(&self) -> Vector2 {
+    Vector2::new(self.y, self.z)
+  }
+
+  fn yxz(&self) -> Vector3 {
+    Vector3::new(self.y, self.x, self.z)
+  }
+
+  fn yzx(&self) -> Vector3 {
+    Vector3::new(self.y, self.z, self.x)
+  }
+  
+  fn zx(&self) -> Vector2 {
+    Vector2::new(self.z, self.x)
+  }
+
+  fn zy(&self) -> Vector2 {
+    Vector2::new(self.z, self.y)
+  }
+
+  fn zxy(&self) -> Vector3 {
+    Vector3::new(self.z, self.x, self.y)
+  }
+
+  fn zyx(&self) -> Vector3 {
+    Vector3::new(self.z, self.y, self.x)
+  }
+}
+
+impl Swizzle4 for Vector4 {
+  fn xw(&self) -> Vector2 {
+    Vector2::new(self.x, self.w)
+  }
+
+  fn xyw(&self) -> Vector3 {
+    Vector3::new(self.x, self.y, self.w)
+  }
+
+  fn xwy(&self) -> Vector3 {
+    Vector3::new(self.x, self.w, self.y)
+  }
+
+  fn xwz(&self) -> Vector3 {
+    Vector3::new(self.x, self.w, self.z)
+  }
+
+  fn xzw(&self) -> Vector3 {
+    Vector3::new(self.x, self.z, self.w)
+  }
+
+  fn xyzw(&self) -> Vector4 {
+    Vector4::new(self.x, self.y, self.z, self.w)
+  }
+
+  fn xwyz(&self) -> Vector4 {
+    Vector4::new(self.x, self.w, self.y, self.z)
+  }
+
+  fn xzwy(&self) -> Vector4 {
+    Vector4::new(self.x, self.z, self.w, self.y)
+  }
+  
+  fn yw(&self) -> Vector2 {
+    Vector2::new(self.y, self.w)
+  }
+
+  fn yxw(&self) -> Vector3 {
+    Vector3::new(self.y, self.x, self.w)
+  }
+
+  fn ywx(&self) -> Vector3 {
+    Vector3::new(self.y, self.w, self.x)
+  }
+
+  fn ywz(&self) -> Vector3 {
+    Vector3::new(self.y, self.w, self.z)
+  }
+
+  fn yzw(&self) -> Vector3 {
+    Vector3::new(self.y, self.z, self.w)
+  }
+
+  fn yxzw(&self) -> Vector4 {
+    Vector4::new(self.y, self.x, self.z, self.w)
+  }
+
+  fn ywxz(&self) -> Vector4 {
+    Vector4::new(self.y, self.w, self.x, self.z)
+  }
+
+  fn yzwx(&self) -> Vector4 {
+    Vector4::new(self.y, self.z, self.w, self.x)
+  }
+  
+  fn zw(&self) -> Vector2 {
+    Vector2::new(self.z, self.w)
+  }
+
+  fn zxw(&self) -> Vector3 {
+    Vector3::new(self.z, self.x, self.w)
+  }
+
+  fn zwx(&self) -> Vector3 {
+    Vector3::new(self.z, self.w, self.x)
+  }
+
+  fn zyw(&self) -> Vector3 {
+    Vector3::new(self.z, self.y, self.w)
+  }
+
+  fn zxyw(&self) -> Vector4 {
+    Vector4::new(self.z, self.x, self.y, self.w)
+  }
+
+  fn zwxy(&self) -> Vector4 {
+    Vector4::new(self.z, self.w, self.x, self.y)
+  }
+
+  fn zywx(&self) -> Vector4 {
+    Vector4::new(self.z, self.y, self.w, self.x)
   }
 }
 
