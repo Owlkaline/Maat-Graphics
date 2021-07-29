@@ -51,6 +51,13 @@ void main() {
   vec3 diffuseColor;
   vec4 baseColor = texture(samplerColour, o_uv) * vec4(o_colour, 1.0);
 
+  //float near = 0.9;
+  //float far = 100.0;
+  //float dpeth = gl_FragCoord.z;
+  //float projection_a = far / (far - near);
+  //float projection_a = (-far*near) / (far - near);
+  //float linear_depth = projection_b / (depth - projection_a);
+
   vec3 f0 = vec3(0.04);
 
   perceptualRoughness = 0.6; //material.roughnessFactor;
