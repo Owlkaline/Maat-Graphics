@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::{vk, Device};
 
-use crate::modules::{Image, Renderpass, VkDevice, VkSwapchain};
+use crate::vkwrapper::{Image, Renderpass, VkDevice, VkSwapchain};
 
 pub struct VkFrameBuffer {
   framebuffers: Vec<vk::Framebuffer>,

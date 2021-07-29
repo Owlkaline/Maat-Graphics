@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{Renderpass, Scissors, Viewport, VkDevice};
+use crate::vkwrapper::{Renderpass, Scissors, Viewport, VkDevice};
 
 pub struct GraphicsPipeline {
   pipeline: vk::Pipeline,

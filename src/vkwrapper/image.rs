@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{Memory, VkDevice};
+use crate::vkwrapper::{Memory, VkDevice};
 
 pub struct Image {
   image: vk::Image,

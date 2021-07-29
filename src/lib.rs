@@ -5,14 +5,16 @@ pub extern crate gilrs;
 pub extern crate image;
 pub extern crate winit;
 
-pub use crate::modules::VkWindow;
-pub use crate::shader_handlers::{
-  font::FontChar, gltf_loader::CollisionInformation, Camera, Math, Swizzle2, Swizzle3, Swizzle4,
-  Vector2, Vector3, Vector4, VectorMath,
+pub use crate::extra::{
+  gltf_loader::CollisionInformation, Math, Swizzle2, Swizzle3, Swizzle4, Vector2, Vector3, Vector4,
+  VectorMath,
 };
+pub use crate::shader_handlers::{font::FontChar, Camera};
+pub use crate::vkwrapper::VkWindow;
 
-mod modules;
+mod extra;
 mod shader_handlers;
+mod vkwrapper;
 
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -28,8 +30,8 @@ use winit::{
 };
 
 use crate::ash::version::DeviceV1_0;
-use crate::modules::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 use crate::shader_handlers::{ModelHandler, TextureHandler};
+use crate::vkwrapper::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 
 const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;

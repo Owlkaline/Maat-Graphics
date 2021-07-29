@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::VkDevice;
+use crate::vkwrapper::VkDevice;
 
 pub struct Fence {
   fence: vk::Fence,

@@ -3,12 +3,12 @@ use std::default::Default;
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{
+use crate::extra::gltf_loader::{GltfModel, Material, MeshImage, Node, Skin, Texture};
+use crate::vkwrapper::{
   Buffer, ClearValues, ComputeShader, DescriptorSet, DescriptorWriter, Fence, Image, ImageBuilder,
   PassDescription, Renderpass, Scissors, Semaphore, Shader, Viewport, VkCommandPool, VkDevice,
   VkFrameBuffer, VkInstance, VkSwapchain, VkWindow,
 };
-use crate::shader_handlers::gltf_loader::{GltfModel, Material, MeshImage, Node, Skin, Texture};
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]

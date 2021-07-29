@@ -2,7 +2,7 @@ use ash::extensions::khr::Swapchain;
 pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::vk;
 
-use crate::modules::{Image, ImageBuilder, VkDevice, VkInstance};
+use crate::vkwrapper::{Image, ImageBuilder, VkDevice, VkInstance};
 
 pub struct VkSwapchain {
   swapchain: vk::SwapchainKHR,

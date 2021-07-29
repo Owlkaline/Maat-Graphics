@@ -4,7 +4,7 @@ use ash::extensions::khr::{Surface, Swapchain};
 pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
 
-use crate::modules::{VkInstance, VkWindow};
+use crate::vkwrapper::{VkInstance, VkWindow};
 
 /*
  if (data->properties.limits.nonCoherentAtomSize > 0) {

@@ -5,12 +5,12 @@ use std::mem;
 use ash::vk;
 
 use crate::ash::version::DeviceV1_0;
-use crate::modules::{
+use crate::offset_of;
+use crate::shader_handlers::{font::FontChar, Font};
+use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Image,
   ImageBuilder, Sampler, Shader, VkDevice, Vulkan,
 };
-use crate::offset_of;
-use crate::shader_handlers::{font::FontChar, Font};
 
 const MAX_INSTANCES: usize = 8192;
 

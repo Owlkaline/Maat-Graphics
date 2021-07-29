@@ -1,4 +1,4 @@
-use crate::shader_handlers::{Math, Vector3, Vector4, VectorMath};
+use crate::extra::{Math, Vector3, Vector4, VectorMath};
 
 const TP_X_ROT_MIN: f32 = 89.0;
 const TP_X_ROT_MAX: f32 = 189.0;

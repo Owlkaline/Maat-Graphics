@@ -4,9 +4,9 @@ use std::io::{BufRead, BufReader};
 use ash::vk;
 use image;
 
-use crate::modules::Image as vkImage;
-use crate::modules::{DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan};
 use crate::shader_handlers::TextureHandler;
+use crate::vkwrapper::Image as vkImage;
+use crate::vkwrapper::{DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan};
 
 #[derive(Clone)]
 pub struct FontChar {
@@ -59,7 +59,7 @@ impl Font {
   }
 
   fn load_font(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    let location = "./fonts/DOSVGA"; //SourceCodePro";
+    let location = "./fonts/SourceCodePro"; //DOSVGA"; //SourceCodePro";
 
     let image = image::open(location.to_owned() + ".png")
       .expect(&("Failed to load font: ".to_string() + location))

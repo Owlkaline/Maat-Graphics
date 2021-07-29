@@ -4,14 +4,14 @@ use std::mem;
 
 use ash::vk;
 
-use crate::modules::{
+use crate::extra::gltf_loader::{CollisionInformation, GltfModel, MeshVertex};
+use crate::extra::{gltf_loader, Math};
+use crate::offset_of;
+use crate::shader_handlers::{Camera, TextureHandler};
+use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Sampler,
   Shader, VkDevice, Vulkan,
 };
-use crate::offset_of;
-use crate::shader_handlers::gltf_loader;
-use crate::shader_handlers::gltf_loader::{CollisionInformation, GltfModel, MeshVertex};
-use crate::shader_handlers::{Camera, Math, TextureHandler};
 
 const MAX_INSTANCES: usize = 4096;
 

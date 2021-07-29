@@ -2,10 +2,11 @@ use ash::vk;
 use gltf;
 use gltf::animation::Property;
 
-use crate::modules::{
+use crate::extra::{Math, Vector3};
+use crate::shader_handlers::TextureHandler;
+use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan,
 };
-use crate::shader_handlers::{Math, TextureHandler, Vector3};
 use crate::Image as vkimage;
 
 #[derive(Clone)]

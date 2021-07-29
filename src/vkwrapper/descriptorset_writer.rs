@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{Buffer, DescriptorSet, Image, Sampler, VkDevice};
+use crate::vkwrapper::{Buffer, DescriptorSet, Image, Sampler, VkDevice};
 
 pub struct DescriptorWriter {}
 

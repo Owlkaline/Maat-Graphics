@@ -1,7 +1,7 @@
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::VkDevice;
+use crate::vkwrapper::VkDevice;
 
 pub struct ComputePipeline {
   pipeline: vk::Pipeline,

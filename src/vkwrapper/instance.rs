@@ -5,7 +5,7 @@ use ash::extensions::ext::DebugUtils;
 pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Entry, Instance};
 
-use crate::modules::VkWindow;
+use crate::vkwrapper::VkWindow;
 
 unsafe extern "system" fn vulkan_debug_callback(
   message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,

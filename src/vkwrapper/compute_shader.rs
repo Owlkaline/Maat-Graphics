@@ -6,7 +6,7 @@ use ash::util::read_spv;
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{ComputePipeline, DescriptorSet, VkDevice};
+use crate::vkwrapper::{ComputePipeline, DescriptorSet, VkDevice};
 
 pub struct ComputeShader {
   compute_shader: vk::ShaderModule,

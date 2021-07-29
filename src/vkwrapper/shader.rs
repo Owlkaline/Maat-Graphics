@@ -7,7 +7,7 @@ use ash::util::read_spv;
 use ash::version::DeviceV1_0;
 use ash::vk;
 
-use crate::modules::{
+use crate::vkwrapper::{
   GraphicsPipeline, GraphicsPipelineBuilder, Renderpass, Scissors, Viewport, VkDevice,
 };
 
