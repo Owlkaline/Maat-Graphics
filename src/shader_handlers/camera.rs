@@ -7,8 +7,8 @@ const FP_X_ROT_MIN: f32 = 91.0;
 const FP_X_ROT_MAX: f32 = 269.0;
 
 const FOV: f32 = 71.0;
-const ZNEAR: f32 = 1.0;
-const ZFAR: f32 = 3.0;
+const ZNEAR: f32 = 0.9;
+const ZFAR: f32 = 100.0;
 
 #[derive(Copy, Clone)]
 pub enum CameraType {
