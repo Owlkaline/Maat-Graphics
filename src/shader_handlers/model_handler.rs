@@ -12,6 +12,7 @@ use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Sampler,
   Shader, VkDevice, Vulkan,
 };
+use crate::DrawMode;
 
 const MAX_INSTANCES: usize = 4096;
 
@@ -57,6 +58,8 @@ pub struct ModelHandler {
   dummy_skin_buffer: Buffer<f32>,
   dummy_skin: DescriptorSet,
 
+  storage_descriptor_set: DescriptorSet,
+
   window_size: [f32; 2],
 
   descriptor_pool: vk::DescriptorPool,
@@ -91,6 +94,7 @@ impl ModelHandler {
 
     let (mesh_shader, instanced_mesh_shader) = ModelHandler::create_mesh_shaders(
       vulkan,
+      DrawMode::Polygon,
       vec![
         descriptor_set0.clone(),
         descriptor_set1.clone(),
@@ -154,10 +158,30 @@ impl ModelHandler {
       dummy_skin_buffer: dummy_buffer,
       dummy_skin,
 
+      storage_descriptor_set: descriptor_set1,
+
       window_size,
 
       descriptor_pool,
     }
+  }
+
+  pub fn set_draw_mode(&mut self, vulkan: &Vulkan, mode: DrawMode) {
+    self.mesh_shader.destroy(vulkan.device());
+    self.instanced_mesh_shader.destroy(vulkan.device());
+
+    let (mesh_shader, instanced_mesh_shader) = ModelHandler::create_mesh_shaders(
+      vulkan,
+      mode,
+      vec![
+        self.uniform_descriptor_set.clone(),
+        self.storage_descriptor_set.clone(),
+        self.dummy_texture.clone(),
+      ],
+    );
+
+    self.mesh_shader = mesh_shader;
+    self.instanced_mesh_shader = instanced_mesh_shader;
   }
 
   pub fn create_instance_render_buffer<T: Into<String>>(
@@ -295,8 +319,28 @@ impl ModelHandler {
     }
   }*/
 
+  fn create_mesh_pipeline_builder(mode: DrawMode) -> GraphicsPipelineBuilder {
+    let mut gpb = GraphicsPipelineBuilder::new()
+      .topology_triangle_list()
+      .polygon_mode_fill()
+      //.polygon_mode_line()
+      .front_face_counter_clockwise()
+      //.cull_back()
+      .samples_1();
+    gpb = {
+      match mode {
+        DrawMode::Polygon => gpb.polygon_mode_fill(),
+        DrawMode::Wireframe => gpb.polygon_mode_line(),
+        DrawMode::PointsOnly => gpb.polygon_mode_point(),
+      }
+    };
+
+    gpb
+  }
+
   fn create_mesh_shaders(
     vulkan: &Vulkan,
+    draw_mode: DrawMode,
     descriptor_sets: Vec<DescriptorSet>,
   ) -> (Shader<MeshVertex>, Shader<MeshVertex>) {
     let template_mesh_vertex = MeshVertex {
@@ -310,13 +354,7 @@ impl ModelHandler {
 
     let template_instanced_data = InstancedMeshData::new();
 
-    let graphics_pipeline_builder = GraphicsPipelineBuilder::new()
-      .topology_triangle_list()
-      .polygon_mode_fill()
-      //.polygon_mode_line()
-      .front_face_counter_clockwise()
-      //.cull_back()
-      .samples_1();
+    let graphics_pipeline_builder = ModelHandler::create_mesh_pipeline_builder(draw_mode);
 
     let layouts = {
       let mut sets = Vec::new();

@@ -101,10 +101,21 @@ impl ControllerInput {
   }
 }
 
+pub enum DrawMode {
+  Polygon,
+  Wireframe,
+  PointsOnly,
+}
+
+pub enum MaatAction {
+  DrawMode(DrawMode),
+}
+
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Draw(
     &'a mut Vec<(Vec<f32>, T, Option<L>)>,
     &'a mut Vec<(Vec<f32>, S)>,
+    &'a mut Vec<MaatAction>,
   ),
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   Update(
@@ -250,11 +261,21 @@ impl MaatGraphics {
     &mut self,
     texture_data: Vec<(Vec<f32>, T, Option<L>)>,
     model_data: Vec<(Vec<f32>, S)>,
+    maat_actions: Vec<MaatAction>,
   ) {
     if self.model_handler.mut_camera().is_updated() {
       self
         .model_handler
         .update_uniform_buffer(self.vulkan.device());
+    }
+
+    for action in maat_actions {
+      match action {
+        MaatAction::DrawMode(mode) => {
+          self.model_handler.set_draw_mode(&self.vulkan, mode);
+        }
+        _ => {}
+      }
     }
 
     if let Some(present_index) = self.vulkan.start_render() {
@@ -385,8 +406,13 @@ impl MaatGraphics {
 
       let mut texture_data = Vec::new();
       let mut model_data = Vec::new();
+      let mut action_data = Vec::new();
 
-      callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+      callback(MaatEvent::Draw(
+        &mut texture_data,
+        &mut model_data,
+        &mut action_data,
+      ));
 
       if let Some(controllers) = &mut vulkan.gamepads {
         if let Some(gamepad_id) = &vulkan.active_controller {
@@ -508,7 +534,7 @@ impl MaatGraphics {
           }
         },
         Event::MainEventsCleared => {
-          vulkan.draw(texture_data, model_data);
+          vulkan.draw(texture_data, model_data, action_data);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();
