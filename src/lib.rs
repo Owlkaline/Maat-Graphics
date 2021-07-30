@@ -109,6 +109,8 @@ pub enum DrawMode {
 
 pub enum MaatAction {
   DrawMode(DrawMode),
+  MouseVisibility(bool),
+  CaptureMouse(bool),
 }
 
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
@@ -262,6 +264,7 @@ impl MaatGraphics {
     texture_data: Vec<(Vec<f32>, T, Option<L>)>,
     model_data: Vec<(Vec<f32>, S)>,
     maat_actions: Vec<MaatAction>,
+    window: &mut VkWindow,
   ) {
     if self.model_handler.mut_camera().is_updated() {
       self
@@ -273,6 +276,12 @@ impl MaatGraphics {
       match action {
         MaatAction::DrawMode(mode) => {
           self.model_handler.set_draw_mode(&self.vulkan, mode);
+        }
+        MaatAction::MouseVisibility(visible) => {
+          window.internal().set_cursor_visible(visible);
+        }
+        MaatAction::CaptureMouse(capture) => {
+          window.internal().set_cursor_grab(capture);
         }
         _ => {}
       }
@@ -338,7 +347,12 @@ impl MaatGraphics {
     }
   }
 
-  pub fn run<T, L, S, V>(mut vulkan: MaatGraphics, event_loop: EventLoop<()>, mut callback: T) -> !
+  pub fn run<T, L, S, V>(
+    mut vulkan: MaatGraphics,
+    mut window: VkWindow,
+    event_loop: EventLoop<()>,
+    mut callback: T,
+  ) -> !
   where
     T: 'static + FnMut(MaatEvent<L, S, V>),
     L: Into<String>,
@@ -534,7 +548,7 @@ impl MaatGraphics {
           }
         },
         Event::MainEventsCleared => {
-          vulkan.draw(texture_data, model_data, action_data);
+          vulkan.draw(texture_data, model_data, action_data, &mut window);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();

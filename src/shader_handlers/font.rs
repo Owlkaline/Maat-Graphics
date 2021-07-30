@@ -59,7 +59,7 @@ impl Font {
   }
 
   fn load_font(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    let location = "./fonts/SourceCodePro"; //DOSVGA"; //SourceCodePro";
+    let location = "./fonts/dejavasans"; //DOSVGA"; //SourceCodePro";
 
     let image = image::open(location.to_owned() + ".png")
       .expect(&("Failed to load font: ".to_string() + location))
