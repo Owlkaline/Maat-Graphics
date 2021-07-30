@@ -12,8 +12,8 @@ layout (location = 5) in vec4 joint_weights;
 
 // Instanced Data input
 layout (location = 6) in mat4 model;
-layout (location = 10) in vec3 offset;
-layout (location = 11) in vec3 scale;
+layout (location = 9) in vec3 offset;
+layout (location = 10) in vec3 scale;
 
 layout (location = 0) out vec3 o_normal;
 layout (location = 1) out vec3 o_colour;

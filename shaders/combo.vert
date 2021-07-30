@@ -10,7 +10,7 @@ layout (location = 0) out vec4 o_colour;
 layout (location = 1) out vec3 o_uv_textured;
 
 layout (set = 0, binding = 0) uniform UBO {
-  vec3 window_size;
+  vec2 window_size;
 } ubo;
 
 layout(push_constant) uniform PushConstants {
