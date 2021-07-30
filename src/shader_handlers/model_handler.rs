@@ -48,9 +48,8 @@ pub struct ModelHandler {
   models: HashMap<String, GltfModel>,
   mesh_shader: Shader<MeshVertex>,
 
-  instanced_mesh_shader: Shader<MeshVertex>,
-  instanced_mesh_buffer: HashMap<String, (Buffer<InstancedMeshData>, usize, Vec<(u32, u32)>)>,
-
+  //instanced_mesh_shader: Shader<MeshVertex>,
+  //instanced_mesh_buffer: HashMap<String, (Buffer<InstancedMeshData>, usize, Vec<(u32, u32)>)>,
   uniform_buffer: Buffer<MeshUniformBuffer>,
   uniform_descriptor_set: DescriptorSet,
 
@@ -92,7 +91,7 @@ impl ModelHandler {
       .combined_image_sampler_fragment()
       .build(vulkan.device(), &descriptor_pool);
 
-    let (mesh_shader, instanced_mesh_shader) = ModelHandler::create_mesh_shaders(
+    let mesh_shader = ModelHandler::create_mesh_shaders(
       vulkan,
       DrawMode::Polygon,
       vec![
@@ -148,9 +147,8 @@ impl ModelHandler {
       models: HashMap::new(),
       mesh_shader,
 
-      instanced_mesh_shader,
-      instanced_mesh_buffer: HashMap::new(),
-
+      //instanced_mesh_shader,
+      //instanced_mesh_buffer: HashMap::new(),
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
 
@@ -168,9 +166,9 @@ impl ModelHandler {
 
   pub fn set_draw_mode(&mut self, vulkan: &Vulkan, mode: DrawMode) {
     self.mesh_shader.destroy(vulkan.device());
-    self.instanced_mesh_shader.destroy(vulkan.device());
+    //  self.instanced_mesh_shader.destroy(vulkan.device());
 
-    let (mesh_shader, instanced_mesh_shader) = ModelHandler::create_mesh_shaders(
+    let mesh_shader = ModelHandler::create_mesh_shaders(
       vulkan,
       mode,
       vec![
@@ -181,7 +179,7 @@ impl ModelHandler {
     );
 
     self.mesh_shader = mesh_shader;
-    self.instanced_mesh_shader = instanced_mesh_shader;
+    //self.instanced_mesh_shader = instanced_mesh_shader;
   }
 
   pub fn create_instance_render_buffer<T: Into<String>>(
@@ -189,27 +187,27 @@ impl ModelHandler {
     vulkan: &mut Vulkan,
     model_ref: T,
   ) {
-    let mut prim_info = Vec::new();
+    //let mut prim_info = Vec::new();
 
-    let model_ref = model_ref.into();
+    //let model_ref = model_ref.into();
 
-    if let Some(model) = self.models.get_mut(&model_ref.to_string()) {
-      for i in 0..model.nodes().len() {
-        for primitive in &model.nodes()[i].mesh.primitives {
-          let index_count = primitive.index_count;
-          let first_index = primitive.first_index;
-          prim_info.push((index_count, first_index));
-        }
-      }
+    //if let Some(model) = self.models.get_mut(&model_ref.to_string()) {
+    //  for i in 0..model.nodes().len() {
+    //    for primitive in &model.nodes()[i].mesh.primitives {
+    //      let index_count = primitive.index_count;
+    //      let first_index = primitive.first_index;
+    //      prim_info.push((index_count, first_index));
+    //    }
+    //  }
 
-      let dummy_instanced_data = vec![InstancedMeshData::new(); MAX_INSTANCES];
+    //  let dummy_instanced_data = vec![InstancedMeshData::new(); MAX_INSTANCES];
 
-      let buffer = Buffer::<InstancedMeshData>::new_vertex(vulkan.device(), dummy_instanced_data);
+    //  let buffer = Buffer::<InstancedMeshData>::new_vertex(vulkan.device(), dummy_instanced_data);
 
-      self
-        .instanced_mesh_buffer
-        .insert(model_ref.to_string(), (buffer, 0, prim_info));
-    }
+    //  self
+    //    .instanced_mesh_buffer
+    //    .insert(model_ref.to_string(), (buffer, 0, prim_info));
+    //}
   }
 
   pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
@@ -342,7 +340,7 @@ impl ModelHandler {
     vulkan: &Vulkan,
     draw_mode: DrawMode,
     descriptor_sets: Vec<DescriptorSet>,
-  ) -> (Shader<MeshVertex>, Shader<MeshVertex>) {
+  ) -> Shader<MeshVertex> {
     let template_mesh_vertex = MeshVertex {
       pos: [0.0, 0.0, 0.0],
       normal: [0.0, 0.0, 0.0],
@@ -385,7 +383,7 @@ impl ModelHandler {
       &layouts,
       None as Option<(u32, Vec<u32>)>,
     );
-
+    /*
     let instanced_mesh_shader = Shader::new(
       vulkan.device(),
       Cursor::new(&include_bytes!("../../shaders/instanced_mesh_animated_vert.spv")[..]),
@@ -412,8 +410,8 @@ impl ModelHandler {
           offset_of!(InstancedMeshData, scale) as u32,
         ],
       )),
-    );
+    );*/
 
-    (mesh_shader, instanced_mesh_shader)
+    mesh_shader
   }
 }

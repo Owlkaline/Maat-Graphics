@@ -145,6 +145,7 @@ fn create_logical_device(
   let device_extension_names_raw = [Swapchain::name().as_ptr()];
   let features = vk::PhysicalDeviceFeatures {
     shader_clip_distance: 1,
+    fill_mode_non_solid: 1,
     ..Default::default()
   };
   let device_create_info = vk::DeviceCreateInfo::builder()
