@@ -184,8 +184,8 @@ impl ModelHandler {
 
   pub fn create_instance_render_buffer<T: Into<String>>(
     &mut self,
-    vulkan: &mut Vulkan,
-    model_ref: T,
+    _vulkan: &mut Vulkan,
+    _model_ref: T,
   ) {
     //let mut prim_info = Vec::new();
 
@@ -350,7 +350,7 @@ impl ModelHandler {
       joint_weights: [1.0, 1.0, 1.0, 1.0],
     };
 
-    let template_instanced_data = InstancedMeshData::new();
+    //let template_instanced_data = InstancedMeshData::new();
 
     let graphics_pipeline_builder = ModelHandler::create_mesh_pipeline_builder(draw_mode);
 

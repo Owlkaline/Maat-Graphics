@@ -281,9 +281,8 @@ impl MaatGraphics {
           window.internal().set_cursor_visible(visible);
         }
         MaatAction::CaptureMouse(capture) => {
-          window.internal().set_cursor_grab(capture);
+          window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
         }
-        _ => {}
       }
     }
 

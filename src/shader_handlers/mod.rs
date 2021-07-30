@@ -7,5 +7,3 @@ mod camera;
 pub mod font;
 mod model_handler;
 mod texture_handler;
-
-use ash::vk;
