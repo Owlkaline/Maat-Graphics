@@ -99,6 +99,10 @@ impl Camera {
     cam
   }
 
+  pub fn rotation(&self) -> Vector3 {
+    self.rotation
+  }
+
   pub fn set_movement_speed(&mut self, speed: f32) {
     self.movement_speed = speed;
   }
@@ -374,7 +378,7 @@ impl Camera {
     }
   }
 
-  fn camera_front(rotation: Vector3) -> Vector3 {
+  pub fn camera_front(rotation: Vector3) -> Vector3 {
     let mut cam_front = Vector3::from_f32(0.0);
     cam_front.x = -(rotation.x.to_radians()).cos() * (rotation.y.to_radians()).sin();
     cam_front.y = (rotation.x.to_radians()).sin();
