@@ -193,7 +193,7 @@ impl Font {
         continue
       }
 
-      let w_h_ratio = char_info.height / char_info.width;
+      let w_h_ratio = char_info.width / char_info.height;
 
       let height = text_size;
       let width = text_size * w_h_ratio;
