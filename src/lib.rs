@@ -153,7 +153,11 @@ pub struct MaatGraphics {
 }
 
 impl MaatGraphics {
-  pub fn new(window: &mut VkWindow, screen_resolution: [u32; 2]) -> MaatGraphics {
+  pub fn new<T: Into<String>>(
+    window: &mut VkWindow,
+    screen_resolution: [u32; 2],
+    font_location: T,
+  ) -> MaatGraphics {
     let screen_resolution = vk::Extent2D {
       width: screen_resolution[0],
       height: screen_resolution[1],
@@ -176,7 +180,7 @@ impl MaatGraphics {
     vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
     println!("Compute Data: {:?}", compute_data);
 
-    let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution);
+    let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution, font_location);
     let model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
 
     MaatGraphics {

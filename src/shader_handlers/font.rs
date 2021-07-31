@@ -54,12 +54,12 @@ pub struct Font {
 }
 
 impl Font {
-  pub fn new(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    Font::load_font(vulkan, sampler)
+  pub fn new<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> Font {
+    Font::load_font(vulkan, sampler, location)
   }
 
-  fn load_font(vulkan: &mut Vulkan, sampler: &Sampler) -> Font {
-    let location = "./fonts/dejavasans"; //DOSVGA"; //SourceCodePro";
+  fn load_font<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> Font {
+    let location = &location.into();
 
     let image = image::open(location.to_owned() + ".png")
       .expect(&("Failed to load font: ".to_string() + location))

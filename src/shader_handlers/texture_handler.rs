@@ -73,7 +73,11 @@ pub struct TextureHandler {
 }
 
 impl TextureHandler {
-  pub fn new(vulkan: &mut Vulkan, screen_size: vk::Extent2D) -> TextureHandler {
+  pub fn new<T: Into<String>>(
+    vulkan: &mut Vulkan,
+    screen_size: vk::Extent2D,
+    font_location: T,
+  ) -> TextureHandler {
     let descriptor_pool = DescriptorPoolBuilder::new()
       .num_combined_image_samplers(5)
       .num_uniform_buffers(5)
@@ -88,7 +92,7 @@ impl TextureHandler {
       .compare_op_never()
       .build(vulkan.device());
 
-    let font = Font::new(vulkan, &sampler);
+    let font = Font::new(vulkan, &sampler, font_location);
 
     let uniform_data = vec![TextureUniformBuffer {
       window_size: [screen_size.width as f32, screen_size.height as f32],
