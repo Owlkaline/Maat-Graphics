@@ -321,7 +321,6 @@ impl ModelHandler {
     let mut gpb = GraphicsPipelineBuilder::new()
       .topology_triangle_list()
       .polygon_mode_fill()
-      //.polygon_mode_line()
       .front_face_counter_clockwise()
       .cull_front()
       .samples_1();

@@ -13,6 +13,7 @@ winit = "0.25.0"
 image = "0.23.14"
 gltf-utils = "0.9.3"
 gilrs = "0.8.1"
+glam = "0.17.3"
 
 [dependencies.gltf]
 version = "0.16.0"

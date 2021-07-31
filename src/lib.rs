@@ -2,6 +2,7 @@
 
 pub extern crate ash;
 pub extern crate gilrs;
+pub extern crate glam;
 pub extern crate image;
 pub extern crate winit;
 

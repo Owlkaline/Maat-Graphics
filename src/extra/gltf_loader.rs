@@ -1,8 +1,11 @@
+use std::ops::Div;
+
 use ash::vk;
 use gltf;
 use gltf::animation::Property;
 
-use crate::extra::{Math, Vector3};
+use crate::extra::Math;
+use crate::glam::{Mat4, Quat, Vec3};
 use crate::shader_handlers::TextureHandler;
 use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan,
@@ -12,20 +15,20 @@ use crate::Image as vkimage;
 #[derive(Clone)]
 pub struct CollisionObject {
   name: String,
-  displacement: Vector3,
+  displacement: [f32; 3],
   indices: Vec<u32>,
-  positions: Vec<Vector3>,
-  min_bounds: Vector3,
-  max_bounds: Vector3,
+  positions: Vec<[f32; 3]>,
+  min_bounds: [f32; 3],
+  max_bounds: [f32; 3],
 }
 
 #[derive(Clone)]
 pub struct CollisionInformation {
   name: String,
   objects: Vec<CollisionObject>,
-  displacement: Vector3,
-  min_bounds: Vector3,
-  max_bounds: Vector3,
+  displacement: [f32; 3],
+  min_bounds: [f32; 3],
+  max_bounds: [f32; 3],
 }
 
 #[derive(Clone)]
@@ -48,7 +51,7 @@ pub struct MeshVertex {
 pub struct Skin {
   name: String,
   skeleton_root: i32,
-  inverse_bind_matrices: Vec<[f32; 16]>,
+  inverse_bind_matrices: Vec<Mat4>, //Vec<[f32; 16]>,
   joints: Vec<i32>,
   inverse_bind_matrix_buffer: Buffer<f32>,
   pub descriptor_set: DescriptorSet,
@@ -100,10 +103,10 @@ pub struct Node {
   pub parent: i32,
   pub children: Vec<usize>,
 
-  pub translation: [f32; 3],
-  pub rotation: [f32; 4], //quaternion
-  pub scale: [f32; 3],
-  pub matrix: Option<[f32; 16]>,
+  pub translation: Vec3,
+  pub rotation: Quat, //quaternion
+  pub scale: Vec3,
+  pub matrix: Option<Mat4>,
 }
 
 #[derive(Debug)]
@@ -143,11 +146,11 @@ pub struct GltfModel {
 impl CollisionObject {
   pub fn new<T: Into<String>>(
     name: T,
-    displacement: Vector3,
+    displacement: [f32; 3],
     indices: Vec<u32>,
-    positions: Vec<Vector3>,
-    min_bounds: Vector3,
-    max_bounds: Vector3,
+    positions: Vec<[f32; 3]>,
+    min_bounds: [f32; 3],
+    max_bounds: [f32; 3],
   ) -> CollisionObject {
     CollisionObject {
       name: name.into(),
@@ -163,7 +166,7 @@ impl CollisionObject {
     self.name.to_string()
   }
 
-  pub fn displacement(&self) -> &Vector3 {
+  pub fn displacement(&self) -> &[f32; 3] {
     &self.displacement
   }
 
@@ -171,15 +174,15 @@ impl CollisionObject {
     &self.indices
   }
 
-  pub fn vertices(&self) -> &Vec<Vector3> {
+  pub fn vertices(&self) -> &Vec<[f32; 3]> {
     &self.positions
   }
 
-  pub fn min_bounds(&self) -> &Vector3 {
+  pub fn min_bounds(&self) -> &[f32; 3] {
     &self.min_bounds
   }
 
-  pub fn max_bounds(&self) -> &Vector3 {
+  pub fn max_bounds(&self) -> &[f32; 3] {
     &self.max_bounds
   }
 }
@@ -189,9 +192,9 @@ impl CollisionInformation {
     CollisionInformation {
       name: format!(""),
       objects: Vec::new(),
-      displacement: Vector3::from_f32(0.0),
-      min_bounds: Vector3::from_f32(0.0),
-      max_bounds: Vector3::from_f32(0.0),
+      displacement: [0.0; 3],
+      min_bounds: [0.0; 3],
+      max_bounds: [0.0; 3],
     }
   }
 
@@ -226,8 +229,6 @@ impl CollisionInformation {
               let mut vertices = Vec::new();
               let mut indexs = Vec::new();
 
-              let mut vector3_vertices: Vec<Vector3> = Vec::new();
-
               let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
               let (_translation, _rotation, scale) = node.transform().decomposed();
@@ -237,7 +238,6 @@ impl CollisionInformation {
                   let scaled_vertex = Math::vec3_mul(vertex, scale);
                   displacement = Math::vec3_add(displacement, scaled_vertex);
                   vertices.push(scaled_vertex);
-                  vector3_vertices.push(Vector3::from_array(scaled_vertex));
                 }
               }
 
@@ -280,11 +280,11 @@ impl CollisionInformation {
 
               collision_objects.push(CollisionObject::new(
                 name,
-                Vector3::from_array(displacement),
+                displacement,
                 indexs,
-                vector3_vertices,
-                Vector3::from_array(min_bounds),
-                Vector3::from_array(max_bounds),
+                vertices,
+                min_bounds,
+                max_bounds,
               ));
             }
           }
@@ -292,7 +292,8 @@ impl CollisionInformation {
       }
     } else {
       for object in &collision_objects {
-        object_displacement = Math::vec3_add(object_displacement, object.displacement().into());
+        object_displacement =
+          (Vec3::from(object_displacement) + Vec3::from(*object.displacement())).to_array();
       }
     }
 
@@ -301,9 +302,9 @@ impl CollisionInformation {
     CollisionInformation {
       name: reference,
       objects: collision_objects,
-      displacement: Vector3::from_array(object_displacement),
-      min_bounds: Vector3::from_array(object_min_bounds),
-      max_bounds: Vector3::from_array(object_max_bounds),
+      displacement: object_displacement,
+      min_bounds: object_min_bounds,
+      max_bounds: object_max_bounds,
     }
   }
 
@@ -311,34 +312,25 @@ impl CollisionInformation {
     &self.objects
   }
 
-  pub fn displacement(&self) -> &Vector3 {
+  pub fn displacement(&self) -> &[f32; 3] {
     &self.displacement
   }
 
-  pub fn min_bounds(&self) -> &Vector3 {
+  pub fn min_bounds(&self) -> &[f32; 3] {
     &self.min_bounds
   }
 
-  pub fn max_bounds(&self) -> &Vector3 {
+  pub fn max_bounds(&self) -> &[f32; 3] {
     &self.max_bounds
   }
 }
 
 impl Node {
-  pub fn calculate_local_matrix(&self) -> [f32; 16] {
+  pub fn calculate_local_matrix(&self) -> Mat4 {
     if let Some(matrix) = self.matrix {
       matrix
     } else {
-      let scale = Math::mat4_scale(Math::mat4_identity(), self.scale);
-      let rotation = Math::quat_to_mat4(self.rotation);
-      let translation = Math::mat4_translate_vec3(Math::mat4_identity(), self.translation);
-
-      let mut m = Math::mat4_mul(Math::mat4_identity(), translation);
-      m = Math::mat4_mul(m, rotation);
-      m = Math::mat4_mul(m, scale);
-      //m = Math::mat4_mul(m, self.matrix);
-
-      m
+      Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
   }
 
@@ -348,20 +340,20 @@ impl Node {
     let mut last_parent = nodes[idx].parent;
     while last_parent != -1 {
       let p_matrix = nodes[last_parent as usize].calculate_local_matrix();
-      matrix = Math::mat4_mul(p_matrix, matrix);
+      matrix = p_matrix * matrix;
       //matrix = Math::mat4_mul(matrix, nodes[idx].matrix);
 
       last_parent = nodes[last_parent as usize].parent;
     }
 
-    matrix
+    matrix.to_cols_array()
   }
 
-  pub fn matrix(&self) -> [f32; 16] {
+  pub fn matrix(&self) -> Mat4 {
     if let Some(matrix) = self.matrix {
       matrix
     } else {
-      Math::mat4_identity()
+      Mat4::IDENTITY
     }
   }
 }
@@ -431,19 +423,22 @@ impl GltfModel {
                   Property::Translation => {
                     let translation = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
                     self.nodes[node_idx].translation =
-                      [translation[0], translation[1], translation[2]];
+                      Vec3::from([translation[0], translation[1], translation[2]]);
                   }
                   Property::Rotation => {
                     let q1 = sampler.outputs[j_0];
                     let q2 = sampler.outputs[j_1];
 
-                    self.nodes[node_idx].rotation =
-                      Math::vec4_normalise(Math::quat_slerp(q1, q2, a));
+                    let q1 = Quat::from_array(q1);
+                    let q2 = Quat::from_array(q2);
+
+                    self.nodes[node_idx].rotation = Quat::slerp(q1, q2, a);
+                    //Math::vec4_normalise(Math::quat_slerp(q1, q2, a));
                     //self.nodes[node_idx].rotation = Math::vec4_normalise(Math::quat_short_mix(q1, q2, a));
                   }
                   Property::Scale => {
                     let scale = Math::vec4_mix(sampler.outputs[j_0], sampler.outputs[j_1], a);
-                    self.nodes[node_idx].scale = [scale[0], scale[1], scale[2]];
+                    self.nodes[node_idx].scale = Vec3::from([scale[0], scale[1], scale[2]]);
                   }
                   _ => {
                     // weights
@@ -653,30 +648,33 @@ fn load_skins(
 
     if let Some(inverse_bind_matrices) = reader.read_inverse_bind_matrices() {
       for matrix in inverse_bind_matrices {
-        let mut new_matrix = Math::mat4_identity();
-
-        new_matrix[0] = matrix[0][0];
-        new_matrix[1] = matrix[0][1];
-        new_matrix[2] = matrix[0][2];
-        new_matrix[3] = matrix[0][3];
-
-        new_matrix[4] = matrix[1][0];
-        new_matrix[5] = matrix[1][1];
-        new_matrix[6] = matrix[1][2];
-        new_matrix[7] = matrix[1][3];
-
-        new_matrix[8] = matrix[2][0];
-        new_matrix[9] = matrix[2][1];
-        new_matrix[10] = matrix[2][2];
-        new_matrix[11] = matrix[2][3];
-
-        new_matrix[12] = matrix[3][0];
-        new_matrix[13] = matrix[3][1];
-        new_matrix[14] = matrix[3][2];
-        new_matrix[15] = matrix[3][3];
-
+        let new_matrix = Mat4::from_cols_array_2d(&matrix);
         matrices.push(new_matrix);
-        raw_matrices.append(&mut new_matrix.to_vec());
+        raw_matrices.append(&mut new_matrix.to_cols_array().to_vec());
+        //let mut new_matrix = Math::mat4_identity();
+
+        //new_matrix[0] = matrix[0][0];
+        //new_matrix[1] = matrix[0][1];
+        //new_matrix[2] = matrix[0][2];
+        //new_matrix[3] = matrix[0][3];
+
+        //new_matrix[4] = matrix[1][0];
+        //new_matrix[5] = matrix[1][1];
+        //new_matrix[6] = matrix[1][2];
+        //new_matrix[7] = matrix[1][3];
+
+        //new_matrix[8] = matrix[2][0];
+        //new_matrix[9] = matrix[2][1];
+        //new_matrix[10] = matrix[2][2];
+        //new_matrix[11] = matrix[2][3];
+
+        //new_matrix[12] = matrix[3][0];
+        //new_matrix[13] = matrix[3][1];
+        //new_matrix[14] = matrix[3][2];
+        //new_matrix[15] = matrix[3][3];
+
+        //matrices.push(new_matrix);
+        //raw_matrices.append(&mut new_matrix.to_vec());
       }
     }
 
@@ -839,9 +837,9 @@ fn load_node(
     parent,
     children: Vec::new(),
 
-    translation: [0.0; 3],
-    rotation: [0.0; 4],
-    scale: [1.0; 3],
+    translation: Vec3::from([0.0; 3]),
+    rotation: Quat::IDENTITY,
+    scale: Vec3::from([1.0; 3]),
     matrix: None, //Math::mat4_identity(),
   });
   /*
@@ -877,9 +875,9 @@ fn load_node(
   } else {*/
   let (translation, rotation, scale) = gltf_node.transform().decomposed();
 
-  nodes[node_idx].translation = translation;
-  nodes[node_idx].rotation = rotation;
-  nodes[node_idx].scale = scale;
+  nodes[node_idx].translation = Vec3::from(translation);
+  nodes[node_idx].rotation = Quat::from_array(rotation);
+  nodes[node_idx].scale = Vec3::from(scale);
   // }
 
   for child in gltf_node.children() {
@@ -1000,10 +998,11 @@ fn load_node(
       let colour = pbr.base_color_factor();
 
       for i in 0..vertices.len() {
-        all_verticies.push(Vector3::from_array(Math::vec3_mul(
-          vertices[i],
-          nodes[node_idx].scale,
-        )));
+        all_verticies.push((Vec3::from(vertices[i]) * nodes[node_idx].scale).to_array());
+        //Vector3::from_array(Math::vec3_mul(
+        //  vertices[i],
+        //  nodes[node_idx].scale,
+        //)));
 
         vertex_buffer.push(MeshVertex {
           pos: vertices[i],
@@ -1045,19 +1044,21 @@ fn load_node(
         }
       }
 
-      displacement = Math::vec3_div_f32(
-        Math::vec3_mul(displacement, nodes[node_idx].scale),
-        vertices.len() as f32,
-      );
+      displacement =
+        ((Vec3::from(displacement) * nodes[node_idx].scale).div(vertices.len() as f32)).to_array();
+      //Math::vec3_div_f32(
+      //  Math::vec3_mul(displacement, nodes[node_idx].scale),
+      //  vertices.len() as f32,
+      //);
       let name = mesh.name().unwrap();
 
       collision_objects.push(CollisionObject::new(
         name,
-        Vector3::from_array(displacement),
+        displacement,
         all_indices,
         all_verticies,
-        Vector3::from_array(b_box_min),
-        Vector3::from_array(b_box_max),
+        b_box_min,
+        b_box_max,
       ));
 
       nodes[node_idx].mesh.primitives.push(Primitive {
@@ -1082,9 +1083,9 @@ pub fn update_joints(
   idx: usize,
 ) {
   if nodes[idx].skin != -1 {
-    let matrix = Node::get_node_matrix(nodes, idx);
+    let matrix = Mat4::from_cols_array(&Node::get_node_matrix(nodes, idx));
 
-    let inverse_transform = Math::mat4_inverse(matrix);
+    let inverse_transform = matrix.inverse(); //Math::mat4_inverse(matrix);
     let skin_idx = nodes[idx].skin as usize;
 
     let num_joints = skins[skin_idx].joints.len();
@@ -1097,10 +1098,13 @@ pub fn update_joints(
     let mut joint_data: Vec<f32> = Vec::new();
     for i in 0..num_joints {
       let joint_idx = skins[skin_idx].joints[i] as usize;
-      let joint_matrix = Node::get_node_matrix(nodes, joint_idx);
+      let joint_matrix = Mat4::from_cols_array(&Node::get_node_matrix(nodes, joint_idx));
 
-      joint_matrices[i] = Math::mat4_mul(joint_matrix, skins[skin_idx].inverse_bind_matrices[i]);
-      joint_matrices[i] = Math::mat4_mul(inverse_transform, joint_matrices[i]);
+      joint_matrices[i] = (inverse_transform *
+        (joint_matrix * skins[skin_idx].inverse_bind_matrices[i]))
+        .to_cols_array();
+      //      joint_matrices[i] = Math::mat4_mul(joint_matrix, skins[skin_idx].inverse_bind_matrices[i]);
+      //      joint_matrices[i] = Math::mat4_mul(inverse_transform, joint_matrices[i]);
       joint_data.append(&mut joint_matrices[i].to_vec());
     }
 
