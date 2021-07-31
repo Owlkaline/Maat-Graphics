@@ -260,6 +260,10 @@ impl MaatGraphics {
     self.model_handler.window_resized(width, height);
   }
 
+  pub fn camera(&self) -> &Camera {
+    self.model_handler.camera()
+  }
+
   pub fn mut_camera(&mut self) -> &mut Camera {
     self.model_handler.mut_camera()
   }

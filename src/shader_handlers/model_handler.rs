@@ -263,6 +263,10 @@ impl ModelHandler {
     self.models.insert(model_ref, gltf_model);
   }
 
+  pub fn camera(&self) -> &Camera {
+    &self.camera
+  }
+
   pub fn mut_camera(&mut self) -> &mut Camera {
     &mut self.camera
   }

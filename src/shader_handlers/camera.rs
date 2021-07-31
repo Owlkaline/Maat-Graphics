@@ -106,6 +106,22 @@ impl Camera {
     self.rotation
   }
 
+  pub fn min_x_rotation(&self) -> Option<f32> {
+    self.min_x_rotation
+  }
+
+  pub fn max_x_rotation(&self) -> Option<f32> {
+    self.max_x_rotation
+  }
+
+  pub fn set_min_x_rotation(&mut self, min_rot: f32) {
+    self.min_x_rotation = Some(min_rot);
+  }
+
+  pub fn set_max_x_rotation(&mut self, max_rot: f32) {
+    self.max_x_rotation = Some(max_rot);
+  }
+
   pub fn set_movement_speed(&mut self, speed: f32) {
     self.movement_speed = speed;
   }
