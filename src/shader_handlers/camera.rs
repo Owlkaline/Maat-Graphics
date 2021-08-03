@@ -24,6 +24,7 @@ pub struct Camera {
   fov: f32,
   znear: f32,
   zfar: f32,
+  aspect: f32,
 
   // First and fly camera variables
   rotation: Vec3,
@@ -66,10 +67,13 @@ impl Camera {
 
     let target = Vec3::splat(0.0);
 
+    let aspect = 1280.0 / 720.0;
+
     let mut cam = Camera {
       fov: FOV,
       znear: ZNEAR,
       zfar: ZFAR,
+      aspect,
 
       rotation,
       position,
@@ -87,7 +91,7 @@ impl Camera {
       min_x_rotation: None,
       max_x_rotation: None,
 
-      perspective: Math::perspective(FOV, 1280.0 / 720.0, ZNEAR, ZFAR, flip_y),
+      perspective: Math::perspective(FOV, aspect, ZNEAR, ZFAR, flip_y),
       view: Camera::view(position, rotation, camera_type, flip_y),
 
       camera_type,
@@ -100,6 +104,11 @@ impl Camera {
     cam.update_view_matrix();
 
     cam
+  }
+
+  pub fn set_fovy(&mut self, fovy: f32) {
+    self.fov = fovy;
+    self.update_view_matrix();
   }
 
   pub fn rotation(&self) -> Vec3 {
@@ -150,6 +159,26 @@ impl Camera {
 
   pub fn invert_left_right(&mut self) {
     self.invert_y_rotation = -self.invert_y_rotation;
+  }
+
+  pub fn set_up_down_inverted(&mut self, inverted: bool) {
+    self.invert_x_rotation = {
+      if inverted {
+        -1.0
+      } else {
+        1.0
+      }
+    };
+  }
+
+  pub fn set_left_right_inverted(&mut self, inverted: bool) {
+    self.invert_y_rotation = {
+      if inverted {
+        -1.0
+      } else {
+        1.0
+      }
+    };
   }
 
   pub fn set_rotation(&mut self, rot: [f32; 3]) {
@@ -365,8 +394,15 @@ impl Camera {
     self.update_view_matrix();
   }
 
+  pub fn update_fovy(&mut self, fovy: f32) {
+    self.perspective = Math::perspective(fovy, self.aspect, self.znear, self.zfar, self.flip_y);
+    self.fov = fovy;
+    self.update_view_matrix();
+  }
+
   pub fn update_aspect_ratio(&mut self, aspect: f32) {
     self.perspective = Math::perspective(self.fov, aspect, self.znear, self.zfar, self.flip_y);
+    self.aspect = aspect;
     self.update_view_matrix();
   }
 
