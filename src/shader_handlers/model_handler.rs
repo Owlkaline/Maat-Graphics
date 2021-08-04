@@ -62,6 +62,8 @@ pub struct ModelHandler {
   window_size: [f32; 2],
 
   descriptor_pool: vk::DescriptorPool,
+
+  loaded_models: Vec<(String, String)>,
 }
 
 impl ModelHandler {
@@ -161,7 +163,13 @@ impl ModelHandler {
       window_size,
 
       descriptor_pool,
+
+      loaded_models: Vec::new(),
     }
+  }
+
+  pub fn loaded_models(&self) -> Vec<(String, String)> {
+    self.loaded_models.clone()
   }
 
   pub fn set_draw_mode(&mut self, vulkan: &Vulkan, mode: DrawMode) {
@@ -259,6 +267,12 @@ impl ModelHandler {
 
   pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: T) {
     let model_ref = model_ref.into();
+    let model = model.into();
+
+    self
+      .loaded_models
+      .push((model_ref.to_string(), model.to_string()));
+
     let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model_ref.to_string(), model);
     self.models.insert(model_ref, gltf_model);
   }

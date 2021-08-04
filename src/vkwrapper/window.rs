@@ -38,4 +38,8 @@ impl VkWindow {
   pub fn internal(&self) -> &Window {
     &self.window
   }
+
+  pub fn replace_window(&mut self, window: Window) {
+    self.window = window;
+  }
 }

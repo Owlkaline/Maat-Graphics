@@ -28,6 +28,7 @@ use winit::{
     DeviceEvent, ElementState, Event, MouseButton as WMouseButton, VirtualKeyCode, WindowEvent,
   },
   event_loop::{ControlFlow, EventLoop},
+  window::Fullscreen,
 };
 
 use crate::ash::version::DeviceV1_0;
@@ -108,17 +109,18 @@ pub enum DrawMode {
   PointsOnly,
 }
 
-pub enum MaatAction {
+pub enum MaatSetting {
   DrawMode(DrawMode),
   MouseVisibility(bool),
   CaptureMouse(bool),
+  Window(bool, bool), // Window(is fullscreen, broderless)
+  LimitFps(f32, bool),
 }
 
 pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   Draw(
     &'a mut Vec<(Vec<f32>, T, Option<L>)>,
     &'a mut Vec<(Vec<f32>, S)>,
-    &'a mut Vec<MaatAction>,
   ),
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
   Update(
@@ -135,6 +137,7 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
   GamepadButton(ControllerInput, bool),
   GamepadAxis(AxisInput),
   Resized(u32, u32),
+  UpdateMaatSettings(&'a Vec<VirtualKeyCode>, &'a mut Vec<MaatSetting>),
   // NewModelLoaded -> HashMap<>
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent),
@@ -193,6 +196,22 @@ impl MaatGraphics {
 
       gamepads: None,
       active_controller: None,
+    }
+  }
+
+  pub fn replace_window(&mut self, window: &mut VkWindow) {
+    let extent = self.vulkan.swapchain().screen_resolution();
+    let models = self.model_handler.loaded_models();
+    let camera = self.camera().clone();
+
+    self.destroy();
+    self.vulkan = Vulkan::new(window, extent);
+    self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
+    self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
+    *self.model_handler.mut_camera() = camera;
+
+    for (model_ref, model) in models {
+      self.load_model(model_ref, model);
     }
   }
 
@@ -268,31 +287,66 @@ impl MaatGraphics {
     self.model_handler.mut_camera()
   }
 
+  pub fn update_maat_settings(
+    &mut self,
+    window: &mut VkWindow,
+    event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+    limit_fps: &mut bool,
+    fps_limit: &mut f32,
+    maat_settings: Vec<MaatSetting>,
+  ) {
+    for setting in maat_settings {
+      match setting {
+        MaatSetting::DrawMode(mode) => {
+          self.model_handler.set_draw_mode(&self.vulkan, mode);
+        }
+        MaatSetting::MouseVisibility(visible) => {
+          window.internal().set_cursor_visible(visible);
+        }
+        MaatSetting::CaptureMouse(capture) => {
+          window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
+        }
+        MaatSetting::Window(fullscreen, borderless) => {
+          if fullscreen {
+            let monitor = event_loop.available_monitors().nth(0).unwrap();
+
+            let fullscreen_mode = {
+              if borderless {
+                let video_mode = monitor.video_modes().nth(0).unwrap();
+                // This is how we get the video resolutions
+                for (i, video_mode) in monitor.video_modes().enumerate() {
+                  println!("Video mode #{}: {}", i, video_mode);
+                }
+                Fullscreen::Exclusive(video_mode)
+              } else {
+                Fullscreen::Borderless(Some(monitor))
+              }
+            };
+
+            window.internal().set_fullscreen(Some(fullscreen_mode));
+          } else {
+            let new_window = winit::window::Window::new(&event_loop).unwrap();
+            window.replace_window(new_window);
+            self.replace_window(window);
+          }
+        }
+        MaatSetting::LimitFps(limit, should_limit) => {
+          *limit_fps = should_limit;
+          *fps_limit = (1.0 / limit).min(1.0);
+        }
+      }
+    }
+  }
+
   pub fn draw<T: Into<String>, L: Into<String>, S: Into<String>>(
     &mut self,
     texture_data: Vec<(Vec<f32>, T, Option<L>)>,
     model_data: Vec<(Vec<f32>, S)>,
-    maat_actions: Vec<MaatAction>,
-    window: &mut VkWindow,
   ) {
     if self.model_handler.mut_camera().is_updated() {
       self
         .model_handler
         .update_uniform_buffer(self.vulkan.device());
-    }
-
-    for action in maat_actions {
-      match action {
-        MaatAction::DrawMode(mode) => {
-          self.model_handler.set_draw_mode(&self.vulkan, mode);
-        }
-        MaatAction::MouseVisibility(visible) => {
-          window.internal().set_cursor_visible(visible);
-        }
-        MaatAction::CaptureMouse(capture) => {
-          window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
-        }
-      }
     }
 
     if let Some(present_index) = self.vulkan.start_render() {
@@ -342,17 +396,18 @@ impl MaatGraphics {
       self.vulkan.device().internal().device_wait_idle().unwrap();
     }
 
-    self.texture_handler.destroy(&mut self.vulkan);
+    // self.texture_handler.destroy(&mut self.vulkan);
+    //    self.model_handler.destroy(&mut self.vulkan);
 
-    self.compute_descriptor_sets.destroy(self.vulkan.device());
-    self.compute_shader.destroy(self.vulkan.device());
+    //self.compute_descriptor_sets.destroy(self.vulkan.device());
+    //self.compute_shader.destroy(self.vulkan.device());
 
-    unsafe {
-      self
-        .vulkan
-        .device()
-        .destroy_descriptor_pool(self.compute_descriptor_pool, None);
-    }
+    //unsafe {
+    //  self
+    //    .vulkan
+    //    .device()
+    //    .destroy_descriptor_pool(self.compute_descriptor_pool, None);
+    //}
   }
 
   pub fn run<T, L, S, V>(
@@ -378,12 +433,17 @@ impl MaatGraphics {
 
     let mut window_dimensions = [1280.0, 720.0];
 
-    event_loop.run(move |event, _, control_flow| {
+    let mut limit_fps = false;
+    let mut fps_limit = 1.0 / 144.0;
+    let mut total_frame_limit_time = 0.0;
+
+    event_loop.run(move |event, event_loop, control_flow| {
       *control_flow = ControlFlow::Poll;
 
       _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
       last_time = Instant::now();
       total_delta_time += _delta_time as f32;
+      total_frame_limit_time += _delta_time as f32;
       total_animation_delta_time += _delta_time as f32;
 
       let mut should_exit = false;
@@ -428,13 +488,30 @@ impl MaatGraphics {
 
       let mut texture_data = Vec::new();
       let mut model_data = Vec::new();
-      let mut action_data = Vec::new();
+      let mut maat_settings_data = Vec::new();
 
-      callback(MaatEvent::Draw(
-        &mut texture_data,
-        &mut model_data,
-        &mut action_data,
-      ));
+      let mut should_redraw = !limit_fps;
+      if total_frame_limit_time > fps_limit {
+        total_frame_limit_time -= fps_limit;
+        should_redraw = true;
+      }
+
+      if should_redraw {
+        callback(MaatEvent::UpdateMaatSettings(
+          &mut device_keys,
+          &mut maat_settings_data,
+        ));
+
+        vulkan.update_maat_settings(
+          &mut window,
+          event_loop,
+          &mut limit_fps,
+          &mut fps_limit,
+          maat_settings_data,
+        );
+
+        window.internal().request_redraw();
+      }
 
       if let Some(controllers) = &mut vulkan.gamepads {
         if let Some(gamepad_id) = &vulkan.active_controller {
@@ -555,8 +632,10 @@ impl MaatGraphics {
             callback(MaatEvent::UnhandledDeviceEvent(device_event));
           }
         },
-        Event::MainEventsCleared => {
-          vulkan.draw(texture_data, model_data, action_data, &mut window);
+        //Event::MainEventsCleared => {
+        Event::RedrawRequested(_id) => {
+          callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+          vulkan.draw(texture_data, model_data);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();

@@ -119,7 +119,6 @@ impl<T: Sized + Copy> Shader<T> {
 
     if let Some((_, instanced_offsets)) = instanced {
       for i in 0..instanced_offsets.len() {
-        println!("location: {}", i as u32 + offsets.len() as u32);
         vertex_input_attributes.push(vk::VertexInputAttributeDescription {
           location: i as u32 + offsets.len() as u32,
           binding: 1,

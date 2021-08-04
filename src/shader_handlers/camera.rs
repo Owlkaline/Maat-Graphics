@@ -20,6 +20,7 @@ pub enum CameraType {
   ThirdPerson,
 }
 
+#[derive(Clone)]
 pub struct Camera {
   fov: f32,
   znear: f32,
