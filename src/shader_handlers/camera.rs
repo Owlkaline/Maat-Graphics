@@ -196,6 +196,17 @@ impl Camera {
     }
   }
 
+  pub fn follow_target_lerp(&mut self, target: [f32; 3], percentage: f32) {
+    let target = Vec3::from(target);
+    //if self.target != target {
+    //self.target = Vec3::new(-target.x, -target.y, -target.z);
+    self.target = self.target.lerp(-target, percentage);
+    self.position = self.target + self.offset;
+
+    self.update_view_matrix();
+    //}
+  }
+
   pub fn perspective_matrix(&self) -> [f32; 16] {
     self.perspective
   }
@@ -331,6 +342,22 @@ impl Camera {
       Vec4::new(-1.0, 1.0, -1.0, 1.0);
 
     self.updated = true;
+  }
+
+  pub fn zoom_lerp(&mut self, offset: f32, percentage: f32) {
+    match self.camera_type {
+      CameraType::ThirdPerson => {
+        let front = Camera::camera_front(self.rotation);
+        let zoom_speed = -offset;
+
+        let goal_offset = front * Vec3::splat(zoom_speed);
+
+        self.offset = self.offset.lerp(goal_offset, percentage);
+
+        self.update_view_matrix();
+      }
+      _ => {}
+    }
   }
 
   pub fn zoom(&mut self, offset: f32) {
