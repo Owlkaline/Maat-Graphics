@@ -5,10 +5,12 @@ use ash::vk;
 
 use crate::extra::gltf_loader::{GltfModel, Material, MeshImage, Node, Skin, Texture};
 use crate::vkwrapper::{
-  Buffer, ClearValues, ComputeShader, DescriptorSet, DescriptorWriter, Fence, Image, ImageBuilder,
-  PassDescription, Renderpass, Scissors, Semaphore, Shader, Viewport, VkCommandPool, VkDevice,
-  VkFrameBuffer, VkInstance, VkSwapchain, VkWindow,
+  Buffer, ClearValues, ComputeShader, DescriptorSet, DescriptorWriter, Fence, Frame, Image,
+  ImageBuilder, PassDescription, Renderpass, Scissors, Semaphore, Shader, Viewport, VkCommandPool,
+  VkDevice, VkFrameBuffer, VkInstance, VkSwapchain, VkWindow,
 };
+
+const FRAMES_IN_FLIGHT: usize = 2;
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]
@@ -39,6 +41,10 @@ pub fn find_memorytype_index(
 pub struct Vulkan {
   instance: VkInstance,
   device: VkDevice,
+
+  current_frame: usize,
+  frames_in_flight: Vec<Frame>,
+  max_frames_in_flight: usize,
 
   texture_renderpass: Renderpass,
   model_renderpass: Renderpass,
@@ -146,11 +152,22 @@ impl Vulkan {
       1.0,
     );
 
+    let mut frames_in_flight = Vec::new();
+    for _ in 0..FRAMES_IN_FLIGHT {
+      frames_in_flight.push(Frame::new(&device));
+    }
+
     Vulkan {
       instance,
       device,
+
+      current_frame: 0,
+      frames_in_flight,
+      max_frames_in_flight: FRAMES_IN_FLIGHT,
+
       texture_renderpass,
       model_renderpass,
+
       swapchain,
       pool,
 
@@ -609,6 +626,8 @@ impl Vulkan {
     instance_count: usize,
     data: Vec<f32>,
   ) {
+    let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
+
     let mut push_constant_data: [u8; 128] = [0; 128];
     for i in 0..(32).min(data.len()) {
       let bytes = data[i].to_le_bytes();
@@ -620,7 +639,7 @@ impl Vulkan {
 
     unsafe {
       self.device.cmd_bind_descriptor_sets(
-        self.draw_command_buffer,
+        draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
         0,
@@ -629,7 +648,7 @@ impl Vulkan {
       );
 
       self.device.cmd_bind_descriptor_sets(
-        self.draw_command_buffer,
+        draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
         1,
@@ -638,43 +657,40 @@ impl Vulkan {
       );
 
       self.device.cmd_bind_pipeline(
-        self.draw_command_buffer,
+        draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         *shader.graphics_pipeline().internal(),
       );
 
       self
         .device
-        .cmd_set_viewport(self.draw_command_buffer, 0, &[self.viewports.build()]);
+        .cmd_set_viewport(draw_command_buffer, 0, &[self.viewports.build()]);
       self
         .device
-        .cmd_set_scissor(self.draw_command_buffer, 0, &self.scissors.build());
+        .cmd_set_scissor(draw_command_buffer, 0, &self.scissors.build());
 
       self.device.cmd_bind_vertex_buffers(
-        self.draw_command_buffer,
+        draw_command_buffer,
         0,
         &[*vertex_buffer.internal()],
         &[0],
       );
 
       if let Some(buffer) = instanced_buffer {
-        self.device.cmd_bind_vertex_buffers(
-          self.draw_command_buffer,
-          1,
-          &[*buffer.internal()],
-          &[0],
-        );
+        self
+          .device
+          .cmd_bind_vertex_buffers(draw_command_buffer, 1, &[*buffer.internal()], &[0]);
       }
 
       self.device.cmd_bind_index_buffer(
-        self.draw_command_buffer,
+        draw_command_buffer,
         *index_buffer.internal(),
         0,
         vk::IndexType::UINT32,
       );
 
       self.device.cmd_push_constants(
-        self.draw_command_buffer,
+        draw_command_buffer,
         shader.pipeline_layout(),
         vk::ShaderStageFlags::VERTEX,
         0,
@@ -683,7 +699,7 @@ impl Vulkan {
 
       if instanced_buffer.is_some() {
         self.device.cmd_draw_indexed(
-          self.draw_command_buffer,
+          draw_command_buffer,
           index_buffer.data().len() as u32,
           instance_count as u32,
           0,
@@ -692,7 +708,7 @@ impl Vulkan {
         );
       } else {
         self.device.cmd_draw_indexed(
-          self.draw_command_buffer,
+          draw_command_buffer,
           index_buffer.data().len() as u32,
           1,
           0,
@@ -703,109 +719,6 @@ impl Vulkan {
     }
   }
 
-  /*
-  pub fn draw_instanced_mesh<T: Copy, S: Copy>(
-    &mut self,
-    index_buffer: &Buffer<u32>,
-    vertex_buffer: &Buffer<T>,
-    shader: &Shader<T>,
-    uniform_descriptor: &DescriptorSet,
-    dummy_texture: &DescriptorSet,
-    dummy_skin: &DescriptorSet,
-    buffer: &Buffer<S>,
-    instance_count: usize,
-    prim_info: &Vec<(u32, u32)>,
-  ) {
-    unsafe {
-      self.device.cmd_bind_descriptor_sets(
-        self.draw_command_buffer,
-        vk::PipelineBindPoint::GRAPHICS,
-        shader.pipeline_layout(),
-        0,
-        &uniform_descriptor.internal()[..],
-        &[],
-      );
-
-      self.device.cmd_bind_pipeline(
-        self.draw_command_buffer,
-        vk::PipelineBindPoint::GRAPHICS,
-        *shader.graphics_pipeline().internal(),
-      );
-
-      self.device.cmd_set_viewport(self.draw_command_buffer, 0, &[self.viewports.build()]);
-      self.device.cmd_set_scissor(self.draw_command_buffer, 0, &self.scissors.build());
-    }
-
-    unsafe {
-      self.device.cmd_bind_vertex_buffers(
-        self.draw_command_buffer,
-        0,
-        &[*vertex_buffer.internal()],
-        &[0],
-      );
-
-      self.device.cmd_bind_vertex_buffers(
-        self.draw_command_buffer,
-        1,
-        &[*buffer.internal()],
-        &[0],
-      );
-
-      self.device.cmd_bind_index_buffer(
-        self.draw_command_buffer,
-        *index_buffer.internal(),
-        0,
-        vk::IndexType::UINT32,
-      );
-    }
-
-    unsafe {
-     self.device.cmd_bind_descriptor_sets(
-       self.draw_command_buffer,
-       vk::PipelineBindPoint::GRAPHICS,
-       shader.pipeline_layout(),
-       1,
-       &dummy_skin.internal()[..],
-       &[],
-     );
-   }
-
-
-    let image_descriptor = dummy_texture;/*{
-            if images.len() == 0 {
-              dummy_texture
-            } else {
-              let idx = textures[materials[primitive.material_index as usize].base_colour_texture_index as usize].image_index as usize;
-              &images[idx].descriptor_set
-            }
-          };*/
-
-    unsafe {
-      self.device.cmd_bind_descriptor_sets(
-        self.draw_command_buffer,
-        vk::PipelineBindPoint::GRAPHICS,
-        shader.pipeline_layout(),
-        2,
-        &image_descriptor.internal()[..],
-        &[],
-      );
-
-      let mut start_offset = 0;
-
-      for (index_count, first_index) in prim_info {
-        start_offset += index_count;
-        self.device.cmd_draw_indexed(
-          self.draw_command_buffer,
-          *index_count,
-          instance_count as u32,
-          0,
-          0,
-          0,
-        );
-      }
-    }
-  }*/
-
   pub fn draw_mesh<T: Copy>(
     &mut self,
     shader: &Shader<T>,
@@ -815,9 +728,11 @@ impl Vulkan {
     data: Vec<f32>,
     model: &GltfModel,
   ) {
+    let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
+
     unsafe {
       self.device.cmd_bind_descriptor_sets(
-        self.draw_command_buffer,
+        draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
         0,
@@ -826,29 +741,29 @@ impl Vulkan {
       );
 
       self.device.cmd_bind_pipeline(
-        self.draw_command_buffer,
+        draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         *shader.graphics_pipeline().internal(),
       );
 
       self
         .device
-        .cmd_set_viewport(self.draw_command_buffer, 0, &[self.viewports.build()]);
+        .cmd_set_viewport(draw_command_buffer, 0, &[self.viewports.build()]);
       self
         .device
-        .cmd_set_scissor(self.draw_command_buffer, 0, &self.scissors.build());
+        .cmd_set_scissor(draw_command_buffer, 0, &self.scissors.build());
     }
 
     unsafe {
       self.device.cmd_bind_vertex_buffers(
-        self.draw_command_buffer,
+        draw_command_buffer,
         0,
         &[*model.vertex_buffer().internal()],
         &[0],
       );
 
       self.device.cmd_bind_index_buffer(
-        self.draw_command_buffer,
+        draw_command_buffer,
         *model.index_buffer().internal(),
         0,
         vk::IndexType::UINT32,
@@ -893,6 +808,8 @@ impl Vulkan {
     dummy_texture: &DescriptorSet,
     dummy_skin: &DescriptorSet,
   ) {
+    let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
+
     if nodes[idx].mesh.primitives.len() > 0 {
       let mut push_constant_data: [u8; 128] = [0; 128];
       let matrix = Node::get_node_matrix(nodes, idx);
@@ -912,7 +829,7 @@ impl Vulkan {
 
       unsafe {
         self.device.cmd_push_constants(
-          self.draw_command_buffer,
+          draw_command_buffer,
           shader.pipeline_layout(),
           vk::ShaderStageFlags::VERTEX,
           0,
@@ -923,7 +840,7 @@ impl Vulkan {
       if skins.len() > 0 && nodes[idx].skin != -1 {
         unsafe {
           self.device.cmd_bind_descriptor_sets(
-            self.draw_command_buffer,
+            draw_command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             shader.pipeline_layout(),
             1,
@@ -934,7 +851,7 @@ impl Vulkan {
       } else {
         unsafe {
           self.device.cmd_bind_descriptor_sets(
-            self.draw_command_buffer,
+            draw_command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             shader.pipeline_layout(),
             1,
@@ -959,7 +876,7 @@ impl Vulkan {
 
           unsafe {
             self.device.cmd_bind_descriptor_sets(
-              self.draw_command_buffer,
+              draw_command_buffer,
               vk::PipelineBindPoint::GRAPHICS,
               shader.pipeline_layout(),
               2,
@@ -968,7 +885,7 @@ impl Vulkan {
             );
 
             self.device.cmd_draw_indexed(
-              self.draw_command_buffer,
+              draw_command_buffer,
               primitive.index_count,
               1,
               primitive.first_index,
@@ -979,17 +896,14 @@ impl Vulkan {
         }
       }
     }
-
-    //    for child_idx in &nodes[idx].children {
-    //      self.draw_node(shader, *child_idx as usize, data, nodes,
-    //                     images, skins, textures, materials,
-    //                     dummy_texture, dummy_skin);
-    //    }
   }
 
   pub fn end_renderpass(&mut self) {
     unsafe {
-      self.device.cmd_end_render_pass(self.draw_command_buffer);
+      self
+        .device
+        .cmd_end_render_pass(self.frames_in_flight[self.current_frame].command_buffer());
+      //self.draw_command_buffer);
     }
   }
 
@@ -998,7 +912,9 @@ impl Vulkan {
       self.swapchain.swapchain_loader().acquire_next_image(
         *self.swapchain.internal(),
         std::u64::MAX,
-        self.present_complete_semaphore.internal(),
+        self.frames_in_flight[self.current_frame]
+          .present_semaphore()
+          .internal(),
         vk::Fence::null(),
       )
     };
@@ -1012,13 +928,20 @@ impl Vulkan {
     };
 
     unsafe {
-      self.draw_commands_reuse_fence.wait(&self.device);
-      self.draw_commands_reuse_fence.reset(&self.device);
+      //self.draw_commands_reuse_fence.wait(&self.device);
+      //self.draw_commands_reuse_fence.reset(&self.device);
+      self.frames_in_flight[self.current_frame]
+        .render_fence()
+        .wait(&self.device);
+      self.frames_in_flight[self.current_frame]
+        .render_fence()
+        .reset(&self.device);
 
       self
         .device
         .reset_command_buffer(
-          self.draw_command_buffer,
+          //          draw_command_buffer
+          self.frames_in_flight[self.current_frame].command_buffer(),
           vk::CommandBufferResetFlags::RELEASE_RESOURCES,
         )
         .expect("Reset command buffer failed.");
@@ -1028,7 +951,10 @@ impl Vulkan {
 
       self
         .device
-        .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)
+        .begin_command_buffer(
+          self.frames_in_flight[self.current_frame].command_buffer(),
+          &command_buffer_begin_info,
+        )
         .expect("Begin commandbuffer");
     }
 
@@ -1042,14 +968,18 @@ impl Vulkan {
     unsafe {
       self
         .device
-        .end_command_buffer(self.draw_command_buffer)
+        .end_command_buffer(self.frames_in_flight[self.current_frame].command_buffer())
         .expect("End commandbuffer");
     }
 
-    let command_buffers = vec![self.draw_command_buffer];
+    let command_buffers = vec![self.frames_in_flight[self.current_frame].command_buffer()];
 
-    let wait_semaphore = [self.present_complete_semaphore.internal()];
-    let signal_semaphore = [self.rendering_complete_semaphore.internal()];
+    let wait_semaphore = [self.frames_in_flight[self.current_frame]
+      .present_semaphore()
+      .internal()];
+    let signal_semaphore = [self.frames_in_flight[self.current_frame]
+      .render_semaphore()
+      .internal()];
     let submit_info = vk::SubmitInfo::builder()
       .wait_semaphores(&wait_semaphore)
       .wait_dst_stage_mask(wait_mask)
@@ -1062,14 +992,18 @@ impl Vulkan {
         .queue_submit(
           submit_queue,
           &[submit_info.build()],
-          self.draw_commands_reuse_fence.internal(),
+          self.frames_in_flight[self.current_frame]
+            .render_fence()
+            .internal(),
         )
         .expect("queue submit failed.");
     }
 
     let present_info = vk::PresentInfoKHR {
       wait_semaphore_count: 1,
-      p_wait_semaphores: &self.rendering_complete_semaphore.internal(),
+      p_wait_semaphores: &self.frames_in_flight[self.current_frame]
+        .render_semaphore()
+        .internal(),
       swapchain_count: 1,
       p_swapchains: self.swapchain.internal(),
       p_image_indices: &present_index,
@@ -1097,6 +1031,8 @@ impl Vulkan {
         }
       }
     };
+
+    self.current_frame = (self.current_frame + 1) % self.max_frames_in_flight;
   }
 
   pub fn begin_renderpass_texture(&mut self, present_index: u32) {
@@ -1112,7 +1048,7 @@ impl Vulkan {
 
     unsafe {
       self.device.cmd_begin_render_pass(
-        self.draw_command_buffer,
+        self.frames_in_flight[self.current_frame].command_buffer(),
         &render_pass_begin_info,
         vk::SubpassContents::INLINE,
       );
@@ -1132,7 +1068,7 @@ impl Vulkan {
 
     unsafe {
       self.device.cmd_begin_render_pass(
-        self.draw_command_buffer,
+        self.frames_in_flight[self.current_frame].command_buffer(),
         &render_pass_begin_info,
         vk::SubpassContents::INLINE,
       );
