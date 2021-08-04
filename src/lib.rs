@@ -562,6 +562,7 @@ impl MaatGraphics {
             callback(MaatEvent::Resized(dimensions.width, dimensions.height));
             window_dimensions[0] = dimensions.width as f64;
             window_dimensions[1] = dimensions.height as f64;
+            //window.internal().request_redraw();
           }
           WindowEvent::KeyboardInput { input, .. } => {
             let key_code = input.scancode;
