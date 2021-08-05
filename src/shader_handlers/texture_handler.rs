@@ -166,27 +166,26 @@ impl TextureHandler {
     self.font.get_font_data()
   }
 
-  pub fn destroy(&mut self, vulkan: &mut Vulkan) {
+  pub fn destroy(&mut self, device: &VkDevice) {
     for (_, (image, descriptor)) in self.textures.drain().take(1) {
-      image.destroy(vulkan.device());
-      descriptor.destroy(vulkan.device());
+      image.destroy(device);
+      descriptor.destroy(device);
     }
 
-    self.dummy_texture.0.destroy(vulkan.device());
-    self.dummy_texture.1.destroy(vulkan.device());
+    self.dummy_texture.0.destroy(device);
+    self.dummy_texture.1.destroy(device);
 
-    self.combo_shader.destroy(vulkan.device());
-    self.combo_index_buffer.destroy(vulkan.device());
-    self.combo_vertex_buffer.destroy(vulkan.device());
+    self.combo_shader.destroy(device);
+    self.combo_index_buffer.destroy(device);
+    self.combo_vertex_buffer.destroy(device);
 
     unsafe {
-      vulkan
-        .device()
+      device
         .internal()
         .destroy_descriptor_pool(self.descriptor_pool, None);
     }
 
-    self.sampler.destroy(vulkan.device());
+    self.sampler.destroy(device);
   }
 
   pub fn shader(&self) -> &Shader<ComboVertex> {

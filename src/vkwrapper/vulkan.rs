@@ -9,7 +9,7 @@ use crate::vkwrapper::{
   VkDevice, VkFrameBuffer, VkInstance, VkSwapchain, VkWindow,
 };
 
-const FRAMES_IN_FLIGHT: usize = 2;
+const FRAMES_IN_FLIGHT: usize = 1;
 
 // Simple offset_of macro akin to C++ offsetof
 #[macro_export]
@@ -968,13 +968,11 @@ impl Vulkan {
       let command_buffer_begin_info =
         vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-      self
-        .device
-        .internal()
-        .begin_command_buffer(
-          self.frames_in_flight[self.current_frame].command_buffer(),
-          &command_buffer_begin_info,
-        )
+      let fif = self.frames_in_flight[self.current_frame].command_buffer();
+      let device = self.device.internal();
+
+      device
+        .begin_command_buffer(fif, &command_buffer_begin_info)
         .expect("Begin commandbuffer");
     }
 

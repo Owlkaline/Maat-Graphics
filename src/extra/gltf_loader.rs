@@ -8,7 +8,7 @@ use crate::extra::Math;
 use crate::glam::{Mat4, Quat, Vec3};
 use crate::shader_handlers::TextureHandler;
 use crate::vkwrapper::{
-  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan,
+  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, VkDevice, Vulkan,
 };
 use crate::Image as vkimage;
 
@@ -141,6 +141,20 @@ pub struct GltfModel {
 
   descriptor_pool: vk::DescriptorPool,
   active_animation: i32,
+}
+
+impl MeshImage {
+  pub fn destroy(&mut self, device: &VkDevice) {
+    self.texture.destroy(device);
+    self.descriptor_set.destroy(device);
+  }
+}
+
+impl Skin {
+  pub fn destroy(&mut self, device: &VkDevice) {
+    self.inverse_bind_matrix_buffer.destroy(device);
+    self.descriptor_set.destroy(device);
+  }
 }
 
 impl CollisionObject {
@@ -359,6 +373,25 @@ impl Node {
 }
 
 impl GltfModel {
+  pub fn destroy(&mut self, device: &VkDevice) {
+    self.mesh_index_buffer.destroy(device);
+    self.mesh_vertex_buffer.destroy(device);
+
+    for image in &mut self.mesh_images {
+      image.destroy(device);
+    }
+
+    for skin in &mut self.mesh_skins {
+      skin.destroy(device);
+    }
+
+    unsafe {
+      device
+        .internal()
+        .destroy_descriptor_pool(self.descriptor_pool, None);
+    }
+  }
+
   pub fn nodes(&self) -> &Vec<Node> {
     &self.nodes
   }
@@ -1133,6 +1166,24 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
   let mut vertex_buffer = Vec::new();
 
   let mut collision_objects = Vec::new();
+
+  let gltf = gltf::Gltf::open(&location.to_string()).ok().unwrap();
+
+  let mut buffer_data: Vec<Vec<u8>> = Vec::new();
+  for buffer in gltf.buffers() {
+    match buffer.source() {
+      gltf::buffer::Source::Uri(uri) => {
+        println!("Uri: {}", uri);
+      }
+      gltf::buffer::Source::Bin => {
+        println!("Bin");
+        if let Some(blob) = gltf.blob.as_deref() {
+          buffer_data.push(blob.into());
+        }
+      }
+    }
+  }
+  //  println!("{}: {:?}", location.to_string(), buffer_data);
 
   let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
 

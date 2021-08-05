@@ -19,6 +19,7 @@ mod vkwrapper;
 
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::mem;
 use std::time::Instant;
 
 use ash::vk;
@@ -204,9 +205,16 @@ impl MaatGraphics {
     let camera = self.camera().clone();
 
     self.destroy();
-    self.vulkan = Vulkan::new(window, extent);
-    self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
-    self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
+    //    mem::take(&mut self);
+    //  *self = MaatGraphics::new(window, [extent.width, extent.height], "./fonts/dejavasans");
+    let _old = mem::replace(
+      self,
+      MaatGraphics::new(window, [extent.width, extent.height], "./fonts/dejavasans"),
+    );
+
+    //self.vulkan = Vulkan::new(window, extent);
+    //self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
+    //self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
     *self.model_handler.mut_camera() = camera;
 
     for (model_ref, model) in models {
@@ -395,18 +403,19 @@ impl MaatGraphics {
       self.vulkan.device().internal().device_wait_idle().unwrap();
     }
 
-    // self.texture_handler.destroy(&mut self.vulkan);
-    //    self.model_handler.destroy(&mut self.vulkan);
+    self.texture_handler.destroy(&mut self.vulkan.device());
+    self.model_handler.destroy(&mut self.vulkan.device());
 
-    //self.compute_descriptor_sets.destroy(self.vulkan.device());
-    //self.compute_shader.destroy(self.vulkan.device());
+    self.compute_descriptor_sets.destroy(self.vulkan.device());
+    self.compute_shader.destroy(self.vulkan.device());
 
-    //unsafe {
-    //  self
-    //    .vulkan
-    //    .device()
-    //    .destroy_descriptor_pool(self.compute_descriptor_pool, None);
-    //}
+    unsafe {
+      self
+        .vulkan
+        .device()
+        .internal()
+        .destroy_descriptor_pool(self.compute_descriptor_pool, None);
+    }
   }
 
   pub fn run<T, L, S, V>(
@@ -546,6 +555,7 @@ impl MaatGraphics {
       match event {
         Event::WindowEvent { event, .. } => match event {
           WindowEvent::CloseRequested => {
+            vulkan.destroy();
             *control_flow = ControlFlow::Exit;
           }
           //WindowEvent::KeyboardInput {

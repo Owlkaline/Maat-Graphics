@@ -168,6 +168,28 @@ impl ModelHandler {
     }
   }
 
+  pub fn destroy(&mut self, device: &VkDevice) {
+    for (_, model) in &mut self.models {
+      model.destroy(device);
+    }
+
+    self.mesh_shader.destroy(device);
+    self.uniform_buffer.destroy(device);
+    self.uniform_descriptor_set.destroy(device);
+
+    self.dummy_texture.destroy(device);
+    self.dummy_skin_buffer.destroy(device);
+    self.dummy_skin.destroy(device);
+
+    self.storage_descriptor_set.destroy(device);
+
+    unsafe {
+      device
+        .internal()
+        .destroy_descriptor_pool(self.descriptor_pool, None);
+    }
+  }
+
   pub fn loaded_models(&self) -> Vec<(String, String)> {
     self.loaded_models.clone()
   }
