@@ -306,28 +306,29 @@ impl MaatGraphics {
           window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
         }
         MaatSetting::Window(fullscreen, borderless) => {
-          if fullscreen {
-            let monitor = event_loop.available_monitors().nth(0).unwrap();
+          let window_mode = {
+            if fullscreen {
+              let monitor = event_loop.available_monitors().nth(0).unwrap();
 
-            let fullscreen_mode = {
-              if borderless {
-                let video_mode = monitor.video_modes().nth(0).unwrap();
-                // This is how we get the video resolutions
-                for (i, video_mode) in monitor.video_modes().enumerate() {
-                  println!("Video mode #{}: {}", i, video_mode);
+              let fullscreen_mode = {
+                if borderless {
+                  let video_mode = monitor.video_modes().nth(0).unwrap();
+                  // This is how we get the video resolutions
+                  for (i, video_mode) in monitor.video_modes().enumerate() {
+                    println!("Video mode #{}: {}", i, video_mode);
+                  }
+                  Fullscreen::Exclusive(video_mode)
+                } else {
+                  Fullscreen::Borderless(Some(monitor))
                 }
-                Fullscreen::Exclusive(video_mode)
-              } else {
-                Fullscreen::Borderless(Some(monitor))
-              }
-            };
+              };
 
-            window.internal().set_fullscreen(Some(fullscreen_mode));
-          } else {
-            let new_window = winit::window::Window::new(&event_loop).unwrap();
-            window.replace_window(new_window);
-            self.replace_window(window);
-          }
+              Some(fullscreen_mode)
+            } else {
+              None
+            }
+          };
+          window.internal().set_fullscreen(window_mode);
         }
         MaatSetting::LimitFps(limit, should_limit) => {
           *limit_fps = should_limit;
