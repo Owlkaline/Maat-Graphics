@@ -1,4 +1,3 @@
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::{Memory, VkDevice};
@@ -62,8 +61,8 @@ impl Image {
   pub fn destroy(&self, device: &VkDevice) {
     unsafe {
       self.memory.destroy(device);
-      device.destroy_image_view(self.image_view, None);
-      device.destroy_image(self.image, None);
+      device.internal().destroy_image_view(self.image_view, None);
+      device.internal().destroy_image(self.image, None);
     }
   }
 

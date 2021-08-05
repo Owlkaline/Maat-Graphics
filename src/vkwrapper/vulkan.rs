@@ -1,6 +1,5 @@
 use std::default::Default;
 
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::extra::gltf_loader::{GltfModel, Material, MeshImage, Node, Skin, Texture};
@@ -274,7 +273,7 @@ impl Vulkan {
         };
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             texture_command_buffer,
             vk::PipelineStageFlags::BOTTOM_OF_PIPE,
             vk::PipelineStageFlags::TRANSFER,
@@ -304,7 +303,7 @@ impl Vulkan {
         );
 
         unsafe {
-          device.cmd_copy_buffer_to_image(
+          device.internal().cmd_copy_buffer_to_image(
             texture_command_buffer,
             *src_buffer.internal(),
             dst_image.internal(),
@@ -329,7 +328,7 @@ impl Vulkan {
         };
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             texture_command_buffer,
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::FRAGMENT_SHADER,
@@ -369,7 +368,7 @@ impl Vulkan {
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             buffer_command_buffer,
             vk::PipelineStageFlags::BOTTOM_OF_PIPE,
             vk::PipelineStageFlags::TRANSFER,
@@ -397,7 +396,7 @@ impl Vulkan {
             });*/
 
         unsafe {
-          device.cmd_copy_buffer(
+          device.internal().cmd_copy_buffer(
             buffer_command_buffer,
             *src_buffer.internal(),
             *dst_buffer.internal(),
@@ -426,7 +425,7 @@ impl Vulkan {
         };*/
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             buffer_command_buffer,
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::FRAGMENT_SHADER,
@@ -474,7 +473,7 @@ impl Vulkan {
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
         unsafe {
-          device.cmd_copy_buffer(
+          device.internal().cmd_copy_buffer(
             compute_command_buffer,
             *src_buffer.internal(),
             *dst_buffer.internal(),
@@ -489,7 +488,7 @@ impl Vulkan {
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             compute_command_buffer,
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -501,13 +500,13 @@ impl Vulkan {
         }
 
         unsafe {
-          device.cmd_bind_pipeline(
+          device.internal().cmd_bind_pipeline(
             compute_command_buffer,
             vk::PipelineBindPoint::COMPUTE,
             *compute_shader.pipeline().internal(),
           );
 
-          device.cmd_bind_descriptor_sets(
+          device.internal().cmd_bind_descriptor_sets(
             compute_command_buffer,
             vk::PipelineBindPoint::COMPUTE,
             compute_shader.pipeline_layout(),
@@ -517,7 +516,14 @@ impl Vulkan {
           );
         }
 
-        unsafe { device.cmd_dispatch(compute_command_buffer, src_buffer.data().len() as u32, 1, 1) }
+        unsafe {
+          device.internal().cmd_dispatch(
+            compute_command_buffer,
+            src_buffer.data().len() as u32,
+            1,
+            1,
+          )
+        }
 
         let buffer_barrier_end = vk::BufferMemoryBarrier::builder()
           .src_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
@@ -526,7 +532,7 @@ impl Vulkan {
           .size(std::mem::size_of::<T>() as u64 * (data.len() as u64));
 
         unsafe {
-          device.cmd_pipeline_barrier(
+          device.internal().cmd_pipeline_barrier(
             compute_command_buffer,
             vk::PipelineStageFlags::COMPUTE_SHADER,
             vk::PipelineStageFlags::TRANSFER,
@@ -541,7 +547,7 @@ impl Vulkan {
           vk::BufferCopy::builder().size(std::mem::size_of::<T>() as u64 * (data.len() as u64));
 
         unsafe {
-          device.cmd_copy_buffer(
+          device.internal().cmd_copy_buffer(
             compute_command_buffer,
             *dst_buffer.internal(),
             *src_buffer.internal(),
@@ -578,6 +584,7 @@ impl Vulkan {
       command_buffer_reuse_fence.reset(device);
 
       device
+        .internal()
         .reset_command_buffer(
           command_buffer,
           vk::CommandBufferResetFlags::RELEASE_RESOURCES,
@@ -588,10 +595,12 @@ impl Vulkan {
         vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
       device
+        .internal()
         .begin_command_buffer(command_buffer, &command_buffer_begin_info)
         .expect("Begin commandbuffer");
       f(device, command_buffer);
       device
+        .internal()
         .end_command_buffer(command_buffer)
         .expect("End commandbuffer");
 
@@ -606,6 +615,7 @@ impl Vulkan {
         .signal_semaphores(&signal_semaphore);
 
       device
+        .internal()
         .queue_submit(
           submit_queue,
           &[submit_info.build()],
@@ -638,7 +648,7 @@ impl Vulkan {
     }
 
     unsafe {
-      self.device.cmd_bind_descriptor_sets(
+      self.device.internal().cmd_bind_descriptor_sets(
         draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
@@ -647,7 +657,7 @@ impl Vulkan {
         &[],
       );
 
-      self.device.cmd_bind_descriptor_sets(
+      self.device.internal().cmd_bind_descriptor_sets(
         draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
@@ -656,7 +666,7 @@ impl Vulkan {
         &[],
       );
 
-      self.device.cmd_bind_pipeline(
+      self.device.internal().cmd_bind_pipeline(
         draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         *shader.graphics_pipeline().internal(),
@@ -664,12 +674,14 @@ impl Vulkan {
 
       self
         .device
+        .internal()
         .cmd_set_viewport(draw_command_buffer, 0, &[self.viewports.build()]);
       self
         .device
+        .internal()
         .cmd_set_scissor(draw_command_buffer, 0, &self.scissors.build());
 
-      self.device.cmd_bind_vertex_buffers(
+      self.device.internal().cmd_bind_vertex_buffers(
         draw_command_buffer,
         0,
         &[*vertex_buffer.internal()],
@@ -677,19 +689,22 @@ impl Vulkan {
       );
 
       if let Some(buffer) = instanced_buffer {
-        self
-          .device
-          .cmd_bind_vertex_buffers(draw_command_buffer, 1, &[*buffer.internal()], &[0]);
+        self.device.internal().cmd_bind_vertex_buffers(
+          draw_command_buffer,
+          1,
+          &[*buffer.internal()],
+          &[0],
+        );
       }
 
-      self.device.cmd_bind_index_buffer(
+      self.device.internal().cmd_bind_index_buffer(
         draw_command_buffer,
         *index_buffer.internal(),
         0,
         vk::IndexType::UINT32,
       );
 
-      self.device.cmd_push_constants(
+      self.device.internal().cmd_push_constants(
         draw_command_buffer,
         shader.pipeline_layout(),
         vk::ShaderStageFlags::VERTEX,
@@ -698,7 +713,7 @@ impl Vulkan {
       );
 
       if instanced_buffer.is_some() {
-        self.device.cmd_draw_indexed(
+        self.device.internal().cmd_draw_indexed(
           draw_command_buffer,
           index_buffer.data().len() as u32,
           instance_count as u32,
@@ -707,7 +722,7 @@ impl Vulkan {
           0,
         );
       } else {
-        self.device.cmd_draw_indexed(
+        self.device.internal().cmd_draw_indexed(
           draw_command_buffer,
           index_buffer.data().len() as u32,
           1,
@@ -731,7 +746,7 @@ impl Vulkan {
     let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
 
     unsafe {
-      self.device.cmd_bind_descriptor_sets(
+      self.device.internal().cmd_bind_descriptor_sets(
         draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         shader.pipeline_layout(),
@@ -740,7 +755,7 @@ impl Vulkan {
         &[],
       );
 
-      self.device.cmd_bind_pipeline(
+      self.device.internal().cmd_bind_pipeline(
         draw_command_buffer,
         vk::PipelineBindPoint::GRAPHICS,
         *shader.graphics_pipeline().internal(),
@@ -748,21 +763,23 @@ impl Vulkan {
 
       self
         .device
+        .internal()
         .cmd_set_viewport(draw_command_buffer, 0, &[self.viewports.build()]);
       self
         .device
+        .internal()
         .cmd_set_scissor(draw_command_buffer, 0, &self.scissors.build());
     }
 
     unsafe {
-      self.device.cmd_bind_vertex_buffers(
+      self.device.internal().cmd_bind_vertex_buffers(
         draw_command_buffer,
         0,
         &[*model.vertex_buffer().internal()],
         &[0],
       );
 
-      self.device.cmd_bind_index_buffer(
+      self.device.internal().cmd_bind_index_buffer(
         draw_command_buffer,
         *model.index_buffer().internal(),
         0,
@@ -828,7 +845,7 @@ impl Vulkan {
       }
 
       unsafe {
-        self.device.cmd_push_constants(
+        self.device.internal().cmd_push_constants(
           draw_command_buffer,
           shader.pipeline_layout(),
           vk::ShaderStageFlags::VERTEX,
@@ -839,7 +856,7 @@ impl Vulkan {
 
       if skins.len() > 0 && nodes[idx].skin != -1 {
         unsafe {
-          self.device.cmd_bind_descriptor_sets(
+          self.device.internal().cmd_bind_descriptor_sets(
             draw_command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             shader.pipeline_layout(),
@@ -850,7 +867,7 @@ impl Vulkan {
         }
       } else {
         unsafe {
-          self.device.cmd_bind_descriptor_sets(
+          self.device.internal().cmd_bind_descriptor_sets(
             draw_command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             shader.pipeline_layout(),
@@ -875,7 +892,7 @@ impl Vulkan {
           };
 
           unsafe {
-            self.device.cmd_bind_descriptor_sets(
+            self.device.internal().cmd_bind_descriptor_sets(
               draw_command_buffer,
               vk::PipelineBindPoint::GRAPHICS,
               shader.pipeline_layout(),
@@ -884,7 +901,7 @@ impl Vulkan {
               &[],
             );
 
-            self.device.cmd_draw_indexed(
+            self.device.internal().cmd_draw_indexed(
               draw_command_buffer,
               primitive.index_count,
               1,
@@ -902,6 +919,7 @@ impl Vulkan {
     unsafe {
       self
         .device
+        .internal()
         .cmd_end_render_pass(self.frames_in_flight[self.current_frame].command_buffer());
       //self.draw_command_buffer);
     }
@@ -939,6 +957,7 @@ impl Vulkan {
 
       self
         .device
+        .internal()
         .reset_command_buffer(
           //          draw_command_buffer
           self.frames_in_flight[self.current_frame].command_buffer(),
@@ -951,6 +970,7 @@ impl Vulkan {
 
       self
         .device
+        .internal()
         .begin_command_buffer(
           self.frames_in_flight[self.current_frame].command_buffer(),
           &command_buffer_begin_info,
@@ -968,6 +988,7 @@ impl Vulkan {
     unsafe {
       self
         .device
+        .internal()
         .end_command_buffer(self.frames_in_flight[self.current_frame].command_buffer())
         .expect("End commandbuffer");
     }
@@ -989,6 +1010,7 @@ impl Vulkan {
     unsafe {
       self
         .device
+        .internal()
         .queue_submit(
           submit_queue,
           &[submit_info.build()],
@@ -1047,7 +1069,7 @@ impl Vulkan {
       .clear_values(&clear_values);
 
     unsafe {
-      self.device.cmd_begin_render_pass(
+      self.device.internal().cmd_begin_render_pass(
         self.frames_in_flight[self.current_frame].command_buffer(),
         &render_pass_begin_info,
         vk::SubpassContents::INLINE,
@@ -1067,7 +1089,7 @@ impl Vulkan {
       .clear_values(&clear_values);
 
     unsafe {
-      self.device.cmd_begin_render_pass(
+      self.device.internal().cmd_begin_render_pass(
         self.frames_in_flight[self.current_frame].command_buffer(),
         &render_pass_begin_info,
         vk::SubpassContents::INLINE,

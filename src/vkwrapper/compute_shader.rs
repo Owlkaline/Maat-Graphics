@@ -3,7 +3,6 @@ use std::io::Read;
 use std::io::Seek;
 
 use ash::util::read_spv;
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::{ComputePipeline, DescriptorSet, VkDevice};

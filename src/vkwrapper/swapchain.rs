@@ -1,5 +1,4 @@
 use ash::extensions::khr::Swapchain;
-pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::vk;
 
 use crate::vkwrapper::{Image, ImageBuilder, VkDevice, VkInstance};
@@ -19,7 +18,7 @@ impl VkSwapchain {
     device: &VkDevice,
     screen_resolution: vk::Extent2D,
   ) -> VkSwapchain {
-    let swapchain_loader = Swapchain::new(instance, device);
+    let swapchain_loader = Swapchain::new(instance.internal(), device.internal());
 
     let (surface_capabilities, present_mode) = unsafe {
       let surface_capabilities = device
@@ -105,7 +104,7 @@ impl VkSwapchain {
   pub fn destroy(&self, device: &VkDevice) {
     unsafe {
       for image in &self.present_images {
-        device.destroy_image_view(image.view(), None);
+        device.internal().destroy_image_view(image.view(), None);
       }
       self
         .swapchain_loader

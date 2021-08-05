@@ -4,7 +4,6 @@ use std::io::Seek;
 use std::mem;
 
 use ash::util::read_spv;
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::{

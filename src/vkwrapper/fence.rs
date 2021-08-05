@@ -1,4 +1,3 @@
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::VkDevice;
@@ -36,6 +35,7 @@ impl Fence {
   pub fn wait(&self, device: &VkDevice) {
     unsafe {
       device
+        .internal()
         .wait_for_fences(&[self.fence], true, std::u64::MAX)
         .expect("Wait for fence failed.");
     }
@@ -44,6 +44,7 @@ impl Fence {
   pub fn reset(&self, device: &VkDevice) {
     unsafe {
       device
+        .internal()
         .reset_fences(&[self.fence])
         .expect("Reset fences failed.");
     }

@@ -2,7 +2,8 @@ use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 
 use ash::extensions::ext::DebugUtils;
-pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
+use ash::vk::make_api_version;
+//pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Entry, Instance};
 
 use crate::vkwrapper::VkWindow;
@@ -71,36 +72,17 @@ impl VkInstance {
   }
 }
 
-impl InstanceV1_0 for VkInstance {
-  type Device = ash::Device;
-
-  fn handle(&self) -> ash::vk::Instance {
-    self.instance.handle()
-  }
-
-  fn fp_v1_0(&self) -> &vk::InstanceFnV1_0 {
-    self.instance.fp_v1_0()
-  }
-
-  unsafe fn create_device(
-    &self,
-    a: vk::PhysicalDevice,
-    b: &vk::DeviceCreateInfo,
-    c: Option<&vk::AllocationCallbacks>,
-  ) -> std::result::Result<<Self as InstanceV1_0>::Device, ash::vk::Result> {
-    self.instance.create_device(a, b, c)
-  }
-}
-
 fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
   let app_name = CString::new("Maat_Graphics").unwrap();
-  /*
-   let layer_names = [];//CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
-   let layers_names_raw: Vec<*const i8> = layer_names
-       .iter()
-       .map(|raw_name| raw_name.as_ptr())
-       .collect();
-  */
+
+  //let layer_names = [
+  //  CString::new("VK_LAYER_KHRONOS_validation").unwrap(),
+  //];
+  //let layers_names_raw: Vec<*const i8> = layer_names
+  //  .iter()
+  //  .map(|raw_name| raw_name.as_ptr())
+  //  .collect();
+
   let surface_extensions = ash_window::enumerate_required_extensions(window.internal()).unwrap();
   let mut extension_names_raw = surface_extensions
     .iter()
@@ -113,11 +95,11 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
     .application_version(0)
     .engine_name(&app_name)
     .engine_version(0)
-    .api_version(vk::make_version(1, 1, 0));
+    .api_version(make_api_version(0, 1, 1, 0));
 
   let create_info = vk::InstanceCreateInfo::builder()
     .application_info(&appinfo)
-    .enabled_layer_names(&[])
+    .enabled_layer_names(&[]) //&layers_names_raw)
     .enabled_extension_names(&extension_names_raw);
 
   let instance: Instance = unsafe {

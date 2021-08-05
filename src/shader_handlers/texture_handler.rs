@@ -4,7 +4,6 @@ use std::mem;
 
 use ash::vk;
 
-use crate::ash::version::DeviceV1_0;
 use crate::offset_of;
 use crate::shader_handlers::{font::FontChar, Font};
 use crate::vkwrapper::{
@@ -183,6 +182,7 @@ impl TextureHandler {
     unsafe {
       vulkan
         .device()
+        .internal()
         .destroy_descriptor_pool(self.descriptor_pool, None);
     }
 

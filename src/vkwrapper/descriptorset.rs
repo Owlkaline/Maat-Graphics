@@ -1,4 +1,3 @@
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::VkDevice;
@@ -35,7 +34,9 @@ impl DescriptorSet {
   pub fn destroy(&self, device: &VkDevice) {
     unsafe {
       for layout in &self.descriptor_layouts {
-        device.destroy_descriptor_set_layout(*layout, None);
+        device
+          .internal()
+          .destroy_descriptor_set_layout(*layout, None);
       }
     }
   }

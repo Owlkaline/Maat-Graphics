@@ -2,7 +2,6 @@ use std::mem::align_of;
 use std::slice;
 
 use ash::util::Align;
-use ash::version::DeviceV1_0;
 use ash::vk;
 
 use crate::vkwrapper::VkDevice;

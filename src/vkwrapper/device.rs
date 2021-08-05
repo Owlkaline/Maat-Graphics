@@ -1,7 +1,7 @@
 use std::default::Default;
 
 use ash::extensions::khr::{Surface, Swapchain};
-pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
+//pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
 
 use crate::vkwrapper::{VkInstance, VkWindow};
@@ -26,9 +26,15 @@ pub struct VkDevice {
 
 impl VkDevice {
   pub fn new(instance: &VkInstance, window: &VkWindow) -> VkDevice {
-    let surface_loader = Surface::new(instance.entry(), instance);
+    let surface_loader = Surface::new(instance.entry(), instance.internal());
     let surface = unsafe {
-      ash_window::create_surface(instance.entry(), instance, window.internal(), None).unwrap()
+      ash_window::create_surface(
+        instance.entry(),
+        instance.internal(),
+        window.internal(),
+        None,
+      )
+      .unwrap()
     };
 
     let (phys_device, queue_family_index) =
@@ -163,14 +169,4 @@ fn create_logical_device(
   let present_queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
   (device, present_queue)
-}
-
-impl DeviceV1_0 for VkDevice {
-  fn handle(&self) -> vk::Device {
-    self.device.handle()
-  }
-
-  fn fp_v1_0(&self) -> &vk::DeviceFnV1_0 {
-    self.device.fp_v1_0()
-  }
 }

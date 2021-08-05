@@ -31,7 +31,6 @@ use winit::{
   window::Fullscreen,
 };
 
-use crate::ash::version::DeviceV1_0;
 use crate::shader_handlers::{ModelHandler, TextureHandler};
 use crate::vkwrapper::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 
