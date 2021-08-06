@@ -113,7 +113,7 @@ impl ModelHandler {
     let uniform_data = vec![MeshUniformBuffer {
       projection: camera.perspective_matrix(),
       model: camera.view_matrix(),
-      light_pos: [5.0, 5.0, -5.0, 1.0],
+      light_pos: [100.0, 100.0, -100.0, 1.0], //[5.0, 5.0, -5.0, 1.0],
       window_size,
     }];
 

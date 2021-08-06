@@ -52,17 +52,17 @@ void main() {
   vec3 model_scale = push_constants.scale.xyz;
   
   vec3 obj_pos = vec3(pos.x*model_scale.x, pos.y*model_scale.y, pos.z*model_scale.z) + push_constants.offset.xyz;
-  mat4 scale_matrix = scale_matrix(model_scale);
+  //mat4 scale_matrix = scale_matrix(model_scale);
   
   mat4 skin_mat = joint_weights.x * joint_matrices[int(joint_indices.x)] +
                   joint_weights.y * joint_matrices[int(joint_indices.y)] +
                   joint_weights.z * joint_matrices[int(joint_indices.z)] +
                   joint_weights.w * joint_matrices[int(joint_indices.w)];
   
-  gl_Position = ubo.projection * ubo.view * push_constants.model * skin_mat * vec4(obj_pos.xyz, 1.0);
+  gl_Position = ubo.projection * ubo.view * push_constants.model * skin_mat * vec4(pos.xyz, 1.0);
   
   vec4 pos = ubo.view * vec4(obj_pos, 1.0);
-  o_normal = mat3(ubo.view) * normal;
+  o_normal = mat3(ubo.view * push_constants.model) * normal;
   vec3 l_pos = mat3(ubo.view) * ubo.light_pos.xyz;
   o_light_vec = l_pos - pos.xyz;
   o_view_vec = -pos.xyz;

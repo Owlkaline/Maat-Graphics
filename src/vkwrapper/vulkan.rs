@@ -1,6 +1,7 @@
 use std::default::Default;
 
 use ash::vk;
+use glam::{EulerRot, Quat, Vec3};
 
 use crate::extra::gltf_loader::{GltfModel, Material, MeshImage, Node, Skin, Texture};
 use crate::vkwrapper::{
@@ -787,6 +788,16 @@ impl Vulkan {
       );
     }
 
+    let translation = Vec3::new(data[0], data[1], data[2]);
+    //let rotation = Vec3::new(data[8], data[9], data[10]);
+    let rotation = Quat::from_euler(
+      EulerRot::YXZ,
+      data[9].to_radians(),
+      data[8].to_radians(),
+      data[10].to_radians(),
+    );
+    let scale = Vec3::new(data[4], data[5], data[6]);
+
     let mut byte_data = Vec::new();
     for i in 0..(data.len().min(16)) {
       let bytes = data[i].to_le_bytes();
@@ -800,6 +811,9 @@ impl Vulkan {
       self.draw_node(
         shader,
         i,
+        translation,
+        rotation,
+        scale,
         &byte_data,
         model.nodes(),
         model.images(),
@@ -816,6 +830,9 @@ impl Vulkan {
     &self,
     shader: &Shader<T>,
     idx: usize,
+    translation: Vec3,
+    rotation: Quat,
+    scale: Vec3,
     data: &Vec<u8>,
     nodes: &Vec<Node>,
     images: &Vec<MeshImage>,
@@ -829,7 +846,8 @@ impl Vulkan {
 
     if nodes[idx].mesh.primitives.len() > 0 {
       let mut push_constant_data: [u8; 128] = [0; 128];
-      let matrix = Node::get_node_matrix(nodes, idx);
+      let matrix: [f32; 16] =
+        Node::calculate_global_matrix(nodes, idx, translation, rotation, scale).to_cols_array(); //Node::get_node_matrix(nodes, idx);
 
       for i in 0..matrix.len() {
         let bytes = matrix[i].to_le_bytes();
