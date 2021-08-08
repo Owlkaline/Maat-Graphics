@@ -265,13 +265,12 @@ impl ModelHandler {
     self.uniform_buffer.update_data(device, vec![data]);
   }
 
-  pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: T) {
+  pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: &[u8]) {
+    //self
+    //  .loaded_models
+    //  .push((model_ref.to_string(), model.to_string()));
+    //
     let model_ref = model_ref.into();
-    let model = model.into();
-
-    self
-      .loaded_models
-      .push((model_ref.to_string(), model.to_string()));
 
     let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model_ref.to_string(), model);
     self.models.insert(model_ref, gltf_model);

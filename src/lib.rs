@@ -209,9 +209,9 @@ impl MaatGraphics {
     self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
     *self.model_handler.mut_camera() = camera;
 
-    for (model_ref, model) in models {
-      self.load_model(model_ref, model);
-    }
+    //for (model_ref, model) in models {
+    //  self.load_model(model_ref, model);
+    //}
   }
 
   pub fn enable_gamepad_input(&mut self) {
@@ -243,7 +243,8 @@ impl MaatGraphics {
       .load_texture(&mut self.vulkan, texture_ref, texture);
   }
 
-  pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: T) {
+  pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: &[u8]) {
+    //T) {
     self
       .model_handler
       .load_model(&mut self.vulkan, model_ref, model);

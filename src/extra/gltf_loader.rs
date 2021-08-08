@@ -117,7 +117,15 @@ pub struct Node {
 #[derive(Debug)]
 pub struct Material {
   base_colour_factor: [f32; 4],
-  pub base_colour_texture_index: u32,
+  pub base_colour_texture: Option<u32>,
+  roughness: f32,
+  metallic: f32,
+  metallic_roughness_texture: Option<u32>,
+  normal_map: Option<u32>,
+  double_sided: bool,
+  occlusion_texture: Option<u32>,
+  emissive: [f32; 3],
+  emissive_texture: Option<u32>,
 }
 
 pub struct MeshImage {
@@ -714,36 +722,11 @@ fn load_skins(
         let new_matrix = Mat4::from_cols_array_2d(&matrix);
         matrices.push(new_matrix);
         raw_matrices.append(&mut new_matrix.to_cols_array().to_vec());
-        //let mut new_matrix = Math::mat4_identity();
-
-        //new_matrix[0] = matrix[0][0];
-        //new_matrix[1] = matrix[0][1];
-        //new_matrix[2] = matrix[0][2];
-        //new_matrix[3] = matrix[0][3];
-
-        //new_matrix[4] = matrix[1][0];
-        //new_matrix[5] = matrix[1][1];
-        //new_matrix[6] = matrix[1][2];
-        //new_matrix[7] = matrix[1][3];
-
-        //new_matrix[8] = matrix[2][0];
-        //new_matrix[9] = matrix[2][1];
-        //new_matrix[10] = matrix[2][2];
-        //new_matrix[11] = matrix[2][3];
-
-        //new_matrix[12] = matrix[3][0];
-        //new_matrix[13] = matrix[3][1];
-        //new_matrix[14] = matrix[3][2];
-        //new_matrix[15] = matrix[3][3];
-
-        //matrices.push(new_matrix);
-        //raw_matrices.append(&mut new_matrix.to_vec());
       }
     }
 
     let inverse_bind_matrix_buffer =
       Buffer::<f32>::new_storage_buffer(vulkan.device(), &raw_matrices);
-    //inverse_bind_matrix.push(new_matrix);
     let descriptor_set = DescriptorSet::builder()
       .storage_vertex()
       .build(vulkan.device(), descriptor_pool);
@@ -857,19 +840,58 @@ fn load_textures(vulkan: &mut Vulkan, gltf: &gltf::Document, textures: &mut Vec<
   }
 }
 
-fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
-  for material in gltf.materials() {
-    let pbr = material.pbr_metallic_roughness();
+fn load_material(material: gltf::Material, materials: &mut Vec<Material>) {
+  let pbr = material.pbr_metallic_roughness();
 
-    materials.push(Material {
-      base_colour_factor: pbr.base_color_factor(),
-      base_colour_texture_index: if let Some(texture_info) = pbr.base_color_texture() {
-        texture_info.texture().index() as u32
-      } else {
-        0
-      },
-    });
-  }
+  let base_colour_factor = pbr.base_color_factor();
+  let base_colour_texture = if let Some(info) = pbr.base_color_texture() {
+    let label = info.texture().index() as u32;
+    Some(label)
+  } else {
+    None
+  };
+
+  let normal_map = if let Some(normal_texture) = material.normal_texture() {
+    let label = normal_texture.texture().index() as u32;
+    Some(label)
+  } else {
+    None
+  };
+
+  let metallic_roughness_texture = if let Some(info) = pbr.metallic_roughness_texture() {
+    let label = info.texture().index() as u32;
+    Some(label)
+  } else {
+    None
+  };
+
+  let occlusion_texture = if let Some(occlusion_texture) = material.occlusion_texture() {
+    let label = occlusion_texture.texture().index() as u32;
+    Some(label)
+  } else {
+    None
+  };
+
+  let emissive = material.emissive_factor();
+  let emissive_texture = if let Some(info) = material.emissive_texture() {
+    let label = info.texture().index() as u32;
+    Some(label)
+  } else {
+    None
+  };
+
+  materials.push(Material {
+    base_colour_factor,
+    base_colour_texture,
+    roughness: pbr.roughness_factor(),
+    metallic: pbr.metallic_factor(),
+    metallic_roughness_texture,
+    normal_map,
+    double_sided: material.double_sided(),
+    occlusion_texture,
+    emissive,
+    emissive_texture,
+  });
 }
 
 fn load_node(
@@ -909,40 +931,25 @@ fn load_node(
     global_scale: Vec3::ONE,
   });
 
-  //let matrix = gltf_node.transform().matrix();
-  //println!("{:?}", matrix);
-  //if matrix[0][3] != 0.0  ||
-  //   matrix[1][3] != 0.0  ||
-  //   matrix[2][3] != 0.0 ||
-  //   matrix[3][3] != 1.0 {
+  match gltf_node.transform() {
+    gltf::scene::Transform::Matrix { matrix } => {
+      let (translation, rotation, scale) =
+        Mat4::from_cols_array_2d(&matrix).to_scale_rotation_translation();
 
-  //  nodes[node_idx].matrix = Some(Math::mat4_identity());
-  //  if let Some(nmatrix) = &mut nodes[node_idx].matrix {
-  //    /*nodes[node_idx].*/nmatrix[0] = matrix[0][0];
-  //    /*nodes[node_idx].*/nmatrix[1] = matrix[0][1];
-  //    /*nodes[node_idx].*/nmatrix[2] = matrix[0][2];
-  //    /*nodes[node_idx].*/nmatrix[3] = matrix[0][3];
-
-  //    /*nodes[node_idx].*/nmatrix[4] = matrix[1][0];
-  //    /*nodes[node_idx].*/nmatrix[5] = matrix[1][1];
-  //    /*nodes[node_idx].*/nmatrix[6] = matrix[1][2];
-  //    /*nodes[node_idx].*/nmatrix[7] = matrix[1][3];
-
-  //    /*nodes[node_idx].*/nmatrix[8] = matrix[2][0];
-  //    /*nodes[node_idx].*/nmatrix[9] = matrix[2][1];
-  //    /*nodes[node_idx].*/nmatrix[10] = matrix[2][2];
-  //    /*nodes[node_idx].*/nmatrix[11] = matrix[2][3];
-
-  //    /*nodes[node_idx].*/nmatrix[12] = matrix[3][0];
-  //    /*nodes[node_idx].*/nmatrix[13] = matrix[3][1];
-  //    /*nodes[node_idx].*/nmatrix[14] = matrix[3][2];
-  //    /*nodes[node_idx].*/nmatrix[15] = matrix[3][3];
-  //  }
-  let (translation, rotation, scale) = gltf_node.transform().decomposed();
-
-  nodes[node_idx].translation = Vec3::from(translation);
-  nodes[node_idx].rotation = Quat::from_array(rotation);
-  nodes[node_idx].scale = Vec3::from(scale);
+      nodes[node_idx].translation = translation;
+      nodes[node_idx].rotation = rotation;
+      nodes[node_idx].scale = scale;
+    }
+    gltf::scene::Transform::Decomposed {
+      translation,
+      rotation,
+      scale,
+    } => {
+      nodes[node_idx].translation = Vec3::from(translation);
+      nodes[node_idx].rotation = Quat::from_array(rotation);
+      nodes[node_idx].scale = Vec3::from(scale);
+    }
+  }
 
   for child in gltf_node.children() {
     let child_idx = nodes.len();
@@ -973,26 +980,23 @@ fn load_node(
 
       let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-      if let Some(iter) = reader.read_positions() {
-        for vertex in iter {
-          displacement = Math::vec3_add(displacement, vertex);
-          vertices.push(vertex);
-        }
+      if let Some(vertex_attribute) = reader
+        .read_positions()
+        .map(|v| v.collect::<Vec<[f32; 3]>>())
+      {
+        //        displacement = Math::vec3_add(displacement, vertex_attribute);
+        vertices = vertex_attribute;
       }
 
-      if let Some(iter) = reader.read_normals() {
-        normals.extend(iter);
+      if let Some(normal_attribute) = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>()) {
+        normals = normal_attribute;
       }
 
-      if let Some(read_tex_coords) = reader.read_tex_coords(0) {
-        match read_tex_coords {
-          gltf::mesh::util::ReadTexCoords::F32(iter) => {
-            uvs.extend(iter);
-          }
-          _ => {
-            println!("tex coords is other from f32");
-          }
-        }
+      if let Some(tex_coords_0) = reader
+        .read_tex_coords(0)
+        .map(|tc| tc.into_f32().collect::<Vec<[f32; 2]>>())
+      {
+        uvs = tex_coords_0;
       }
 
       if let Some(some_read_joints) = reader.read_joints(0) {
@@ -1063,10 +1067,7 @@ fn load_node(
 
       for i in 0..vertices.len() {
         all_verticies.push((Vec3::from(vertices[i]) * nodes[node_idx].scale).to_array());
-        //Vector3::from_array(Math::vec3_mul(
-        //  vertices[i],
-        //  nodes[node_idx].scale,
-        //)));
+        displacement = Math::vec3_add(displacement, vertices[i]);
 
         vertex_buffer.push(MeshVertex {
           pos: vertices[i],
@@ -1110,10 +1111,7 @@ fn load_node(
 
       displacement =
         ((Vec3::from(displacement) * nodes[node_idx].scale).div(vertices.len() as f32)).to_array();
-      //Math::vec3_div_f32(
-      //  Math::vec3_mul(displacement, nodes[node_idx].scale),
-      //  vertices.len() as f32,
-      //);
+
       let name = mesh.name().unwrap();
 
       collision_objects.push(CollisionObject::new(
@@ -1179,13 +1177,13 @@ pub fn update_joints(
   }
 }
 
-pub fn load_gltf<T: Into<String>, L: Into<String>>(
+pub fn load_gltf<T: Into<String>>(
   vulkan: &mut Vulkan,
   sampler: &Sampler,
-  reference: L,
-  location: T,
+  reference: T,
+  location: &[u8], //T,
 ) -> GltfModel {
-  let location = location.into();
+  //let location = location.into();
 
   let mut images: Vec<vkimage> = Vec::new();
   let mut textures: Vec<Texture> = Vec::new();
@@ -1201,7 +1199,22 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
 
   //new_load_glb(location.to_string());
 
-  let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
+  let (gltf, buffers, _images) = gltf::import_slice(location).unwrap(); //gltf::import(&location.to_string()).unwrap();
+                                                                        //let mut buffers: Vec<Vec<u8>> = Vec::new();
+
+  //for buffer in gltf.buffers() {
+  //  match buffer.source() {
+  //    gltf::buffer::Source::Uri(uri) => {
+  //      println!("Uri: {}", uri);
+  //    }
+  //    gltf::buffer::Source::Bin => {
+  //      println!("Bin");
+  //      if let Some(blob) = gltf.blob.as_deref() {
+  //        buffers.push(blob.into());
+  //      }
+  //    }
+  //  }
+  //}
 
   for scene in gltf.scenes() {
     for node in scene.nodes() {
@@ -1217,7 +1230,9 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
     }
   }
 
-  load_materials(&gltf, &mut materials);
+  for material in gltf.materials() {
+    load_material(material, &mut materials);
+  }
 
   load_textures(vulkan, &gltf, &mut textures);
 
@@ -1277,7 +1292,11 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
     update_joints(vulkan, &mut mesh_skins, &mut nodes, i);
   }
 
-  let collision_info = CollisionInformation::new(reference.into(), location, collision_objects);
+  let collision_info = CollisionInformation::new(
+    reference.into(),
+    /*location*/ "".to_string(),
+    collision_objects,
+  );
 
   Node::calculate_all_global_transforms(&mut nodes);
 

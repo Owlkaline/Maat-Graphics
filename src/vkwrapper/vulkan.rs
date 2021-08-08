@@ -902,8 +902,9 @@ impl Vulkan {
             if images.len() == 0 {
               dummy_texture
             } else {
-              let idx = textures
-                [materials[primitive.material_index as usize].base_colour_texture_index as usize]
+              let idx = textures[materials[primitive.material_index as usize]
+                .base_colour_texture
+                .unwrap_or(0) as usize]
                 .image_index as usize;
               &images[idx].descriptor_set
             }
@@ -939,7 +940,6 @@ impl Vulkan {
         .device
         .internal()
         .cmd_end_render_pass(self.frames_in_flight[self.current_frame].command_buffer());
-      //self.draw_command_buffer);
     }
   }
 
@@ -964,8 +964,6 @@ impl Vulkan {
     };
 
     unsafe {
-      //self.draw_commands_reuse_fence.wait(&self.device);
-      //self.draw_commands_reuse_fence.reset(&self.device);
       self.frames_in_flight[self.current_frame]
         .render_fence()
         .wait(&self.device);
