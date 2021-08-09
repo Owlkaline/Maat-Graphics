@@ -71,6 +71,38 @@ impl DescriptorWriterBuilder {
     self
   }
 
+  pub fn update_images(
+    mut self,
+    image: &Vec<Image>,
+    sampler: &Vec<Sampler>,
+    descriptor_sets: &DescriptorSet,
+  ) -> DescriptorWriterBuilder {
+    //self.descriptor_image_infos.push(vk::DescriptorImageInfo {
+    //  image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+    //  image_view: image.view(),
+    //  sampler: sampler.internal(),
+    //});
+    let start_idx = self.descriptor_image_infos.len();
+    for i in 0..image.len() {
+      self.descriptor_image_infos.push(vk::DescriptorImageInfo {
+        image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        image_view: image[i].view(),
+        sampler: sampler[i].internal(),
+      })
+    }
+
+    self.descriptor_write_sets.push(vk::WriteDescriptorSet {
+      dst_set: descriptor_sets.internal()[0],
+      dst_binding: start_idx as u32 + 1, //self.descriptor_write_sets.len() as u32,
+      descriptor_count: 1,
+      descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+      p_image_info: self.descriptor_image_infos[start_idx..].as_ptr(), //[self.descriptor_image_infos.len() - 1],
+      ..Default::default()
+    });
+
+    self
+  }
+
   pub fn update_image(
     mut self,
     image: &Image,
@@ -99,7 +131,7 @@ impl DescriptorWriterBuilder {
     unsafe {
       device
         .internal()
-        .update_descriptor_sets(&self.descriptor_write_sets, &[]);
+        .update_descriptor_sets(&self.descriptor_write_sets[..], &[]);
     }
   }
 }

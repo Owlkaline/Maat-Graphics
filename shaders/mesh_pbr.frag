@@ -2,7 +2,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (set = 2, binding = 0) uniform sampler2D samplerColour;
 
 layout (location = 0) in vec3 o_normal;
 layout (location = 1) in vec3 o_colour;
@@ -11,6 +10,20 @@ layout (location = 3) in vec3 o_view_vec;
 layout (location = 4) in vec3 o_light_vec;
 
 layout (location = 0) out vec4 uFragColor;
+
+layout (set = 2, binding = 0) uniform UBO {
+  vec4 base_colour_factor;
+  float roughness;
+  float metallic;
+  float double_sided;
+  vec3 emissive;
+} pbr_ubo;
+
+layout (set = 2, binding = 1) uniform sampler2D base_colour;
+layout (set = 2, binding = 2) uniform sampler2D normal_map;
+layout (set = 2, binding = 3) uniform sampler2D metallic_roughness;
+layout (set = 2, binding = 4) uniform sampler2D occlusion;
+layout (set = 2, binding = 5) uniform sampler2D emissive;
 
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
@@ -49,7 +62,7 @@ void main() {
   float perceptualRoughness;
   float metallic;
   vec3 diffuseColor;
-  vec4 baseColor = texture(samplerColour, o_uv) * vec4(o_colour, 1.0);
+  vec4 baseColor = texture(base_colour, o_uv) * vec4(o_colour, 1.0) * pbr_ubo.base_colour_factor;
 
   vec3 f0 = vec3(0.04);
 
@@ -116,7 +129,7 @@ void main() {
 
 
 
-  //vec4 colour = texture(samplerColour, o_uv) * vec4(o_colour, 1.0);
+  //vec4 colour = texture(base_colour, o_uv) * vec4(o_colour, 1.0);
   //
   //vec3 N = normalize(o_normal);
   //vec3 L = normalize(o_light_vec);

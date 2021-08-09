@@ -739,7 +739,7 @@ impl Vulkan {
     &mut self,
     shader: &Shader<T>,
     uniform_descriptor: &DescriptorSet,
-    dummy_texture: &DescriptorSet,
+    //dummy_texture: &DescriptorSet,
     dummy_skin: &DescriptorSet,
     data: Vec<f32>,
     model: &GltfModel,
@@ -816,11 +816,11 @@ impl Vulkan {
         scale,
         &byte_data,
         model.nodes(),
-        model.images(),
+        //model.images(),
         &model.skins(),
-        &model.textures(),
+        //  &model.textures(),
         &model.materials(),
-        dummy_texture,
+        //dummy_texture,
         dummy_skin,
       );
     }
@@ -835,11 +835,11 @@ impl Vulkan {
     scale: Vec3,
     data: &Vec<u8>,
     nodes: &Vec<Node>,
-    images: &Vec<MeshImage>,
+    //images: &Vec<MeshImage>,
     skins: &Vec<Skin>,
-    textures: &Vec<Texture>,
+    //textures: &Vec<Texture>,
     materials: &Vec<Material>,
-    dummy_texture: &DescriptorSet,
+    //dummy_texture: &DescriptorSet,
     dummy_skin: &DescriptorSet,
   ) {
     let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
@@ -897,9 +897,12 @@ impl Vulkan {
       }
 
       for primitive in &nodes[idx].mesh.primitives {
-        if primitive.index_count > 0 {
+        if primitive.index_count > 0 && materials.len() > primitive.material_index as usize {
+          //let pm_idx = primitive.material_index;
+
+          /*
           let image_descriptor = {
-            if images.len() == 0 {
+            if images.len() == 0 || textures.len() == 0 || pm_idx > materials.len() as i32 {
               dummy_texture
             } else {
               let idx = textures[materials[primitive.material_index as usize]
@@ -908,7 +911,8 @@ impl Vulkan {
                 .image_index as usize;
               &images[idx].descriptor_set
             }
-          };
+          };*/
+          let image_descriptor = materials[primitive.material_index as usize].descriptor();
 
           unsafe {
             self.device.internal().cmd_bind_descriptor_sets(

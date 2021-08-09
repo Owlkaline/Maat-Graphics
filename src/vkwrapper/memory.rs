@@ -6,6 +6,7 @@ use ash::vk;
 
 use crate::vkwrapper::VkDevice;
 
+#[derive(Clone)]
 pub struct Memory<T: Copy> {
   memory: vk::DeviceMemory,
   requirements: vk::MemoryRequirements,

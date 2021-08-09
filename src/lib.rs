@@ -34,7 +34,7 @@ use winit::{
 use crate::shader_handlers::{ModelHandler, TextureHandler};
 use crate::vkwrapper::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 
-const DELTA_STEP: f32 = 0.001;
+pub const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
 
@@ -198,21 +198,21 @@ impl MaatGraphics {
     }
   }
 
-  pub fn replace_window(&mut self, window: &mut VkWindow) {
-    let extent = self.vulkan.swapchain().screen_resolution();
-    let models = self.model_handler.loaded_models();
-    let camera = self.camera().clone();
+  //pub fn replace_window(&mut self, window: &mut VkWindow) {
+  //  let extent = self.vulkan.swapchain().screen_resolution();
+  //  let models = self.model_handler.loaded_models();
+  //  let camera = self.camera().clone();
 
-    self.destroy();
-    self.vulkan = Vulkan::new(window, extent);
-    self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
-    self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
-    *self.model_handler.mut_camera() = camera;
+  //  self.destroy();
+  //  self.vulkan = Vulkan::new(window, extent);
+  //  self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
+  //  self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
+  //  *self.model_handler.mut_camera() = camera;
 
-    //for (model_ref, model) in models {
-    //  self.load_model(model_ref, model);
-    //}
-  }
+  //  //for (model_ref, model) in models {
+  //  //  self.load_model(model_ref, model);
+  //  //}
+  //}
 
   pub fn enable_gamepad_input(&mut self) {
     match Gilrs::new() {
@@ -244,16 +244,15 @@ impl MaatGraphics {
   }
 
   pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: &[u8]) {
-    //T) {
     self
       .model_handler
       .load_model(&mut self.vulkan, model_ref, model);
   }
 
   pub fn instance_render_model<T: Into<String>>(&mut self, model_ref: T) {
-    self
-      .model_handler
-      .create_instance_render_buffer(&mut self.vulkan, model_ref);
+    //self
+    //  .model_handler
+    //  .create_instance_render_buffer(&mut self.vulkan, model_ref);
   }
 
   pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
