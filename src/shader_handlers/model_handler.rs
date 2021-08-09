@@ -323,6 +323,7 @@ impl ModelHandler {
       } else {*/
       vulkan.draw_mesh(
         &self.mesh_shader,
+        &self.mesh_descriptor,
         &self.uniform_descriptor_set,
         &self.dummy_skin,
         data,

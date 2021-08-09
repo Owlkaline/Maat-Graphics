@@ -738,6 +738,7 @@ impl Vulkan {
   pub fn draw_mesh<T: Copy>(
     &mut self,
     shader: &Shader<T>,
+    mesh_descriptor: &DescriptorSet,
     uniform_descriptor: &DescriptorSet,
     //dummy_texture: &DescriptorSet,
     dummy_skin: &DescriptorSet,
@@ -810,6 +811,7 @@ impl Vulkan {
     for i in 0..model.nodes().len() {
       self.draw_node(
         shader,
+        mesh_descriptor,
         i,
         translation,
         rotation,
@@ -829,6 +831,7 @@ impl Vulkan {
   fn draw_node<T: Copy>(
     &self,
     shader: &Shader<T>,
+    mesh_descriptor: &DescriptorSet,
     idx: usize,
     translation: Vec3,
     rotation: Quat,
@@ -897,22 +900,12 @@ impl Vulkan {
       }
 
       for primitive in &nodes[idx].mesh.primitives {
-        if primitive.index_count > 0 && materials.len() > primitive.material_index as usize {
-          //let pm_idx = primitive.material_index;
-
-          /*
-          let image_descriptor = {
-            if images.len() == 0 || textures.len() == 0 || pm_idx > materials.len() as i32 {
-              dummy_texture
-            } else {
-              let idx = textures[materials[primitive.material_index as usize]
-                .base_colour_texture
-                .unwrap_or(0) as usize]
-                .image_index as usize;
-              &images[idx].descriptor_set
-            }
-          };*/
-          let image_descriptor = materials[primitive.material_index as usize].descriptor();
+        if primitive.index_count > 0 {
+          let image_descriptor = if materials.len() > primitive.material_index as usize {
+            materials[primitive.material_index as usize].descriptor()
+          } else {
+            mesh_descriptor
+          };
 
           unsafe {
             self.device.internal().cmd_bind_descriptor_sets(

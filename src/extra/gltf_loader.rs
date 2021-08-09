@@ -250,86 +250,86 @@ impl CollisionInformation {
     let mut object_min_bounds = [f32::MAX; 3];
     let mut object_max_bounds = [f32::MIN; 3];
 
-    if std::path::Path::new(&location).exists() {
-      collision_objects.clear();
+    //if std::path::Path::new(&location).exists() {
+    //  collision_objects.clear();
 
-      let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
-      for scene in gltf.scenes() {
-        for node in scene.nodes() {
-          if let Some(mesh) = node.mesh() {
-            for primitive in mesh.primitives() {
-              let mut displacement = [0.0; 3];
+    //  let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
+    //  for scene in gltf.scenes() {
+    //    for node in scene.nodes() {
+    //      if let Some(mesh) = node.mesh() {
+    //        for primitive in mesh.primitives() {
+    //          let mut displacement = [0.0; 3];
 
-              let mut vertices = Vec::new();
-              let mut indexs = Vec::new();
+    //          let mut vertices = Vec::new();
+    //          let mut indexs = Vec::new();
 
-              let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+    //          let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-              let (_translation, _rotation, scale) = node.transform().decomposed();
+    //          let (_translation, _rotation, scale) = node.transform().decomposed();
 
-              if let Some(iter) = reader.read_positions() {
-                for vertex in iter {
-                  let scaled_vertex = Math::vec3_mul(vertex, scale);
-                  displacement = Math::vec3_add(displacement, scaled_vertex);
-                  vertices.push(scaled_vertex);
-                }
-              }
+    //          if let Some(iter) = reader.read_positions() {
+    //            for vertex in iter {
+    //              let scaled_vertex = Math::vec3_mul(vertex, scale);
+    //              displacement = Math::vec3_add(displacement, scaled_vertex);
+    //              vertices.push(scaled_vertex);
+    //            }
+    //          }
 
-              if let Some(indices) = reader.read_indices() {
-                let indices_u32 = indices.into_u32();
+    //          if let Some(indices) = reader.read_indices() {
+    //            let indices_u32 = indices.into_u32();
 
-                for index in indices_u32 {
-                  indexs.push(index);
-                }
-              }
+    //            for index in indices_u32 {
+    //              indexs.push(index);
+    //            }
+    //          }
 
-              let mut min_bounds: [f32; 3] = [0.0; 3];
-              let mut max_bounds: [f32; 3] = [0.0; 3];
+    //          let mut min_bounds: [f32; 3] = [0.0; 3];
+    //          let mut max_bounds: [f32; 3] = [0.0; 3];
 
-              match primitive.bounding_box() {
-                gltf::mesh::BoundingBox { min, max } => {
-                  min_bounds[0] = min[0] * scale[0];
-                  max_bounds[0] = max[0] * scale[0];
-                  min_bounds[1] = min[1] * scale[1];
-                  max_bounds[1] = max[1] * scale[1];
-                  min_bounds[2] = min[2] * scale[2];
-                  max_bounds[2] = max[2] * scale[2];
-                }
-              }
+    //          match primitive.bounding_box() {
+    //            gltf::mesh::BoundingBox { min, max } => {
+    //              min_bounds[0] = min[0] * scale[0];
+    //              max_bounds[0] = max[0] * scale[0];
+    //              min_bounds[1] = min[1] * scale[1];
+    //              max_bounds[1] = max[1] * scale[1];
+    //              min_bounds[2] = min[2] * scale[2];
+    //              max_bounds[2] = max[2] * scale[2];
+    //            }
+    //          }
 
-              for k in 0..3 {
-                if min_bounds[k] < object_min_bounds[k] {
-                  object_min_bounds[k] = min_bounds[k];
-                }
-                if max_bounds[k] < object_max_bounds[k] {
-                  object_max_bounds[k] = max_bounds[k];
-                }
-              }
+    //          for k in 0..3 {
+    //            if min_bounds[k] < object_min_bounds[k] {
+    //              object_min_bounds[k] = min_bounds[k];
+    //            }
+    //            if max_bounds[k] < object_max_bounds[k] {
+    //              object_max_bounds[k] = max_bounds[k];
+    //            }
+    //          }
 
-              let name = mesh.name().unwrap();
+    //          let name = mesh.name().unwrap();
 
-              displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
+    //          displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
 
-              object_displacement = Math::vec3_add(object_displacement, displacement);
+    //          object_displacement = Math::vec3_add(object_displacement, displacement);
 
-              collision_objects.push(CollisionObject::new(
-                name,
-                displacement,
-                indexs,
-                vertices,
-                min_bounds,
-                max_bounds,
-              ));
-            }
-          }
-        }
-      }
-    } else {
-      for object in &collision_objects {
-        object_displacement =
-          (Vec3::from(object_displacement) + Vec3::from(*object.displacement())).to_array();
-      }
+    //          collision_objects.push(CollisionObject::new(
+    //            name,
+    //            displacement,
+    //            indexs,
+    //            vertices,
+    //            min_bounds,
+    //            max_bounds,
+    //          ));
+    //        }
+    //      }
+    //    }
+    //  }
+    //} else {
+    for object in &collision_objects {
+      object_displacement =
+        (Vec3::from(object_displacement) + Vec3::from(*object.displacement())).to_array();
     }
+    //}
 
     object_displacement = Math::vec3_div_f32(object_displacement, collision_objects.len() as f32);
 
@@ -1286,6 +1286,9 @@ pub fn load_gltf<T: Into<String>>(
   location: &[u8], //T,
 ) -> GltfModel {
   //let location = location.into();
+
+  let reference = reference.into();
+  println!("Loading model: {}", reference.to_string());
 
   let mut images: Vec<vkimage> = Vec::new();
   let mut textures: Vec<Texture> = Vec::new();
