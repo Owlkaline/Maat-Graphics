@@ -13,10 +13,11 @@ layout (location = 0) out vec4 uFragColor;
 
 layout (set = 2, binding = 0) uniform UBO {
   vec4 base_colour_factor;
+  vec4 emissive;
   float roughness;
   float metallic;
   float double_sided;
-  vec3 emissive;
+  float pad;
 } pbr_ubo;
 
 layout (set = 2, binding = 1) uniform sampler2D base_colour;

@@ -115,10 +115,11 @@ pub struct Node {
 #[derive(Clone, Copy)]
 pub struct MaterialUbo {
   base_colour_factor: [f32; 4],
+  emissive: [f32; 4],
   roughness: f32,
   metallic: f32,
   double_sided: f32,
-  emissive: [f32; 3],
+  pad: f32,
 }
 
 pub struct Material {
@@ -165,7 +166,8 @@ impl MaterialUbo {
       roughness: 0.6,
       metallic: 0.4,
       double_sided: -1.0,
-      emissive: [1.0; 3],
+      emissive: [1.0; 4],
+      pad: 0.0,
     }
   }
 }
@@ -891,10 +893,11 @@ fn load_material(
 
     let material_ubo = MaterialUbo {
       base_colour_factor,
-      emissive,
+      emissive: [emissive[0], emissive[1], emissive[2], 1.0],
       roughness,
       metallic,
       double_sided: if double_sided { 1.0 } else { -1.0 },
+      pad: 0.0,
     };
     let material_buffer =
       Buffer::<MaterialUbo>::new_uniform_buffer(vulkan.device(), &vec![material_ubo]);
@@ -910,14 +913,10 @@ fn load_material(
     let base_colour_texture = if let Some(info) = pbr.base_color_texture() {
       let label = info.texture().index() as usize;
       let sampler = &textures[label].sampler;
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&images[label], &sampler, &descriptor_set);
       images.push(mesh_images[textures[label].image_index as usize].clone());
       samplers.push(sampler.clone());
       Some(label)
     } else {
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&dummy_image, &dummy_sampler, &descriptor_set);
       images.push(dummy_image.clone());
       samplers.push(dummy_sampler.clone());
       None
@@ -926,14 +925,10 @@ fn load_material(
     let normal_map = if let Some(normal_texture) = material.normal_texture() {
       let label = normal_texture.texture().index() as usize;
       let sampler = &textures[label].sampler;
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&images[label], &sampler, &descriptor_set);
       images.push(mesh_images[label].clone());
       samplers.push(sampler.clone());
       Some(label)
     } else {
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&dummy_image, &dummy_sampler, &descriptor_set);;
       images.push(dummy_image.clone());
       samplers.push(dummy_sampler.clone());
       None
@@ -942,14 +937,10 @@ fn load_material(
     let metallic_roughness_texture = if let Some(info) = pbr.metallic_roughness_texture() {
       let label = info.texture().index() as usize;
       let sampler = &textures[label].sampler;
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&images[label], &sampler, &descriptor_set);
       images.push(mesh_images[label].clone());
       samplers.push(sampler.clone());
       Some(label)
     } else {
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&dummy_image, &dummy_sampler, &descriptor_set);;
       images.push(dummy_image.clone());
       samplers.push(dummy_sampler.clone());
       None
@@ -958,14 +949,10 @@ fn load_material(
     let occlusion_texture = if let Some(occlusion_texture) = material.occlusion_texture() {
       let label = occlusion_texture.texture().index() as usize;
       let sampler = &textures[label].sampler;
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&images[label], &sampler, &descriptor_set);
       images.push(mesh_images[label].clone());
       samplers.push(sampler.clone());
       Some(label)
     } else {
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&dummy_image, &dummy_sampler, &descriptor_set);;
       images.push(dummy_image.clone());
       samplers.push(dummy_sampler.clone());
       None
@@ -974,14 +961,10 @@ fn load_material(
     let emissive_texture = if let Some(info) = material.emissive_texture() {
       let label = info.texture().index() as usize;
       let sampler = &textures[label].sampler;
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&images[label], &sampler, &descriptor_set);
       images.push(mesh_images[label].clone());
       samplers.push(sampler.clone());
       Some(label)
     } else {
-      //descriptor_set_writer =
-      //  descriptor_set_writer.update_image(&dummy_image, &dummy_sampler, &descriptor_set);;
       images.push(dummy_image.clone());
       samplers.push(dummy_sampler.clone());
       None
@@ -1081,6 +1064,7 @@ fn load_node(
       let mut vertices = Vec::new();
       let mut normals = Vec::new();
       let mut uvs = Vec::new();
+      let mut colours = Vec::new();
       let mut joint_indices = Vec::new();
       let mut joint_weights = Vec::new();
 
@@ -1095,6 +1079,13 @@ fn load_node(
       {
         //        displacement = Math::vec3_add(displacement, vertex_attribute);
         vertices = vertex_attribute;
+      }
+
+      if let Some(colour_attribute) = reader
+        .read_colors(0)
+        .map(|c| c.into_rgb_f32().collect::<Vec<[f32; 3]>>())
+      {
+        colours = colour_attribute;
       }
 
       if let Some(normal_attribute) = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>()) {
@@ -1171,9 +1162,6 @@ fn load_node(
         }
       }
 
-      let pbr = primitive.material().pbr_metallic_roughness();
-      let colour = pbr.base_color_factor();
-
       for i in 0..vertices.len() {
         all_verticies.push((Vec3::from(vertices[i]) * nodes[node_idx].scale).to_array());
         displacement = Math::vec3_add(displacement, vertices[i]);
@@ -1182,7 +1170,11 @@ fn load_node(
           pos: vertices[i],
           normal: normals[i],
           uv: if uvs.len() <= i { [0.0, 0.0] } else { uvs[i] },
-          colour: [colour[0], colour[1], colour[2]],
+          colour: if colours.len() <= i {
+            [1.0, 1.0, 1.0]
+          } else {
+            colours[i]
+          },
           joint_indices: if joint_indices.len() <= i {
             [0.0, 0.0, 0.0, 0.0]
           } else {

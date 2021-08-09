@@ -172,10 +172,6 @@ impl ModelHandler {
         &mesh_descriptor,
       )
       .update_images(&textures, &samplers, &mesh_descriptor);
-    //.update_image(&dummy_texture1, &sampler, &mesh_descriptor)
-    //.update_image(&dummy_texture2, &sampler, &mesh_descriptor)
-    //.update_image(&dummy_texture3, &sampler, &mesh_descriptor)
-    //.update_image(&dummy_texture4, &sampler, &mesh_descriptor);
     println!("after");
     descriptor_set_writer.build(vulkan.device());
     println!("Build");
@@ -196,12 +192,9 @@ impl ModelHandler {
       models: HashMap::new(),
       mesh_shader,
 
-      //instanced_mesh_shader,
-      //instanced_mesh_buffer: HashMap::new(),
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
 
-      //dummy_texture: descriptor_set2,
       mesh_descriptor,
       dummy_texture,
       dummy_skin_buffer: dummy_buffer,
@@ -223,7 +216,6 @@ impl ModelHandler {
 
   pub fn set_draw_mode(&mut self, vulkan: &Vulkan, mode: DrawMode) {
     self.mesh_shader.destroy(vulkan.device());
-    //  self.instanced_mesh_shader.destroy(vulkan.device());
 
     let mesh_shader = ModelHandler::create_mesh_shaders(
       vulkan,
@@ -236,7 +228,6 @@ impl ModelHandler {
     );
 
     self.mesh_shader = mesh_shader;
-    //self.instanced_mesh_shader = instanced_mesh_shader;
   }
 
   pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
