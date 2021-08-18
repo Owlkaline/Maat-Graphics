@@ -73,6 +73,14 @@ impl DescriptorSetBuilder {
     self
   }
 
+  pub fn combined_image_sampler_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::COMBINED_IMAGE_SAMPLER);
+    self
+      .stages
+      .push(vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::COMPUTE);
+    self
+  }
+
   pub fn storage_vertex(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::STORAGE_BUFFER);
     self.stages.push(vk::ShaderStageFlags::VERTEX);
@@ -88,6 +96,22 @@ impl DescriptorSetBuilder {
   pub fn storage_compute(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::STORAGE_BUFFER);
     self.stages.push(vk::ShaderStageFlags::COMPUTE);
+    self
+  }
+
+  pub fn storage_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self
+      .stages
+      .push(vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
+    self
+  }
+
+  pub fn storage_vertex_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self.stages.push(
+      vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+    );
     self
   }
 
@@ -128,53 +152,4 @@ impl DescriptorSetBuilder {
 
     DescriptorSet::new(descriptor_sets, descriptor_set_layouts.to_vec())
   }
-  /*
-  pub fn build_new_pool(&self, device: &VkDevice) -> (DescriptorSet, vk::DescriptorPool) {
-    let mut descriptor_sizes = Vec::new();
-    let mut descriptor_layout_bindings = Vec::new();
-
-    for i in 0..self.types.len() {
-      descriptor_sizes.push(
-        vk::DescriptorPoolSize {
-          ty: self.types[i],
-          descriptor_count: 1,
-        }
-      );
-
-      descriptor_layout_bindings.push(
-        vk::DescriptorSetLayoutBinding::builder()
-                                       .binding(i as u32)
-                                       .descriptor_type(self.types[i])
-                                       .descriptor_count(1)
-                                       .stage_flags(self.stages[i])
-                                       .build()
-      );
-    }
-
-    let descriptor_pool_info = vk::DescriptorPoolCreateInfo::builder()
-      .pool_sizes(&descriptor_sizes)
-      .max_sets(1);
-
-    let descriptor_pool = unsafe {
-      device.internal().create_descriptor_pool(&descriptor_pool_info, None).unwrap()
-    };
-
-    let descriptor_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptor_layout_bindings);
-
-    let descriptor_set_layouts = [
-      unsafe {
-        device.internal().create_descriptor_set_layout(&descriptor_info, None).unwrap()
-      }
-    ];
-
-    let desc_alloc_info = vk::DescriptorSetAllocateInfo::builder()
-                              .descriptor_pool(descriptor_pool)
-                              .set_layouts(&descriptor_set_layouts);
-
-    let descriptor_sets = unsafe {
-      device.internal().allocate_descriptor_sets(&desc_alloc_info).unwrap()
-    };
-
-    (DescriptorSet::new(descriptor_sets, descriptor_set_layouts.to_vec()), descriptor_pool)
-  }*/
 }

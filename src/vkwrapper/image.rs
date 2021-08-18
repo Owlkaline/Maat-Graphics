@@ -2,6 +2,7 @@ use ash::vk;
 
 use crate::vkwrapper::{Memory, VkDevice};
 
+#[derive(Clone)]
 pub struct Image {
   image: vk::Image,
   memory: Memory<u8>,

@@ -18,7 +18,6 @@ mod shader_handlers;
 mod vkwrapper;
 
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::time::Instant;
 
 use ash::vk;
@@ -31,10 +30,10 @@ use winit::{
   window::Fullscreen,
 };
 
-use crate::shader_handlers::{ModelHandler, TextureHandler};
+use crate::shader_handlers::{ComputeHandler, ModelHandler, TextureHandler};
 use crate::vkwrapper::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 
-const DELTA_STEP: f32 = 0.001;
+pub const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
 
@@ -144,12 +143,12 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
 
 pub struct MaatGraphics {
   vulkan: Vulkan,
+  compute_handler: ComputeHandler,
   texture_handler: TextureHandler,
   model_handler: ModelHandler,
-  compute_descriptor_pool: vk::DescriptorPool,
-  compute_shader: ComputeShader,
-  compute_descriptor_sets: DescriptorSet,
-
+  //compute_descriptor_pool: vk::DescriptorPool,
+  //compute_shader: ComputeShader,
+  //compute_descriptor_sets: DescriptorSet,
   gamepads: Option<Gilrs>,
   active_controller: Option<GamepadId>,
 }
@@ -166,53 +165,54 @@ impl MaatGraphics {
     };
     let mut vulkan = Vulkan::new(window, screen_resolution);
 
-    let compute_descriptor_pool = DescriptorPoolBuilder::new()
-      .num_storage(5)
-      .build(vulkan.device());
-    let compute_descriptor_sets = DescriptorSet::builder()
-      .storage_compute()
-      .build(vulkan.device(), &compute_descriptor_pool);
-    let compute_shader = ComputeShader::new(
-      vulkan.device(),
-      Cursor::new(&include_bytes!("../shaders/collatz_comp.spv")[..]),
-      &compute_descriptor_sets,
-    );
+    //let compute_descriptor_pool = DescriptorPoolBuilder::new()
+    //  .num_storage(5)
+    //  .build(vulkan.device());
+    //let compute_descriptor_sets = DescriptorSet::builder()
+    //  .storage_compute()
+    //  .build(vulkan.device(), &compute_descriptor_pool);
+    //let compute_shader = ComputeShader::new(
+    //  vulkan.device(),
+    //  Cursor::new(&include_bytes!("../shaders/collatz_comp.spv")[..]),
+    //  &compute_descriptor_sets,
+    //);
 
-    let mut compute_data = vec![64, 32, 8, 12, 96];
-    vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
-    println!("Compute Data: {:?}", compute_data);
+    //let mut compute_data = vec![64, 32, 8, 12, 96];
+    //vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
+    //println!("Compute Data: {:?}", compute_data);
 
     let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution, font_location);
-    let model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
+    let mut model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
+    let compute_handler = ComputeHandler::new(&mut vulkan, model_handler.mut_camera());
 
     MaatGraphics {
       vulkan,
       texture_handler,
       model_handler,
-      compute_descriptor_pool,
-      compute_shader,
-      compute_descriptor_sets,
-
+      compute_handler,
+      //compute_descriptor_pool,
+      //compute_shader,
+      //compute_descriptor_sets,
       gamepads: None,
       active_controller: None,
     }
   }
 
-  pub fn replace_window(&mut self, window: &mut VkWindow) {
-    let extent = self.vulkan.swapchain().screen_resolution();
-    let models = self.model_handler.loaded_models();
-    let camera = self.camera().clone();
+  //pub fn replace_window(&mut self, window: &mut VkWindow) {
+  //  let extent = self.vulkan.swapchain().screen_resolution();
+  //  let models = self.model_handler.loaded_models();
+  //  let camera = self.camera().clone();
 
-    self.destroy();
-    self.vulkan = Vulkan::new(window, extent);
-    self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
-    self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
-    *self.model_handler.mut_camera() = camera;
+  //  self.destroy();
+  //  self.vulkan = Vulkan::new(window, extent);
+  //  self.texture_handler = TextureHandler::new(&mut self.vulkan, extent, "./fonts/dejavasans");
+  //  self.model_handler = ModelHandler::new(&mut self.vulkan, extent);
+  //  *self.model_handler.mut_camera() = camera;
 
-    for (model_ref, model) in models {
-      self.load_model(model_ref, model);
-    }
-  }
+  //  //for (model_ref, model) in models {
+  //  //  self.load_model(model_ref, model);
+  //  //}
+  //}
 
   pub fn enable_gamepad_input(&mut self) {
     match Gilrs::new() {
@@ -243,16 +243,16 @@ impl MaatGraphics {
       .load_texture(&mut self.vulkan, texture_ref, texture);
   }
 
-  pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: T) {
+  pub fn load_model<T: Into<String>>(&mut self, model_ref: T, model: &[u8]) {
     self
       .model_handler
       .load_model(&mut self.vulkan, model_ref, model);
   }
 
   pub fn instance_render_model<T: Into<String>>(&mut self, model_ref: T) {
-    self
-      .model_handler
-      .create_instance_render_buffer(&mut self.vulkan, model_ref);
+    //self
+    //  .model_handler
+    //  .create_instance_render_buffer(&mut self.vulkan, model_ref);
   }
 
   pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
@@ -335,6 +335,55 @@ impl MaatGraphics {
           *fps_limit = (1.0 / limit).min(1.0);
         }
       }
+    }
+  }
+
+  pub fn draw_forward_plus<T, L, S>(
+    &mut self,
+    texture_data: Vec<(Vec<f32>, T, Option<L>)>,
+    model_data: Vec<(Vec<f32>, S)>,
+  ) where
+    T: Into<String>,
+    L: Into<String>,
+    S: Into<String>,
+  {
+    if self.model_handler.mut_camera().is_updated() {
+      self
+        .model_handler
+        .update_uniform_buffer(self.vulkan.device());
+    }
+
+    if let Some(present_index) = self.vulkan.start_render() {
+      self.vulkan.begin_renderpass_model(present_index);
+      for (data, model) in model_data {
+        self
+          .model_handler
+          .draw(&mut self.vulkan, data, &model.into());
+      }
+
+      self.vulkan.end_renderpass();
+      self.vulkan.begin_renderpass_texture(present_index);
+
+      let mut text_count = 0;
+
+      for (data, texture, some_text) in texture_data {
+        if let Some(text) = some_text {
+          self
+            .texture_handler
+            .add_text_data(&mut text_count, data, &text.into(), &texture.into());
+        } else {
+          self
+            .texture_handler
+            .draw(&mut self.vulkan, data, &texture.into());
+        }
+      }
+
+      self
+        .texture_handler
+        .draw_instanced_text(&mut self.vulkan, text_count);
+
+      self.vulkan.end_renderpass();
+      self.vulkan.end_render(present_index);
     }
   }
 
@@ -636,7 +685,7 @@ impl MaatGraphics {
         //Event::MainEventsCleared => {
         Event::RedrawRequested(_id) => {
           callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-          vulkan.draw(texture_data, model_data);
+          vulkan.draw_forward_plus(texture_data, model_data);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();

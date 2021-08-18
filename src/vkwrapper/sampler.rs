@@ -2,6 +2,7 @@ use ash::vk;
 
 use crate::vkwrapper::VkDevice;
 
+#[derive(Clone)]
 pub struct Sampler {
   sampler: vk::Sampler,
 }

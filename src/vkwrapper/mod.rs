@@ -2,6 +2,7 @@ pub use swapchain::VkSwapchain;
 
 pub use self::buffer::Buffer;
 pub use self::clear_values::ClearValues;
+pub use self::command_buffer::CommandBuffer;
 pub use self::command_pool::VkCommandPool;
 pub use self::compute_pipeline::ComputePipeline;
 pub use self::compute_shader::ComputeShader;
@@ -27,6 +28,7 @@ pub use self::window::VkWindow;
 
 mod buffer;
 mod clear_values;
+mod command_buffer;
 mod command_pool;
 mod compute_pipeline;
 mod compute_shader;

@@ -17,7 +17,7 @@ impl ComputeShader {
   pub fn new<W: Read + Seek>(
     device: &VkDevice,
     mut compute_shader: W,
-    descriptor_sets: &DescriptorSet,
+    descriptor_sets: &Vec<DescriptorSet>,
   ) -> ComputeShader {
     let compute_code = read_spv(&mut compute_shader).expect("Failed to read vertex shader");
     let compute_info = vk::ShaderModuleCreateInfo::builder().code(&compute_code);
@@ -29,12 +29,28 @@ impl ComputeShader {
         .expect("Vertex shader module error")
     };
 
+    let layouts = {
+      let mut sets = Vec::new();
+      for i in 0..descriptor_sets.len() {
+        sets.push(descriptor_sets[i].layouts()[0]);
+      }
+
+      sets
+    };
+
+    let push_constant_range = vk::PushConstantRange::builder()
+      .stage_flags(vk::ShaderStageFlags::COMPUTE)
+      .offset(0)
+      .size(128)
+      .build();
+
     let layout_info = {
-      if descriptor_sets.layouts().len() == 0 {
+      if layouts.len() == 0 {
         vk::PipelineLayoutCreateInfo::default()
       } else {
         vk::PipelineLayoutCreateInfo::builder()
-          .set_layouts(descriptor_sets.layouts())
+          .set_layouts(&layouts)
+          .push_constant_ranges(&[push_constant_range])
           .build()
       }
     };

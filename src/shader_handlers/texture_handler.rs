@@ -109,7 +109,7 @@ impl TextureHandler {
       .build(vulkan.device(), &descriptor_pool);
 
     let uniform_descriptor_set_writer =
-      DescriptorWriter::builder().update_uniform_buffer(&uniform_buffer, &descriptor_set0);
+      DescriptorWriter::builder().update_buffer(&uniform_buffer, &descriptor_set0);
 
     uniform_descriptor_set_writer.build(vulkan.device());
 
@@ -202,8 +202,8 @@ impl TextureHandler {
     data.window_size = [width as f32, height as f32];
     self.uniform_buffer.update_data(device, vec![data]);
 
-    let uniform_descriptor_set_writer = DescriptorWriter::builder()
-      .update_uniform_buffer(&self.uniform_buffer, &self.uniform_descriptor);
+    let uniform_descriptor_set_writer =
+      DescriptorWriter::builder().update_buffer(&self.uniform_buffer, &self.uniform_descriptor);
 
     uniform_descriptor_set_writer.build(device);
   }

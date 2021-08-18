@@ -4,13 +4,13 @@ use std::mem;
 
 use ash::vk;
 
-use crate::extra::gltf_loader::{CollisionInformation, GltfModel, MeshVertex};
+use crate::extra::gltf_loader::{CollisionInformation, GltfModel, MaterialUbo, MeshVertex};
 use crate::extra::{gltf_loader, Math};
 use crate::offset_of;
 use crate::shader_handlers::{Camera, TextureHandler};
 use crate::vkwrapper::{
-  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Sampler,
-  Shader, VkDevice, Vulkan,
+  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Image,
+  Sampler, Shader, VkDevice, Vulkan,
 };
 use crate::DrawMode;
 
@@ -53,7 +53,9 @@ pub struct ModelHandler {
   uniform_buffer: Buffer<MeshUniformBuffer>,
   uniform_descriptor_set: DescriptorSet,
 
-  dummy_texture: DescriptorSet,
+  //dummy_texture: DescriptorSet,
+  mesh_descriptor: DescriptorSet,
+  dummy_texture: Image,
   dummy_skin_buffer: Buffer<f32>,
   dummy_skin: DescriptorSet,
 
@@ -89,7 +91,16 @@ impl ModelHandler {
     let descriptor_set1 = DescriptorSet::builder()
       .storage_vertex()
       .build(vulkan.device(), &descriptor_pool);
-    let descriptor_set2 = DescriptorSet::builder()
+    //let descriptor_set2 = DescriptorSet::builder()
+    //  .combined_image_sampler_fragment()
+    //  .build(vulkan.device(), &descriptor_pool);
+    //let mesh_descriptor = GltfModel::mesh_descriptor(vulkan.device(), &descriptor_pool);
+    let mesh_descriptor = DescriptorSet::builder()
+      .uniform_buffer_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
       .combined_image_sampler_fragment()
       .build(vulkan.device(), &descriptor_pool);
 
@@ -99,7 +110,7 @@ impl ModelHandler {
       vec![
         descriptor_set0.clone(),
         descriptor_set1.clone(),
-        descriptor_set2.clone(),
+        mesh_descriptor.clone(),
       ],
     );
 
@@ -121,24 +132,56 @@ impl ModelHandler {
       Buffer::<MeshUniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
 
     let descriptor_set_writer =
-      DescriptorWriter::builder().update_uniform_buffer(&uniform_buffer, &descriptor_set0);
+      DescriptorWriter::builder().update_buffer(&uniform_buffer, &descriptor_set0);
 
     descriptor_set_writer.build(vulkan.device());
 
+    println!("Before");
     let image = ModelHandler::create_blank_image();
-    let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
-    let descriptor_set_writer =
-      DescriptorWriter::builder().update_image(&dummy_texture, &sampler, &descriptor_set2);
+    let dummy_texture =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
+    let dummy_texture0 =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
+    let dummy_texture1 =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
+    let dummy_texture2 =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
+    let dummy_texture3 =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
+    let dummy_texture4 =
+      TextureHandler::create_device_local_texture_from_image(vulkan, image.clone());
 
+    let textures = vec![
+      dummy_texture0,
+      dummy_texture1,
+      dummy_texture2,
+      dummy_texture3,
+      dummy_texture4,
+    ];
+    let samplers = vec![
+      sampler.clone(),
+      sampler.clone(),
+      sampler.clone(),
+      sampler.clone(),
+      sampler.clone(),
+    ];
+
+    let descriptor_set_writer = DescriptorWriter::builder()
+      .update_buffer(
+        &Buffer::new_uniform_buffer(vulkan.device(), &vec![MaterialUbo::default()]),
+        &mesh_descriptor,
+      )
+      .update_images(&textures, &samplers, &mesh_descriptor);
+    println!("after");
     descriptor_set_writer.build(vulkan.device());
-
+    println!("Build");
     let dummy_buffer =
       Buffer::<f32>::new_storage_buffer(vulkan.device(), &Math::mat4_identity().to_vec());
     let dummy_skin = DescriptorSet::builder()
       .storage_vertex()
       .build(vulkan.device(), &descriptor_pool);
     let descriptor_set_writer =
-      DescriptorWriter::builder().update_storage_buffer(&dummy_buffer, &dummy_skin);
+      DescriptorWriter::builder().update_buffer(&dummy_buffer, &dummy_skin);
 
     descriptor_set_writer.build(vulkan.device());
 
@@ -149,12 +192,11 @@ impl ModelHandler {
       models: HashMap::new(),
       mesh_shader,
 
-      //instanced_mesh_shader,
-      //instanced_mesh_buffer: HashMap::new(),
       uniform_buffer,
       uniform_descriptor_set: descriptor_set0,
 
-      dummy_texture: descriptor_set2,
+      mesh_descriptor,
+      dummy_texture,
       dummy_skin_buffer: dummy_buffer,
       dummy_skin,
 
@@ -174,7 +216,6 @@ impl ModelHandler {
 
   pub fn set_draw_mode(&mut self, vulkan: &Vulkan, mode: DrawMode) {
     self.mesh_shader.destroy(vulkan.device());
-    //  self.instanced_mesh_shader.destroy(vulkan.device());
 
     let mesh_shader = ModelHandler::create_mesh_shaders(
       vulkan,
@@ -182,40 +223,11 @@ impl ModelHandler {
       vec![
         self.uniform_descriptor_set.clone(),
         self.storage_descriptor_set.clone(),
-        self.dummy_texture.clone(),
+        self.mesh_descriptor.clone(),
       ],
     );
 
     self.mesh_shader = mesh_shader;
-    //self.instanced_mesh_shader = instanced_mesh_shader;
-  }
-
-  pub fn create_instance_render_buffer<T: Into<String>>(
-    &mut self,
-    _vulkan: &mut Vulkan,
-    _model_ref: T,
-  ) {
-    //let mut prim_info = Vec::new();
-
-    //let model_ref = model_ref.into();
-
-    //if let Some(model) = self.models.get_mut(&model_ref.to_string()) {
-    //  for i in 0..model.nodes().len() {
-    //    for primitive in &model.nodes()[i].mesh.primitives {
-    //      let index_count = primitive.index_count;
-    //      let first_index = primitive.first_index;
-    //      prim_info.push((index_count, first_index));
-    //    }
-    //  }
-
-    //  let dummy_instanced_data = vec![InstancedMeshData::new(); MAX_INSTANCES];
-
-    //  let buffer = Buffer::<InstancedMeshData>::new_vertex(vulkan.device(), dummy_instanced_data);
-
-    //  self
-    //    .instanced_mesh_buffer
-    //    .insert(model_ref.to_string(), (buffer, 0, prim_info));
-    //}
   }
 
   pub fn all_collision_models(&self) -> HashMap<String, CollisionInformation> {
@@ -265,15 +277,20 @@ impl ModelHandler {
     self.uniform_buffer.update_data(device, vec![data]);
   }
 
-  pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: T) {
+  pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: &[u8]) {
+    //self
+    //  .loaded_models
+    //  .push((model_ref.to_string(), model.to_string()));
+    //
     let model_ref = model_ref.into();
-    let model = model.into();
 
-    self
-      .loaded_models
-      .push((model_ref.to_string(), model.to_string()));
-
-    let gltf_model = gltf_loader::load_gltf(vulkan, &self.sampler, model_ref.to_string(), model);
+    let gltf_model = gltf_loader::load_gltf(
+      vulkan,
+      &self.sampler,
+      &self.dummy_texture,
+      model_ref.to_string(),
+      model,
+    );
     self.models.insert(model_ref, gltf_model);
   }
 
@@ -306,8 +323,8 @@ impl ModelHandler {
       } else {*/
       vulkan.draw_mesh(
         &self.mesh_shader,
+        &self.mesh_descriptor,
         &self.uniform_descriptor_set,
-        &self.dummy_texture,
         &self.dummy_skin,
         data,
         model,
@@ -367,8 +384,6 @@ impl ModelHandler {
       joint_weights: [1.0, 1.0, 1.0, 1.0],
     };
 
-    //let template_instanced_data = InstancedMeshData::new();
-
     let graphics_pipeline_builder = ModelHandler::create_mesh_pipeline_builder(draw_mode);
 
     let layouts = {
@@ -400,34 +415,6 @@ impl ModelHandler {
       &layouts,
       None as Option<(u32, Vec<u32>)>,
     );
-    /*
-    let instanced_mesh_shader = Shader::new(
-      vulkan.device(),
-      Cursor::new(&include_bytes!("../../shaders/instanced_mesh_animated_vert.spv")[..]),
-      Cursor::new(&include_bytes!("../../shaders/mesh_animated_frag.spv")[..]),
-      template_mesh_vertex,
-      vec![
-        offset_of!(MeshVertex, pos) as u32,
-        offset_of!(MeshVertex, normal) as u32,
-        offset_of!(MeshVertex, uv) as u32,
-        offset_of!(MeshVertex, colour) as u32,
-        offset_of!(MeshVertex, joint_indices) as u32,
-        offset_of!(MeshVertex, joint_weights) as u32,
-      ],
-      &graphics_pipeline_builder,
-      vulkan.model_renderpass(),
-      vulkan.viewports(),
-      vulkan.scissors(),
-      &layouts,
-      Some((
-        template_instanced_data,
-        vec![
-          offset_of!(InstancedMeshData, model) as u32,
-          offset_of!(InstancedMeshData, offset) as u32,
-          offset_of!(InstancedMeshData, scale) as u32,
-        ],
-      )),
-    );*/
 
     mesh_shader
   }

@@ -8,7 +8,7 @@ use crate::extra::Math;
 use crate::glam::{Mat4, Quat, Vec3};
 use crate::shader_handlers::TextureHandler;
 use crate::vkwrapper::{
-  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, Vulkan,
+  Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, Sampler, VkDevice, Vulkan,
 };
 use crate::Image as vkimage;
 
@@ -51,7 +51,7 @@ pub struct MeshVertex {
 pub struct Skin {
   name: String,
   skeleton_root: i32,
-  inverse_bind_matrices: Vec<Mat4>, //Vec<[f32; 16]>,
+  inverse_bind_matrices: Vec<Mat4>,
   joints: Vec<i32>,
   inverse_bind_matrix_buffer: Buffer<f32>,
   pub descriptor_set: DescriptorSet,
@@ -79,7 +79,7 @@ pub struct AnimationSampler {
   outputs: Vec<[f32; 4]>,
 }
 
-#[derive(Debug)]
+//#[derive(Debug)]
 pub struct Primitive {
   pub first_index: u32,
   pub index_count: u32,
@@ -89,13 +89,11 @@ pub struct Primitive {
   pub bounding_box_max: [f32; 3],
 }
 
-#[derive(Debug)]
 pub struct Mesh {
   pub primitives: Vec<Primitive>,
 }
 
 // idk if keep
-#[derive(Debug)]
 pub struct Node {
   pub idx: u32,
   pub mesh: Mesh,
@@ -114,10 +112,24 @@ pub struct Node {
   pub global_scale: Vec3,
 }
 
-#[derive(Debug)]
-pub struct Material {
+#[derive(Clone, Copy)]
+pub struct MaterialUbo {
   base_colour_factor: [f32; 4],
-  pub base_colour_texture_index: u32,
+  emissive: [f32; 4],
+  roughness: f32,
+  metallic: f32,
+  double_sided: f32,
+  pad: f32,
+}
+
+pub struct Material {
+  descriptor_set: DescriptorSet,
+  material_ubo: MaterialUbo,
+  base_colour_texture: Option<usize>,
+  metallic_roughness_texture: Option<usize>,
+  normal_map: Option<usize>,
+  occlusion_texture: Option<usize>,
+  emissive_texture: Option<usize>,
 }
 
 pub struct MeshImage {
@@ -136,7 +148,6 @@ pub struct GltfModel {
 
   mesh_index_buffer: Buffer<u32>,
   mesh_vertex_buffer: Buffer<MeshVertex>,
-  mesh_images: Vec<MeshImage>,
   mesh_skins: Vec<Skin>,
 
   animations: Vec<Animation>,
@@ -146,6 +157,24 @@ pub struct GltfModel {
 
   descriptor_pool: vk::DescriptorPool,
   active_animation: i32,
+}
+
+impl MaterialUbo {
+  pub fn default() -> MaterialUbo {
+    MaterialUbo {
+      base_colour_factor: [1.0; 4],
+      roughness: 0.6,
+      metallic: 0.4,
+      double_sided: -1.0,
+      emissive: [1.0; 4],
+      pad: 0.0,
+    }
+  }
+}
+impl Material {
+  pub fn descriptor(&self) -> &DescriptorSet {
+    &self.descriptor_set
+  }
 }
 
 impl CollisionObject {
@@ -221,86 +250,86 @@ impl CollisionInformation {
     let mut object_min_bounds = [f32::MAX; 3];
     let mut object_max_bounds = [f32::MIN; 3];
 
-    if std::path::Path::new(&location).exists() {
-      collision_objects.clear();
+    //if std::path::Path::new(&location).exists() {
+    //  collision_objects.clear();
 
-      let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
-      for scene in gltf.scenes() {
-        for node in scene.nodes() {
-          if let Some(mesh) = node.mesh() {
-            for primitive in mesh.primitives() {
-              let mut displacement = [0.0; 3];
+    //  let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
+    //  for scene in gltf.scenes() {
+    //    for node in scene.nodes() {
+    //      if let Some(mesh) = node.mesh() {
+    //        for primitive in mesh.primitives() {
+    //          let mut displacement = [0.0; 3];
 
-              let mut vertices = Vec::new();
-              let mut indexs = Vec::new();
+    //          let mut vertices = Vec::new();
+    //          let mut indexs = Vec::new();
 
-              let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+    //          let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-              let (_translation, _rotation, scale) = node.transform().decomposed();
+    //          let (_translation, _rotation, scale) = node.transform().decomposed();
 
-              if let Some(iter) = reader.read_positions() {
-                for vertex in iter {
-                  let scaled_vertex = Math::vec3_mul(vertex, scale);
-                  displacement = Math::vec3_add(displacement, scaled_vertex);
-                  vertices.push(scaled_vertex);
-                }
-              }
+    //          if let Some(iter) = reader.read_positions() {
+    //            for vertex in iter {
+    //              let scaled_vertex = Math::vec3_mul(vertex, scale);
+    //              displacement = Math::vec3_add(displacement, scaled_vertex);
+    //              vertices.push(scaled_vertex);
+    //            }
+    //          }
 
-              if let Some(indices) = reader.read_indices() {
-                let indices_u32 = indices.into_u32();
+    //          if let Some(indices) = reader.read_indices() {
+    //            let indices_u32 = indices.into_u32();
 
-                for index in indices_u32 {
-                  indexs.push(index);
-                }
-              }
+    //            for index in indices_u32 {
+    //              indexs.push(index);
+    //            }
+    //          }
 
-              let mut min_bounds: [f32; 3] = [0.0; 3];
-              let mut max_bounds: [f32; 3] = [0.0; 3];
+    //          let mut min_bounds: [f32; 3] = [0.0; 3];
+    //          let mut max_bounds: [f32; 3] = [0.0; 3];
 
-              match primitive.bounding_box() {
-                gltf::mesh::BoundingBox { min, max } => {
-                  min_bounds[0] = min[0] * scale[0];
-                  max_bounds[0] = max[0] * scale[0];
-                  min_bounds[1] = min[1] * scale[1];
-                  max_bounds[1] = max[1] * scale[1];
-                  min_bounds[2] = min[2] * scale[2];
-                  max_bounds[2] = max[2] * scale[2];
-                }
-              }
+    //          match primitive.bounding_box() {
+    //            gltf::mesh::BoundingBox { min, max } => {
+    //              min_bounds[0] = min[0] * scale[0];
+    //              max_bounds[0] = max[0] * scale[0];
+    //              min_bounds[1] = min[1] * scale[1];
+    //              max_bounds[1] = max[1] * scale[1];
+    //              min_bounds[2] = min[2] * scale[2];
+    //              max_bounds[2] = max[2] * scale[2];
+    //            }
+    //          }
 
-              for k in 0..3 {
-                if min_bounds[k] < object_min_bounds[k] {
-                  object_min_bounds[k] = min_bounds[k];
-                }
-                if max_bounds[k] < object_max_bounds[k] {
-                  object_max_bounds[k] = max_bounds[k];
-                }
-              }
+    //          for k in 0..3 {
+    //            if min_bounds[k] < object_min_bounds[k] {
+    //              object_min_bounds[k] = min_bounds[k];
+    //            }
+    //            if max_bounds[k] < object_max_bounds[k] {
+    //              object_max_bounds[k] = max_bounds[k];
+    //            }
+    //          }
 
-              let name = mesh.name().unwrap();
+    //          let name = mesh.name().unwrap();
 
-              displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
+    //          displacement = Math::vec3_div_f32(displacement, vertices.len() as f32);
 
-              object_displacement = Math::vec3_add(object_displacement, displacement);
+    //          object_displacement = Math::vec3_add(object_displacement, displacement);
 
-              collision_objects.push(CollisionObject::new(
-                name,
-                displacement,
-                indexs,
-                vertices,
-                min_bounds,
-                max_bounds,
-              ));
-            }
-          }
-        }
-      }
-    } else {
-      for object in &collision_objects {
-        object_displacement =
-          (Vec3::from(object_displacement) + Vec3::from(*object.displacement())).to_array();
-      }
+    //          collision_objects.push(CollisionObject::new(
+    //            name,
+    //            displacement,
+    //            indexs,
+    //            vertices,
+    //            min_bounds,
+    //            max_bounds,
+    //          ));
+    //        }
+    //      }
+    //    }
+    //  }
+    //} else {
+    for object in &collision_objects {
+      object_displacement =
+        (Vec3::from(object_displacement) + Vec3::from(*object.displacement())).to_array();
     }
+    //}
 
     object_displacement = Math::vec3_div_f32(object_displacement, collision_objects.len() as f32);
 
@@ -420,13 +449,24 @@ impl Node {
 }
 
 impl GltfModel {
+  pub fn mesh_descriptor(device: &VkDevice, descriptor_pool: &vk::DescriptorPool) -> DescriptorSet {
+    DescriptorSet::builder()
+      .uniform_buffer_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .combined_image_sampler_fragment()
+      .build(device, descriptor_pool)
+  }
+
   pub fn nodes(&self) -> &Vec<Node> {
     &self.nodes
   }
 
-  pub fn images(&self) -> &Vec<MeshImage> {
-    &self.mesh_images
-  }
+  //pub fn images(&self) -> &Vec<MeshImage> {
+  //  &self.mesh_images
+  //}
 
   pub fn index_buffer(&self) -> &Buffer<u32> {
     &self.mesh_index_buffer
@@ -714,41 +754,16 @@ fn load_skins(
         let new_matrix = Mat4::from_cols_array_2d(&matrix);
         matrices.push(new_matrix);
         raw_matrices.append(&mut new_matrix.to_cols_array().to_vec());
-        //let mut new_matrix = Math::mat4_identity();
-
-        //new_matrix[0] = matrix[0][0];
-        //new_matrix[1] = matrix[0][1];
-        //new_matrix[2] = matrix[0][2];
-        //new_matrix[3] = matrix[0][3];
-
-        //new_matrix[4] = matrix[1][0];
-        //new_matrix[5] = matrix[1][1];
-        //new_matrix[6] = matrix[1][2];
-        //new_matrix[7] = matrix[1][3];
-
-        //new_matrix[8] = matrix[2][0];
-        //new_matrix[9] = matrix[2][1];
-        //new_matrix[10] = matrix[2][2];
-        //new_matrix[11] = matrix[2][3];
-
-        //new_matrix[12] = matrix[3][0];
-        //new_matrix[13] = matrix[3][1];
-        //new_matrix[14] = matrix[3][2];
-        //new_matrix[15] = matrix[3][3];
-
-        //matrices.push(new_matrix);
-        //raw_matrices.append(&mut new_matrix.to_vec());
       }
     }
 
     let inverse_bind_matrix_buffer =
       Buffer::<f32>::new_storage_buffer(vulkan.device(), &raw_matrices);
-    //inverse_bind_matrix.push(new_matrix);
     let descriptor_set = DescriptorSet::builder()
       .storage_vertex()
       .build(vulkan.device(), descriptor_pool);
-    let descriptor_set_writer = DescriptorWriter::builder()
-      .update_storage_buffer(&inverse_bind_matrix_buffer, &descriptor_set);
+    let descriptor_set_writer =
+      DescriptorWriter::builder().update_buffer(&inverse_bind_matrix_buffer, &descriptor_set);
 
     descriptor_set_writer.build(vulkan.device());
 
@@ -857,17 +872,116 @@ fn load_textures(vulkan: &mut Vulkan, gltf: &gltf::Document, textures: &mut Vec<
   }
 }
 
-fn load_materials(gltf: &gltf::Document, materials: &mut Vec<Material>) {
+fn load_material(
+  vulkan: &mut Vulkan,
+  descriptor_pool: &vk::DescriptorPool,
+  gltf: &gltf::Document,
+  materials: &mut Vec<Material>,
+  textures: &Vec<Texture>,
+  mesh_images: &Vec<vkimage>,
+  dummy_image: &vkimage,
+  dummy_sampler: &Sampler,
+) {
   for material in gltf.materials() {
     let pbr = material.pbr_metallic_roughness();
 
+    let base_colour_factor = pbr.base_color_factor();
+    let emissive = material.emissive_factor();
+    let roughness = pbr.roughness_factor();
+    let metallic = pbr.metallic_factor();
+    let double_sided = material.double_sided();
+
+    let material_ubo = MaterialUbo {
+      base_colour_factor,
+      emissive: [emissive[0], emissive[1], emissive[2], 1.0],
+      roughness,
+      metallic,
+      double_sided: if double_sided { 1.0 } else { -1.0 },
+      pad: 0.0,
+    };
+    let material_buffer =
+      Buffer::<MaterialUbo>::new_uniform_buffer(vulkan.device(), &vec![material_ubo]);
+
+    let descriptor_set = GltfModel::mesh_descriptor(vulkan.device(), descriptor_pool);
+
+    let mut images: Vec<vkimage> = Vec::new();
+    let mut samplers = Vec::new();
+
+    let mut descriptor_set_writer =
+      DescriptorWriter::builder().update_buffer(&material_buffer, &descriptor_set);
+
+    let base_colour_texture = if let Some(info) = pbr.base_color_texture() {
+      let label = info.texture().index() as usize;
+      let sampler = &textures[label].sampler;
+      images.push(mesh_images[textures[label].image_index as usize].clone());
+      samplers.push(sampler.clone());
+      Some(label)
+    } else {
+      images.push(dummy_image.clone());
+      samplers.push(dummy_sampler.clone());
+      None
+    };
+
+    let normal_map = if let Some(normal_texture) = material.normal_texture() {
+      let label = normal_texture.texture().index() as usize;
+      let sampler = &textures[label].sampler;
+      images.push(mesh_images[label].clone());
+      samplers.push(sampler.clone());
+      Some(label)
+    } else {
+      images.push(dummy_image.clone());
+      samplers.push(dummy_sampler.clone());
+      None
+    };
+
+    let metallic_roughness_texture = if let Some(info) = pbr.metallic_roughness_texture() {
+      let label = info.texture().index() as usize;
+      let sampler = &textures[label].sampler;
+      images.push(mesh_images[label].clone());
+      samplers.push(sampler.clone());
+      Some(label)
+    } else {
+      images.push(dummy_image.clone());
+      samplers.push(dummy_sampler.clone());
+      None
+    };
+
+    let occlusion_texture = if let Some(occlusion_texture) = material.occlusion_texture() {
+      let label = occlusion_texture.texture().index() as usize;
+      let sampler = &textures[label].sampler;
+      images.push(mesh_images[label].clone());
+      samplers.push(sampler.clone());
+      Some(label)
+    } else {
+      images.push(dummy_image.clone());
+      samplers.push(dummy_sampler.clone());
+      None
+    };
+
+    let emissive_texture = if let Some(info) = material.emissive_texture() {
+      let label = info.texture().index() as usize;
+      let sampler = &textures[label].sampler;
+      images.push(mesh_images[label].clone());
+      samplers.push(sampler.clone());
+      Some(label)
+    } else {
+      images.push(dummy_image.clone());
+      samplers.push(dummy_sampler.clone());
+      None
+    };
+
+    descriptor_set_writer =
+      descriptor_set_writer.update_images(&images, &samplers, &descriptor_set);
+    descriptor_set_writer.build(vulkan.device());
+
     materials.push(Material {
-      base_colour_factor: pbr.base_color_factor(),
-      base_colour_texture_index: if let Some(texture_info) = pbr.base_color_texture() {
-        texture_info.texture().index() as u32
-      } else {
-        0
-      },
+      descriptor_set,
+      material_ubo,
+      base_colour_texture,
+      metallic_roughness_texture,
+      normal_map,
+      occlusion_texture,
+      emissive_texture,
     });
   }
 }
@@ -909,40 +1023,25 @@ fn load_node(
     global_scale: Vec3::ONE,
   });
 
-  //let matrix = gltf_node.transform().matrix();
-  //println!("{:?}", matrix);
-  //if matrix[0][3] != 0.0  ||
-  //   matrix[1][3] != 0.0  ||
-  //   matrix[2][3] != 0.0 ||
-  //   matrix[3][3] != 1.0 {
+  match gltf_node.transform() {
+    gltf::scene::Transform::Matrix { matrix } => {
+      let (translation, rotation, scale) =
+        Mat4::from_cols_array_2d(&matrix).to_scale_rotation_translation();
 
-  //  nodes[node_idx].matrix = Some(Math::mat4_identity());
-  //  if let Some(nmatrix) = &mut nodes[node_idx].matrix {
-  //    /*nodes[node_idx].*/nmatrix[0] = matrix[0][0];
-  //    /*nodes[node_idx].*/nmatrix[1] = matrix[0][1];
-  //    /*nodes[node_idx].*/nmatrix[2] = matrix[0][2];
-  //    /*nodes[node_idx].*/nmatrix[3] = matrix[0][3];
-
-  //    /*nodes[node_idx].*/nmatrix[4] = matrix[1][0];
-  //    /*nodes[node_idx].*/nmatrix[5] = matrix[1][1];
-  //    /*nodes[node_idx].*/nmatrix[6] = matrix[1][2];
-  //    /*nodes[node_idx].*/nmatrix[7] = matrix[1][3];
-
-  //    /*nodes[node_idx].*/nmatrix[8] = matrix[2][0];
-  //    /*nodes[node_idx].*/nmatrix[9] = matrix[2][1];
-  //    /*nodes[node_idx].*/nmatrix[10] = matrix[2][2];
-  //    /*nodes[node_idx].*/nmatrix[11] = matrix[2][3];
-
-  //    /*nodes[node_idx].*/nmatrix[12] = matrix[3][0];
-  //    /*nodes[node_idx].*/nmatrix[13] = matrix[3][1];
-  //    /*nodes[node_idx].*/nmatrix[14] = matrix[3][2];
-  //    /*nodes[node_idx].*/nmatrix[15] = matrix[3][3];
-  //  }
-  let (translation, rotation, scale) = gltf_node.transform().decomposed();
-
-  nodes[node_idx].translation = Vec3::from(translation);
-  nodes[node_idx].rotation = Quat::from_array(rotation);
-  nodes[node_idx].scale = Vec3::from(scale);
+      nodes[node_idx].translation = translation;
+      nodes[node_idx].rotation = rotation;
+      nodes[node_idx].scale = scale;
+    }
+    gltf::scene::Transform::Decomposed {
+      translation,
+      rotation,
+      scale,
+    } => {
+      nodes[node_idx].translation = Vec3::from(translation);
+      nodes[node_idx].rotation = Quat::from_array(rotation);
+      nodes[node_idx].scale = Vec3::from(scale);
+    }
+  }
 
   for child in gltf_node.children() {
     let child_idx = nodes.len();
@@ -965,6 +1064,7 @@ fn load_node(
       let mut vertices = Vec::new();
       let mut normals = Vec::new();
       let mut uvs = Vec::new();
+      let mut colours = Vec::new();
       let mut joint_indices = Vec::new();
       let mut joint_weights = Vec::new();
 
@@ -973,26 +1073,29 @@ fn load_node(
 
       let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-      if let Some(iter) = reader.read_positions() {
-        for vertex in iter {
-          displacement = Math::vec3_add(displacement, vertex);
-          vertices.push(vertex);
-        }
+      if let Some(vertex_attribute) = reader
+        .read_positions()
+        .map(|v| v.collect::<Vec<[f32; 3]>>())
+      {
+        vertices = vertex_attribute;
       }
 
-      if let Some(iter) = reader.read_normals() {
-        normals.extend(iter);
+      if let Some(colour_attribute) = reader
+        .read_colors(0)
+        .map(|c| c.into_rgb_f32().collect::<Vec<[f32; 3]>>())
+      {
+        colours = colour_attribute;
       }
 
-      if let Some(read_tex_coords) = reader.read_tex_coords(0) {
-        match read_tex_coords {
-          gltf::mesh::util::ReadTexCoords::F32(iter) => {
-            uvs.extend(iter);
-          }
-          _ => {
-            println!("tex coords is other from f32");
-          }
-        }
+      if let Some(normal_attribute) = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>()) {
+        normals = normal_attribute;
+      }
+
+      if let Some(tex_coords_0) = reader
+        .read_tex_coords(0)
+        .map(|tc| tc.into_f32().collect::<Vec<[f32; 2]>>())
+      {
+        uvs = tex_coords_0;
       }
 
       if let Some(some_read_joints) = reader.read_joints(0) {
@@ -1058,21 +1161,19 @@ fn load_node(
         }
       }
 
-      let pbr = primitive.material().pbr_metallic_roughness();
-      let colour = pbr.base_color_factor();
-
       for i in 0..vertices.len() {
         all_verticies.push((Vec3::from(vertices[i]) * nodes[node_idx].scale).to_array());
-        //Vector3::from_array(Math::vec3_mul(
-        //  vertices[i],
-        //  nodes[node_idx].scale,
-        //)));
+        displacement = Math::vec3_add(displacement, vertices[i]);
 
         vertex_buffer.push(MeshVertex {
           pos: vertices[i],
           normal: normals[i],
           uv: if uvs.len() <= i { [0.0, 0.0] } else { uvs[i] },
-          colour: [colour[0], colour[1], colour[2]],
+          colour: if colours.len() <= i {
+            [1.0, 1.0, 1.0]
+          } else {
+            colours[i]
+          },
           joint_indices: if joint_indices.len() <= i {
             [0.0, 0.0, 0.0, 0.0]
           } else {
@@ -1108,12 +1209,10 @@ fn load_node(
         }
       }
 
-      displacement =
-        ((Vec3::from(displacement) * nodes[node_idx].scale).div(vertices.len() as f32)).to_array();
-      //Math::vec3_div_f32(
-      //  Math::vec3_mul(displacement, nodes[node_idx].scale),
-      //  vertices.len() as f32,
-      //);
+      displacement = (Vec3::from(displacement) * nodes[node_idx].scale)
+        .div(vertices.len() as f32)
+        .to_array();
+
       let name = mesh.name().unwrap();
 
       collision_objects.push(CollisionObject::new(
@@ -1179,13 +1278,17 @@ pub fn update_joints(
   }
 }
 
-pub fn load_gltf<T: Into<String>, L: Into<String>>(
+pub fn load_gltf<T: Into<String>>(
   vulkan: &mut Vulkan,
   sampler: &Sampler,
-  reference: L,
-  location: T,
+  dummy_texture: &vkimage,
+  reference: T,
+  location: &[u8], //T,
 ) -> GltfModel {
-  let location = location.into();
+  //let location = location.into();
+
+  let reference = reference.into();
+  println!("Loading model: {}", reference.to_string());
 
   let mut images: Vec<vkimage> = Vec::new();
   let mut textures: Vec<Texture> = Vec::new();
@@ -1199,9 +1302,17 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
 
   let mut collision_objects = Vec::new();
 
-  //new_load_glb(location.to_string());
+  //let dummy_image = TextureHandler::create_blank_image();
+  //let dummy_texture = TextureHandler::create_device_local_texture_from_image(vulkan, dummy_image);
+  //let image_view_info = dummy_texture.build_imageview(&dummy_texture.internal());
 
-  let (gltf, buffers, _images) = gltf::import(&location.to_string()).unwrap();
+  let (gltf, buffers, _images) = gltf::import_slice(location).unwrap();
+
+  let mut descriptor_pool = DescriptorPoolBuilder::new()
+    .num_uniform_buffers((images.len() as u32).max(1))
+    .num_storage((gltf.skins().len() as u32).max(1))
+    .num_combined_image_samplers((images.len() as u32).max(1) * 100)
+    .build(vulkan.device());
 
   for scene in gltf.scenes() {
     for node in scene.nodes() {
@@ -1217,18 +1328,18 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
     }
   }
 
-  load_materials(&gltf, &mut materials);
-
   load_textures(vulkan, &gltf, &mut textures);
-
   load_images(vulkan, &gltf, &buffers, &mut images);
-
-  let descriptor_pool = DescriptorPoolBuilder::new()
-    .num_uniform_buffers((images.len() as u32).max(1))
-    .num_storage((gltf.skins().len() as u32).max(1))
-    .num_combined_image_samplers((images.len() as u32).max(1))
-    .build(vulkan.device());
-
+  load_material(
+    vulkan,
+    &mut descriptor_pool,
+    &gltf,
+    &mut materials,
+    &mut textures,
+    &images,
+    &dummy_texture,
+    sampler,
+  );
   load_skins(
     vulkan,
     &gltf,
@@ -1237,38 +1348,7 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
     &mut nodes,
     &mut mesh_skins,
   );
-
   load_animation(&gltf, &buffers, &nodes, &mut mesh_animations);
-
-  let mut mesh_images: Vec<MeshImage> = Vec::new();
-
-  let mut i = 0;
-  for image in images {
-    let sampler = {
-      let mut s = sampler;
-      for j in 0..textures.len() {
-        if textures[j].image_index == i as i32 {
-          s = &textures[j].sampler;
-        }
-      }
-
-      s
-    };
-
-    let descriptor_set = DescriptorSet::builder()
-      .combined_image_sampler_fragment()
-      .build(vulkan.device(), &descriptor_pool);
-    let descriptor_set_writer =
-      DescriptorWriter::builder().update_image(&image, &sampler, &descriptor_set);
-
-    descriptor_set_writer.build(vulkan.device());
-    mesh_images.push(MeshImage {
-      texture: image,
-      descriptor_set,
-    });
-
-    i += 1;
-  }
 
   let mesh_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), index_buffer);
   let mesh_vertex_buffer = Buffer::<MeshVertex>::new_vertex(vulkan.device(), vertex_buffer);
@@ -1277,7 +1357,11 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
     update_joints(vulkan, &mut mesh_skins, &mut nodes, i);
   }
 
-  let collision_info = CollisionInformation::new(reference.into(), location, collision_objects);
+  let collision_info = CollisionInformation::new(
+    reference.into(),
+    /*location*/ "".to_string(),
+    collision_objects,
+  );
 
   Node::calculate_all_global_transforms(&mut nodes);
 
@@ -1287,7 +1371,6 @@ pub fn load_gltf<T: Into<String>, L: Into<String>>(
 
     mesh_index_buffer,
     mesh_vertex_buffer,
-    mesh_images,
     mesh_skins,
 
     animations: mesh_animations,
