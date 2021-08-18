@@ -843,8 +843,8 @@ impl Vulkan {
           if i < 16 {
             matrix[i]
           } else {
-            let data_offset = data.len();
-            if i < data_offset {
+            let data_offset = 16;
+            if i < data_offset - 1 + data.len() {
               data[i - data_offset]
             } else {
               *d

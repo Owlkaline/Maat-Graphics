@@ -685,7 +685,7 @@ impl MaatGraphics {
         //Event::MainEventsCleared => {
         Event::RedrawRequested(_id) => {
           callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-          vulkan.draw_forward_plus(texture_data, model_data);
+          vulkan.draw(texture_data, model_data);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();
