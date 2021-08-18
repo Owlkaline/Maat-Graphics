@@ -132,7 +132,7 @@ impl ModelHandler {
       Buffer::<MeshUniformBuffer>::new_uniform_buffer(vulkan.device(), &uniform_data);
 
     let descriptor_set_writer =
-      DescriptorWriter::builder().update_uniform_buffer(&uniform_buffer, &descriptor_set0);
+      DescriptorWriter::builder().update_buffer(&uniform_buffer, &descriptor_set0);
 
     descriptor_set_writer.build(vulkan.device());
 
@@ -167,7 +167,7 @@ impl ModelHandler {
     ];
 
     let descriptor_set_writer = DescriptorWriter::builder()
-      .update_uniform_buffer(
+      .update_buffer(
         &Buffer::new_uniform_buffer(vulkan.device(), &vec![MaterialUbo::default()]),
         &mesh_descriptor,
       )
@@ -181,7 +181,7 @@ impl ModelHandler {
       .storage_vertex()
       .build(vulkan.device(), &descriptor_pool);
     let descriptor_set_writer =
-      DescriptorWriter::builder().update_storage_buffer(&dummy_buffer, &dummy_skin);
+      DescriptorWriter::builder().update_buffer(&dummy_buffer, &dummy_skin);
 
     descriptor_set_writer.build(vulkan.device());
 

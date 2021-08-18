@@ -762,8 +762,8 @@ fn load_skins(
     let descriptor_set = DescriptorSet::builder()
       .storage_vertex()
       .build(vulkan.device(), descriptor_pool);
-    let descriptor_set_writer = DescriptorWriter::builder()
-      .update_storage_buffer(&inverse_bind_matrix_buffer, &descriptor_set);
+    let descriptor_set_writer =
+      DescriptorWriter::builder().update_buffer(&inverse_bind_matrix_buffer, &descriptor_set);
 
     descriptor_set_writer.build(vulkan.device());
 
@@ -908,7 +908,7 @@ fn load_material(
     let mut samplers = Vec::new();
 
     let mut descriptor_set_writer =
-      DescriptorWriter::builder().update_uniform_buffer(&material_buffer, &descriptor_set);
+      DescriptorWriter::builder().update_buffer(&material_buffer, &descriptor_set);
 
     let base_colour_texture = if let Some(info) = pbr.base_color_texture() {
       let label = info.texture().index() as usize;
@@ -1077,7 +1077,6 @@ fn load_node(
         .read_positions()
         .map(|v| v.collect::<Vec<[f32; 3]>>())
       {
-        //        displacement = Math::vec3_add(displacement, vertex_attribute);
         vertices = vertex_attribute;
       }
 
@@ -1210,8 +1209,9 @@ fn load_node(
         }
       }
 
-      displacement =
-        ((Vec3::from(displacement) * nodes[node_idx].scale).div(vertices.len() as f32)).to_array();
+      displacement = (Vec3::from(displacement) * nodes[node_idx].scale)
+        .div(vertices.len() as f32)
+        .to_array();
 
       let name = mesh.name().unwrap();
 

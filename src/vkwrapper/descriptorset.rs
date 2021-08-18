@@ -73,6 +73,14 @@ impl DescriptorSetBuilder {
     self
   }
 
+  pub fn combined_image_sampler_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::COMBINED_IMAGE_SAMPLER);
+    self
+      .stages
+      .push(vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::COMPUTE);
+    self
+  }
+
   pub fn storage_vertex(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::STORAGE_BUFFER);
     self.stages.push(vk::ShaderStageFlags::VERTEX);
@@ -88,6 +96,22 @@ impl DescriptorSetBuilder {
   pub fn storage_compute(mut self) -> DescriptorSetBuilder {
     self.types.push(vk::DescriptorType::STORAGE_BUFFER);
     self.stages.push(vk::ShaderStageFlags::COMPUTE);
+    self
+  }
+
+  pub fn storage_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self
+      .stages
+      .push(vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
+    self
+  }
+
+  pub fn storage_vertex_compute_fragment(mut self) -> DescriptorSetBuilder {
+    self.types.push(vk::DescriptorType::STORAGE_BUFFER);
+    self.stages.push(
+      vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+    );
     self
   }
 

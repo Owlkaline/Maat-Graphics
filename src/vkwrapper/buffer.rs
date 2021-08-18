@@ -6,6 +6,7 @@ pub struct Buffer<T: Sized + Copy> {
   buffer: vk::Buffer,
   memory: Memory<T>,
   pub data: Vec<T>,
+  usage_flag: vk::BufferUsageFlags,
 }
 
 impl<T: Sized + Copy> Buffer<T> {
@@ -26,6 +27,7 @@ impl<T: Sized + Copy> Buffer<T> {
       buffer,
       memory,
       data,
+      usage_flag: usage,
     }
   }
 
@@ -107,6 +109,25 @@ impl<T: Sized + Copy> Buffer<T> {
 
   pub fn data(&self) -> &Vec<T> {
     &self.data
+  }
+
+  pub fn usage(&self) -> vk::BufferUsageFlags {
+    self.usage_flag
+  }
+
+  pub fn descriptor_usage(&self) -> vk::DescriptorType {
+    match self.usage() {
+      vk::BufferUsageFlags::STORAGE_BUFFER => vk::DescriptorType::STORAGE_BUFFER,
+      vk::BufferUsageFlags::UNIFORM_BUFFER => vk::DescriptorType::UNIFORM_BUFFER,
+      bt => {
+        panic!(
+          "You cannot update buffer of type: {:?}, Must be type {:?} or {:?}",
+          bt,
+          vk::BufferUsageFlags::STORAGE_BUFFER,
+          vk::BufferUsageFlags::UNIFORM_BUFFER
+        );
+      }
+    }
   }
 }
 

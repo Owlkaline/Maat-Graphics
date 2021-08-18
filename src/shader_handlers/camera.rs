@@ -112,6 +112,10 @@ impl Camera {
     self.update_view_matrix();
   }
 
+  pub fn position(&self) -> Vec3 {
+    self.position
+  }
+
   pub fn rotation(&self) -> Vec3 {
     self.rotation
   }

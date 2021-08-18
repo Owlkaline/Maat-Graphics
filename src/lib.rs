@@ -18,7 +18,6 @@ mod shader_handlers;
 mod vkwrapper;
 
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::time::Instant;
 
 use ash::vk;
@@ -31,7 +30,7 @@ use winit::{
   window::Fullscreen,
 };
 
-use crate::shader_handlers::{ModelHandler, TextureHandler};
+use crate::shader_handlers::{ComputeHandler, ModelHandler, TextureHandler};
 use crate::vkwrapper::{ComputeShader, DescriptorPoolBuilder, DescriptorSet, Image, Vulkan};
 
 pub const DELTA_STEP: f32 = 0.001;
@@ -144,12 +143,12 @@ pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
 
 pub struct MaatGraphics {
   vulkan: Vulkan,
+  compute_handler: ComputeHandler,
   texture_handler: TextureHandler,
   model_handler: ModelHandler,
-  compute_descriptor_pool: vk::DescriptorPool,
-  compute_shader: ComputeShader,
-  compute_descriptor_sets: DescriptorSet,
-
+  //compute_descriptor_pool: vk::DescriptorPool,
+  //compute_shader: ComputeShader,
+  //compute_descriptor_sets: DescriptorSet,
   gamepads: Option<Gilrs>,
   active_controller: Option<GamepadId>,
 }
@@ -166,33 +165,34 @@ impl MaatGraphics {
     };
     let mut vulkan = Vulkan::new(window, screen_resolution);
 
-    let compute_descriptor_pool = DescriptorPoolBuilder::new()
-      .num_storage(5)
-      .build(vulkan.device());
-    let compute_descriptor_sets = DescriptorSet::builder()
-      .storage_compute()
-      .build(vulkan.device(), &compute_descriptor_pool);
-    let compute_shader = ComputeShader::new(
-      vulkan.device(),
-      Cursor::new(&include_bytes!("../shaders/collatz_comp.spv")[..]),
-      &compute_descriptor_sets,
-    );
+    //let compute_descriptor_pool = DescriptorPoolBuilder::new()
+    //  .num_storage(5)
+    //  .build(vulkan.device());
+    //let compute_descriptor_sets = DescriptorSet::builder()
+    //  .storage_compute()
+    //  .build(vulkan.device(), &compute_descriptor_pool);
+    //let compute_shader = ComputeShader::new(
+    //  vulkan.device(),
+    //  Cursor::new(&include_bytes!("../shaders/collatz_comp.spv")[..]),
+    //  &compute_descriptor_sets,
+    //);
 
-    let mut compute_data = vec![64, 32, 8, 12, 96];
-    vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
-    println!("Compute Data: {:?}", compute_data);
+    //let mut compute_data = vec![64, 32, 8, 12, 96];
+    //vulkan.run_compute(&compute_shader, &compute_descriptor_sets, &mut compute_data);
+    //println!("Compute Data: {:?}", compute_data);
 
     let texture_handler = TextureHandler::new(&mut vulkan, screen_resolution, font_location);
-    let model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
+    let mut model_handler = ModelHandler::new(&mut vulkan, screen_resolution);
+    let compute_handler = ComputeHandler::new(&mut vulkan, model_handler.mut_camera());
 
     MaatGraphics {
       vulkan,
       texture_handler,
       model_handler,
-      compute_descriptor_pool,
-      compute_shader,
-      compute_descriptor_sets,
-
+      compute_handler,
+      //compute_descriptor_pool,
+      //compute_shader,
+      //compute_descriptor_sets,
       gamepads: None,
       active_controller: None,
     }

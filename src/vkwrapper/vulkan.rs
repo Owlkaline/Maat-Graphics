@@ -1,4 +1,5 @@
 use std::default::Default;
+use std::mem;
 
 use ash::vk;
 use glam::{EulerRot, Quat, Vec3};
@@ -440,7 +441,129 @@ impl Vulkan {
     );
   }
 
-  pub fn run_compute<T: Copy>(
+  pub fn run_compute_simultaneous<T: Copy, L: Copy>(
+    &mut self,
+    compute_shader: &ComputeShader,
+    push_constants: &[i32; 4 * 4],
+    descriptor_sets: &Vec<vk::DescriptorSet>,
+    light_visibility_buffer: &mut Buffer<T>,
+    point_light_buffer: &mut Buffer<L>,
+    x: u32,
+    y: u32,
+    z: u32,
+  ) {
+    Vulkan::record_submit_commandbuffer(
+      &self.device,
+      self.setup_command_buffer,
+      &self.setup_commands_reuse_fence,
+      self.device.present_queue(),
+      &[],
+      &Semaphore::new(&self.device), //[],
+      &Semaphore::new(&self.device), //[],
+      |device, compute_command_buffer| {
+        let mut buffer_barriers_before = Vec::new();
+
+        buffer_barriers_before.push(
+          vk::BufferMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::TRANSFER_READ)
+            .dst_access_mask(vk::AccessFlags::SHADER_WRITE)
+            .buffer(*light_visibility_buffer.internal())
+            .size(std::mem::size_of::<T>() as u64 * (light_visibility_buffer.data().len() as u64))
+            .build(),
+        );
+
+        buffer_barriers_before.push(
+          vk::BufferMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::TRANSFER_READ)
+            .dst_access_mask(vk::AccessFlags::SHADER_WRITE)
+            .buffer(*point_light_buffer.internal())
+            .size(std::mem::size_of::<L>() as u64 * (point_light_buffer.data().len() as u64))
+            .build(),
+        );
+
+        unsafe {
+          device.internal().cmd_pipeline_barrier(
+            compute_command_buffer,
+            vk::PipelineStageFlags::FRAGMENT_SHADER,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &buffer_barriers_before,
+            &[],
+          );
+
+          device.internal().cmd_bind_descriptor_sets(
+            compute_command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            compute_shader.pipeline_layout(),
+            0,
+            descriptor_sets,
+            &[],
+          );
+
+          let push_constant_data: Vec<u8> = {
+            push_constants
+              .iter()
+              .map(|x| x.to_le_bytes().to_vec())
+              .flatten()
+              .collect()
+          };
+
+          device.internal().cmd_push_constants(
+            compute_command_buffer,
+            compute_shader.pipeline_layout(),
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &push_constant_data, //&[0 as u8; 128 * 4],
+          );
+
+          device.internal().cmd_bind_pipeline(
+            compute_command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            *compute_shader.pipeline().internal(),
+          );
+
+          device
+            .internal()
+            .cmd_dispatch(compute_command_buffer, x, y, z)
+        }
+
+        let mut buffer_barriers_after = Vec::new();
+
+        buffer_barriers_after.push(
+          vk::BufferMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+            .dst_access_mask(vk::AccessFlags::SHADER_READ)
+            .buffer(*light_visibility_buffer.internal())
+            .size(std::mem::size_of::<T>() as u64 * (light_visibility_buffer.data().len() as u64))
+            .build(),
+        );
+
+        buffer_barriers_after.push(
+          vk::BufferMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+            .dst_access_mask(vk::AccessFlags::SHADER_READ)
+            .buffer(*point_light_buffer.internal())
+            .size(std::mem::size_of::<L>() as u64 * (point_light_buffer.data().len() as u64))
+            .build(),
+        );
+
+        unsafe {
+          device.internal().cmd_pipeline_barrier(
+            compute_command_buffer,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::PipelineStageFlags::FRAGMENT_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &buffer_barriers_after,
+            &[],
+          );
+        }
+      },
+    );
+  }
+
+  pub fn run_compute_with_buffer<T: Copy>(
     &mut self,
     compute_shader: &ComputeShader,
     descriptor_sets: &DescriptorSet,
@@ -458,7 +581,7 @@ impl Vulkan {
       .build(&self.device);
 
     let descriptor_set_writer =
-      DescriptorWriter::builder().update_storage_buffer(&dst_buffer, &descriptor_sets);
+      DescriptorWriter::builder().update_buffer(&dst_buffer, &descriptor_sets);
     descriptor_set_writer.build(&self.device);
 
     Vulkan::record_submit_commandbuffer(

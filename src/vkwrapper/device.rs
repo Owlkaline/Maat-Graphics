@@ -1,6 +1,6 @@
 use std::default::Default;
 
-use ash::extensions::khr::{Surface, Swapchain};
+use ash::extensions::khr::{Maintenance1, Surface, Swapchain};
 //pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
 
@@ -148,7 +148,7 @@ fn create_logical_device(
     .queue_family_index(queue_family_index)
     .queue_priorities(&priorities)
     .build()];
-  let device_extension_names_raw = [Swapchain::name().as_ptr()];
+  let device_extension_names_raw = [Swapchain::name().as_ptr(), Maintenance1::name().as_ptr()];
   let features = vk::PhysicalDeviceFeatures {
     shader_clip_distance: 1,
     fill_mode_non_solid: 1,
