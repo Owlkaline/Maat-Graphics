@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::env;
 use std::ffi::{CStr, CString};
 
 use ash::extensions::ext::DebugUtils;
@@ -75,11 +76,16 @@ impl VkInstance {
 fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
   let app_name = CString::new("Maat_Graphics").unwrap();
 
-  //let layer_names = [CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
-  //let layers_names_raw: Vec<*const i8> = layer_names
-  //  .iter()
-  //  .map(|raw_name| raw_name.as_ptr())
-  //  .collect();
+  let validation_layers_enabled = match env::var("ValLayers") {
+    Ok(_) => true,
+    Err(_) => false,
+  };
+
+  let layer_names = [CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
+  let layers_names_raw: Vec<*const i8> = layer_names
+    .iter()
+    .map(|raw_name| raw_name.as_ptr())
+    .collect();
 
   let surface_extensions = ash_window::enumerate_required_extensions(window.internal()).unwrap();
   let mut extension_names_raw = surface_extensions
@@ -97,7 +103,13 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
 
   let create_info = vk::InstanceCreateInfo::builder()
     .application_info(&appinfo)
-    .enabled_layer_names(&[])
+    .enabled_layer_names(
+      if validation_layers_enabled {
+        &layers_names_raw
+      } else {
+        &[]
+      },
+    )
     .enabled_extension_names(&extension_names_raw);
 
   let instance: Instance = unsafe {
