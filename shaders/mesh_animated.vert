@@ -62,7 +62,7 @@ void main() {
   gl_Position = ubo.projection * ubo.view * push_constants.model * skin_mat * vec4(pos.xyz, 1.0);
   
   vec4 pos = ubo.view * vec4(obj_pos, 1.0);
-  o_normal = mat3(ubo.view) * normal;
+  o_normal = mat3(ubo.view * push_constants.model) * normal;
   vec3 l_pos = mat3(ubo.view) * ubo.light_pos.xyz;
   o_light_vec = l_pos - pos.xyz;
   o_view_vec = -pos.xyz;

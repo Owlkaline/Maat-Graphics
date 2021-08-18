@@ -124,7 +124,8 @@ impl ModelHandler {
     let uniform_data = vec![MeshUniformBuffer {
       projection: camera.perspective_matrix(),
       model: camera.view_matrix(),
-      light_pos: [100.0, 100.0, -100.0, 1.0], //[5.0, 5.0, -5.0, 1.0],
+      light_pos: [5.0, 5.0, -5.0, 1.0],
+      //[100.0, 100.0, -100.0, 1.0], //[5.0, 5.0, -5.0, 1.0],
       window_size,
     }];
 
@@ -278,10 +279,6 @@ impl ModelHandler {
   }
 
   pub fn load_model<T: Into<String>>(&mut self, vulkan: &mut Vulkan, model_ref: T, model: &[u8]) {
-    //self
-    //  .loaded_models
-    //  .push((model_ref.to_string(), model.to_string()));
-    //
     let model_ref = model_ref.into();
 
     let gltf_model = gltf_loader::load_gltf(
@@ -310,17 +307,6 @@ impl ModelHandler {
 
   pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, model_ref: &str) {
     if let Some(model) = &self.models.get(model_ref) {
-      /*if let Some((buffer, count, _)) = self.instanced_mesh_buffer.get_mut(model_ref) {
-        for i in 0..model.nodes().len() {
-          let matrix = Node::get_node_matrix(model.nodes(), i);
-
-          buffer.data[*count].model = matrix;
-          buffer.data[*count].offset = [data[0], data[1], data[2]];
-          buffer.data[*count].scale = [data[4], data[5], data[6]];
-
-          *count += 1;
-        }
-      } else {*/
       vulkan.draw_mesh(
         &self.mesh_shader,
         &self.mesh_descriptor,
@@ -329,28 +315,8 @@ impl ModelHandler {
         data,
         model,
       );
-      //}
     }
   }
-  /*
-  pub fn draw_instanced_models(&mut self, vulkan: &mut Vulkan) {
-    for (model, (buffer, count, prim_info)) in &mut self.instanced_mesh_buffer {
-      buffer.update_data(vulkan.device(), buffer.data.clone());
-
-      if let Some(model) = self.models.get(model) {
-        vulkan.draw_instanced_mesh(&model.index_buffer(),
-                                   model.vertex_buffer(),
-                                   &self.instanced_mesh_shader,
-                                   &self.uniform_descriptor_set,
-                                   &self.dummy_texture,
-                                   &self.dummy_skin,
-                                   buffer,
-                                   *count,
-                                   prim_info);
-      }
-      *count = 0;
-    }
-  }*/
 
   fn create_mesh_pipeline_builder(mode: DrawMode) -> GraphicsPipelineBuilder {
     let mut gpb = GraphicsPipelineBuilder::new()
