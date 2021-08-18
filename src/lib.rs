@@ -338,6 +338,55 @@ impl MaatGraphics {
     }
   }
 
+  pub fn draw_forward_plus<T, L, S>(
+    &mut self,
+    texture_data: Vec<(Vec<f32>, T, Option<L>)>,
+    model_data: Vec<(Vec<f32>, S)>,
+  ) where
+    T: Into<String>,
+    L: Into<String>,
+    S: Into<String>,
+  {
+    if self.model_handler.mut_camera().is_updated() {
+      self
+        .model_handler
+        .update_uniform_buffer(self.vulkan.device());
+    }
+
+    if let Some(present_index) = self.vulkan.start_render() {
+      self.vulkan.begin_renderpass_model(present_index);
+      for (data, model) in model_data {
+        self
+          .model_handler
+          .draw(&mut self.vulkan, data, &model.into());
+      }
+
+      self.vulkan.end_renderpass();
+      self.vulkan.begin_renderpass_texture(present_index);
+
+      let mut text_count = 0;
+
+      for (data, texture, some_text) in texture_data {
+        if let Some(text) = some_text {
+          self
+            .texture_handler
+            .add_text_data(&mut text_count, data, &text.into(), &texture.into());
+        } else {
+          self
+            .texture_handler
+            .draw(&mut self.vulkan, data, &texture.into());
+        }
+      }
+
+      self
+        .texture_handler
+        .draw_instanced_text(&mut self.vulkan, text_count);
+
+      self.vulkan.end_renderpass();
+      self.vulkan.end_render(present_index);
+    }
+  }
+
   pub fn draw<T: Into<String>, L: Into<String>, S: Into<String>>(
     &mut self,
     texture_data: Vec<(Vec<f32>, T, Option<L>)>,
@@ -636,7 +685,7 @@ impl MaatGraphics {
         //Event::MainEventsCleared => {
         Event::RedrawRequested(_id) => {
           callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-          vulkan.draw(texture_data, model_data);
+          vulkan.draw_forward_plus(texture_data, model_data);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();

@@ -22,6 +22,7 @@ pub struct VkDevice {
   surface_loader: Surface,
   queue_family_index: u32,
   present_queue: vk::Queue,
+  compute_queue: vk::Queue,
 }
 
 impl VkDevice {
@@ -39,7 +40,8 @@ impl VkDevice {
 
     let (phys_device, queue_family_index) =
       pick_physical_device(instance, &surface, &surface_loader);
-    let (device, present_queue) = create_logical_device(instance, &phys_device, queue_family_index);
+    let (device, present_queue, compute_queue) =
+      create_logical_device(instance, &phys_device, queue_family_index);
 
     let surface_format = unsafe {
       surface_loader
@@ -62,6 +64,7 @@ impl VkDevice {
       surface_loader,
       queue_family_index,
       present_queue,
+      compute_queue,
     }
   }
 
@@ -95,6 +98,10 @@ impl VkDevice {
 
   pub fn present_queue(&self) -> vk::Queue {
     self.present_queue
+  }
+
+  pub fn compute_queue(&self) -> vk::Queue {
+    self.compute_queue
   }
 }
 
@@ -142,7 +149,7 @@ fn create_logical_device(
   instance: &VkInstance,
   pdevice: &vk::PhysicalDevice,
   queue_family_index: u32,
-) -> (Device, vk::Queue) {
+) -> (Device, vk::Queue, vk::Queue) {
   let priorities = [1.0];
   let queue_info = [vk::DeviceQueueCreateInfo::builder()
     .queue_family_index(queue_family_index)
@@ -166,7 +173,9 @@ fn create_logical_device(
       .unwrap()
   };
 
+  // Single queue for both graphics and compute
   let present_queue = unsafe { device.get_device_queue(queue_family_index, 0) };
+  let compute_queue = present_queue;
 
-  (device, present_queue)
+  (device, present_queue, compute_queue)
 }
