@@ -263,17 +263,15 @@ impl Vulkan {
           ..Default::default()
         };
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            texture_command_buffer.internal(),
-            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-            vk::PipelineStageFlags::TRANSFER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[texture_barrier],
-          );
-        }
+        texture_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          Vec::new(),
+          vec![texture_barrier],
+        );
 
         let mut buffer_copy_regions = Vec::new();
 
@@ -286,22 +284,20 @@ impl Vulkan {
                 .build(),
             )
             .image_extent(vk::Extent3D {
-              width: dst_image.width(),   //image_dimensions.0,
-              height: dst_image.height(), //image_dimensions.1,
+              width: dst_image.width(),
+              height: dst_image.height(),
               depth: 1,
             })
             .build(),
         );
 
-        unsafe {
-          device.internal().cmd_copy_buffer_to_image(
-            texture_command_buffer.internal(),
-            *src_buffer.internal(),
-            dst_image.internal(),
-            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            &buffer_copy_regions[..], //&[buffer_copy_regions.build()],
-          );
-        }
+        texture_command_buffer.copy_buffer_to_image(
+          device,
+          src_buffer,
+          dst_image,
+          vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+          buffer_copy_regions,
+        );
 
         let texture_barrier_end = vk::ImageMemoryBarrier {
           src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
@@ -318,17 +314,15 @@ impl Vulkan {
           ..Default::default()
         };
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            texture_command_buffer.internal(),
-            vk::PipelineStageFlags::TRANSFER,
-            vk::PipelineStageFlags::FRAGMENT_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[texture_barrier_end],
-          );
-        }
+        texture_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::PipelineStageFlags::FRAGMENT_SHADER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          Vec::new(),
+          vec![texture_barrier_end],
+        );
       },
     );
   }
@@ -341,7 +335,6 @@ impl Vulkan {
     Vulkan::record_submit_commandbuffer(
       &self.device,
       &mut self.setup_command_buffer,
-      //&self.setup_commands_reuse_fence,
       self.device.present_queue(),
       Vec::new(),
       &Semaphore::new(&self.device), //[],
@@ -355,20 +348,18 @@ impl Vulkan {
         };*/
         let buffer_barrier = vk::BufferMemoryBarrier::builder()
           .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-          .buffer(*dst_buffer.internal())
+          .buffer(dst_buffer.internal())
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            buffer_command_buffer.internal(),
-            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-            vk::PipelineStageFlags::TRANSFER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[buffer_barrier.build()],
-            &[],
-          );
-        }
+        buffer_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          vec![buffer_barrier.build()],
+          Vec::new(),
+        );
 
         let buffer_copy = vk::BufferCopy::builder()
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
@@ -386,13 +377,19 @@ impl Vulkan {
               depth: 1,
             });*/
 
+        buffer_command_buffer.copy_buffer_to_buffer(
+          device,
+          src_buffer,
+          dst_buffer,
+          vec![buffer_copy.build()],
+        );
         unsafe {
-          device.internal().cmd_copy_buffer(
-            buffer_command_buffer.internal(),
-            *src_buffer.internal(),
-            *dst_buffer.internal(),
-            &[buffer_copy.build()],
-          );
+          //device.internal().cmd_copy_buffer(
+          //  buffer_command_buffer.internal(),
+          //  *src_buffer.internal(),
+          //  *dst_buffer.internal(),
+          //  &[buffer_copy.build()],
+          //);
           /*device.cmd_copy_buffer_to_image(
             texture_command_buffer,
             *src_buffer.internal(),
@@ -405,7 +402,7 @@ impl Vulkan {
         let buffer_barrier_end = vk::BufferMemoryBarrier::builder()
           .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
           .dst_access_mask(vk::AccessFlags::SHADER_READ)
-          .buffer(*dst_buffer.internal())
+          .buffer(dst_buffer.internal())
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
         /*
         let buffer_barrier_end = vk::BufferMemoryBarrier {
@@ -415,17 +412,15 @@ impl Vulkan {
           ..Default::default()
         };*/
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            buffer_command_buffer.internal(),
-            vk::PipelineStageFlags::TRANSFER,
-            vk::PipelineStageFlags::FRAGMENT_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[buffer_barrier_end.build()],
-            &[],
-          );
-        }
+        buffer_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::PipelineStageFlags::FRAGMENT_SHADER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          vec![buffer_barrier_end.build()],
+          Vec::new(),
+        );
       },
     );
   }
@@ -433,8 +428,8 @@ impl Vulkan {
   pub fn run_compute_simultaneous<T: Copy, L: Copy>(
     &mut self,
     compute_shader: &ComputeShader,
-    push_constants: &[i32; 4 * 4],
-    descriptor_sets: &Vec<vk::DescriptorSet>,
+    push_constants: Vec<f32>,
+    descriptor_sets: Vec<&DescriptorSet>,
     light_visibility_buffer: &mut Buffer<T>,
     point_light_buffer: &mut Buffer<L>,
     x: u32,
@@ -455,7 +450,7 @@ impl Vulkan {
           vk::BufferMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::TRANSFER_READ)
             .dst_access_mask(vk::AccessFlags::SHADER_WRITE)
-            .buffer(*light_visibility_buffer.internal())
+            .buffer(light_visibility_buffer.internal())
             .size(std::mem::size_of::<T>() as u64 * (light_visibility_buffer.data().len() as u64))
             .build(),
         );
@@ -464,57 +459,37 @@ impl Vulkan {
           vk::BufferMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::TRANSFER_READ)
             .dst_access_mask(vk::AccessFlags::SHADER_WRITE)
-            .buffer(*point_light_buffer.internal())
+            .buffer(point_light_buffer.internal())
             .size(std::mem::size_of::<L>() as u64 * (point_light_buffer.data().len() as u64))
             .build(),
         );
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            compute_command_buffer.internal(),
-            vk::PipelineStageFlags::FRAGMENT_SHADER,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &buffer_barriers_before,
-            &[],
-          );
+        compute_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::FRAGMENT_SHADER,
+          vk::PipelineStageFlags::COMPUTE_SHADER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          buffer_barriers_before,
+          Vec::new(),
+        );
 
-          device.internal().cmd_bind_descriptor_sets(
-            compute_command_buffer.internal(),
-            vk::PipelineBindPoint::COMPUTE,
-            compute_shader.pipeline_layout(),
-            0,
-            descriptor_sets,
-            &[],
-          );
+        compute_command_buffer.bind_compute_descriptor_sets(
+          device,
+          compute_shader,
+          0,
+          descriptor_sets,
+        );
 
-          let push_constant_data: Vec<u8> = {
-            push_constants
-              .iter()
-              .map(|x| x.to_le_bytes().to_vec())
-              .flatten()
-              .collect()
-          };
+        compute_command_buffer.compute_push_constants(
+          device,
+          compute_shader,
+          vk::ShaderStageFlags::COMPUTE,
+          push_constants,
+        );
 
-          device.internal().cmd_push_constants(
-            compute_command_buffer.internal(),
-            compute_shader.pipeline_layout(),
-            vk::ShaderStageFlags::COMPUTE,
-            0,
-            &push_constant_data, //&[0 as u8; 128 * 4],
-          );
-
-          device.internal().cmd_bind_pipeline(
-            compute_command_buffer.internal(),
-            vk::PipelineBindPoint::COMPUTE,
-            *compute_shader.pipeline().internal(),
-          );
-
-          device
-            .internal()
-            .cmd_dispatch(compute_command_buffer.internal(), x, y, z)
-        }
+        compute_command_buffer.bind_compute_pipeline(device, compute_shader);
+        compute_command_buffer.compute_dispatch(device, x, y, z);
 
         let mut buffer_barriers_after = Vec::new();
 
@@ -522,7 +497,7 @@ impl Vulkan {
           vk::BufferMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::SHADER_WRITE)
             .dst_access_mask(vk::AccessFlags::SHADER_READ)
-            .buffer(*light_visibility_buffer.internal())
+            .buffer(light_visibility_buffer.internal())
             .size(std::mem::size_of::<T>() as u64 * (light_visibility_buffer.data().len() as u64))
             .build(),
         );
@@ -531,22 +506,20 @@ impl Vulkan {
           vk::BufferMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::SHADER_WRITE)
             .dst_access_mask(vk::AccessFlags::SHADER_READ)
-            .buffer(*point_light_buffer.internal())
+            .buffer(point_light_buffer.internal())
             .size(std::mem::size_of::<L>() as u64 * (point_light_buffer.data().len() as u64))
             .build(),
         );
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            compute_command_buffer.internal(),
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::PipelineStageFlags::FRAGMENT_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &buffer_barriers_after,
-            &[],
-          );
-        }
+        compute_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::COMPUTE_SHADER,
+          vk::PipelineStageFlags::FRAGMENT_SHADER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          buffer_barriers_after,
+          Vec::new(),
+        );
       },
     );
   }
@@ -583,88 +556,63 @@ impl Vulkan {
         let buffer_copy = vk::BufferCopy::builder()
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
-        unsafe {
-          device.internal().cmd_copy_buffer(
-            compute_command_buffer.internal(),
-            *src_buffer.internal(),
-            *dst_buffer.internal(),
-            &[buffer_copy.build()],
-          );
-        }
+        compute_command_buffer.copy_buffer_to_buffer(
+          device,
+          &src_buffer,
+          &dst_buffer,
+          vec![buffer_copy.build()],
+        );
 
         let buffer_barrier = vk::BufferMemoryBarrier::builder()
           .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
           .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
-          .buffer(*dst_buffer.internal())
+          .buffer(dst_buffer.internal())
           .size(std::mem::size_of::<T>() as u64 * (src_buffer.data().len() as u64));
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            compute_command_buffer.internal(),
-            vk::PipelineStageFlags::TRANSFER,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[buffer_barrier.build()],
-            &[],
-          );
-        }
+        compute_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::PipelineStageFlags::COMPUTE_SHADER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          vec![buffer_barrier.build()],
+          Vec::new(),
+        );
 
-        unsafe {
-          device.internal().cmd_bind_pipeline(
-            compute_command_buffer.internal(),
-            vk::PipelineBindPoint::COMPUTE,
-            *compute_shader.pipeline().internal(),
-          );
-
-          device.internal().cmd_bind_descriptor_sets(
-            compute_command_buffer.internal(),
-            vk::PipelineBindPoint::COMPUTE,
-            compute_shader.pipeline_layout(),
-            0,
-            &descriptor_sets.internal()[..],
-            &[],
-          );
-        }
-
-        unsafe {
-          device.internal().cmd_dispatch(
-            compute_command_buffer.internal(),
-            src_buffer.data().len() as u32,
-            1,
-            1,
-          )
-        }
+        compute_command_buffer.bind_compute_pipeline(device, compute_shader);
+        compute_command_buffer.bind_compute_descriptor_sets(
+          device,
+          compute_shader,
+          0,
+          vec![descriptor_sets],
+        );
+        compute_command_buffer.compute_dispatch(device, src_buffer.data().len() as u32, 1, 1);
 
         let buffer_barrier_end = vk::BufferMemoryBarrier::builder()
           .src_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
           .dst_access_mask(vk::AccessFlags::TRANSFER_READ)
-          .buffer(*dst_buffer.internal())
+          .buffer(dst_buffer.internal())
           .size(std::mem::size_of::<T>() as u64 * (data.len() as u64));
 
-        unsafe {
-          device.internal().cmd_pipeline_barrier(
-            compute_command_buffer.internal(),
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::PipelineStageFlags::TRANSFER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[buffer_barrier_end.build()],
-            &[],
-          );
-        }
+        compute_command_buffer.pipeline_barrier(
+          device,
+          vk::PipelineStageFlags::COMPUTE_SHADER,
+          vk::PipelineStageFlags::TRANSFER,
+          vk::DependencyFlags::empty(),
+          Vec::new(),
+          vec![buffer_barrier_end.build()],
+          Vec::new(),
+        );
 
         let buffer_copy =
           vk::BufferCopy::builder().size(std::mem::size_of::<T>() as u64 * (data.len() as u64));
 
-        unsafe {
-          device.internal().cmd_copy_buffer(
-            compute_command_buffer.internal(),
-            *dst_buffer.internal(),
-            *src_buffer.internal(),
-            &[buffer_copy.build()],
-          );
-        }
+        compute_command_buffer.copy_buffer_to_buffer(
+          device,
+          &dst_buffer,
+          &src_buffer,
+          vec![buffer_copy.build()],
+        );
       },
     );
 
@@ -719,21 +667,9 @@ impl Vulkan {
   ) {
     let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
 
-    draw_command_buffer.bind_descriptor_sets(
-      &self.device,
-      shader,
-      0,
-      vec![uniform_descriptor],
-      false,
-    );
+    draw_command_buffer.bind_descriptor_sets(&self.device, shader, 0, vec![uniform_descriptor]);
 
-    draw_command_buffer.bind_descriptor_sets(
-      &self.device,
-      shader,
-      1,
-      vec![texture_descriptor],
-      false,
-    );
+    draw_command_buffer.bind_descriptor_sets(&self.device, shader, 1, vec![texture_descriptor]);
 
     draw_command_buffer.bind_graphics_pipeline(&self.device, shader);
 
@@ -773,13 +709,7 @@ impl Vulkan {
   ) {
     let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
 
-    draw_command_buffer.bind_descriptor_sets(
-      &self.device,
-      shader,
-      0,
-      vec![uniform_descriptor],
-      false,
-    );
+    draw_command_buffer.bind_descriptor_sets(&self.device, shader, 0, vec![uniform_descriptor]);
 
     draw_command_buffer.bind_graphics_pipeline(&self.device, shader);
     draw_command_buffer.set_viewport(&self.device, vec![&self.viewports]);
@@ -869,7 +799,6 @@ impl Vulkan {
         } else {
           vec![dummy_skin]
         },
-        false,
       );
 
       for primitive in &nodes[idx].mesh.primitives {
@@ -880,13 +809,7 @@ impl Vulkan {
             mesh_descriptor
           };
 
-          draw_command_buffer.bind_descriptor_sets(
-            &self.device,
-            shader,
-            2,
-            vec![image_descriptor],
-            false,
-          );
+          draw_command_buffer.bind_descriptor_sets(&self.device, shader, 2, vec![image_descriptor]);
 
           draw_command_buffer.draw_indexed(
             &self.device,

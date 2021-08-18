@@ -1,8 +1,8 @@
 use ash::vk;
 
 use crate::vkwrapper::{
-  Buffer, ClearValues, DescriptorSet, Fence, Renderpass, Scissors, Semaphore, Shader, Viewport,
-  VkCommandPool, VkDevice,
+  Buffer, ClearValues, ComputeShader, DescriptorSet, Fence, Image, Renderpass, Scissors, Semaphore,
+  Shader, Viewport, VkCommandPool, VkDevice,
 };
 
 pub struct CommandBuffer {
@@ -67,16 +67,33 @@ impl CommandBuffer {
     shader: &Shader<T>,
     slot: u32,
     descriptors: Vec<&DescriptorSet>,
-    is_compute: bool,
   ) {
     unsafe {
       device.internal().cmd_bind_descriptor_sets(
         self.cmd,
-        if is_compute {
-          vk::PipelineBindPoint::COMPUTE
-        } else {
-          vk::PipelineBindPoint::GRAPHICS
-        },
+        vk::PipelineBindPoint::GRAPHICS,
+        shader.pipeline_layout(),
+        slot,
+        &descriptors
+          .iter()
+          .map(|ds| ds.internal()[0])
+          .collect::<Vec<vk::DescriptorSet>>(),
+        &[],
+      );
+    }
+  }
+
+  pub fn bind_compute_descriptor_sets(
+    &mut self,
+    device: &VkDevice,
+    shader: &ComputeShader,
+    slot: u32,
+    descriptors: Vec<&DescriptorSet>,
+  ) {
+    unsafe {
+      device.internal().cmd_bind_descriptor_sets(
+        self.cmd,
+        vk::PipelineBindPoint::COMPUTE,
         shader.pipeline_layout(),
         slot,
         &descriptors
@@ -94,6 +111,16 @@ impl CommandBuffer {
         self.cmd,
         vk::PipelineBindPoint::GRAPHICS,
         *shader.graphics_pipeline().internal(),
+      );
+    }
+  }
+
+  pub fn bind_compute_pipeline(&mut self, device: &VkDevice, shader: &ComputeShader) {
+    unsafe {
+      device.internal().cmd_bind_pipeline(
+        self.cmd,
+        vk::PipelineBindPoint::COMPUTE,
+        *shader.pipeline().internal(),
       );
     }
   }
@@ -129,7 +156,7 @@ impl CommandBuffer {
     unsafe {
       device
         .internal()
-        .cmd_bind_vertex_buffers(self.cmd, slot, &[*buffer.internal()], &[0]);
+        .cmd_bind_vertex_buffers(self.cmd, slot, &[buffer.internal()], &[0]);
     }
   }
 
@@ -137,9 +164,37 @@ impl CommandBuffer {
     unsafe {
       device.internal().cmd_bind_index_buffer(
         self.cmd,
-        *buffer.internal(),
+        buffer.internal(),
         0,
         vk::IndexType::UINT32,
+      );
+    }
+  }
+
+  pub fn compute_push_constants(
+    &mut self,
+    device: &VkDevice,
+    shader: &ComputeShader,
+    stage: vk::ShaderStageFlags,
+    data: Vec<f32>,
+  ) {
+    let mut constant_data: Vec<u8> = data
+      .iter()
+      .map(|x| x.to_le_bytes().to_vec())
+      .flatten()
+      .collect();
+
+    while constant_data.len() < 128 {
+      constant_data.push(0);
+    }
+
+    unsafe {
+      device.internal().cmd_push_constants(
+        self.cmd,
+        shader.pipeline_layout(),
+        stage,
+        0,
+        &constant_data,
       );
     }
   }
@@ -151,13 +206,14 @@ impl CommandBuffer {
     stage: vk::ShaderStageFlags,
     data: Vec<f32>,
   ) {
-    let mut constant_data: [u8; 128] = [0; 128];
+    let mut constant_data: Vec<u8> = data
+      .iter()
+      .map(|x| x.to_le_bytes().to_vec())
+      .flatten()
+      .collect();
 
-    for i in 0..(32).min(data.len()) {
-      let bytes = data[i].to_le_bytes();
-      for j in 0..4 {
-        constant_data[i * 4 + j] = bytes[j];
-      }
+    while constant_data.len() < 128 {
+      constant_data.push(0);
     }
 
     unsafe {
@@ -168,6 +224,12 @@ impl CommandBuffer {
         0,
         &constant_data,
       );
+    }
+  }
+
+  pub fn compute_dispatch(&mut self, device: &VkDevice, x: u32, y: u32, z: u32) {
+    unsafe {
+      device.internal().cmd_dispatch(self.cmd, x, y, z);
     }
   }
 
@@ -273,6 +335,70 @@ impl CommandBuffer {
           self.reuse_fence.internal(),
         )
         .expect("queue submit failed.");
+    }
+  }
+
+  pub fn pipeline_barrier(
+    &mut self,
+    device: &VkDevice,
+    src_stage: vk::PipelineStageFlags,
+    dst_stage: vk::PipelineStageFlags,
+    dependency_flags: vk::DependencyFlags,
+    memory_barriers: Vec<vk::MemoryBarrier>,
+    buffer_barriers: Vec<vk::BufferMemoryBarrier>,
+    image_barriers: Vec<vk::ImageMemoryBarrier>,
+  ) {
+    unsafe {
+      device.internal().cmd_pipeline_barrier(
+        self.cmd,
+        src_stage,
+        dst_stage,
+        dependency_flags,
+        &memory_barriers,
+        &buffer_barriers,
+        &image_barriers,
+      );
+    }
+  }
+
+  pub fn copy_buffer_to_buffer<T, L>(
+    &mut self,
+    device: &VkDevice,
+    src_buffer: &Buffer<T>,
+    dst_buffer: &Buffer<L>,
+    copy_regions: Vec<vk::BufferCopy>,
+  ) where
+    T: Copy,
+    L: Copy,
+  {
+    unsafe {
+      device.internal().cmd_copy_buffer(
+        self.cmd,
+        src_buffer.internal(),
+        dst_buffer.internal(),
+        &copy_regions,
+      );
+    }
+  }
+
+  pub fn copy_buffer_to_image<T>(
+    &mut self,
+    device: &VkDevice,
+    src_buffer: &Buffer<T>,
+    dst_image: &Image,
+    image_layout: vk::ImageLayout,
+    copy_regions: Vec<vk::BufferImageCopy>,
+  ) where
+    T: Copy,
+  {
+    unsafe {
+      device.internal().cmd_copy_buffer_to_image(
+        self.cmd,
+        src_buffer.internal(),
+        dst_image.internal(),
+        image_layout,
+        &copy_regions[..],
+      );
     }
   }
 }

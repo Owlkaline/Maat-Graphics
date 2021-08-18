@@ -31,7 +31,7 @@ impl DescriptorWriterBuilder {
     descriptor_sets: &DescriptorSet,
   ) -> DescriptorWriterBuilder {
     self.descriptor_buffer_infos.push(vk::DescriptorBufferInfo {
-      buffer: *buffer.internal(),
+      buffer: buffer.internal(),
       offset: 0,
       range: std::mem::size_of::<T>() as u64 * (buffer.data().len() as u64),
     });

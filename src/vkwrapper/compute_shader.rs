@@ -80,6 +80,10 @@ impl ComputeShader {
     }
   }
 
+  pub fn internal(&self) -> vk::ShaderModule {
+    self.compute_shader
+  }
+
   pub fn pipeline(&self) -> &ComputePipeline {
     &self.compute_pipeline
   }

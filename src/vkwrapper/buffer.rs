@@ -99,8 +99,8 @@ impl<T: Sized + Copy> Buffer<T> {
     }
   }
 
-  pub fn internal(&self) -> &vk::Buffer {
-    &self.buffer
+  pub fn internal(&self) -> vk::Buffer {
+    self.buffer
   }
 
   pub fn set_data(&mut self, data: Vec<T>) {

@@ -141,34 +141,25 @@ impl ComputeHandler {
     let tile_count_per_row = (width - 1) / TILE_SIZE + 1;
     let tile_count_per_col = (height - 1) / TILE_SIZE + 1;
 
-    let mut push_constants = [0 as i32; 16];
-    push_constants[0] = width;
-    push_constants[1] = height;
-    push_constants[2] = tile_count_per_row;
-    push_constants[3] = tile_count_per_col;
+    let mut push_constants = Vec::new();
+    push_constants.push(width as f32);
+    push_constants.push(height as f32);
+    push_constants.push(tile_count_per_row as f32);
+    push_constants.push(tile_count_per_col as f32);
 
-    //let push_constants = PushConstantObject {
-    //  viewport_size: [width, height],
-    //  tile_nums: [tile_count_per_row, tile_count_per_col],
-    //};
-
-    //let mut compute_data = vec![64, 32, 8, 12, 96];
     vulkan.run_compute_simultaneous(
       &self.compute_shader,
-      &push_constants,
-      &vec![
-        self.light_culling_descriptor_set.internal()[0],
-        self.camera_descriptor_set.internal()[0],
-        self.intermediate_descriptor_set.internal()[0],
+      push_constants,
+      vec![
+        &self.light_culling_descriptor_set,
+        &self.camera_descriptor_set,
+        &self.intermediate_descriptor_set,
       ],
       &mut self.light_visibility_buffer,
       &mut self.point_light_buffer,
       tile_count_per_row as u32,
       tile_count_per_col as u32,
       1,
-      //&mut compute_data,
     );
-
-    //println!("Compute Data: {:?}", compute_data);
   }
 }
