@@ -51,7 +51,7 @@ pub struct VkInstance {
 
 impl VkInstance {
   pub fn new(window: &VkWindow) -> VkInstance {
-    let entry: Entry = unsafe { Entry::new().unwrap() };
+    let entry: Entry = unsafe { Entry::new() };
     let instance: Instance = create_instance(&entry, window);
 
     let (debug_utils_loader, debug_call_back) = create_debug_utils(&entry, &instance);
@@ -103,13 +103,11 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
 
   let create_info = vk::InstanceCreateInfo::builder()
     .application_info(&appinfo)
-    .enabled_layer_names(
-      if validation_layers_enabled {
-        &layers_names_raw
-      } else {
-        &[]
-      },
-    )
+    .enabled_layer_names(if validation_layers_enabled {
+      &layers_names_raw
+    } else {
+      &[]
+    })
     .enabled_extension_names(&extension_names_raw);
 
   let instance: Instance = unsafe {
@@ -127,11 +125,15 @@ fn create_debug_utils(
 ) -> (DebugUtils, vk::DebugUtilsMessengerEXT) {
   let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
     .message_severity(
-      vk::DebugUtilsMessageSeverityFlagsEXT::ERROR |
-        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING |
-        vk::DebugUtilsMessageSeverityFlagsEXT::INFO,
+      vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
+        | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO,
     )
-    .message_type(vk::DebugUtilsMessageTypeFlagsEXT::all())
+    .message_type(
+      vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+        | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+        | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
+    )
     .pfn_user_callback(Some(vulkan_debug_callback));
 
   let debug_utils_loader = DebugUtils::new(entry, instance);
