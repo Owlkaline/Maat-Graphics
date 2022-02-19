@@ -78,8 +78,8 @@ impl TextureHandler {
     font_location: T,
   ) -> TextureHandler {
     let descriptor_pool = DescriptorPoolBuilder::new()
-      .num_combined_image_samplers(5)
-      .num_uniform_buffers(5)
+      .num_combined_image_samplers(50)
+      .num_uniform_buffers(50)
       .build(vulkan.device());
 
     let sampler = Sampler::builder()
