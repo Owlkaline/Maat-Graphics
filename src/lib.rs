@@ -10,9 +10,12 @@ pub use crate::extra::{
   gltf_loader::CollisionInformation, Math, Swizzle2, Swizzle3, Swizzle4, Vector2, Vector3, Vector4,
   VectorMath,
 };
-pub use crate::shader_handlers::{font::FontChar, Camera};
+pub use crate::shader_handlers::Camera;
 pub use crate::vkwrapper::VkWindow;
 
+pub use crate::draw::Draw;
+
+mod draw;
 mod extra;
 mod shader_handlers;
 mod vkwrapper;
@@ -115,9 +118,10 @@ pub enum MaatSetting {
   LimitFps(f32, bool),
 }
 
-pub enum MaatEvent<'a, T: Into<String>, L: Into<String>, S: Into<String>> {
+pub enum MaatEvent<'a, S: Into<String>> {
   Draw(
-    &'a mut Vec<(Vec<f32>, T, Option<L>)>,
+    &'a mut Vec<Draw>,
+    //&'a mut Vec<(Vec<f32>, T, Option<L>)>,
     &'a mut Vec<(Vec<f32>, S)>,
   ),
   FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
@@ -249,7 +253,7 @@ impl MaatGraphics {
       .load_model(&mut self.vulkan, model_ref, model);
   }
 
-  pub fn instance_render_model<T: Into<String>>(&mut self, model_ref: T) {
+  pub fn instance_render_model<T: Into<String>>(&mut self, _model_ref: T) {
     //self
     //  .model_handler
     //  .create_instance_render_buffer(&mut self.vulkan, model_ref);
@@ -263,8 +267,9 @@ impl MaatGraphics {
   //  self.model_handler.model_collision_meshes()
   //}
 
-  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
-    self.texture_handler.get_font_data()
+  pub fn get_font_data(&self) -> Vec<i32> {
+    //self.texture_handler.get_font_data()
+    Vec::new()
   }
 
   pub fn recreate_swapchain(&mut self, width: u32, height: u32) {
@@ -368,9 +373,9 @@ impl MaatGraphics {
 
       for (data, texture, some_text) in texture_data {
         if let Some(text) = some_text {
-          self
-            .texture_handler
-            .add_text_data(&mut text_count, data, &text.into(), &texture.into());
+          //self
+          //  .texture_handler
+          //  .add_text_data(&mut text_count, data, &text.into(), &texture.into());
         } else {
           self
             .texture_handler
@@ -378,18 +383,19 @@ impl MaatGraphics {
         }
       }
 
-      self
-        .texture_handler
-        .draw_instanced_text(&mut self.vulkan, text_count);
+      self.texture_handler.draw_new_text(&mut self.vulkan);
+      //      self
+      //        .texture_handler
+      //        .draw_instanced_text(&mut self.vulkan, text_count);
 
       self.vulkan.end_renderpass();
       self.vulkan.end_render(present_index);
     }
   }
 
-  pub fn draw<T: Into<String>, L: Into<String>, S: Into<String>>(
+  pub fn draw<S: Into<String>>(
     &mut self,
-    texture_data: Vec<(Vec<f32>, T, Option<L>)>,
+    texture_data: Vec<Draw>, //Vec<(Vec<f32>, T, Option<L>)>,
     model_data: Vec<(Vec<f32>, S)>,
   ) {
     if self.model_handler.mut_camera().is_updated() {
@@ -413,21 +419,22 @@ impl MaatGraphics {
 
       let mut text_count = 0;
 
-      for (data, texture, some_text) in texture_data {
-        if let Some(text) = some_text {
+      for draw in texture_data {
+        if let Some(texture) = draw.get_texture() {
           self
             .texture_handler
-            .add_text_data(&mut text_count, data, &text.into(), &texture.into());
-        } else {
-          self
-            .texture_handler
-            .draw(&mut self.vulkan, data, &texture.into());
+            .draw(&mut self.vulkan, draw.texture_data(), &texture);
+        } else if let Some(text) = draw.get_text() {
+          //self
+          //  .texture_handler
+          //  .add_text_data(&mut text_count, draw.text_data(), &text, "");
         }
       }
 
-      self
-        .texture_handler
-        .draw_instanced_text(&mut self.vulkan, text_count);
+      self.texture_handler.draw_new_text(&mut self.vulkan);
+      //self
+      //  .texture_handler
+      //  .draw_instanced_text(&mut self.vulkan, text_count);
 
       self.vulkan.end_renderpass();
       self.vulkan.end_render(present_index);
@@ -459,16 +466,14 @@ impl MaatGraphics {
     //}
   }
 
-  pub fn run<T, L, S, V>(
+  pub fn run<T, V>(
     mut vulkan: MaatGraphics,
     mut window: VkWindow,
     event_loop: EventLoop<()>,
     mut callback: T,
   ) -> !
   where
-    T: 'static + FnMut(MaatEvent<L, S, V>),
-    L: Into<String>,
-    S: Into<String>,
+    T: 'static + FnMut(MaatEvent<V>),
     V: Into<String>,
   {
     let mut device_keys = Vec::new();

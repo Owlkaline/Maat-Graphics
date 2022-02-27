@@ -204,6 +204,19 @@ impl CommandBuffer {
     self.draw_indexed(device, buffer.data().len() as u32, 1, 0, 0);
   }
 
+  pub fn draw_buffer<T: Copy>(&mut self, device: &VkDevice, buffer: &Buffer<T>) {
+    unsafe {
+      //command_buffer: CommandBuffer,
+      //vertex_count: u32,
+      //instance_count: u32,
+      //first_vertex: u32,
+      //first_instance: u32
+      device
+        .internal()
+        .cmd_draw(self.cmd, buffer.data().len() as u32, 1, 0, 0);
+    }
+  }
+
   pub fn end_renderpass(&mut self, device: &VkDevice) {
     unsafe {
       device.internal().cmd_end_render_pass(self.cmd);

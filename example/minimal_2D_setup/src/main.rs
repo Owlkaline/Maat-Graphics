@@ -1,7 +1,10 @@
 extern crate maat_graphics;
 
 use maat_graphics::winit;
-use maat_graphics::{MaatEvent, MaatGraphics, VkWindow};
+use maat_graphics::{
+  glam::{Vec3, Vec4},
+  Draw, MaatEvent, MaatGraphics, VkWindow,
+};
 use winit::event_loop::EventLoop;
 
 const APP_NAME: &str = "MaatGraphics - Minimal 2D Example";
@@ -48,54 +51,70 @@ fn main() {
 
         // Get draw data
         *texture_data = vec![
-          (
-            vec![
-              0.0, 0.0, 720.0, 720.0, // x y scale_x scale_y
-              0.0, 0.0, 1.0, 1.0, // r g b a
-              1.0, 0.0,
-            ], // use texture, rotation
-            "orientation", // Texture reference name
-            None,
-          ), // None to tell it that it is a texture, when this value is Some() it is treated as Text
-          // Draw Crab at 150, 150 with size of 573x300 and rotate it by 45 degrees
-          (
-            vec![150.0, 150.0, 573.0, 300.0, 1.0, 0.0, 1.0, 1.0, 1.0, 45.0],
-            "rust_crab",
-            None,
-          ),
-          // Example drawing text
-          (
-            vec![
-              text_x,
-              text_y,
-              text_size,
-              0.0, // x, y, size
-              1.0,
-              1.0,
-              1.0,
-              1.0, // r g b a (outline colour)
-              text_outline,
-              text_edge_width,
-            ], // text outline, text edge width, this are Signed Distanced feild parameters for text.
-            "",
-            Some("The quick brown fox"),
-          ),
-          (
-            vec![
-              text_x,
-              text_y - text_size,
-              text_size,
-              0.0, // x, y, size
-              1.0,
-              1.0,
-              1.0,
-              1.0, // r g b a (outline colour)
-              text_outline,
-              text_edge_width,
-            ], // text outline, text edge width, this are Signed Distanced feild parameters for text.
-            "",
-            Some("jumped over the fence."),
-          ),
+          Draw::texture("orientation")
+            .scale(Vec3::new(720.0, 720.0, 0.0))
+            .colour(Vec4::new(0.0, 0.0, 1.0, 1.0)),
+          Draw::texture("rust_crab")
+            .position(Vec3::new(150.0, 150.0, 0.0))
+            .scale(Vec3::new(573.0, 300.0, 0.0))
+            .colour(Vec4::new(1.0, 0.0, 1.0, 1.0))
+            .rotation(45.0),
+          Draw::text("The quick brown fox")
+            .position(Vec3::new(text_x, text_y, 0.0))
+            .scale(Vec3::new(text_size, 0.0, 0.0))
+            .colour(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+          Draw::text("jumped over the fence")
+            .position(Vec3::new(text_x, text_y - text_size, 0.0))
+            .scale(Vec3::new(text_size, 0.0, 0.0))
+            .colour(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+          //(
+          //  vec![
+          //    0.0, 0.0, 720.0, 720.0, // x y scale_x scale_y
+          //    0.0, 0.0, 1.0, 1.0, // r g b a
+          //    1.0, 0.0,
+          //  ], // use texture, rotation
+          //  "orientation", // Texture reference name
+          //  None,
+          //), // None to tell it that it is a texture, when this value is Some() it is treated as Text
+          //// Draw Crab at 150, 150 with size of 573x300 and rotate it by 45 degrees
+          //(
+          //  vec![150.0, 150.0, 573.0, 300.0, 1.0, 0.0, 1.0, 1.0, 1.0, 45.0],
+          //  "rust_crab",
+          //  None,
+          //),
+          //// Example drawing text
+          //(
+          //  vec![
+          //    text_x,
+          //    text_y,
+          //    text_size,
+          //    0.0, // x, y, size
+          //    1.0,
+          //    1.0,
+          //    1.0,
+          //    1.0, // r g b a (outline colour)
+          //    text_outline,
+          //    text_edge_width,
+          //  ], // text outline, text edge width, this are Signed Distanced feild parameters for text.
+          //  "",
+          //  Some("The quick brown fox"),
+          //),
+          //(
+          //  vec![
+          //    text_x,
+          //    text_y - text_size,
+          //    text_size,
+          //    0.0, // x, y, size
+          //    1.0,
+          //    1.0,
+          //    1.0,
+          //    1.0, // r g b a (outline colour)
+          //    text_outline,
+          //    text_edge_width,
+          //  ], // text outline, text edge width, this are Signed Distanced feild parameters for text.
+          //  "",
+          //  Some("jumped over the fence."),
+          //),
         ];
       }
       _ => {}

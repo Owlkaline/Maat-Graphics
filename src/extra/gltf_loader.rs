@@ -235,7 +235,7 @@ impl CollisionInformation {
   pub fn new(
     reference: String,
     location: String,
-    mut collision_objects: Vec<CollisionObject>,
+    collision_objects: Vec<CollisionObject>,
   ) -> CollisionInformation {
     let mut location = location;
 
@@ -247,8 +247,8 @@ impl CollisionInformation {
     location = format!("{}_collision.glb", location);
 
     let mut object_displacement = [0.0; 3];
-    let mut object_min_bounds = [f32::MAX; 3];
-    let mut object_max_bounds = [f32::MIN; 3];
+    let object_min_bounds = [f32::MAX; 3];
+    let object_max_bounds = [f32::MIN; 3];
 
     //if std::path::Path::new(&location).exists() {
     //  collision_objects.clear();
@@ -361,7 +361,7 @@ impl CollisionInformation {
 
 impl Node {
   pub fn calculate_global_matrix(
-    nodes: &Vec<Node>,
+    nodes: &[Node],
     idx: usize,
     translation: Vec3,
     rotation: Quat,
@@ -492,7 +492,7 @@ impl GltfModel {
     &self.collision_info
   }
 
-  pub fn update_animation(&mut self, vulkan: &mut Vulkan, delta_time: f32) {
+  pub fn update_animation(&mut self, _vulkan: &mut Vulkan, delta_time: f32) {
     if self.active_animation != -1 && self.active_animation < self.animations.len() as i32 {
       let anim_idx = self.active_animation as usize;
 
@@ -565,8 +565,8 @@ impl GltfModel {
 
 fn load_animation(
   gltf: &gltf::Document,
-  buffers: &Vec<gltf::buffer::Data>,
-  nodes: &Vec<Node>,
+  buffers: &[gltf::buffer::Data],
+  nodes: &[Node],
   animations: &mut Vec<Animation>,
 ) {
   let gltf_animations = gltf.animations();
@@ -585,10 +585,10 @@ fn load_animation(
       let node = {
         let mut node_idx: i32 = -1;
         let target_idx = target.node().index() as u32;
-        for i in 0..nodes.len() {
-          if nodes[i].idx == target_idx {
+        for (i, node) in nodes.iter().enumerate() {
+          if node.idx == target_idx {
             node_idx = i as i32;
-            break
+            break;
           }
         }
 
@@ -621,12 +621,12 @@ fn load_animation(
         inputs.push(f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
       }
 
-      for i in 0..inputs.len() {
-        if inputs[i] < animation_start {
-          animation_start = inputs[i];
+      for input in &inputs {
+        if *input < animation_start {
+          animation_start = *input;
         }
-        if inputs[i] > animation_end {
-          animation_end = inputs[i];
+        if *input > animation_end {
+          animation_end = *input;
         }
       }
 
@@ -697,7 +697,7 @@ fn load_animation(
 fn load_skins(
   vulkan: &mut Vulkan,
   gltf: &gltf::Document,
-  buffers: &Vec<gltf::buffer::Data>,
+  buffers: &[gltf::buffer::Data],
   descriptor_pool: &vk::DescriptorPool,
   nodes: &mut Vec<Node>,
   skins: &mut Vec<Skin>,
@@ -708,13 +708,12 @@ fn load_skins(
 
   for skin in gltf_skins {
     for i in 0..nodes.len() as usize {
-      if !nodes_updated.contains(&i) {
-        if nodes[i].skin != -1 {
-          if skin.index() == nodes[i].skin as usize {
-            nodes[i].skin = skins.len() as i32;
-            nodes_updated.push(i);
-          }
-        }
+      if !nodes_updated.contains(&i)
+        && nodes[i].skin != -1
+        && skin.index() == nodes[i].skin as usize
+      {
+        nodes[i].skin = skins.len() as i32;
+        nodes_updated.push(i);
       }
     }
 
@@ -723,10 +722,10 @@ fn load_skins(
     let skeleton_root = {
       let mut root_idx = -1;
       if let Some(root) = skin.skeleton() {
-        for i in 0..nodes.len() {
-          if nodes[i].idx == root.index() as u32 {
+        for (i, node) in nodes.iter().enumerate() {
+          if node.idx == root.index() as u32 {
             root_idx = i as i32;
-            break
+            break;
           }
         }
       }
@@ -736,10 +735,10 @@ fn load_skins(
 
     let mut joints = Vec::new();
     for joint in skin.joints() {
-      for i in 0..nodes.len() {
-        if nodes[i].idx == joint.index() as u32 {
+      for (i, node) in nodes.iter().enumerate() {
+        if node.idx == joint.index() as u32 {
           joints.push(i as i32);
-          break
+          break;
         }
       }
     }
@@ -781,7 +780,7 @@ fn load_skins(
 fn load_images(
   vulkan: &mut Vulkan,
   gltf: &gltf::Document,
-  buffers: &Vec<gltf::buffer::Data>,
+  buffers: &[gltf::buffer::Data],
   images: &mut Vec<vkimage>,
 ) {
   let gltf_images = gltf.images();
@@ -877,8 +876,8 @@ fn load_material(
   descriptor_pool: &vk::DescriptorPool,
   gltf: &gltf::Document,
   materials: &mut Vec<Material>,
-  textures: &Vec<Texture>,
-  mesh_images: &Vec<vkimage>,
+  textures: &[Texture],
+  mesh_images: &[vkimage],
   dummy_image: &vkimage,
   dummy_sampler: &Sampler,
 ) {
@@ -991,7 +990,7 @@ fn load_node(
   parent: i32,
   gltf_node: &gltf::Node,
   collision_objects: &mut Vec<CollisionObject>,
-  buffers: &Vec<gltf::buffer::Data>,
+  buffers: &[gltf::buffer::Data],
   index_buffer: &mut Vec<u32>,
   vertex_buffer: &mut Vec<MeshVertex>,
 ) {
@@ -1264,8 +1263,8 @@ pub fn update_joints(
       let joint_matrix =
         Node::calculate_global_matrix(nodes, joint_idx, Vec3::ZERO, Quat::IDENTITY, Vec3::ONE); //&Node::get_node_matrix(nodes, joint_idx));
 
-      joint_matrices[i] = (inverse_transform *
-        (joint_matrix * skins[skin_idx].inverse_bind_matrices[i]))
+      joint_matrices[i] = (inverse_transform
+        * (joint_matrix * skins[skin_idx].inverse_bind_matrices[i]))
         .to_cols_array();
       //      joint_matrices[i] = Math::mat4_mul(joint_matrix, skins[skin_idx].inverse_bind_matrices[i]);
       //      joint_matrices[i] = Math::mat4_mul(inverse_transform, joint_matrices[i]);

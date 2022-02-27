@@ -302,8 +302,8 @@ impl Camera {
 
         self.position += camera_front
           .cross(Vec3::new(0.0, 1.0, 0.0))
-          .normalize_or_zero() *
-          ms;
+          .normalize_or_zero()
+          * ms;
       }
       CameraType::ThirdPerson => {
         let length = self.offset.length();
@@ -326,8 +326,8 @@ impl Camera {
 
         self.position -= camera_front
           .cross(Vec3::new(0.0, 1.0, 0.0))
-          .normalize_or_zero() *
-          ms
+          .normalize_or_zero()
+          * ms
       }
       CameraType::ThirdPerson => {
         let length = self.offset.length();
@@ -342,8 +342,8 @@ impl Camera {
 
   pub fn update_view_matrix(&mut self) {
     self.view = Camera::view(self.position, self.rotation, self.camera_type, self.flip_y);
-    self.view_pos = Vec4::new(self.position.x, self.position.y, self.position.z, 0.0) *
-      Vec4::new(-1.0, 1.0, -1.0, 1.0);
+    self.view_pos = Vec4::new(self.position.x, self.position.y, self.position.z, 0.0)
+      * Vec4::new(-1.0, 1.0, -1.0, 1.0);
 
     self.updated = true;
   }

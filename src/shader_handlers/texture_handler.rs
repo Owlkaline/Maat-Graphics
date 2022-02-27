@@ -5,11 +5,14 @@ use std::mem;
 use ash::vk;
 
 use crate::offset_of;
-use crate::shader_handlers::{font::FontChar, Font};
+//use crate::shader_handlers::{font::GlyphCache, Font};
+use crate::shader_handlers::font::{FontType, GuiText, TextMaster};
 use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Image,
   ImageBuilder, Sampler, Shader, VkDevice, Vulkan,
 };
+
+use glam::{Vec2, Vec4};
 
 const MAX_INSTANCES: usize = 8192;
 
@@ -27,8 +30,8 @@ pub struct InstancedTextData {
   pub uv: [f32; 4],
   pub text_height: f32,
   pub colour: [f32; 4],
-  pub outline_colour: [f32; 4],
-  pub width_edge: [f32; 4],
+  //  pub outline_colour: [f32; 4],
+  //  pub width_edge: [f32; 4],
 }
 
 impl InstancedTextData {
@@ -39,8 +42,8 @@ impl InstancedTextData {
       uv: [0.0; 4],
       text_height: 0.0,
       colour: [0.0; 4],
-      outline_colour: [0.0; 4],
-      width_edge: [0.0; 4],
+      //      outline_colour: [0.0; 4],
+      //      width_edge: [0.0; 4],
     }
   }
 }
@@ -57,18 +60,21 @@ pub struct TextureHandler {
   uniform_buffer: Buffer<TextureUniformBuffer>,
   uniform_descriptor: DescriptorSet,
 
-  font: Font,
+  text_master: TextMaster,
 
-  letter_shader: Shader<ComboVertex>,
-  instanced_letter_shader: Shader<ComboVertex>,
-  instanced_letter_buffer: Buffer<InstancedTextData>,
+  //font: Font,
 
+  //letter_shader: Shader<ComboVertex>,
+  //instanced_letter_shader: Shader<ComboVertex>,
+  //instanced_letter_buffer: Buffer<InstancedTextData>,
   combo_shader: Shader<ComboVertex>,
   combo_index_buffer: Buffer<u32>,
   combo_vertex_buffer: Buffer<ComboVertex>,
 
   textures: HashMap<String, (Image, DescriptorSet)>,
   dummy_texture: (Image, DescriptorSet),
+
+  window_size: [f32; 2],
 }
 
 impl TextureHandler {
@@ -90,8 +96,6 @@ impl TextureHandler {
       .border_colour_float_opaque_white()
       .compare_op_never()
       .build(vulkan.device());
-
-    let font = Font::new(vulkan, &sampler, font_location);
 
     let uniform_data = vec![TextureUniformBuffer {
       window_size: [screen_size.width as f32, screen_size.height as f32],
@@ -139,6 +143,21 @@ impl TextureHandler {
     let instanced_letter_buffer =
       Buffer::<InstancedTextData>::new_vertex(vulkan.device(), dummy_instanced_data);
 
+    let font = FontType::new(font_location.into(), &sampler, vulkan);
+
+    let mut text_master = TextMaster::new(vulkan, font);
+
+    let gui_text = GuiText::new(
+      "The quick brown fox jumps over the lazy dog.".to_string(),
+      1400.0,
+      Vec2::new(100.0, 600.0),
+      Vec4::new(0.0, 0.0, 1.0, 1.0),
+      100000000.0,
+      false,
+    );
+
+    text_master.load_text(gui_text, vulkan, &sampler);
+
     TextureHandler {
       descriptor_pool,
       sampler,
@@ -146,12 +165,12 @@ impl TextureHandler {
       uniform_buffer,
       uniform_descriptor: descriptor_set0,
 
-      font,
+      text_master,
+      //font,
 
-      letter_shader,
-      instanced_letter_shader,
-      instanced_letter_buffer,
-
+      //letter_shader,
+      //instanced_letter_shader,
+      //instanced_letter_buffer,
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
@@ -159,12 +178,14 @@ impl TextureHandler {
       //strings,
       textures: HashMap::new(),
       dummy_texture: (dummy_texture, dummy_descriptor_set),
+
+      window_size: [screen_size.width as f32, screen_size.height as f32],
     }
   }
 
-  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
-    self.font.get_font_data()
-  }
+  //pub fn get_font_data(&self) -> GlyphCache {
+  //  self.font.get_font_data()
+  //}
 
   pub fn destroy(&mut self, vulkan: &mut Vulkan) {
     for (_, (image, descriptor)) in self.textures.drain().take(1) {
@@ -198,6 +219,7 @@ impl TextureHandler {
   }
 
   pub fn update_uniform_buffer(&mut self, device: &VkDevice, width: u32, height: u32) {
+    self.window_size = [width as f32, height as f32];
     let mut data = self.uniform_buffer.data()[0];
     data.window_size = [width as f32, height as f32];
     self.uniform_buffer.update_data(device, vec![data]);
@@ -252,54 +274,73 @@ impl TextureHandler {
     );
   }
 
-  pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {
-    let descriptor = self.font.descriptor();
+  pub fn draw_new_text(&mut self, vulkan: &mut Vulkan) {
+    let pos = self.text_master.text()[0].position();
+    let data = vec![pos.x, pos.y, self.window_size[0], self.window_size[1]];
 
-    self
-      .instanced_letter_buffer
-      .update_data(vulkan.device(), self.instanced_letter_buffer.data.clone());
+    let descriptor = self.text_master.font().descriptor();
 
-    vulkan.draw_texture(
-      &descriptor,
-      &self.uniform_descriptor,
-      &self.instanced_letter_shader,
-      &self.combo_vertex_buffer,
-      &self.combo_index_buffer,
-      Some(&self.instanced_letter_buffer),
-      instance_count,
-      vec![],
-    );
-  }
+    let vertex_buffer = self.text_master.vertex_buffer();
 
-  pub fn add_text_data(&mut self, idx: &mut usize, data: Vec<f32>, text: &str, _texture: &str) {
-    let mut data = data;
+    let font_shader = self.text_master.font().shader();
 
-    while data.len() < 16 {
-      data.push(0.0);
-    }
-
-    let text_size = data[2].max(0.1);
-    let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
-
-    let x = data[0];
-    let y = data[1];
-
-    for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1) in letter_data {
-      let pos_x = x + x_offset;
-      let pos_y = y + y_offset;
-
-      self.instanced_letter_buffer.data[*idx].pos = [pos_x, pos_y];
-      self.instanced_letter_buffer.data[*idx].size = [width, height];
-      self.instanced_letter_buffer.data[*idx].uv = [uvx0, uvy0, uvx1, uvy1];
-      self.instanced_letter_buffer.data[*idx].text_height = data[2];
-      self.instanced_letter_buffer.data[*idx].colour = [data[4], data[5], data[6], data[7]];
-      self.instanced_letter_buffer.data[*idx].outline_colour =
-        [data[8], data[9], data[10], data[11]];
-      self.instanced_letter_buffer.data[*idx].width_edge = [data[12], data[13], data[14], data[15]];
-
-      *idx += 1;
+    if let Some(buffer) = vertex_buffer {
+      vulkan.draw_text(&descriptor, font_shader, &buffer, data);
     }
   }
+
+  //pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {
+  //  let descriptor = self.font.descriptor();
+
+  //  self
+  //    .instanced_letter_buffer
+  //    .update_data(vulkan.device(), self.instanced_letter_buffer.data.clone());
+
+  //  vulkan.draw_texture(
+  //    &descriptor,
+  //    &self.uniform_descriptor,
+  //    &self.instanced_letter_shader,
+  //    &self.combo_vertex_buffer,
+  //    &self.combo_index_buffer,
+  //    Some(&self.instanced_letter_buffer),
+  //    instance_count,
+  //    vec![],
+  //  );
+  //}
+
+  //pub fn add_text_data(&mut self, idx: &mut usize, data: Vec<f32>, text: &str, _texture: &str) {
+  //  let mut data = data;
+
+  //  while data.len() < 16 {
+  //    data.push(0.0);
+  //  }
+
+  //  let text_size = data[2].max(0.1);
+  //  let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
+
+  //  let x = data[0];
+  //  let y = data[1];
+
+  //  for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1, kerning_x, kerning_y) in
+  //    letter_data
+  //  {
+  //    let pos_x = x + x_offset;
+  //    let pos_y = y + y_offset;
+
+  //    self.instanced_letter_buffer.data[*idx].pos = [pos_x, pos_y];
+  //    self.instanced_letter_buffer.data[*idx].size = [width, height];
+  //    self.instanced_letter_buffer.data[*idx].uv = [uvx0, uvy0, uvx1, uvy1];
+  //    self.instanced_letter_buffer.data[*idx].text_height = data[2];
+  //    self.instanced_letter_buffer.data[*idx].colour = [kerning_x, kerning_y, data[6], data[7]];
+  //    //self.instanced_letter_buffer.data[*idx].text_height = data[2];
+  //    //self.instanced_letter_buffer.data[*idx].colour = [data[4], data[5], data[6], data[7]];
+  //    //      self.instanced_letter_buffer.data[*idx].outline_colour =
+  //    //        [data[8], data[9], data[10], data[11]];
+  //    //      self.instanced_letter_buffer.data[*idx].width_edge = [data[12], data[13], data[14], data[15]];
+
+  //    *idx += 1;
+  //  }
+  //}
 
   pub fn create_checked_image() -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     image::ImageBuffer::from_fn(2, 2, |x, y| {
@@ -455,10 +496,10 @@ impl TextureHandler {
           offset_of!(InstancedTextData, pos) as u32,
           offset_of!(InstancedTextData, size) as u32,
           offset_of!(InstancedTextData, uv) as u32,
-          offset_of!(InstancedTextData, text_height) as u32,
-          offset_of!(InstancedTextData, colour) as u32,
-          offset_of!(InstancedTextData, outline_colour) as u32,
-          offset_of!(InstancedTextData, width_edge) as u32,
+          //          offset_of!(InstancedTextData, text_height) as u32,
+          //          offset_of!(InstancedTextData, colour) as u32,
+          //          offset_of!(InstancedTextData, outline_colour) as u32,
+          //          offset_of!(InstancedTextData, width_edge) as u32,
         ],
       )),
     );

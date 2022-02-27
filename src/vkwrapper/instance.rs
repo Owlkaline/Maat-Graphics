@@ -51,7 +51,7 @@ pub struct VkInstance {
 
 impl VkInstance {
   pub fn new(window: &VkWindow) -> VkInstance {
-    let entry: Entry = unsafe { Entry::new() };
+    let entry: Entry = unsafe { Entry::load().expect("Vulkan failed to laod") }; //unsafe { Entry::new() };
     let instance: Instance = create_instance(&entry, window);
 
     let (debug_utils_loader, debug_call_back) = create_debug_utils(&entry, &instance);

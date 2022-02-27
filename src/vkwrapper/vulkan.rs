@@ -683,7 +683,7 @@ impl Vulkan {
   pub fn record_submit_commandbuffer<F: FnOnce(&VkDevice, &mut CommandBuffer)>(
     device: &VkDevice,
     command_buffer: &mut CommandBuffer,
-    submit_queue: vk::Queue,
+    _submit_queue: vk::Queue,
     wait_mask: Vec<vk::PipelineStageFlags>,
     wait_semaphores: &Semaphore,
     signal_semaphores: &Semaphore,
@@ -704,6 +704,36 @@ impl Vulkan {
       wait_mask,
       is_compute,
     );
+  }
+
+  pub fn draw_text<T: Copy>(
+    &mut self,
+    texture_descriptor: &DescriptorSet,
+    shader: &Shader<T>,
+    vertex_buffer: &Buffer<T>,
+    data: Vec<f32>,
+  ) {
+    let draw_command_buffer = self.frames_in_flight[self.current_frame].command_buffer();
+
+    draw_command_buffer.bind_descriptor_sets(
+      &self.device,
+      shader,
+      0,
+      vec![texture_descriptor],
+      false,
+    );
+
+    draw_command_buffer.bind_graphics_pipeline(&self.device, shader);
+
+    draw_command_buffer.set_viewport(&self.device, vec![&self.viewports]);
+
+    draw_command_buffer.set_scissors(&self.device, vec![&self.scissors]);
+
+    draw_command_buffer.bind_vertex(&self.device, 0, vertex_buffer);
+
+    draw_command_buffer.push_constants(&self.device, shader, vk::ShaderStageFlags::VERTEX, data);
+
+    draw_command_buffer.draw_buffer(&self.device, vertex_buffer);
   }
 
   pub fn draw_texture<T: Copy, L: Copy, S: Copy>(
@@ -922,7 +952,7 @@ impl Vulkan {
       Ok(index) => index,
       Err(_) => {
         self.recreate_swapchain();
-        return None
+        return None;
       }
     };
 
@@ -955,7 +985,7 @@ impl Vulkan {
       self.frames_in_flight[self.current_frame].borrow_all();
 
     let wait_mask = vec![vk::PipelineStageFlags::BOTTOM_OF_PIPE];
-    let submit_queue = self.device.present_queue();
+    let _submit_queue = self.device.present_queue();
 
     let wait_semaphores = vec![present_semaphore];
     let signal_semaphores = vec![render_semaphore];
@@ -992,7 +1022,7 @@ impl Vulkan {
             vk::Result::ERROR_OUT_OF_DATE_KHR => {
               //VK_ERROR_OUT_OF_DATE_KHR
               self.recreate_swapchain();
-              return
+              return;
             }
             e => {
               panic!("Error: {}", e);
