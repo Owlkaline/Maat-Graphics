@@ -54,17 +54,15 @@ impl<T: Sized + Copy> Shader<T> {
     let push_constant_range = vk::PushConstantRange::builder()
       .stage_flags(vk::ShaderStageFlags::VERTEX)
       .offset(0)
-      .size(128)
-      .build();
+      .size(128);
 
     let layout_info = {
       if descriptor_set_layouts.len() == 0 {
         vk::PipelineLayoutCreateInfo::default()
       } else {
-        vk::PipelineLayoutCreateInfo::builder()
+        *vk::PipelineLayoutCreateInfo::builder()
           .set_layouts(descriptor_set_layouts)
-          .push_constant_ranges(&[push_constant_range])
-          .build()
+          .push_constant_ranges(&[*push_constant_range])
       }
     };
 

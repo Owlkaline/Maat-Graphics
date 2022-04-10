@@ -284,14 +284,13 @@ impl ImageBuilder {
     }
 
     image_view_info = image_view_info.subresource_range(
-      vk::ImageSubresourceRange::builder()
+      *vk::ImageSubresourceRange::builder()
         .aspect_mask(aspect_mask)
         .level_count(self.mip_levels)
-        .layer_count(self.array_layers)
-        .build(),
+        .layer_count(self.array_layers),
     );
     image_view_info = image_view_info.image(*image);
-    image_view_info.build()
+    *image_view_info
   }
 
   pub fn build_from_present_image(&self, device: &VkDevice, image: vk::Image) -> Image {

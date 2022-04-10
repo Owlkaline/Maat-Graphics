@@ -215,9 +215,9 @@ impl Renderpass {
     for i in 0..passes.len() {
       pass_descriptions.push(passes[i].build());
 
-      if passes[i].final_layout() != vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-        passes[i].final_layout() != vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL &&
-        passes[i].final_layout() != vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+      if passes[i].final_layout() != vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        && passes[i].final_layout() != vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL
+        && passes[i].final_layout() != vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
       {
         dependancies.push(vk::SubpassDependency {
           // srcSubpass is the subpass index of the first subpass in the dependency, or VK_SUBPASS_EXTERNAL
@@ -225,8 +225,8 @@ impl Renderpass {
           // srcStageMask is a bitmask of VkPipelineStageFlagBits specifying the source stage mask.
           src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
           // srcAccessMask is a bitmask of VkAccessFlagBits specifying a source access mask.
-          dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ |
-            vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+          dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ
+            | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
           // dstStageMask is a bitmask of VkPipelineStageFlagBits specifying the destination stage mask
           dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
           ..Default::default()
@@ -259,7 +259,7 @@ impl Renderpass {
       .build()];
 
     let renderpass_create_info = vk::RenderPassCreateInfo::builder()
-      .attachments(&pass_descriptions)
+      .attachments(&pass_descriptions[..])
       .subpasses(&subpasses)
       .dependencies(&dependancies);
 
@@ -310,17 +310,16 @@ fn create_renderpass(device: &VkDevice, surface_format: vk::SurfaceFormatKHR) ->
   let dependencies = [vk::SubpassDependency {
     src_subpass: vk::SUBPASS_EXTERNAL,
     src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-    dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ |
-      vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+    dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ
+      | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
     dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
     ..Default::default()
   }];
 
-  let subpasses = [vk::SubpassDescription::builder()
+  let subpasses = [*vk::SubpassDescription::builder()
     .color_attachments(&color_attachment_refs)
     .depth_stencil_attachment(&depth_attachment_ref)
-    .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-    .build()];
+    .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)];
 
   let renderpass_create_info = vk::RenderPassCreateInfo::builder()
     .attachments(&renderpass_attachments)

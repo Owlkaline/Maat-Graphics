@@ -120,12 +120,11 @@ impl DescriptorSetBuilder {
 
     for i in 0..self.types.len() {
       descriptor_layout_bindings.push(
-        vk::DescriptorSetLayoutBinding::builder()
+        *vk::DescriptorSetLayoutBinding::builder()
           .binding(i as u32)
           .descriptor_type(self.types[i])
           .descriptor_count(1)
-          .stage_flags(self.stages[i])
-          .build(),
+          .stage_flags(self.stages[i]),
       );
     }
 

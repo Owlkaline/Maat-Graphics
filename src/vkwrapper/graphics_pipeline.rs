@@ -179,33 +179,33 @@ impl GraphicsPipelineBuilder {
       .scissors(&scissors)
       .viewports(&viewport);
 
-    let rasterization_info = vk::PipelineRasterizationStateCreateInfo {
-      front_face: self.front_face,
-      line_width: 1.0,
-      polygon_mode: self.polygon_mode,
-      cull_mode: self.cull_mode,
-      ..Default::default()
-    };
-    let multisample_state_info = vk::PipelineMultisampleStateCreateInfo {
-      rasterization_samples: self.samples,
-      ..Default::default()
-    };
-    let noop_stencil_state = vk::StencilOpState {
-      fail_op: vk::StencilOp::KEEP,
-      pass_op: vk::StencilOp::KEEP,
-      depth_fail_op: vk::StencilOp::KEEP,
-      compare_op: vk::CompareOp::ALWAYS,
-      ..Default::default()
-    };
-    let depth_state_info = vk::PipelineDepthStencilStateCreateInfo {
-      depth_test_enable: 1,
-      depth_write_enable: 1,
-      depth_compare_op: vk::CompareOp::LESS_OR_EQUAL,
-      front: noop_stencil_state,
-      back: noop_stencil_state,
-      max_depth_bounds: 1.0,
-      ..Default::default()
-    };
+    let rasterization_info = vk::PipelineRasterizationStateCreateInfo::builder()
+      .front_face(self.front_face)
+      .polygon_mode(self.polygon_mode)
+      .cull_mode(self.cull_mode)
+      .line_width(1.0);
+
+    let multisample_state_info =
+      vk::PipelineMultisampleStateCreateInfo::builder().rasterization_samples(self.samples);
+    let noop_stencil_state_front = vk::StencilOpState::builder()
+      .fail_op(vk::StencilOp::KEEP)
+      .pass_op(vk::StencilOp::KEEP)
+      .depth_fail_op(vk::StencilOp::KEEP)
+      .compare_op(vk::CompareOp::ALWAYS);
+    let noop_stencil_state_back = vk::StencilOpState::builder()
+      .fail_op(vk::StencilOp::KEEP)
+      .pass_op(vk::StencilOp::KEEP)
+      .depth_fail_op(vk::StencilOp::KEEP)
+      .compare_op(vk::CompareOp::ALWAYS);
+
+    let depth_state_info = vk::PipelineDepthStencilStateCreateInfo::builder()
+      .depth_test_enable(true)
+      .depth_write_enable(true)
+      .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+      .front(*noop_stencil_state_front)
+      .back(*noop_stencil_state_back)
+      .max_depth_bounds(1.0);
+
     let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
       blend_enable: vk::TRUE,
       src_color_blend_factor: vk::BlendFactor::ONE, //vk::BlendFactor::SRC_COLOR,
@@ -243,11 +243,7 @@ impl GraphicsPipelineBuilder {
     let graphics_pipelines = unsafe {
       device
         .internal()
-        .create_graphics_pipelines(
-          vk::PipelineCache::null(),
-          &[graphic_pipeline_info.build()],
-          None,
-        )
+        .create_graphics_pipelines(vk::PipelineCache::null(), &[*graphic_pipeline_info], None)
         .expect("Unable to create graphics pipeline")
     };
 

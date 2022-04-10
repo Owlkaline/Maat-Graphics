@@ -8,12 +8,12 @@ use image;
 use crate::offset_of;
 use std::io::Cursor;
 
-use crate::glam::{Vec2, Vec3, Vec4};
+use crate::glam::{Vec2, Vec4};
 use crate::shader_handlers::TextureHandler;
 use crate::vkwrapper::Image as vkImage;
 use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Sampler,
-  Shader, Vulkan,
+  Shader, VkDevice, Vulkan,
 };
 
 use std::collections::HashMap;
@@ -21,6 +21,7 @@ use std::collections::HashMap;
 const LINE_HEIGHT: f32 = 0.03;
 const DESIRED_PADDING: i32 = 3;
 const SPACE_ASCII: i32 = 32;
+const NEW_LINE: char = '\n';
 
 const PAD_TOP: usize = 0;
 const PAD_LEFT: usize = 1;
@@ -34,7 +35,7 @@ pub struct TextVertex {
   pub colour: [f32; 4],
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Character {
   id: i32,
   x_coord: f32,
@@ -70,13 +71,14 @@ pub struct TextMeshData {
   data: Vec<TextVertex>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Word {
   width: f32,
   font_size: f32,
   characters: Vec<Character>,
 }
 
+#[derive(Debug)]
 pub struct Line {
   max_length: f32,
   space_size: f32,
@@ -110,8 +112,8 @@ pub struct TextMaster {
   descriptor_pool: vk::DescriptorPool,
   //texts: HashMap<FontType, Vec<GuiText>>,
   font_type: FontType,
-  text: Vec<GuiText>,
-  vertex_text_buffer: Option<Buffer<TextVertex>>,
+  text: Vec<(GuiText, Buffer<TextVertex>)>,
+  unused_text: Vec<((GuiText, Buffer<TextVertex>), u32)>,
 }
 
 impl TextMaster {
@@ -122,47 +124,90 @@ impl TextMaster {
 
     TextMaster {
       descriptor_pool,
-      vertex_text_buffer: None,
       font_type: font,
       text: Vec::new(),
+      unused_text: Vec::new(),
     }
   }
 
-  pub fn load_text(&mut self, mut text: GuiText, vulkan: &mut Vulkan, sampler: &Sampler) {
-    //let font = text.font();
-    let data = self.font_type.load_text(&mut text);
+  pub fn load_text(&mut self, mut text: GuiText, vulkan: &mut Vulkan) {
+    let mut already_exists = false;
+    for i in 0..self.text.len() {
+      if self.text[i].0.text() == text.text() && self.text[i].0.font_size() == text.font_size() {
+        self.text[i].0.set_position(text.position());
+        self.text[i].0.set_colour(text.colour());
+        already_exists = true;
+        break;
+      }
+    }
+    for i in 0..self.unused_text.len() {
+      if self.unused_text[i].0 .0.text() == text.text()
+        && self.unused_text[i].0 .0.font_size() == text.font_size()
+      {
+        let mut gui_text = self.unused_text.remove(i).0;
+        gui_text.0.set_position(text.position());
+        gui_text.0.set_colour(text.colour());
+        self.text.push(gui_text);
+        already_exists = true;
+        break;
+      }
+    }
 
-    self.vertex_text_buffer = Some(Buffer::<TextVertex>::new_vertex(
-      vulkan.device(),
-      data.data().clone(),
-    ));
+    if !already_exists {
+      let data = self.font_type.load_text(&mut text);
 
-    self.text.push(text);
+      self.text.push((
+        text,
+        Buffer::<TextVertex>::new_vertex(vulkan.device(), data.data().clone()),
+      ));
+    }
   }
 
-  pub fn remove_text(&mut self, text: GuiText) {
+  pub fn remove_text(&mut self, text: GuiText, device: &VkDevice) {
     let mut should_remove = None;
     for i in 0..self.text.len() {
-      if self.text[i] == text {
+      if self.text[i].0 == text {
         should_remove = Some(i);
       }
     }
 
     if let Some(i) = should_remove {
+      self.text[i].1.destroy(device);
       self.text.remove(i);
     }
   }
 
-  pub fn text(&mut self) -> &Vec<GuiText> {
+  pub fn remove_all_text(&mut self, device: &VkDevice) {
+    for i in (0..self.text.len()).rev() {
+      self.text[i].1.destroy(device);
+      self.text.remove(i);
+    }
+  }
+
+  pub fn remove_unused_text(&mut self, text_this_draw: Vec<String>, device: &VkDevice) {
+    for i in (0..self.unused_text.len()).rev() {
+      self.unused_text[i].1 += 1;
+      if self.unused_text[i].1 > 600 {
+        self.unused_text[i].0 .1.destroy(device);
+        self.unused_text.remove(i);
+      }
+    }
+
+    for i in (0..self.text.len()).rev() {
+      if !text_this_draw.contains(&self.text[i].0.text()) {
+        //self.text[i].1.destroy(device);
+        let gui_text = self.text.remove(i);
+        self.unused_text.push((gui_text, 0));
+      }
+    }
+  }
+
+  pub fn text(&self) -> &Vec<(GuiText, Buffer<TextVertex>)> {
     &self.text
   }
 
   pub fn font(&self) -> &FontType {
     &self.font_type
-  }
-
-  pub fn vertex_buffer(&self) -> &Option<Buffer<TextVertex>> {
-    &self.vertex_text_buffer
   }
 }
 
@@ -204,6 +249,28 @@ impl TextMeshCreator {
           );
           current_line.attempt_to_add_word(&current_word);
         }
+        current_word = Word::new(text.font_size());
+        continue;
+      } else if c == NEW_LINE {
+        let added = current_line.attempt_to_add_word(&current_word);
+        if !added {
+          lines.push(current_line);
+          current_line = Line::new(
+            self.meta.space_width(),
+            text.font_size(),
+            text.max_line_size(),
+          );
+          current_line.attempt_to_add_word(&current_word);
+        }
+        current_word = Word::new(text.font_size());
+
+        lines.push(current_line);
+        current_line = Line::new(
+          self.meta.space_width(),
+          text.font_size(),
+          text.max_line_size(),
+        );
+        current_line.attempt_to_add_word(&current_word);
         current_word = Word::new(text.font_size());
         continue;
       }
@@ -344,6 +411,10 @@ impl GuiText {
     self.colour = colour;
   }
 
+  pub fn set_position(&mut self, pos: Vec2) {
+    self.position = pos;
+  }
+
   pub fn colour(&self) -> Vec4 {
     self.colour
   }
@@ -478,7 +549,9 @@ impl Line {
     } else {
       0.0
     };
-    if self.current_line_length + additional_length <= self.max_length {
+    if self.current_line_length + additional_length <= self.max_length
+      || self.current_line_length == 0.0
+    {
       self.words.push(word.clone());
       self.current_line_length += additional_length;
       return true;

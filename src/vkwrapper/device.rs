@@ -125,9 +125,9 @@ fn pick_physical_device(
         .iter()
         .enumerate()
         .filter_map(|(index, ref info)| {
-          let supports_graphic_and_surface = info.queue_flags.contains(vk::QueueFlags::GRAPHICS) &&
-            info.queue_flags.contains(vk::QueueFlags::COMPUTE) &&
-            surface_loader
+          let supports_graphic_and_surface = info.queue_flags.contains(vk::QueueFlags::GRAPHICS)
+            && info.queue_flags.contains(vk::QueueFlags::COMPUTE)
+            && surface_loader
               .get_physical_device_surface_support(*pdevice, index as u32, *surface)
               .unwrap();
           if supports_graphic_and_surface {
@@ -151,10 +151,9 @@ fn create_logical_device(
   queue_family_index: u32,
 ) -> (Device, vk::Queue, vk::Queue) {
   let priorities = [1.0];
-  let queue_info = [vk::DeviceQueueCreateInfo::builder()
+  let queue_info = [*vk::DeviceQueueCreateInfo::builder()
     .queue_family_index(queue_family_index)
-    .queue_priorities(&priorities)
-    .build()];
+    .queue_priorities(&priorities)];
   let device_extension_names_raw = [Swapchain::name().as_ptr(), Maintenance1::name().as_ptr()];
   let features = vk::PhysicalDeviceFeatures {
     shader_clip_distance: 1,

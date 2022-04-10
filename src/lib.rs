@@ -27,7 +27,8 @@ use ash::vk;
 use gilrs::{ev::EventType, Axis, Button, Event as GpEvent, GamepadId, Gilrs};
 use winit::{
   event::{
-    DeviceEvent, ElementState, Event, MouseButton as WMouseButton, VirtualKeyCode, WindowEvent,
+    DeviceEvent, ElementState, Event, ModifiersState, MouseButton as WMouseButton, VirtualKeyCode,
+    WindowEvent,
   },
   event_loop::{ControlFlow, EventLoop},
   window::Fullscreen,
@@ -124,10 +125,15 @@ pub enum MaatEvent<'a, S: Into<String>> {
     //&'a mut Vec<(Vec<f32>, T, Option<L>)>,
     &'a mut Vec<(Vec<f32>, S)>,
   ),
-  FixedUpdate(&'a Vec<VirtualKeyCode>, &'a Vec<u32>, &'a mut Camera, f32),
+  FixedUpdate(
+    &'a Vec<(VirtualKeyCode, ModifiersState)>,
+    &'a Vec<(u32, bool)>,
+    &'a mut Camera,
+    f32,
+  ),
   Update(
-    &'a Vec<VirtualKeyCode>,
-    &'a Vec<u32>,
+    &'a Vec<(VirtualKeyCode, ModifiersState)>,
+    &'a Vec<(u32, bool)>,
     &'a mut Camera,
     f32,
     &'a mut bool,
@@ -139,7 +145,10 @@ pub enum MaatEvent<'a, S: Into<String>> {
   GamepadButton(ControllerInput, bool),
   GamepadAxis(AxisInput),
   Resized(u32, u32),
-  UpdateMaatSettings(&'a Vec<VirtualKeyCode>, &'a mut Vec<MaatSetting>),
+  UpdateMaatSettings(
+    &'a Vec<(VirtualKeyCode, ModifiersState)>,
+    &'a mut Vec<MaatSetting>,
+  ),
   // NewModelLoaded -> HashMap<>
   UnhandledWindowEvent(WindowEvent<'a>),
   UnhandledDeviceEvent(DeviceEvent),
@@ -417,18 +426,22 @@ impl MaatGraphics {
       self.vulkan.end_renderpass();
       self.vulkan.begin_renderpass_texture(present_index);
 
-      let mut text_count = 0;
+      //let mut text_count = 0;
 
       for draw in texture_data {
         if let Some(texture) = draw.get_texture() {
           self
             .texture_handler
             .draw(&mut self.vulkan, draw.texture_data(), &texture);
-        } else if let Some(text) = draw.get_text() {
-          //self
-          //  .texture_handler
-          //  .add_text_data(&mut text_count, draw.text_data(), &text, "");
+        } else {
+          self.texture_handler.add_text_data(draw, &mut self.vulkan);
         }
+        //else if let Some(text) = draw.get_text() {
+
+        //self
+        //  .texture_handler
+        //  .add_text_data(&mut text_count, draw.text_data(), &text, "");
+        //}
       }
 
       self.texture_handler.draw_new_text(&mut self.vulkan);
@@ -620,7 +633,8 @@ impl MaatGraphics {
           }
           WindowEvent::KeyboardInput { input, .. } => {
             let key_code = input.scancode;
-            software_keys.push(key_code);
+            let state = input.state == ElementState::Pressed;
+            software_keys.push((key_code, state));
           }
 
           WindowEvent::CursorMoved { position, .. } => {
@@ -665,8 +679,13 @@ impl MaatGraphics {
           DeviceEvent::Key(key) => match key.state {
             ElementState::Pressed => {
               if let Some(key_code) = key.virtual_keycode {
-                if !device_keys.contains(&key_code) {
-                  device_keys.push(key_code);
+                if !device_keys
+                  .iter()
+                  .map(|(k, _)| *k)
+                  .collect::<Vec<VirtualKeyCode>>()
+                  .contains(&key_code)
+                {
+                  device_keys.push((key_code, key.modifiers));
                 }
               }
             }
@@ -674,7 +693,7 @@ impl MaatGraphics {
               if let Some(key_code) = key.virtual_keycode {
                 let mut i = 0;
                 while i < device_keys.len() {
-                  if device_keys[i] == key_code {
+                  if device_keys[i].0 == key_code {
                     device_keys.remove(i);
                   }
 

@@ -11,8 +11,9 @@ use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Image,
   ImageBuilder, Sampler, Shader, VkDevice, Vulkan,
 };
+use crate::Draw;
 
-use glam::{Vec2, Vec4};
+use glam::{Vec2, Vec3Swizzles, Vec4};
 
 const MAX_INSTANCES: usize = 8192;
 
@@ -61,6 +62,7 @@ pub struct TextureHandler {
   uniform_descriptor: DescriptorSet,
 
   text_master: TextMaster,
+  text_this_draw: Vec<String>,
 
   //font: Font,
 
@@ -156,7 +158,8 @@ impl TextureHandler {
       false,
     );
 
-    text_master.load_text(gui_text, vulkan, &sampler);
+    let text = gui_text.text();
+    text_master.load_text(gui_text, vulkan);
 
     TextureHandler {
       descriptor_pool,
@@ -166,6 +169,8 @@ impl TextureHandler {
       uniform_descriptor: descriptor_set0,
 
       text_master,
+      text_this_draw: vec![text],
+
       //font,
 
       //letter_shader,
@@ -274,19 +279,47 @@ impl TextureHandler {
     );
   }
 
-  pub fn draw_new_text(&mut self, vulkan: &mut Vulkan) {
-    let pos = self.text_master.text()[0].position();
-    let data = vec![pos.x, pos.y, self.window_size[0], self.window_size[1]];
+  pub fn add_text_data(&mut self, draw: Draw, vulkan: &mut Vulkan) {
+    let size = draw.get_scale().x;
+    let position = draw.get_position().xy();
+    let colour = draw.get_colour();
+    let wrap = draw.get_wrap();
+    let centered = draw.get_centered();
 
-    let descriptor = self.text_master.font().descriptor();
+    if let Some(raw_text) = draw.get_text() {
+      if raw_text.len() == 0
+        || raw_text
+          .split(' ')
+          .map(|s| s.to_string())
+          .filter(|s| s == "")
+          .collect::<Vec<String>>()
+          .len()
+          > raw_text.len()
+      {
+        return;
+      }
 
-    let vertex_buffer = self.text_master.vertex_buffer();
+      let text = GuiText::new(raw_text.to_string(), size, position, colour, wrap, centered);
 
-    let font_shader = self.text_master.font().shader();
-
-    if let Some(buffer) = vertex_buffer {
-      vulkan.draw_text(&descriptor, font_shader, &buffer, data);
+      self.text_this_draw.push(raw_text);
+      self.text_master.load_text(text, vulkan);
     }
+  }
+
+  pub fn draw_new_text(&mut self, vulkan: &mut Vulkan) {
+    for (text, vertex_buffer) in self.text_master.text() {
+      let pos = text.position();
+      let data = vec![pos.x, pos.y, self.window_size[0], self.window_size[1]];
+
+      let descriptor = self.text_master.font().descriptor();
+      let font_shader = self.text_master.font().shader();
+
+      vulkan.draw_text(&descriptor, font_shader, &vertex_buffer, data);
+    }
+
+    self
+      .text_master
+      .remove_unused_text(self.text_this_draw.drain(..).collect(), vulkan.device());
   }
 
   //pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {

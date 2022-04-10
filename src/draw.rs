@@ -22,8 +22,9 @@ pub struct Draw {
   scale: Vec3,
   colour: Vec4,
   rotation: f32,
-  text_outline: f32,
-  text_edge_width: f32,
+  //text_outline: f32,
+  //text_edge_width: f32,
+  wrap: f32,
   text: Option<String>,
   texture: Option<String>,
   model: Option<String>,
@@ -36,8 +37,9 @@ impl Draw {
       scale: Vec3::ONE,
       colour: Vec4::new(0.0, 0.0, 0.0, 1.0),
       rotation: 0.0,
-      text_outline: 0.0,
-      text_edge_width: 0.5,
+      //text_outline: 0.0,
+      //text_edge_width: 0.5,
+      wrap: 100000000.0,
       text: None,
       texture: None,
       model: None,
@@ -85,12 +87,37 @@ impl Draw {
     self
   }
 
+  pub fn wrap(mut self, wrap: f32) -> Draw {
+    self.wrap = wrap;
+    self
+  }
+
   pub fn get_texture(&self) -> Option<String> {
     self.texture.clone()
   }
 
   pub fn get_text(&self) -> Option<String> {
     self.text.clone()
+  }
+
+  pub fn get_colour(&self) -> Vec4 {
+    self.colour
+  }
+
+  pub fn get_scale(&self) -> Vec3 {
+    self.scale
+  }
+
+  pub fn get_position(&self) -> Vec3 {
+    self.position
+  }
+
+  pub fn get_centered(&self) -> bool {
+    false
+  }
+
+  pub fn get_wrap(&self) -> f32 {
+    self.wrap
   }
 
   pub fn texture_data(&self) -> Vec<f32> {
@@ -112,18 +139,18 @@ impl Draw {
     vec![
       self.position.x,
       self.position.y,
-      self.scale.x,
-      0.0,
-      self.colour.x,
-      self.colour.y,
-      self.colour.z,
-      self.colour.w,
-      1.0,
-      0.0,
-      0.0,
-      1.0,
-      self.text_outline,
-      self.text_edge_width,
+      //self.scale.x,
+      //0.0,
+      //self.colour.x,
+      //self.colour.y,
+      //self.colour.z,
+      //self.colour.w,
+      //1.0,
+      //0.0,
+      //0.0,
+      //1.0,
+      //self.text_outline,
+      //self.text_edge_width,
     ]
   }
 }

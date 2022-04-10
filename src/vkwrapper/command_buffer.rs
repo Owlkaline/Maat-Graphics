@@ -280,11 +280,7 @@ impl CommandBuffer {
     unsafe {
       device
         .internal()
-        .queue_submit(
-          submit_queue,
-          &[submit_info.build()],
-          self.reuse_fence.internal(),
-        )
+        .queue_submit(submit_queue, &[*submit_info], self.reuse_fence.internal())
         .expect("queue submit failed.");
     }
   }
