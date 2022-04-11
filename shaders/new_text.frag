@@ -14,6 +14,6 @@ void main(void){
   float distance = texture(fontAtlas, o_uv).a;
   float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
 
-  out_colour = vec4(o_colour.rgb, alpha);
+  out_colour = vec4(o_colour.rgb*alpha, alpha);
 }
 

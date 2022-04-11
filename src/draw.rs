@@ -22,6 +22,7 @@ pub struct Draw {
   scale: Vec3,
   colour: Vec4,
   rotation: f32,
+  colour_overlay_mix: f32,
   //text_outline: f32,
   //text_edge_width: f32,
   wrap: f32,
@@ -37,6 +38,7 @@ impl Draw {
       scale: Vec3::ONE,
       colour: Vec4::new(0.0, 0.0, 0.0, 1.0),
       rotation: 0.0,
+      colour_overlay_mix: 1.0,
       //text_outline: 0.0,
       //text_edge_width: 0.5,
       wrap: 100000000.0,
@@ -132,6 +134,7 @@ impl Draw {
       self.colour.w,
       1.0,
       self.rotation,
+      self.colour_overlay_mix,
     ]
   }
 

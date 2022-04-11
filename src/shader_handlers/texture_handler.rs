@@ -393,7 +393,7 @@ impl TextureHandler {
     let image_data = image.into_raw();
 
     let src_buffer = Buffer::<u8>::new_image(vulkan.device(), image_data);
-    let dst_image = ImageBuilder::new(vk::Format::R8G8B8A8_UNORM, 1, 1)
+    let dst_image = ImageBuilder::new(vk::Format::A8B8G8R8_SRGB_PACK32, 1, 1)
       .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
       .set_dimensions(dimensions.0, dimensions.1)
       .build_device_local(vulkan.device());
