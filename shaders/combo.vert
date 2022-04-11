@@ -36,7 +36,7 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
 }
 
 void main() {
-  o_uv_textured_mix = vec4(uv, push_constants.is_textured_rotation_overlay_mix.xy);
+  o_uv_textured_mix = vec4(uv, push_constants.is_textured_rotation_overlay_mix.xz);
   o_colour = push_constants.colour;
   
   mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);

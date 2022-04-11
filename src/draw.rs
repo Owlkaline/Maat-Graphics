@@ -38,7 +38,7 @@ impl Draw {
       scale: Vec3::ONE,
       colour: Vec4::new(0.0, 0.0, 0.0, 1.0),
       rotation: 0.0,
-      colour_overlay_mix: 1.0,
+      colour_overlay_mix: 0.0,
       //text_outline: 0.0,
       //text_edge_width: 0.5,
       wrap: 100000000.0,
@@ -51,6 +51,7 @@ impl Draw {
   pub fn texture(texture: &str) -> Draw {
     Draw {
       texture: Some(texture.to_string()),
+      colour_overlay_mix: 1.0,
       ..Draw::new()
     }
   }
@@ -91,6 +92,11 @@ impl Draw {
 
   pub fn wrap(mut self, wrap: f32) -> Draw {
     self.wrap = wrap;
+    self
+  }
+
+  pub fn colour_overlay(mut self, percentage: f32) -> Draw {
+    self.colour_overlay_mix = percentage;
     self
   }
 
