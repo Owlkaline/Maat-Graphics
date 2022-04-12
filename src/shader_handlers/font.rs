@@ -76,6 +76,7 @@ pub struct Word {
   width: f32,
   font_size: f32,
   characters: Vec<Character>,
+  colour: Option<Vec4>,
 }
 
 #[derive(Debug)]
@@ -100,6 +101,7 @@ pub struct GuiText {
 
   descriptor_set: Option<DescriptorSet>,
   colour: Vec4,
+  coloured_words: HashMap<usize, Vec4>,
   position: Vec2,
   max_line_size: f32,
   number_of_lines: i32,
@@ -140,6 +142,7 @@ impl TextMaster {
         break;
       }
     }
+
     for i in 0..self.unused_text.len() {
       if self.unused_text[i].0 .0.text() == text.text()
         && self.unused_text[i].0 .0.font_size() == text.font_size()
@@ -311,12 +314,23 @@ impl TextMeshCreator {
     let mut curser_y = 0.0;
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
+    let mut colours = Vec::new();
+
+    let coloured_words = text.coloured_words();
+    let mut current_word: usize = 0;
 
     for line in lines {
       if text.is_centered() {
         curser_x = (line.max_length() - line.line_length()) * 0.5;
       }
       for word in line.words() {
+        let colour = {
+          if let Some(w_colour) = coloured_words.get(&current_word) {
+            *w_colour
+          } else {
+            text.colour()
+          }
+        };
         for letter in word.characters() {
           self.add_verticies_for_character(
             curser_x,
@@ -332,15 +346,17 @@ impl TextMeshCreator {
             letter.x_max_coord(),
             letter.y_max_coord(),
           );
+          self.add_colour(&mut colours, colour);
           curser_x += letter.x_advance() * text.font_size();
         }
         curser_x += self.meta.space_width() * text.font_size();
+        current_word += 1;
       }
       curser_x = 0.0;
       curser_y += LINE_HEIGHT * text.font_size();
     }
 
-    TextMeshData::new(verticies, uvs, text.colour())
+    TextMeshData::new(verticies, uvs, colours) //text.colour())
   }
 
   fn add_verticies_for_character(
@@ -379,6 +395,13 @@ impl TextMeshCreator {
     uv_coords.push([max_x, y]);
     uv_coords.push([x, y]);
   }
+
+  fn add_colour(&self, colours: &mut Vec<[f32; 4]>, colour: Vec4) {
+    // for each vertex
+    for _ in 0..6 {
+      colours.push([colour.x, colour.y, colour.z, colour.w]);
+    }
+  }
 }
 
 impl GuiText {
@@ -387,6 +410,7 @@ impl GuiText {
     font_size: f32,
     position: Vec2,
     colour: Vec4,
+    coloured_words: HashMap<usize, Vec4>,
     max_line_length: f32,
     centered: bool,
   ) -> GuiText {
@@ -396,6 +420,7 @@ impl GuiText {
 
       descriptor_set: None,
       colour,
+      coloured_words,
       position,
       max_line_size: max_line_length,
       number_of_lines: 0,
@@ -417,6 +442,10 @@ impl GuiText {
 
   pub fn colour(&self) -> Vec4 {
     self.colour
+  }
+
+  pub fn coloured_words(&self) -> &HashMap<usize, Vec4> {
+    &self.coloured_words
   }
 
   pub fn number_of_lines(&self) -> i32 {
@@ -549,6 +578,7 @@ impl Line {
     } else {
       0.0
     };
+
     if self.current_line_length + additional_length <= self.max_length
       || self.current_line_length == 0.0
     {
@@ -579,7 +609,12 @@ impl Word {
       width: 0.0,
       font_size,
       characters: Vec::new(),
+      colour: None,
     }
+  }
+
+  pub fn add_colour(&mut self, colour: Vec4) {
+    self.colour = Some(colour);
   }
 
   pub fn add_character(&mut self, c: Character) {
@@ -594,20 +629,27 @@ impl Word {
   pub fn word_width(&self) -> f32 {
     self.width
   }
+
+  pub fn colour(&self) -> Option<Vec4> {
+    self.colour
+  }
 }
 
 impl TextMeshData {
   pub fn new(
     positions: Vec<[f32; 2]>,
     texture_coords: Vec<[f32; 2]>,
-    colour: Vec4,
+    colours: Vec<[f32; 4]>,
   ) -> TextMeshData {
     let mut data = Vec::new();
-    for (pos, uv) in positions.iter().zip(texture_coords.iter()) {
+    for (pos, uv, colour) in (positions.iter().zip(texture_coords.iter()))
+      .zip(colours.iter())
+      .map(|((p, u), c)| (p, u, c))
+    {
       data.push(TextVertex {
         pos: [pos[0], pos[1], -1.0, 1.0],
         uv: [1.0 - uv[0], uv[1], 0.0, 0.0],
-        colour: [colour.x, colour.y, colour.z, colour.w],
+        colour: *colour,
       });
     }
 
@@ -881,468 +923,3 @@ impl PartialEq for GuiText {
     self.text != other.text || self.font_size != other.font_size
   }
 }
-
-//
-//#[derive(Clone)]
-//pub struct Glyph {
-//  top: f32,
-//  left: f32,
-//  width: f32,
-//  height: f32,
-//  x_offset: f32,
-//  y_offset: f32,
-//  x_advance: f32,
-//  uv_bot: f32,
-//  uv_left: f32,
-//  uv_width: f32,
-//  uv_height: f32,
-//}
-//
-//#[derive(Clone)]
-//pub struct GlyphCache {
-//  average_advance: f32,
-//  line_height: f32,
-//  font_size: i8,
-//  glyphs: HashMap<char, Glyph>,
-//}
-//
-//pub struct Font {
-//  glyph_cache: GlyphCache,
-//  texture: vkImage,
-//  descriptor_set: DescriptorSet,
-//  descriptor_pool: vk::DescriptorPool,
-//}
-//
-//impl Glyph {
-//  pub fn load(location: String) -> GlyphCache {
-//    let file = File::open(location.to_owned() + ".fnt").unwrap();
-//    let buffer_reader = BufReader::new(file);
-//
-//    let mut glyphs = HashMap::new();
-//
-//    let mut average_advance: f32 = 0.0;
-//
-//    let mut line_height = 0.0;
-//
-//    let mut scale_w = 1.0;
-//    let mut scale_h = 1.0;
-//
-//    let mut font_size = 1;
-//
-//    for line in buffer_reader.lines() {
-//      let line = line.unwrap();
-//      let mut segments: Vec<&str> = line.split(' ').filter(|s| *s != "").collect();
-//
-//      let segment_0 = segments.remove(0);
-//
-//      if segment_0.contains("char") && !segments[0].contains("count") {
-//        let idx = Font::value_from_string_pair(segments.remove(0).to_string()) as u8;
-//
-//        let x = Font::value_from_string_pair(segments[0].to_string()) as f32;
-//        let y = Font::value_from_string_pair(segments[1].to_string()) as f32;
-//        let width = Font::value_from_string_pair(segments[2].to_string()) as f32;
-//        let height = Font::value_from_string_pair(segments[3].to_string()) as f32;
-//        let x_offset = Font::value_from_string_pair(segments[4].to_string()) as f32;
-//        let y_offset = Font::value_from_string_pair(segments[5].to_string()) as f32;
-//        let x_advance = width / (Font::value_from_string_pair(segments[6].to_string()) as f32);
-//        let page = Font::value_from_string_pair(segments[7].to_string()) as u32;
-//
-//        average_advance += x_advance;
-//
-//        println!("{}: {}", idx as char, height);
-//
-//        glyphs.insert(
-//          idx as char,
-//          Glyph {
-//            top: y_offset as f32 / scale_h,
-//            left: x_offset / scale_w,
-//            width: width / scale_w,
-//            height: height / scale_h,
-//            x_offset: x_offset / scale_w,
-//            y_offset: y_offset / scale_h,
-//            x_advance: x_advance / scale_w,
-//            uv_bot: y / scale_h,
-//            uv_left: x / scale_w,
-//            uv_width: width / scale_w,
-//            uv_height: height / scale_h,
-//          },
-//        );
-//      } else if segment_0.contains("common") {
-//        if segments[0].contains("lineHeight") {
-//          line_height = Font::value_from_string_pair(segments[2].to_string()) as f32;
-//        }
-//
-//        if segments[2].contains("scaleW") {
-//          scale_w = Font::value_from_string_pair(segments[2].to_string()) as f32;
-//        }
-//        if segments[3].contains("scaleH") {
-//          scale_h = Font::value_from_string_pair(segments[3].to_string()) as f32;
-//        }
-//      } else if segment_0.contains("info") {
-//        if segments[0].contains("size") {
-//          font_size = Font::value_from_string_pair(segments[1].to_string()) as i8;
-//        }
-//      }
-//    }
-//
-//    average_advance /= glyphs.len() as f32;
-//
-//    GlyphCache::new(average_advance, line_height, font_size, glyphs)
-//  }
-//}
-//
-//impl GlyphCache {
-//  pub fn new(
-//    average_advance: f32,
-//    line_height: f32,
-//    font_size: i8,
-//    glyphs: HashMap<char, Glyph>,
-//  ) -> GlyphCache {
-//    GlyphCache {
-//      average_advance,
-//      line_height,
-//      font_size,
-//      glyphs,
-//    }
-//  }
-//
-//  pub fn glyphs(&self) -> &HashMap<char, Glyph> {
-//    &self.glyphs
-//  }
-//}
-//
-//impl Font {
-//  pub fn new<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> Font {
-//    let location = location.into();
-//    let glyphs = Glyph::load(location.clone());
-//
-//    let image = image::open(location.to_owned() + ".png")
-//      .expect(&("Failed to load font: ".to_string() + &location))
-//      .fliph()
-//      .to_rgba8();
-//
-//    let descriptor_pool = DescriptorPoolBuilder::new()
-//      .num_combined_image_samplers(1)
-//      .build(vulkan.device());
-//
-//    let font_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
-//    let font_descriptor_set = DescriptorSet::builder()
-//      .combined_image_sampler_fragment()
-//      .build(vulkan.device(), &descriptor_pool);
-//    let font_descriptor_set_writer =
-//      DescriptorWriter::builder().update_image(&font_texture, &sampler, &font_descriptor_set);
-//
-//    font_descriptor_set_writer.build(vulkan.device());
-//
-//    Font {
-//      glyph_cache: glyphs,
-//      texture: font_texture,
-//      descriptor_set: font_descriptor_set,
-//      descriptor_pool,
-//    }
-//  }
-//
-//  pub fn generate_letter_draws(
-//    &mut self,
-//    text_size: f32,
-//    text: String,
-//  ) -> Vec<(f32, f32, f32, f32, f32, f32, f32, f32, f32, f32)> {
-//    let mut text_data = Vec::new();
-//
-//    let mut pos_x = 0.0;
-//    let mut pos_y = 0.0;
-//
-//    for c in text.chars() {
-//      if let Some(char_info) = self.glyph_cache.glyphs().get(&c) {
-//        let x = pos_x + char_info.left - char_info.x_offset;
-//        let y = char_info.top - char_info.y_offset;
-//
-//        let width = char_info.left + char_info.width;
-//        let height = char_info.top + char_info.height - char_info.y_offset;
-//
-//        let uvx = char_info.uv_left;
-//        let uvxw = char_info.uv_left + char_info.uv_width;
-//        let uvy = char_info.uv_bot;
-//        let uvyh = char_info.uv_bot + char_info.uv_height;
-//
-//        text_data.push((
-//          x,
-//          y,
-//          width,
-//          height,
-//          1.0 - uvx,
-//          uvyh,
-//          1.0 - uvxw,
-//          uvy,
-//          char_info.x_offset,
-//          char_info.y_offset,
-//        ));
-//        pos_x += char_info.width + char_info.x_advance;
-//
-//        //if char_info.width == 0.0 || char_info.height == 0.0 {
-//        //  pos_x += text_size;
-//        //  continue;
-//        //}
-//
-//        //let w_h_ratio = char_info.width / char_info.height;
-//
-//        //let height = text_size;
-//        //let width = text_size * w_h_ratio;
-//
-//        //let x = pos_x + char_info.x_offset * width;
-//        //let y = (1.0 - char_info.y_offset) * height - height;
-//
-//        //let uv_x0 = char_info.x;
-//        //let uv_y0 = 1.0 - char_info.y;
-//        //let uv_x1 = char_info.x + char_info.width;
-//        //let uv_y1 = (1.0 - char_info.y) - char_info.height;
-//
-//        //text_data.push((
-//        //  x,
-//        //  y,
-//        //  width,
-//        //  height,
-//        //  1.0 - uv_x0,
-//        //  1.0 - uv_y1,
-//        //  1.0 - uv_x1,
-//        //  1.0 - uv_y0,
-//        //));
-//
-//        //pos_x += char_info.x_advance * width;
-//      }
-//    }
-//
-//    text_data
-//  }
-//
-//  fn value_from_string_pair(string: String) -> i32 {
-//    string
-//      .split('=')
-//      .collect::<Vec<&str>>()
-//      .last()
-//      .unwrap()
-//      .parse::<i32>()
-//      .unwrap()
-//  }
-//
-//  pub fn get_font_data(&self) -> GlyphCache {
-//    self.glyph_cache.clone()
-//  }
-//
-//  pub fn descriptor(&self) -> &DescriptorSet {
-//    &self.descriptor_set
-//  }
-//}
-//#[derive(Clone)]
-//pub struct FontChar {
-//  pub x: f32,
-//  pub y: f32,
-//  pub width: f32,
-//  pub height: f32,
-//  pub x_offset: f32,
-//  pub y_offset: f32,
-//  pub x_advance: f32, // not used?
-//  pub page: u32,
-//}
-//
-//impl FontChar {
-//  pub fn new_empty() -> FontChar {
-//    FontChar {
-//      x: 0.0,
-//      y: 0.0,
-//      width: 0.0,
-//      height: 0.0,
-//      x_offset: 0.0,
-//      y_offset: 0.0,
-//      x_advance: 0.0,
-//      page: 0,
-//    }
-//  }
-//}
-//
-//pub struct Font {
-//  chars: Vec<FontChar>,
-//  texture: vkImage,
-//  descriptor_set: DescriptorSet,
-//  descriptor_pool: vk::DescriptorPool,
-//
-//  width: u32,
-//  height: u32,
-//  // line height of font
-//  pub line_height: u32,
-//
-//  // size of font (width)
-//  pub size: u32,
-//
-//  pub min_offset_y: f32,
-//  pub avg_xadvance: f32,
-//}
-//
-//impl Font {
-//  pub fn new<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> Font {
-//    Font::load_font(vulkan, sampler, location)
-//  }
-//
-//  fn load_font<T: Into<String>>(vulkan: &mut Vulkan, sampler: &Sampler, location: T) -> Font {
-//    let location = &location.into();
-//
-//    let image = image::open(location.to_owned() + ".png")
-//      .expect(&("Failed to load font: ".to_string() + location))
-//      .fliph()
-//      .to_rgba8();
-//    let image_width = image.width() as f32;
-//    let image_height = image.height() as f32;
-//
-//    let mut min_off_y = 100000.0;
-//    let mut xadvance_sum = 0.0;
-//
-//    let mut line_height = 1;
-//
-//    let mut font_chars = Vec::new();
-//
-//    let file = File::open(location.to_owned() + ".fnt").unwrap();
-//    let buffer_reader = BufReader::new(file);
-//
-//    let mut num_chars = 0;
-//    for line in buffer_reader.lines() {
-//      let line = line.unwrap();
-//      let mut segments: Vec<&str> = line.split(' ').filter(|s| *s != "").collect();
-//
-//      let segment_0 = segments.remove(0);
-//
-//      if segment_0.contains("char") && !segments[0].contains("count") {
-//        let idx = Font::value_from_string_pair(segments.remove(0).to_string()) as usize;
-//
-//        while idx + 1 > font_chars.len() {
-//          font_chars.push(FontChar::new_empty());
-//        }
-//
-//        let x = Font::value_from_string_pair(segments[0].to_string()) as f32 / 512.0;
-//        let y = Font::value_from_string_pair(segments[1].to_string()) as f32 / 512.0;
-//        let width = Font::value_from_string_pair(segments[2].to_string()) as f32 / 512.0;
-//        let height = Font::value_from_string_pair(segments[3].to_string()) as f32 / 512.0;
-//        let x_offset = Font::value_from_string_pair(segments[4].to_string()) as f32 / 512.0;
-//        let y_offset = Font::value_from_string_pair(segments[5].to_string()) as f32 / 512.0;
-//        let x_advance =
-//          width / (Font::value_from_string_pair(segments[6].to_string()) as f32 / 512.0);
-//        let page = Font::value_from_string_pair(segments[7].to_string()) as u32;
-//
-//        if y_offset < min_off_y {
-//          min_off_y = y_offset;
-//        }
-//        xadvance_sum += x_advance as f32;
-//
-//        font_chars[idx] = FontChar {
-//          x,
-//          y,
-//          width,
-//          height,
-//          x_offset,
-//          y_offset,
-//          x_advance, // not used?
-//          page,
-//        };
-//
-//        num_chars += 1;
-//      } else if segment_0.contains("common") {
-//        line_height = Font::value_from_string_pair(segments[0].to_string()) as u32;
-//      }
-//    }
-//
-//    let avg_advance = xadvance_sum / num_chars as f32;
-//
-//    let descriptor_pool = DescriptorPoolBuilder::new()
-//      .num_combined_image_samplers(1)
-//      .build(vulkan.device());
-//
-//    let font_texture = TextureHandler::create_device_local_texture_from_image(vulkan, image);
-//    let font_descriptor_set = DescriptorSet::builder()
-//      .combined_image_sampler_fragment()
-//      .build(vulkan.device(), &descriptor_pool);
-//    let font_descriptor_set_writer =
-//      DescriptorWriter::builder().update_image(&font_texture, &sampler, &font_descriptor_set);
-//
-//    font_descriptor_set_writer.build(vulkan.device());
-//
-//    Font {
-//      chars: font_chars,
-//      texture: font_texture,
-//      descriptor_set: font_descriptor_set,
-//      descriptor_pool,
-//
-//      width: image_width as u32,
-//      height: image_height as u32,
-//
-//      line_height,
-//      size: 71, // TODO: Load from file
-//
-//      min_offset_y: min_off_y,
-//      avg_xadvance: avg_advance,
-//    }
-//  }
-//
-//  pub fn get_font_data(&self) -> (Vec<FontChar>, u32, u32) {
-//    (self.chars.clone(), self.line_height, self.size)
-//  }
-//
-//  pub fn descriptor(&self) -> &DescriptorSet {
-//    &self.descriptor_set
-//  }
-//
-//  fn value_from_string_pair(string: String) -> i32 {
-//    string
-//      .split('=')
-//      .collect::<Vec<&str>>()
-//      .last()
-//      .unwrap()
-//      .parse::<i32>()
-//      .unwrap()
-//  }
-//
-//  pub fn generate_letter_draws(
-//    &mut self,
-//    text_size: f32,
-//    text: String,
-//  ) -> Vec<(f32, f32, f32, f32, f32, f32, f32, f32)> {
-//    let mut text_data = Vec::new();
-//
-//    let mut pos_x = 0.0;
-//
-//    for c in text.chars() {
-//      let char_info = &mut self.chars[c as i32 as usize];
-//
-//      if char_info.width == 0.0 || char_info.height == 0.0 {
-//        pos_x += text_size;
-//        continue;
-//      }
-//
-//      let w_h_ratio = char_info.width / char_info.height;
-//
-//      let height = text_size;
-//      let width = text_size * w_h_ratio;
-//
-//      let x = pos_x + char_info.x_offset * width;
-//      let y = (1.0 - char_info.y_offset) * height - height;
-//
-//      let uv_x0 = char_info.x;
-//      let uv_y0 = 1.0 - char_info.y;
-//      let uv_x1 = char_info.x + char_info.width;
-//      let uv_y1 = (1.0 - char_info.y) - char_info.height;
-//
-//      text_data.push((
-//        x,
-//        y,
-//        width,
-//        height,
-//        1.0 - uv_x0,
-//        1.0 - uv_y1,
-//        1.0 - uv_x1,
-//        1.0 - uv_y0,
-//      ));
-//
-//      pos_x += char_info.x_advance * width;
-//    }
-//
-//    text_data
-//  }
-//}

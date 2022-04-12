@@ -154,6 +154,7 @@ impl TextureHandler {
       1400.0,
       Vec2::new(100.0, 600.0),
       Vec4::new(0.0, 0.0, 1.0, 1.0),
+      HashMap::new(),
       100000000.0,
       false,
     );
@@ -279,7 +280,7 @@ impl TextureHandler {
     );
   }
 
-  pub fn add_text_data(&mut self, draw: Draw, vulkan: &mut Vulkan) {
+  pub fn add_text_data(&mut self, mut draw: Draw, vulkan: &mut Vulkan) {
     let size = draw.get_scale().x;
     let position = draw.get_position().xy();
     let colour = draw.get_colour();
@@ -299,7 +300,15 @@ impl TextureHandler {
         return;
       }
 
-      let text = GuiText::new(raw_text.to_string(), size, position, colour, wrap, centered);
+      let text = GuiText::new(
+        raw_text.to_string(),
+        size,
+        position,
+        colour,
+        draw.get_coloured_words(),
+        wrap,
+        centered,
+      );
 
       self.text_this_draw.push(raw_text);
       self.text_master.load_text(text, vulkan);

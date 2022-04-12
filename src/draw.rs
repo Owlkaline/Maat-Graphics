@@ -16,6 +16,7 @@
 //          )
 
 use glam::{Vec3, Vec4};
+use std::collections::HashMap;
 
 pub struct Draw {
   position: Vec3,
@@ -27,6 +28,7 @@ pub struct Draw {
   //text_edge_width: f32,
   wrap: f32,
   text: Option<String>,
+  coloured_words: HashMap<usize, Vec4>,
   texture: Option<String>,
   model: Option<String>,
 }
@@ -43,6 +45,7 @@ impl Draw {
       //text_edge_width: 0.5,
       wrap: 100000000.0,
       text: None,
+      coloured_words: HashMap::new(),
       texture: None,
       model: None,
     }
@@ -100,6 +103,11 @@ impl Draw {
     self
   }
 
+  pub fn colour_word_n(mut self, n: usize, colour: Vec4) -> Draw {
+    self.coloured_words.insert(n, colour);
+    self
+  }
+
   pub fn get_texture(&self) -> Option<String> {
     self.texture.clone()
   }
@@ -110,6 +118,10 @@ impl Draw {
 
   pub fn get_colour(&self) -> Vec4 {
     self.colour
+  }
+
+  pub fn get_coloured_words(&mut self) -> HashMap<usize, Vec4> {
+    self.coloured_words.drain().collect()
   }
 
   pub fn get_scale(&self) -> Vec3 {
