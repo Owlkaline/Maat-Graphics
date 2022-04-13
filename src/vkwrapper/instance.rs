@@ -77,11 +77,9 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
   let app_name = CString::new("Maat_Graphics").unwrap();
 
   let validation_layers_enabled = match env::var("ValLayers") {
-    Ok(_) => true,
-    Err(_) => false,
+    Ok(e) if e == "1" => true,
+    _ => false,
   };
-
-  let validation_layers_enabled = true;
 
   let layer_names = [CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
   let layers_names_raw: Vec<*const i8> = layer_names
