@@ -135,7 +135,7 @@ impl TextMaster {
   pub fn load_text(&mut self, mut text: GuiText, vulkan: &mut Vulkan) {
     let mut already_exists = false;
     for i in 0..self.text.len() {
-      if self.text[i].0.text() == text.text() && self.text[i].0.font_size() == text.font_size() {
+      if self.text[i].0 == text {
         self.text[i].0.set_position(text.position());
         self.text[i].0.set_colour(text.colour());
         already_exists = true;
@@ -144,9 +144,7 @@ impl TextMaster {
     }
 
     for i in 0..self.unused_text.len() {
-      if self.unused_text[i].0 .0.text() == text.text()
-        && self.unused_text[i].0 .0.font_size() == text.font_size()
-      {
+      if self.unused_text[i].0 .0 == text {
         let mut gui_text = self.unused_text.remove(i).0;
         gui_text.0.set_position(text.position());
         gui_text.0.set_colour(text.colour());
@@ -169,7 +167,7 @@ impl TextMaster {
   pub fn remove_text(&mut self, text: GuiText, device: &VkDevice) {
     let mut should_remove = None;
     for i in 0..self.text.len() {
-      if self.text[i].0 == text {
+      if self.text[i].0 == text && self.text[i].0.position().x == text.position().x {
         should_remove = Some(i);
       }
     }
@@ -273,7 +271,6 @@ impl TextMeshCreator {
           text.font_size(),
           text.max_line_size(),
         );
-        current_line.attempt_to_add_word(&current_word);
         current_word = Word::new(text.font_size());
         continue;
       }
@@ -324,6 +321,8 @@ impl TextMeshCreator {
         curser_x = (line.max_length() - line.line_length()) * 0.5;
       }
       for word in line.words() {
+        let mut actual_word = false;
+
         let colour = {
           if let Some(w_colour) = coloured_words.get(&current_word) {
             *w_colour
@@ -331,7 +330,11 @@ impl TextMeshCreator {
             text.colour()
           }
         };
+
         for letter in word.characters() {
+          if letter.id() != '\n' as i32 && letter.id() != ' ' as i32 {
+            actual_word = true;
+          }
           self.add_verticies_for_character(
             curser_x,
             curser_y,
@@ -350,7 +353,10 @@ impl TextMeshCreator {
           curser_x += letter.x_advance() * text.font_size();
         }
         curser_x += self.meta.space_width() * text.font_size();
-        current_word += 1;
+
+        if actual_word {
+          current_word += 1;
+        }
       }
       curser_x = 0.0;
       curser_y += LINE_HEIGHT * text.font_size();
@@ -572,6 +578,24 @@ impl Line {
   }
 
   pub fn attempt_to_add_word(&mut self, word: &Word) -> bool {
+    if self.words.len() == 2 {
+      //print!(
+      //  "{:?}",
+      //  self.words[0]
+      //    .characters()
+      //    .iter()
+      //    .map(|c| c.id())
+      //    .collect::<Vec<i32>>()
+      //);
+      //println!(
+      //  "{:?}",
+      //  self.words[1]
+      //    .characters()
+      //    .iter()
+      //    .map(|c| c.id())
+      //    .collect::<Vec<i32>>()
+      //);
+    }
     let mut additional_length = word.word_width();
     additional_length += if !self.words.is_empty() {
       self.space_size
@@ -916,10 +940,17 @@ impl Eq for Meta {}
 
 impl PartialEq for GuiText {
   fn eq(&self, other: &Self) -> bool {
-    self.text == other.text && self.font_size == other.font_size
+    self.text == other.text
+      && self.font_size == other.font_size
+      && self.colour == other.colour
+      && self.position == other.position
+      && self.font_size == other.font_size
   }
 
   fn ne(&self, other: &Self) -> bool {
-    self.text != other.text || self.font_size != other.font_size
+    self.text != other.text
+      || self.font_size != other.font_size && self.colour != other.colour
+      || self.position != other.position
+      || self.font_size != other.font_size
   }
 }

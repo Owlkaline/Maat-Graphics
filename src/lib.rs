@@ -544,6 +544,11 @@ impl MaatGraphics {
         }
       }
 
+      // TODO: Make software keys clear the key
+      if software_keys.len() > 100 {
+        software_keys.clear();
+      }
+
       if total_animation_delta_time > ANIMATION_DELTA_STEP {
         let delta_steps =
           ((total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize).max(5);
