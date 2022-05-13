@@ -11,10 +11,14 @@ layout (location = 0) out vec4 uFragColor;
 
 void main() {
   vec4 texture_colour = texture(samplerColour, o_uv_textured_mix.xy);
-  vec4 plain_colour = o_colour;
-  float mix_amount = o_uv_textured_mix.w;
+  //vec4 plain_colour = o_colour;
+  //float mix_amount = o_uv_textured_mix.w;
+  
+  uFragColor = texture_colour;
+  
+  //uFragColor = vec4(pow(mix(plain_colour, texture_colour, mix_amount).rgb, vec3(2.2)), plain_colour.a);
   
   //uFragColor = vec4(texture_colour.rgb, 1.0);
-  uFragColor = vec4(mix(plain_colour, texture_colour, mix_amount).rgb, plain_colour.a);
+  
   //uFragColor = mix(plain_colour, texture_colour, texture_alpha)*overall_alpha;
 }
