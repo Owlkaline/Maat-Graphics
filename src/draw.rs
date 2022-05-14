@@ -18,6 +18,7 @@
 use glam::{Vec3, Vec4};
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Draw {
   position: Vec3,
   scale: Vec3,
