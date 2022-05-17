@@ -120,8 +120,8 @@ impl TextureHandler {
     uniform_descriptor_set_writer.build(vulkan.device());
 
     let (
-      letter_shader,
-      instanced_letter_shader,
+      _letter_shader,
+      _instanced_letter_shader,
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
@@ -142,7 +142,7 @@ impl TextureHandler {
     dummy_descriptor_set_writer.build(vulkan.device());
 
     let dummy_instanced_data = vec![InstancedTextData::new(); MAX_INSTANCES];
-    let instanced_letter_buffer =
+    let _instanced_letter_buffer =
       Buffer::<InstancedTextData>::new_vertex(vulkan.device(), dummy_instanced_data);
 
     let font = FontType::new(font_location.into(), &sampler, vulkan);

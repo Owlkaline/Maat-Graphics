@@ -263,7 +263,6 @@ impl TextMeshCreator {
           );
           current_line.attempt_to_add_word(&current_word);
         }
-        current_word = Word::new(text.font_size());
 
         lines.push(current_line);
         current_line = Line::new(

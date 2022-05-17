@@ -244,7 +244,7 @@ impl CollisionInformation {
     location.pop();
     location.pop();
 
-    location = format!("{}_collision.glb", location);
+    //location = format!("{}_collision.glb", location);
 
     let mut object_displacement = [0.0; 3];
     let object_min_bounds = [f32::MAX; 3];
