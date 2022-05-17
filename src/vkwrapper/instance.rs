@@ -87,12 +87,10 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
     .map(|raw_name| raw_name.as_ptr())
     .collect();
 
-  let surface_extensions = ash_window::enumerate_required_extensions(window.internal()).unwrap();
-  let mut extension_names_raw = surface_extensions
-    .iter()
-    .map(|ext| ext.as_ptr())
-    .collect::<Vec<_>>();
-  extension_names_raw.push(DebugUtils::name().as_ptr());
+  let mut extension_names = ash_window::enumerate_required_extensions(window.internal())
+    .unwrap()
+    .to_vec();
+  extension_names.push(DebugUtils::name().as_ptr());
 
   let appinfo = vk::ApplicationInfo::builder()
     .application_name(&app_name)
@@ -108,7 +106,7 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
     } else {
       &[]
     })
-    .enabled_extension_names(&extension_names_raw);
+    .enabled_extension_names(&extension_names);
 
   let instance: Instance = unsafe {
     entry
