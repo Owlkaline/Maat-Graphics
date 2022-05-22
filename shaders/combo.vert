@@ -17,7 +17,7 @@ layout(push_constant) uniform PushConstants {
   vec4 pos_scale; // x, y, scale_x, scale_y
   vec4 colour;  // r g b a
   vec4 is_textured_rotation_overlay_mix; // is_textured, rotation, overlay_mix, empty
-  vec4 attrib3;
+  vec4 sprite_sheet; // rows, texture number
   vec4 attrib4;
   vec4 attrib5; 
   vec4 attrib6;
@@ -36,7 +36,40 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
 }
 
 void main() {
-  o_uv_textured_mix = vec4(uv, push_constants.is_textured_rotation_overlay_mix.xz);
+  //float rows = push_constants.sprite_sheet.x;
+  //float img_num = push_constants.sprite_sheet.y;
+
+  //float uvx = (uv.x / rows) * ( mod(img_num, rows));
+  //float uvy = (uv.y / rows) * ( img_num / rows );
+
+
+
+  //float x_offset = mod(img_num, rows);
+  //float y_offset = floor(img_num / rows);
+
+  //vec2 sprite_sheet_uv = uv / rows;
+
+  //float sp_x = (rows-img_num) / rows;
+  //float sp_y = mod(img_num, rows);
+
+  //sprite_sheet_uv.x += sprite_sheet_uv.x * sp_x;
+  //sprite_sheet_uv.y += sprite_sheet_uv.y * sp_y;
+  
+  int rows = int(push_constants.sprite_sheet.x);
+  int idx = int(push_constants.sprite_sheet.y);
+  float column = mod(idx, rows);
+
+  // flips horizontally
+  //float column = rows - mod(idx, rows);
+  float x_offset = column / rows;
+
+  float row = floor(idx / rows);
+  float y_offset = row / rows;
+
+  float uvx = uv.x / rows + x_offset;
+  float uvy = uv.y / rows + y_offset;
+
+  o_uv_textured_mix = vec4(uvx, uvy, push_constants.is_textured_rotation_overlay_mix.xz);
   o_colour = push_constants.colour;
   
   mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);
@@ -57,13 +90,6 @@ void main() {
   
   float x = rotated_pos.x + push_constants.pos_scale.x;
   float y = rotated_pos.y + push_constants.pos_scale.y;
-  
-  //vec2 rotated_scale = rot_mat * push_constants.pos_scale.zw;
-  
-  //rotated_pos += vec2(0.5, 0.5);
-  
-  //float x = (rotated_pos.x*rotated_scale.x) + push_constants.pos_scale.x;
-  //float y = (rotated_pos.y*rotated_scale.y) + push_constants.pos_scale.y;
   
   gl_Position = ortho_matrix * vec4(x, y, pos.zw);
 }

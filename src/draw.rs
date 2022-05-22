@@ -15,8 +15,10 @@
 //                 "example_model"     // Reference name for the model loaded in with vulkan.model_load function.
 //          )
 
-use glam::{Vec3, Vec4};
+use glam::{Vec2, Vec3, Vec4};
 use std::collections::HashMap;
+
+const EMPTY: f32 = 0.0;
 
 #[derive(Clone)]
 pub struct Draw {
@@ -32,6 +34,7 @@ pub struct Draw {
   coloured_words: HashMap<usize, Vec4>,
   texture: Option<String>,
   model: Option<String>,
+  sprite_sheet: Vec2,
 }
 
 impl Draw {
@@ -49,6 +52,7 @@ impl Draw {
       coloured_words: HashMap::new(),
       texture: None,
       model: None,
+      sprite_sheet: Vec2::new(1.0, 0.0),
     }
   }
 
@@ -154,6 +158,9 @@ impl Draw {
       1.0,
       self.rotation,
       self.colour_overlay_mix,
+      EMPTY,
+      self.sprite_sheet.x,
+      self.sprite_sheet.y,
     ]
   }
 

@@ -5,7 +5,6 @@ use std::mem;
 use ash::vk;
 
 use crate::offset_of;
-//use crate::shader_handlers::{font::GlyphCache, Font};
 use crate::shader_handlers::font::{FontType, GuiText, TextMaster};
 use crate::vkwrapper::{
   Buffer, DescriptorPoolBuilder, DescriptorSet, DescriptorWriter, GraphicsPipelineBuilder, Image,
