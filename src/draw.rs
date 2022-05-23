@@ -35,6 +35,8 @@ pub struct Draw {
   texture: Option<String>,
   model: Option<String>,
   sprite_sheet: Vec2,
+  flip_horz: bool,
+  flip_vert: bool,
 }
 
 impl Draw {
@@ -45,14 +47,14 @@ impl Draw {
       colour: Vec4::new(0.0, 0.0, 0.0, 1.0),
       rotation: 0.0,
       colour_overlay_mix: 0.0,
-      //text_outline: 0.0,
-      //text_edge_width: 0.5,
       wrap: 100000000.0,
       text: None,
       coloured_words: HashMap::new(),
       texture: None,
       model: None,
       sprite_sheet: Vec2::new(1.0, 0.0),
+      flip_horz: false,
+      flip_vert: false,
     }
   }
 
@@ -113,6 +115,21 @@ impl Draw {
     self
   }
 
+  pub fn flip_horizontally(mut self, flip: bool) -> Draw {
+    self.flip_horz = flip;
+    self
+  }
+
+  pub fn flip_vertically(mut self, flip: bool) -> Draw {
+    self.flip_vert = flip;
+    self
+  }
+
+  pub fn sprite_sheet(mut self, rows: usize, img_num: usize) -> Draw {
+    self.sprite_sheet = Vec2::new(rows as f32, img_num as f32);
+    self
+  }
+
   pub fn get_texture(&self) -> Option<String> {
     self.texture.clone()
   }
@@ -161,6 +178,8 @@ impl Draw {
       EMPTY,
       self.sprite_sheet.x,
       self.sprite_sheet.y,
+      if self.flip_horz { 0.0 } else { 1.0 },
+      if self.flip_vert { 1.0 } else { 0.0 },
     ]
   }
 

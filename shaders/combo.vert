@@ -17,7 +17,7 @@ layout(push_constant) uniform PushConstants {
   vec4 pos_scale; // x, y, scale_x, scale_y
   vec4 colour;  // r g b a
   vec4 is_textured_rotation_overlay_mix; // is_textured, rotation, overlay_mix, empty
-  vec4 sprite_sheet; // rows, texture number
+  vec4 sprite_sheet_flipxy; // rows, texture number. flip x, flip y
   vec4 attrib4;
   vec4 attrib5; 
   vec4 attrib6;
@@ -36,38 +36,23 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
 }
 
 void main() {
-  //float rows = push_constants.sprite_sheet.x;
-  //float img_num = push_constants.sprite_sheet.y;
+  int rows = int(push_constants.sprite_sheet_flipxy.x);
+  int idx = int(push_constants.sprite_sheet_flipxy.y);
+  float flip_x = push_constants.sprite_sheet_flipxy.z;
+  float flip_y = push_constants.sprite_sheet_flipxy.w;
 
-  //float uvx = (uv.x / rows) * ( mod(img_num, rows));
-  //float uvy = (uv.y / rows) * ( img_num / rows );
+  float column = 1.0 - mod(idx, rows);
 
-
-
-  //float x_offset = mod(img_num, rows);
-  //float y_offset = floor(img_num / rows);
-
-  //vec2 sprite_sheet_uv = uv / rows;
-
-  //float sp_x = (rows-img_num) / rows;
-  //float sp_y = mod(img_num, rows);
-
-  //sprite_sheet_uv.x += sprite_sheet_uv.x * sp_x;
-  //sprite_sheet_uv.y += sprite_sheet_uv.y * sp_y;
-  
-  int rows = int(push_constants.sprite_sheet.x);
-  int idx = int(push_constants.sprite_sheet.y);
-  float column = mod(idx, rows);
-
-  // flips horizontally
-  //float column = rows - mod(idx, rows);
   float x_offset = column / rows;
 
   float row = floor(idx / rows);
   float y_offset = row / rows;
 
-  float uvx = uv.x / rows + x_offset;
-  float uvy = uv.y / rows + y_offset;
+  float flipped_uvx = (flip_x*-1.0 + uv.x);
+  float flipped_uvy = (flip_y*-1.0 + uv.y);
+
+  float uvx = flipped_uvx / rows + x_offset;
+  float uvy = flipped_uvy / rows + y_offset;
 
   o_uv_textured_mix = vec4(uvx, uvy, push_constants.is_textured_rotation_overlay_mix.xz);
   o_colour = push_constants.colour;
