@@ -34,7 +34,7 @@ pub struct Draw {
   coloured_words: HashMap<usize, Vec4>,
   texture: Option<String>,
   model: Option<String>,
-  sprite_sheet: Vec2,
+  sprite_sheet: Vec2, // rows idx
   flip_horz: bool,
   flip_vert: bool,
 }
