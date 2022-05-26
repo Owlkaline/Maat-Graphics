@@ -45,7 +45,7 @@ void main() {
   float flipped_uvy = (flip_y*-1.0 + uv.y);
 
   vec2 new_uv_coords = vec2(flipped_uvx / rows, flipped_uvy / rows);
-  float column = idx % rows;
+  float column = (idx % rows);
   float x_offset = column / rows;
 
   float row = floor(idx / rows);
