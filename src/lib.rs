@@ -37,7 +37,7 @@ use winit::{
 use crate::shader_handlers::{ComputeHandler, ModelHandler, TextureHandler};
 use crate::vkwrapper::{/*ComputeShader, DescriptorPoolBuilder, DescriptorSet,*/ Image, Vulkan,};
 
-pub const DELTA_STEP: f64 = 0.001;
+pub const DELTA_STEP: f32 = 0.001;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
 
@@ -483,15 +483,11 @@ impl MaatGraphics {
     let mut device_keys = Vec::new();
     let mut software_keys = Vec::new();
 
-    //let mut delta_time = 0.0;
-    //let mut last_time = Instant::now();
+    let mut _delta_time = 0.0;
+    let mut last_time = Instant::now();
 
     let mut total_delta_time = 0.0;
     let mut total_animation_delta_time = 0.0;
-
-    let mut total_time: f64 = 0.0;
-    let mut current_time = Instant::now();
-    let mut accumulator = 0.0;
 
     let mut window_dimensions = [1280.0, 720.0];
 
@@ -502,29 +498,18 @@ impl MaatGraphics {
     event_loop.run(move |event, event_loop, control_flow| {
       *control_flow = ControlFlow::Poll;
 
-      //delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
-      //last_time = Instant::now();
-
-      let new_time = Instant::now();
-      let mut frame_time: f64 = ((new_time - current_time).as_nanos() / 1000000000) as f64;
-      if frame_time > 0.25 {
-        frame_time = 0.25;
-      }
-      current_time = new_time;
-
-      accumulator += frame_time;
-
-      //total_delta_time += _delta_time as f32;
-      total_frame_limit_time += frame_time as f32;
-      total_animation_delta_time += frame_time as f32;
+      _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+      last_time = Instant::now();
+      total_delta_time += _delta_time as f32;
+      total_frame_limit_time += _delta_time as f32;
+      total_animation_delta_time += _delta_time as f32;
 
       let mut should_exit = false;
       callback(MaatEvent::Update(
         &device_keys,
         &software_keys,
         vulkan.mut_camera(),
-        frame_time as f32,
-        //_delta_time,
+        _delta_time,
         &mut should_exit,
       ));
 
@@ -532,34 +517,23 @@ impl MaatGraphics {
         *control_flow = ControlFlow::Exit;
       }
 
-      while accumulator >= 0.0 {
-        callback(MaatEvent::FixedUpdate(
-          &device_keys,
-          &software_keys,
-          vulkan.mut_camera(),
-          DELTA_STEP as f32,
-        ));
-        accumulator -= DELTA_STEP;
-        total_time += DELTA_STEP;
+      if total_delta_time >= 0.05 {
+        total_delta_time = DELTA_STEP;
       }
 
-      //if total_delta_time >= 0.05 {
-      //  total_delta_time = DELTA_STEP;
-      //}
+      if total_delta_time > DELTA_STEP {
+        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
 
-      //if total_delta_time > DELTA_STEP {
-      //  let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
-
-      //  for _ in 0..delta_steps {
-      //    callback(MaatEvent::FixedUpdate(
-      //      &device_keys,
-      //      &software_keys,
-      //      vulkan.mut_camera(),
-      //      DELTA_STEP,
-      //    ));
-      //    total_delta_time -= DELTA_STEP;
-      //  }
-      //}
+        for _ in 0..delta_steps {
+          callback(MaatEvent::FixedUpdate(
+            &device_keys,
+            &software_keys,
+            vulkan.mut_camera(),
+            DELTA_STEP,
+          ));
+          total_delta_time -= DELTA_STEP;
+        }
+      }
 
       // TODO: Make software keys clear the key
       if software_keys.len() > 100 {
