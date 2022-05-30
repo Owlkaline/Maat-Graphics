@@ -115,7 +115,9 @@ pub enum MaatSetting {
   DrawMode(DrawMode),
   MouseVisibility(bool),
   CaptureMouse(bool),
-  Window(bool, bool), // Window(is fullscreen, broderless)
+  WindowFullscreenBorderless(bool, bool), // Window(is fullscreen, broderless)
+  WindowSetSize(f32, f32),
+  WindowResizable(bool),
   LimitFps(f32, bool),
 }
 
@@ -319,7 +321,7 @@ impl MaatGraphics {
         MaatSetting::CaptureMouse(capture) => {
           window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
         }
-        MaatSetting::Window(fullscreen, borderless) => {
+        MaatSetting::WindowFullscreenBorderless(fullscreen, borderless) => {
           let window_mode = {
             if fullscreen {
               let monitor = event_loop.available_monitors().nth(0).unwrap();
@@ -343,6 +345,15 @@ impl MaatGraphics {
             }
           };
           window.internal().set_fullscreen(window_mode);
+        }
+        MaatSetting::WindowResizable(is_resizable) => {
+          window.internal().set_resizable(is_resizable);
+        }
+        MaatSetting::WindowSetSize(width, height) => {
+          use winit::dpi::LogicalSize;
+          window
+            .internal()
+            .set_inner_size::<LogicalSize<f32>>((width, height).into());
         }
         MaatSetting::LimitFps(limit, should_limit) => {
           *limit_fps = should_limit;
