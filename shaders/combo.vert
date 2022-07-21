@@ -21,7 +21,7 @@ layout(push_constant) uniform PushConstants {
   vec4 flip_xy; // flip x y
   vec4 attrib5; 
   vec4 attrib6;
-  vec4 attrib7;
+  vec4 camera; // camera x y
 } push_constants;
 
 mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
@@ -85,9 +85,11 @@ void main() {
   vec2 rotated_pos = rot_mat * unrotated_pos;
   
   rotated_pos += push_constants.pos_scale.zw*0.5;
+
+  vec2 camera_pos = push_constants.camera.xy;
   
-  float x = rotated_pos.x + push_constants.pos_scale.x;
-  float y = rotated_pos.y + push_constants.pos_scale.y;
+  float x = rotated_pos.x + push_constants.pos_scale.x + camera_pos.x;
+  float y = rotated_pos.y + push_constants.pos_scale.y + camera_pos.y;
   
   gl_Position = ortho_matrix * vec4(x, y, pos.zw);
 }

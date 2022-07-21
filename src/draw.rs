@@ -37,6 +37,7 @@ pub struct Draw {
   sprite_sheet: Vec2, // rows idx
   flip_horz: bool,
   flip_vert: bool,
+  camera_2d_pos: Option<Vec2>,
 }
 
 impl Draw {
@@ -55,6 +56,7 @@ impl Draw {
       sprite_sheet: Vec2::new(1.0, 0.0),
       flip_horz: false,
       flip_vert: false,
+      camera_2d_pos: None,
     }
   }
 
@@ -130,12 +132,23 @@ impl Draw {
     self
   }
 
+  pub fn set_2d_camera_location(pos: Vec2) -> Draw {
+    Draw {
+      camera_2d_pos: Some(pos),
+      ..Draw::new()
+    }
+  }
+
   pub fn get_texture(&self) -> Option<String> {
     self.texture.clone()
   }
 
   pub fn get_text(&self) -> Option<String> {
     self.text.clone()
+  }
+
+  pub fn get_camera(&self) -> Option<Vec2> {
+    self.camera_2d_pos.clone()
   }
 
   pub fn get_colour(&self) -> Vec4 {
@@ -180,6 +193,22 @@ impl Draw {
       self.sprite_sheet.y,
       if self.flip_horz { 0.0 } else { 1.0 },
       if self.flip_vert { 1.0 } else { 0.0 },
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
+      EMPTY,
     ]
   }
 

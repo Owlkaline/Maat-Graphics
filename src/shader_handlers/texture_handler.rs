@@ -76,6 +76,8 @@ pub struct TextureHandler {
   dummy_texture: (Image, DescriptorSet),
 
   window_size: [f32; 2],
+
+  camera_position: Vec2,
 }
 
 impl TextureHandler {
@@ -185,12 +187,18 @@ impl TextureHandler {
       dummy_texture: (dummy_texture, dummy_descriptor_set),
 
       window_size: [screen_size.width as f32, screen_size.height as f32],
+
+      camera_position: Vec2::splat(0.0),
     }
   }
 
   //pub fn get_font_data(&self) -> GlyphCache {
   //  self.font.get_font_data()
   //}
+
+  pub fn set_camera_location(&mut self, pos: Vec2) {
+    self.camera_position = pos;
+  }
 
   pub fn destroy(&mut self, vulkan: &mut Vulkan) {
     for (_, (image, descriptor)) in self.textures.drain().take(1) {
@@ -258,7 +266,7 @@ impl TextureHandler {
       .insert(texture_ref.into(), (dl_texture, descriptor_sets));
   }
 
-  pub fn draw(&mut self, vulkan: &mut Vulkan, data: Vec<f32>, texture: &str) {
+  pub fn draw(&mut self, vulkan: &mut Vulkan, mut data: Vec<f32>, texture: &str) {
     let texture_descriptor = {
       if let Some((_, texture_descriptor)) = self.textures.get(texture) {
         texture_descriptor
@@ -266,6 +274,10 @@ impl TextureHandler {
         &self.dummy_texture.1
       }
     };
+
+    let last_idx = data.len() - 4;
+    data[last_idx] = self.camera_position.x;
+    data[last_idx + 1] = self.camera_position.y;
 
     vulkan.draw_texture(
       &texture_descriptor,

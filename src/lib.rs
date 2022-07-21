@@ -435,6 +435,8 @@ impl MaatGraphics {
           self
             .texture_handler
             .draw(&mut self.vulkan, draw.texture_data(), &texture);
+        } else if let Some(camera) = draw.get_camera() {
+          self.texture_handler.set_camera_location(camera);
         } else {
           self.texture_handler.add_text_data(draw, &mut self.vulkan);
         }
