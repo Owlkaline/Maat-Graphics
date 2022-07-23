@@ -37,7 +37,16 @@ mat4 ortho_projection(float bottom, float top, float left, float right, float ne
   return projection;
 }
 
+float rand(float n)
+{
+	float fl = floor(n);
+	float fc = fract(n);
+	return mix(fract(sin(fl)), fract(sin(fl + 1.0)), fc);
+}
+
 void main() {
+  float time = push_constants.camera_intensity_time.w;
+
   int rows = int(push_constants.sprite_sheet.x);
   int idx = int(push_constants.sprite_sheet.y);
   float flip_x = push_constants.flip_xy.x;
@@ -77,7 +86,7 @@ void main() {
   mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);
                                                                  //720.0, 0.0, 1280.0, 0.1, 1.0);
   
-  vec2 unrotated_pos = pos.xy - vec2(0.5, 0.5);
+  vec2 unrotated_pos = (pos.xy - vec2(0.5, 0.5)); //+ (vec2(0.01, 0.01)*rand(time));
   float rotation = radians(push_constants.is_textured_rotation_overlay_mix.y);
   
   unrotated_pos.x *= push_constants.pos_scale.z;
@@ -94,6 +103,6 @@ void main() {
 
   float x = rotated_pos.x + push_constants.pos_scale.x + camera_pos.x;
   float y = rotated_pos.y + push_constants.pos_scale.y + camera_pos.y;
-  
+
   gl_Position = ortho_matrix * vec4(x, y, pos.zw);
 }
