@@ -83,13 +83,10 @@ impl VkSwapchain {
     let present_images_raw = unsafe { swapchain_loader.get_swapchain_images(swapchain).unwrap() };
 
     let mut present_images = Vec::new();
-    println!(
-      "Swapchain surface format {:?}",
-      device.surface_format().format
-    );
     for i in 0..present_images_raw.len() {
       present_images.push(
-        ImageBuilder::new(device.surface_format().format, 1, 1)
+        //        ImageBuilder::new(device.surface_format().format, 1, 1)
+        ImageBuilder::new(vk::Format::A8B8G8R8_SRGB_PACK32, 1, 1)
           .tiling_optimal()
           .build_from_present_image(device, present_images_raw[i]),
       );
