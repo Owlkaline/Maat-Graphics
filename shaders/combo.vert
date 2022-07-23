@@ -7,7 +7,8 @@ layout (location = 1) in vec4 colour;
 layout (location = 2) in vec2 uv;
 
 layout (location = 0) out vec4 o_colour;
-layout (location = 1) out vec4 o_uv_textured_mix;
+layout (location = 1) out vec4 o_uv;
+layout (location = 2) out vec3 o_overaly_colour;
 
 layout (set = 0, binding = 0) uniform UBO {
   vec2 window_size;
@@ -19,7 +20,7 @@ layout(push_constant) uniform PushConstants {
   vec4 is_textured_rotation_overlay_mix; // is_textured, rotation, overlay_mix, empty
   vec4 sprite_sheet; // rows, texture number, empty
   vec4 flip_xy; // flip x y
-  vec4 attrib5; 
+  vec4 overlay_colour; // overlay colour 
   vec4 attrib6;
   vec4 camera; // camera x y
 } push_constants;
@@ -67,8 +68,9 @@ void main() {
   //float uvx = flipped_uvx / column + x_offset;
   //float uvy = flipped_uvy / rows + y_offset;
 
-  o_uv_textured_mix = vec4(uvx, uvy, push_constants.is_textured_rotation_overlay_mix.xz);
+  o_uv = vec4(uvx, uvy, 0.0, 0.0);
   o_colour = push_constants.colour;
+  o_overaly_colour = push_constants.overlay_colour.rgb;
   
   mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);
                                                                  //720.0, 0.0, 1280.0, 0.1, 1.0);

@@ -26,7 +26,7 @@ pub struct Draw {
   scale: Vec3,
   colour: Vec4,
   rotation: f32,
-  colour_overlay_mix: f32,
+  colour_overlay: Vec3,
   //text_outline: f32,
   //text_edge_width: f32,
   wrap: f32,
@@ -47,7 +47,7 @@ impl Draw {
       scale: Vec3::ONE,
       colour: Vec4::new(0.0, 0.0, 0.0, 1.0),
       rotation: 0.0,
-      colour_overlay_mix: 0.0,
+      colour_overlay: Vec3::splat(0.0),
       wrap: 100000000.0,
       text: None,
       coloured_words: HashMap::new(),
@@ -63,7 +63,6 @@ impl Draw {
   pub fn texture(texture: &str) -> Draw {
     Draw {
       texture: Some(texture.to_string()),
-      colour_overlay_mix: 1.0,
       ..Draw::new()
     }
   }
@@ -107,8 +106,8 @@ impl Draw {
     self
   }
 
-  pub fn colour_overlay(mut self, percentage: f32) -> Draw {
-    self.colour_overlay_mix = percentage;
+  pub fn colour_overlay(mut self, overlay: Vec3) -> Draw {
+    self.colour_overlay = overlay;
     self
   }
 
@@ -187,7 +186,7 @@ impl Draw {
       self.colour.w,
       1.0,
       self.rotation,
-      self.colour_overlay_mix,
+      EMPTY,
       EMPTY,
       self.sprite_sheet.x,
       self.sprite_sheet.y,
@@ -197,9 +196,9 @@ impl Draw {
       EMPTY,
       EMPTY,
       EMPTY,
-      EMPTY,
-      EMPTY,
-      EMPTY,
+      self.colour_overlay.x,
+      self.colour_overlay.y,
+      self.colour_overlay.z,
       EMPTY,
       EMPTY,
       EMPTY,

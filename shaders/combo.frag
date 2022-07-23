@@ -5,20 +5,13 @@
 layout (set = 1, binding = 0) uniform sampler2D samplerColour;
 
 layout (location = 0) in vec4 o_colour;
-layout (location = 1) in vec4 o_uv_textured_mix;
+layout (location = 1) in vec4 o_uv;
+layout (location = 2) in vec3 o_overlay_colour;
 
 layout (location = 0) out vec4 uFragColor;
 
 void main() {
-  vec4 texture_colour = texture(samplerColour, o_uv_textured_mix.xy);
-  //vec4 plain_colour = o_colour;
-  //float mix_amount = o_uv_textured_mix.w;
+  vec4 texture_colour = texture(samplerColour, o_uv.xy);
   
-  uFragColor = texture_colour;
-  
-  //uFragColor = vec4(pow(mix(plain_colour, texture_colour, mix_amount).rgb, vec3(2.2)), plain_colour.a);
-  
-  //uFragColor = vec4(texture_colour.rgb, 1.0);
-  
-  //uFragColor = mix(plain_colour, texture_colour, texture_alpha)*overall_alpha;
+  uFragColor = vec4(texture_colour.rgb + o_overlay_colour*texture_colour.a, texture_colour.a);
 }
