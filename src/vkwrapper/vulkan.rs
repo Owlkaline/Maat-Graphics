@@ -88,7 +88,7 @@ impl Vulkan {
     )
     .build_device_local(&device);
     let passes = vec![
-      PassDescription::new(device.surface_format().format)
+      PassDescription::new(vk::Format::A8B8G8R8_SRGB_PACK32) //device.surface_format().format)
         .samples_1()
         .attachment_load_op_load()
         .attachment_store_op_store()
@@ -106,7 +106,7 @@ impl Vulkan {
     let texture_renderpass = Renderpass::new(&device, passes);
 
     let passes = vec![
-      PassDescription::new(device.surface_format().format)
+      PassDescription::new(vk::Format::A8B8G8R8_SRGB_PACK32) //device.surface_format().format)
         .samples_1()
         .attachment_load_op_clear()
         .attachment_store_op_store()
