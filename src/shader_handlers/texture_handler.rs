@@ -121,8 +121,8 @@ impl TextureHandler {
     uniform_descriptor_set_writer.build(vulkan.device());
 
     let (
-      _letter_shader,
-      _instanced_letter_shader,
+      //_letter_shader,
+      //_instanced_letter_shader,
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
@@ -142,9 +142,9 @@ impl TextureHandler {
 
     dummy_descriptor_set_writer.build(vulkan.device());
 
-    let dummy_instanced_data = vec![InstancedTextData::new(); MAX_INSTANCES];
-    let _instanced_letter_buffer =
-      Buffer::<InstancedTextData>::new_vertex(vulkan.device(), dummy_instanced_data);
+    //let dummy_instanced_data = vec![InstancedTextData::new(); MAX_INSTANCES];
+    //let _instanced_letter_buffer =
+    //  Buffer::<InstancedTextData>::new_vertex(vulkan.device(), dummy_instanced_data);
 
     let font = FontType::new(font_location.into(), &sampler, vulkan);
 
@@ -427,8 +427,8 @@ impl TextureHandler {
     vulkan: &Vulkan,
     descriptor_sets: &Vec<DescriptorSet>,
   ) -> (
-    Shader<ComboVertex>,
-    Shader<ComboVertex>,
+    //Shader<ComboVertex>,
+    //Shader<ComboVertex>,
     Shader<ComboVertex>,
     Buffer<u32>,
     Buffer<ComboVertex>,
@@ -511,55 +511,55 @@ impl TextureHandler {
       None as Option<(InstancedTextData, Vec<u32>)>,
     );
 
-    let letter_shader = Shader::new(
-      vulkan.device(),
-      Cursor::new(&include_bytes!("../../shaders/letter_sdf_vert.spv")[..]),
-      Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
-      combo_vertex,
-      vec![
-        offset_of!(ComboVertex, pos) as u32,
-        offset_of!(ComboVertex, colour) as u32,
-        offset_of!(ComboVertex, uv) as u32,
-      ],
-      &graphics_pipeline_builder,
-      vulkan.texture_renderpass(),
-      vulkan.viewports(),
-      vulkan.scissors(),
-      &layouts,
-      None as Option<(InstancedTextData, Vec<u32>)>,
-    );
-    let instanced_letter_shader = Shader::new(
-      vulkan.device(),
-      Cursor::new(&include_bytes!("../../shaders/instanced_letter_sdf_vert.spv")[..]),
-      Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
-      combo_vertex,
-      vec![
-        offset_of!(ComboVertex, pos) as u32,
-        offset_of!(ComboVertex, colour) as u32,
-        offset_of!(ComboVertex, uv) as u32,
-      ],
-      &graphics_pipeline_builder,
-      vulkan.texture_renderpass(),
-      vulkan.viewports(),
-      vulkan.scissors(),
-      &layouts,
-      Some((
-        instaced_text,
-        vec![
-          offset_of!(InstancedTextData, pos) as u32,
-          offset_of!(InstancedTextData, size) as u32,
-          offset_of!(InstancedTextData, uv) as u32,
-          //          offset_of!(InstancedTextData, text_height) as u32,
-          //          offset_of!(InstancedTextData, colour) as u32,
-          //          offset_of!(InstancedTextData, outline_colour) as u32,
-          //          offset_of!(InstancedTextData, width_edge) as u32,
-        ],
-      )),
-    );
+    //let letter_shader = Shader::new(
+    //  vulkan.device(),
+    //  Cursor::new(&include_bytes!("../../shaders/letter_sdf_vert.spv")[..]),
+    //  Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
+    //  combo_vertex,
+    //  vec![
+    //    offset_of!(ComboVertex, pos) as u32,
+    //    offset_of!(ComboVertex, colour) as u32,
+    //    offset_of!(ComboVertex, uv) as u32,
+    //  ],
+    //  &graphics_pipeline_builder,
+    //  vulkan.texture_renderpass(),
+    //  vulkan.viewports(),
+    //  vulkan.scissors(),
+    //  &layouts,
+    //  None as Option<(InstancedTextData, Vec<u32>)>,
+    //);
+    //let instanced_letter_shader = Shader::new(
+    //  vulkan.device(),
+    //  Cursor::new(&include_bytes!("../../shaders/instanced_letter_sdf_vert.spv")[..]),
+    //  Cursor::new(&include_bytes!("../../shaders/letter_sdf_frag.spv")[..]),
+    //  combo_vertex,
+    //  vec![
+    //    offset_of!(ComboVertex, pos) as u32,
+    //    offset_of!(ComboVertex, colour) as u32,
+    //    offset_of!(ComboVertex, uv) as u32,
+    //  ],
+    //  &graphics_pipeline_builder,
+    //  vulkan.texture_renderpass(),
+    //  vulkan.viewports(),
+    //  vulkan.scissors(),
+    //  &layouts,
+    //  Some((
+    //    instaced_text,
+    //    vec![
+    //      offset_of!(InstancedTextData, pos) as u32,
+    //      offset_of!(InstancedTextData, size) as u32,
+    //      offset_of!(InstancedTextData, uv) as u32,
+    //      //          offset_of!(InstancedTextData, text_height) as u32,
+    //      //          offset_of!(InstancedTextData, colour) as u32,
+    //      //          offset_of!(InstancedTextData, outline_colour) as u32,
+    //      //          offset_of!(InstancedTextData, width_edge) as u32,
+    //    ],
+    //  )),
+    //);
 
     (
-      letter_shader,
-      instanced_letter_shader,
+      //letter_shader,
+      //instanced_letter_shader,
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
