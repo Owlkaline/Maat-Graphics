@@ -408,6 +408,7 @@ impl MaatGraphics {
     &mut self,
     texture_data: Vec<Draw>, //Vec<(Vec<f32>, T, Option<L>)>,
     model_data: Vec<(Vec<f32>, S)>,
+    time: f32,
   ) {
     if self.model_handler.mut_camera().is_updated() {
       self
@@ -434,7 +435,7 @@ impl MaatGraphics {
         if let Some(texture) = draw.get_texture() {
           self
             .texture_handler
-            .draw(&mut self.vulkan, draw.texture_data(), &texture);
+            .draw(&mut self.vulkan, draw.texture_data(time), &texture);
         } else if let Some(camera) = draw.get_camera() {
           self.texture_handler.set_camera_location(camera);
         } else {
@@ -496,6 +497,8 @@ impl MaatGraphics {
     let mut device_keys = Vec::new();
     let mut software_keys = Vec::new();
 
+    let mut time = 0.0;
+
     let mut _delta_time = 0.0;
     let mut last_time = Instant::now();
 
@@ -545,6 +548,7 @@ impl MaatGraphics {
             DELTA_STEP,
           ));
           total_delta_time -= DELTA_STEP;
+          time += DELTA_STEP;
         }
       }
 
@@ -718,7 +722,7 @@ impl MaatGraphics {
         //Event::MainEventsCleared => {
         Event::RedrawRequested(_id) => {
           callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-          vulkan.draw(texture_data, model_data);
+          vulkan.draw(texture_data, model_data, time);
         }
         Event::LoopDestroyed => {
           vulkan.destroy();

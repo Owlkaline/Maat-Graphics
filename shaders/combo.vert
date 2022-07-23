@@ -8,7 +8,8 @@ layout (location = 2) in vec2 uv;
 
 layout (location = 0) out vec4 o_colour;
 layout (location = 1) out vec4 o_uv;
-layout (location = 2) out vec3 o_overaly_colour;
+layout (location = 2) out vec4 o_overaly_colour;
+layout (location = 3) out vec4 time_intensity;
 
 layout (set = 0, binding = 0) uniform UBO {
   vec2 window_size;
@@ -22,7 +23,7 @@ layout(push_constant) uniform PushConstants {
   vec4 flip_xy; // flip x y
   vec4 overlay_colour; // overlay colour 
   vec4 attrib6;
-  vec4 camera; // camera x y
+  vec4 camera_intensity_time; // camera x y, intensity time
 } push_constants;
 
 mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
@@ -70,7 +71,8 @@ void main() {
 
   o_uv = vec4(uvx, uvy, 0.0, 0.0);
   o_colour = push_constants.colour;
-  o_overaly_colour = push_constants.overlay_colour.rgb;
+  o_overaly_colour = vec4(push_constants.overlay_colour.rgb, 0.0);
+  time_intensity = vec4(push_constants.camera_intensity_time.w, push_constants.camera_intensity_time.z, 0.0, 0.0);
   
   mat4 ortho_matrix = ortho_projection(0.0, ubo.window_size.y, 0.0, ubo.window_size.x, 0.1, 1.0);
                                                                  //720.0, 0.0, 1280.0, 0.1, 1.0);
@@ -88,8 +90,8 @@ void main() {
   
   rotated_pos += push_constants.pos_scale.zw*0.5;
 
-  vec2 camera_pos = push_constants.camera.xy;
-  
+  vec2 camera_pos = push_constants.camera_intensity_time.xy;
+
   float x = rotated_pos.x + push_constants.pos_scale.x + camera_pos.x;
   float y = rotated_pos.y + push_constants.pos_scale.y + camera_pos.y;
   

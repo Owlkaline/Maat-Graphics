@@ -38,6 +38,7 @@ pub struct Draw {
   flip_horz: bool,
   flip_vert: bool,
   camera_2d_pos: Option<Vec2>,
+  instensity: f32,
 }
 
 impl Draw {
@@ -57,6 +58,7 @@ impl Draw {
       flip_horz: false,
       flip_vert: false,
       camera_2d_pos: None,
+      instensity: -1.0,
     }
   }
 
@@ -79,6 +81,11 @@ impl Draw {
       model: Some(model.to_string()),
       ..Draw::new()
     }
+  }
+
+  pub fn instensity(mut self, v: f32) -> Draw {
+    self.instensity = v;
+    self
   }
 
   pub fn position(mut self, pos: Vec3) -> Draw {
@@ -174,7 +181,7 @@ impl Draw {
     self.wrap
   }
 
-  pub fn texture_data(&self) -> Vec<f32> {
+  pub fn texture_data(&self, time: f32) -> Vec<f32> {
     vec![
       self.position.x,
       self.position.y,
@@ -206,8 +213,8 @@ impl Draw {
       EMPTY,
       EMPTY,
       EMPTY,
-      EMPTY,
-      EMPTY,
+      self.instensity,
+      time,
     ]
   }
 
