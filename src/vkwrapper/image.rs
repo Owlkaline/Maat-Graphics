@@ -300,6 +300,7 @@ impl ImageBuilder {
   }
 
   pub fn build_device_local(&self, device: &VkDevice) -> Image {
+    println!("Format: {:?}", self.format);
     let image = unsafe {
       let image_create_info = vk::ImageCreateInfo::builder()
         .image_type(self.image_type)
