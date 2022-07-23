@@ -39,8 +39,8 @@ impl VkSwapchain {
     };
 
     let mut desired_image_count = surface_capabilities.min_image_count + 1;
-    if surface_capabilities.max_image_count > 0 &&
-      desired_image_count > surface_capabilities.max_image_count
+    if surface_capabilities.max_image_count > 0
+      && desired_image_count > surface_capabilities.max_image_count
     {
       desired_image_count = surface_capabilities.max_image_count;
     }
@@ -83,6 +83,10 @@ impl VkSwapchain {
     let present_images_raw = unsafe { swapchain_loader.get_swapchain_images(swapchain).unwrap() };
 
     let mut present_images = Vec::new();
+    println!(
+      "Swapchain surface format {:?}",
+      device.surface_format().format
+    );
     for i in 0..present_images_raw.len() {
       present_images.push(
         ImageBuilder::new(device.surface_format().format, 1, 1)
