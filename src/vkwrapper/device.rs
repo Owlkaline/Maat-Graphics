@@ -43,11 +43,20 @@ impl VkDevice {
     let (device, present_queue, compute_queue) =
       create_logical_device(instance, &phys_device, queue_family_index);
 
-    let surface_format = unsafe {
-      surface_loader
-        .get_physical_device_surface_formats(phys_device, surface)
-        .unwrap()[0]
-    };
+    let mut surface_format: vk::SurfaceFormatKHRBuilder = vk::SurfaceFormatKHR::builder()
+      .format(vk::Format::A8B8G8R8_SRGB_PACK32)
+      .color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR);
+    //let surface_format = {
+    //  vk::SurfaceFormatKHR {
+    //    format: vk: Format::A8B8G8R8_SRGB_PACK32,
+    //    color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR,
+    //  }
+    //};
+    //let surface_format = unsafe {
+    //  surface_loader
+    //    .get_physical_device_surface_formats(phys_device, surface)
+    //    .unwrap()[0]
+    //};
 
     let device_memory_properties = unsafe {
       instance
@@ -60,7 +69,7 @@ impl VkDevice {
       phys_device,
       device_memory_properties,
       surface,
-      surface_format,
+      surface_format: surface_format.build(),
       surface_loader,
       queue_family_index,
       present_queue,

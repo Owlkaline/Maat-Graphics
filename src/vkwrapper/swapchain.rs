@@ -60,10 +60,12 @@ impl VkSwapchain {
       surface_capabilities.current_transform
     };
 
+    println!("colour space: {:?}", device.surface_format().color_space);
+    println!("present mode: {:?}", present_mode);
     let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
       .surface(*device.surface())
       .min_image_count(desired_image_count)
-      .image_color_space(device.surface_format().color_space)
+      .image_color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR) //device.surface_format().color_space)
       .image_format(vk::Format::A8B8G8R8_SRGB_PACK32) //device.surface_format().format)
       .image_extent(surface_resolution)
       .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
