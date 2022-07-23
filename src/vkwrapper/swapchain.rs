@@ -64,7 +64,7 @@ impl VkSwapchain {
       .surface(*device.surface())
       .min_image_count(desired_image_count)
       .image_color_space(device.surface_format().color_space)
-      .image_format(device.surface_format().format)
+      .image_format(vk::Format::A8B8G8R8_SRGB_PACK32) //device.surface_format().format)
       .image_extent(surface_resolution)
       .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
       .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
