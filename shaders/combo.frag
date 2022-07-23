@@ -139,11 +139,11 @@ void main() {
 
   vec3 overlay_colour = o_overlay_colour.rgb;
 
-  uFragColor = vec4(matrix(time, vec3(0.0, 1.0, 0.0)), 1.0);
+  //uFragColor = vec4(matrix(time, vec3(0.0, 1.0, 0.0)), 1.0);
   //if (intensity > 0.0) {
-  //  texture_colour.rgb *= matrix(time, overlay_colour)*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
+    texture_colour.rgb *= matrix(time, overlay_colour)*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
   //}
   
-  //uFragColor = vec4(texture_colour.rgb, texture_colour.a);
+  uFragColor = vec4(texture_colour.rgb, texture_colour.a);
   //uFragColor = vec4(texture_colour.rgb + pow(o_overlay_colour.rgb*texture_colour.a, vec3(2.2)), texture_colour.a);
 }
