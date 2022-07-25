@@ -91,7 +91,7 @@ mat2 rotate(in float a)
 
 vec3 matrix(float time, vec3 colour_setter) {
 	// 座標を正規化する
-	vec2 uv =  gl_FragCoord.xy / resolution *2.0;//* 4.0 - 2.0;
+	vec2 uv =  gl_FragCoord.xy / resolution * 4.0 - 2.0;
 	uv.y *= resolution.y / resolution.x;
 	uv *= rotate(0.3);
 	
@@ -99,11 +99,11 @@ vec3 matrix(float time, vec3 colour_setter) {
 	float value = 0.0;     
 	float light = 0.0;
 	
-	//float f = 1.0;    // UV座標にかける値
-	//float a = 0.7;    // valueに加える値の係数
+	float f = 1.0;    // UV座標にかける値
+	float a = 0.7;    // valueに加える値の係数
 	
-  float f = 3.0;
-  float a = 2.7;
+  //float f = 3.0;
+  //float a = 2.7;
 	
 	for(int i = 0; i < 3; ++i)
 	{
