@@ -125,8 +125,7 @@ fn create_debug_utils(
     .message_severity(
       vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
         | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
-        | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
+        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO, //| vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
     )
     .message_type(
       vk::DebugUtilsMessageTypeFlagsEXT::GENERAL

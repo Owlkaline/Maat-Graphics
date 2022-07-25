@@ -164,11 +164,10 @@ fn create_logical_device(
     .queue_priorities(&priorities)];
   let device_extension_names_raw = [Swapchain::name().as_ptr(), Maintenance1::name().as_ptr()];
   let features = vk::PhysicalDeviceFeatures {
-    //shader_clip_distance: 1,
-    //fill_mode_non_solid: 1,
+    shader_clip_distance: 1,
+    fill_mode_non_solid: 1,
     ..Default::default()
   };
-  println!("features: {:#?}", features);
   let device_create_info = vk::DeviceCreateInfo::builder()
     .queue_create_infos(&queue_info)
     .enabled_extension_names(&device_extension_names_raw)
