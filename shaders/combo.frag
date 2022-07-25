@@ -140,7 +140,7 @@ void main() {
   vec3 overlay_colour = o_overlay_colour.rgb;
 
   if (intensity > 0.0) {
-    texture_colour.rgb = vec3(0.8, 0.0, 0.0);//matrix(time, overlay_colour)*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
+    texture_colour.rgb = vec3(sin(time), 0.0, 0.0);//matrix(time, overlay_colour)*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
   }
 //  
   uFragColor = vec4(texture_colour.rgb, texture_colour.a);
