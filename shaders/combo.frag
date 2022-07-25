@@ -143,6 +143,6 @@ void main() {
     texture_colour.rgb = matrix(time, overlay_colour);//*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
   }
 //  
-  uFragColor = vec4(texture_colour.rgb, texture_colour.a);
+  uFragColor = vec4(texture_colour.rgb, 1.0);//-texture_colour.a);
   //uFragColor = vec4(texture_colour.rgb + pow(o_overlay_colour.rgb*texture_colour.a, vec3(2.2)), texture_colour.a);
 }
