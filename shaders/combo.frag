@@ -123,9 +123,9 @@ vec3 matrix(float time, vec3 colour_setter) {
 	}
 	
 	// 出力する色の決定
-	vec3 color;
-  color += vec3(sin(time)*0.5*colour_setter.r, 0.5*colour_setter.g, 0.5*colour_setter.b) * value;
-	color += vec3(sin(time)*0.7*colour_setter.r, 0.7*colour_setter.g, 0.7*colour_setter.b) * light;
+	vec3 color = vec3(0.0, 0.0, 0.0);
+  color += vec3(0.5, 0.0, 0.0) * value;//vec3(0.5*colour_setter.r, 0.5*colour_setter.g, 0.5*colour_setter.b) * value;
+	//color += vec3(sin(time)*0.7*colour_setter.r, 0.7*colour_setter.g, 0.7*colour_setter.b) * light;
 
 
   return color;
