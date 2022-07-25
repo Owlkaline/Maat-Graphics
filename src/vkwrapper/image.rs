@@ -122,7 +122,7 @@ impl ImageBuilder {
 
     let sharing_mode = vk::SharingMode::EXCLUSIVE;
 
-    let format = vk::Format::A8B8G8R8_SRGB_PACK32;
+    let format = vk::Format::B8G8R8_SRGB;
 
     ImageBuilder {
       image_type,
