@@ -124,8 +124,8 @@ vec3 matrix(float time, vec3 colour_setter) {
 	
 	// 出力する色の決定
 	vec3 color;
-  color += vec3(0.5*colour_setter.r, 0.5*colour_setter.g, 0.5*colour_setter.b) * value;
-	color += vec3(0.7*colour_setter.r, 0.7*colour_setter.g, 0.7*colour_setter.b) * light;
+  color += vec3(sin(time)*0.5*colour_setter.r, 0.5*colour_setter.g, 0.5*colour_setter.b) * value;
+	color += vec3(sin(time)*0.7*colour_setter.r, 0.7*colour_setter.g, 0.7*colour_setter.b) * light;
 
 
   return color;
@@ -140,7 +140,7 @@ void main() {
   vec3 overlay_colour = o_overlay_colour.rgb;
 
   if (intensity > 0.0) {
-    texture_colour.rgb = vec3(sin(time), 0.0, 0.0);//matrix(time, overlay_colour)*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
+    texture_colour.rgb = matrix(time, overlay_colour);//*texture_colour.a;//pow(matrix(time, o_overlay_colour.rgb)*texture_colour.a, vec3(2.2));
   }
 //  
   uFragColor = vec4(texture_colour.rgb, texture_colour.a);
