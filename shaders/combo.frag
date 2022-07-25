@@ -99,11 +99,11 @@ vec3 matrix(float time, vec3 colour_setter) {
 	float value = 0.0;     
 	float light = 0.0;
 	
-	float f = 1.0;    // UV座標にかける値
-	float a = 0.7;    // valueに加える値の係数
+	//float f = 1.0;    // UV座標にかける値
+	//float a = 0.7;    // valueに加える値の係数
 	
-  //float f = 3.0;
-  //float a = 2.7;
+  float f = 3.0;
+  float a = 2.7;
 	
 	for(int i = 0; i < 3; ++i)
 	{
