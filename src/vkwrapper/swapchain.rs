@@ -33,14 +33,20 @@ impl VkSwapchain {
         .iter()
         .cloned()
         .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
-        .unwrap_or(vk::PresentModeKHR::IMMEDIATE);
+        .unwrap_or(
+          present_modes
+            .iter()
+            .cloned()
+            .find(|&mode| mode == vk::PresentModeKHR::IMMEDIATE)
+            .unwrap_or(vk::PresentModeKHR::IMMEDIATE),
+        );
 
       (surface_capabilities, present_mode)
     };
 
     let mut desired_image_count = surface_capabilities.min_image_count + 1;
-    if surface_capabilities.max_image_count > 0 &&
-      desired_image_count > surface_capabilities.max_image_count
+    if surface_capabilities.max_image_count > 0
+      && desired_image_count > surface_capabilities.max_image_count
     {
       desired_image_count = surface_capabilities.max_image_count;
     }

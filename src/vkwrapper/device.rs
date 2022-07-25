@@ -48,6 +48,11 @@ impl VkDevice {
         .get_physical_device_surface_formats(phys_device, surface)
         .unwrap()[0]
     };
+    println!("{:?}", unsafe {
+      surface_loader
+        .get_physical_device_surface_formats(phys_device, surface)
+        .unwrap()
+    });
 
     let device_memory_properties = unsafe {
       instance
@@ -124,7 +129,7 @@ fn pick_physical_device(
         .get_physical_device_queue_family_properties(*pdevice)
         .iter()
         .enumerate()
-        .filter_map(|(index, ref info)| {
+        .find_map(|(index, ref info)| {
           let supports_graphic_and_surface = info.queue_flags.contains(vk::QueueFlags::GRAPHICS)
             && info.queue_flags.contains(vk::QueueFlags::COMPUTE)
             && surface_loader
@@ -136,10 +141,8 @@ fn pick_physical_device(
             None
           }
         })
-        .next()
     })
-    .filter_map(|v| v)
-    .next()
+    .find_map(|v| v)
     .expect("Couldn't find suitable device.");
 
   (pdevice, queue_family_index as u32)
