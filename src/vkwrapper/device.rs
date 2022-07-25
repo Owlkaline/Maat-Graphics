@@ -58,20 +58,6 @@ impl VkDevice {
         })
         .expect("Failed to get non linear SRGB swapchain format")
     };
-    //println!("{:?}", unsafe {
-    //  surface_loader
-    //    .get_physical_device_surface_formats(phys_device, surface)
-    //    .unwrap()
-    //    .iter()
-    //    .inspect(|v| println!("{:?}", v))
-    //    .find_map(|s| {
-    //      if s.format == vk::Format::B8G8R8A8_SRGB {
-    //        Some(s)
-    //      } else {
-    //        None
-    //      }
-    //    });
-    //});
 
     let device_memory_properties = unsafe {
       instance
@@ -178,10 +164,11 @@ fn create_logical_device(
     .queue_priorities(&priorities)];
   let device_extension_names_raw = [Swapchain::name().as_ptr(), Maintenance1::name().as_ptr()];
   let features = vk::PhysicalDeviceFeatures {
-    shader_clip_distance: 1,
-    fill_mode_non_solid: 1,
+    //shader_clip_distance: 1,
+    //fill_mode_non_solid: 1,
     ..Default::default()
   };
+  println!("features: {:#?}", features);
   let device_create_info = vk::DeviceCreateInfo::builder()
     .queue_create_infos(&queue_info)
     .enabled_extension_names(&device_extension_names_raw)
