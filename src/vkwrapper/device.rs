@@ -44,15 +44,34 @@ impl VkDevice {
       create_logical_device(instance, &phys_device, queue_family_index);
 
     let surface_format = unsafe {
-      surface_loader
-        .get_physical_device_surface_formats(phys_device, surface)
-        .unwrap()[0]
-    };
-    println!("{:?}", unsafe {
-      surface_loader
+      *surface_loader
         .get_physical_device_surface_formats(phys_device, surface)
         .unwrap()
-    });
+        .iter()
+        .inspect(|v| println!("{:?}", v))
+        .find_map(|s| {
+          if s.format == vk::Format::B8G8R8A8_SRGB {
+            Some(s)
+          } else {
+            None
+          }
+        })
+        .expect("Failed to get non linear SRGB swapchain format")
+    };
+    //println!("{:?}", unsafe {
+    //  surface_loader
+    //    .get_physical_device_surface_formats(phys_device, surface)
+    //    .unwrap()
+    //    .iter()
+    //    .inspect(|v| println!("{:?}", v))
+    //    .find_map(|s| {
+    //      if s.format == vk::Format::B8G8R8A8_SRGB {
+    //        Some(s)
+    //      } else {
+    //        None
+    //      }
+    //    });
+    //});
 
     let device_memory_properties = unsafe {
       instance
