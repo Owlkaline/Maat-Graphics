@@ -208,12 +208,12 @@ impl GraphicsPipelineBuilder {
 
     let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
       blend_enable: vk::TRUE,
-      src_color_blend_factor: vk::BlendFactor::ONE, //vk::BlendFactor::SRC_COLOR,
+      src_color_blend_factor: vk::BlendFactor::SRC_ALPHA, //vk::BlendFactor::SRC_COLOR,
       dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_SRC_ALPHA, //vk::BlendFactor::ONE_MINUS_DST_COLOR,
       color_blend_op: vk::BlendOp::ADD,
-      src_alpha_blend_factor: vk::BlendFactor::ONE, //vk::BlendFactor::ZERO,
-      dst_alpha_blend_factor: vk::BlendFactor::ZERO,
-      alpha_blend_op: vk::BlendOp::ADD,
+      src_alpha_blend_factor: vk::BlendFactor::SRC_ALPHA, //vk::BlendFactor::ZERO,
+      dst_alpha_blend_factor: vk::BlendFactor::ONE_MINUS_SRC_ALPHA,
+      alpha_blend_op: vk::BlendOp::SUBTRACT,
       color_write_mask: vk::ColorComponentFlags::R
         | vk::ColorComponentFlags::G
         | vk::ColorComponentFlags::B
