@@ -37,7 +37,7 @@ use winit::{
 use crate::shader_handlers::{ComputeHandler, ModelHandler, TextureHandler};
 use crate::vkwrapper::{/*ComputeShader, DescriptorPoolBuilder, DescriptorSet,*/ Image, Vulkan,};
 
-pub const DELTA_STEP: f32 = 0.001;
+pub const DELTA_STEP: f32 = 0.01;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
 
@@ -533,12 +533,17 @@ impl MaatGraphics {
         *control_flow = ControlFlow::Exit;
       }
 
-      if total_delta_time >= 0.05 {
+      let max_steps = 10.0;
+      let max_per_draw = 5;
+      if total_delta_time >= DELTA_STEP * max_steps {
+        //0.05 {
         total_delta_time = DELTA_STEP;
       }
 
-      if total_delta_time > DELTA_STEP {
-        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
+      if total_delta_time >= DELTA_STEP {
+        let delta_steps =
+          ((total_delta_time / DELTA_STEP).floor() as usize).min(max_per_draw as usize);
+        //println!("Steps: {}", delta_steps);
 
         for _ in 0..delta_steps {
           callback(MaatEvent::FixedUpdate(
