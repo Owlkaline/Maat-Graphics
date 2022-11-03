@@ -941,16 +941,16 @@ impl MaatGraphics {
           }
 
           if total_delta_time > DELTA_STEP {
-            //     for _ in 0..((total_delta_time / DELTA_STEP).floor() as usize).min(1) {
-            callback(MaatEvent::FixedUpdate(
-              &device_keys,
-              &software_keys,
-              vulkan.mut_camera(),
-              DELTA_STEP,
-            ));
-            total_delta_time -= DELTA_STEP;
-            time += DELTA_STEP;
-            //     }
+            for _ in 0..((total_delta_time / DELTA_STEP).floor() as usize).min(1) {
+              callback(MaatEvent::FixedUpdate(
+                &device_keys,
+                &software_keys,
+                vulkan.mut_camera(),
+                DELTA_STEP,
+              ));
+              total_delta_time -= DELTA_STEP;
+              time += DELTA_STEP;
+            }
           }
 
           callback(MaatEvent::Update(
