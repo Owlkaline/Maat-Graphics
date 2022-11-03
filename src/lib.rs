@@ -951,6 +951,13 @@ impl MaatGraphics {
               total_delta_time -= DELTA_STEP;
               time += DELTA_STEP;
             }
+            callback(MaatEvent::Update(
+              &device_keys,
+              &software_keys,
+              vulkan.mut_camera(),
+              _delta_time,
+              &mut should_exit,
+            ));
           }
 
           // TODO: Make software keys clear the key
