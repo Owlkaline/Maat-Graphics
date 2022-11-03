@@ -434,11 +434,17 @@ impl MaatGraphics {
 
       //let mut text_count = 0;
 
-      for draw in texture_data {
+      for mut draw in texture_data {
         if let Some(texture) = draw.get_texture() {
-          self
-            .texture_handler
-            .draw(&mut self.vulkan, draw.texture_data(time), &texture);
+          if draw.is_instanced() {
+            self
+              .texture_handler
+              .add_draw(&mut self.vulkan, draw.texture_data(time), &texture);
+          } else {
+            self
+              .texture_handler
+              .draw(&mut self.vulkan, draw.texture_data(time), &texture);
+          }
         } else if let Some(camera) = draw.get_camera() {
           self.texture_handler.set_camera_location(camera);
         } else {

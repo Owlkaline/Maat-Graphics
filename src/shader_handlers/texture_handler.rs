@@ -23,6 +23,39 @@ pub struct ComboVertex {
   pub uv: [f32; 2],
 }
 
+//#[derive(Clone, Debug, Copy)]
+//pub struct InstancedComboData {
+//  pub pos: [f32; 4],
+//  pub colour: [f32; 4],
+//  pub uv: [f32; 4],
+//  pub pos_scale: [f32; 4],                        // x, y, scale_x, scale_y
+//  pub other_colour: [f32; 4],                     // r g b a
+//  pub is_textured_rotation_overlay_mix: [f32; 4], // is_textured, rotation, overlay_mix, empty
+//  pub sprite_sheet: [f32; 4],                     // rows, texture number, empty
+//  pub flip_xy: [f32; 4],                          // flip x y
+//  pub overlay_colour: [f32; 4],                   // overlay colour
+//  pub attrib6: [f32; 4],
+//  pub camera_intensity_time: [f32; 4], // camera x y, intensity time
+//}
+//
+//impl InstancedComboData {
+//  pub fn new() -> InstancedComboData {
+//    InstancedComboData {
+//      pos: [0.0; 4],
+//      colour: [0.0; 4],
+//      uv: [0.0; 4],
+//      pos_scale: [0.0; 4],                        // x, y, scale_x, scale_y
+//      other_colour: [0.0; 4],                     // r g b a
+//      is_textured_rotation_overlay_mix: [0.0; 4], // is_textured, rotation, overlay_mix, empty
+//      sprite_sheet: [0.0; 4],                     // rows, texture number, empty
+//      flip_xy: [0.0; 4],                          // flip x y
+//      overlay_colour: [0.0; 4],                   // overlay colour
+//      attrib6: [0.0; 4],
+//      camera_intensity_time: [0.0; 4],
+//    } // camera x y, intensity time
+//  }
+//}
+
 #[derive(Clone, Copy)]
 pub struct InstancedTextData {
   pub pos: [f32; 2],
@@ -291,6 +324,31 @@ impl TextureHandler {
     );
   }
 
+  pub fn add_draw(&mut self, vulkan: &mut Vulkan, mut data: Vec<f32>, texture: &str) {
+    let texture_descriptor = {
+      if let Some((_, texture_descriptor)) = self.textures.get(texture) {
+        texture_descriptor
+      } else {
+        &self.dummy_texture.1
+      }
+    };
+
+    let last_idx = data.len() - 4;
+    data[last_idx] = self.camera_position.x;
+    data[last_idx + 1] = self.camera_position.y;
+
+    vulkan.draw_texture(
+      &texture_descriptor,
+      &self.uniform_descriptor,
+      &self.combo_shader,
+      &self.combo_vertex_buffer,
+      &self.combo_index_buffer,
+      None as Option<&Buffer<u32>>,
+      0,
+      data,
+    );
+  }
+
   pub fn add_text_data(&mut self, mut draw: Draw, vulkan: &mut Vulkan) {
     let size = draw.get_scale().x;
     let position = draw.get_position().xy();
@@ -474,6 +532,7 @@ impl TextureHandler {
       uv: [0.0, 0.0],
     };
     let instaced_text = InstancedTextData::new();
+    //let instanced_combo = InstancedComboData::new();
 
     let combo_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), combo_index_buffer_data);
     let combo_vertex_buffer = Buffer::<ComboVertex>::new_vertex(vulkan.device(), combo_vertices);

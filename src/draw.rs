@@ -39,6 +39,7 @@ pub struct Draw {
   flip_vert: bool,
   camera_2d_pos: Option<Vec2>,
   instensity: f32,
+  instance_render: bool,
 }
 
 impl Draw {
@@ -59,6 +60,7 @@ impl Draw {
       flip_vert: false,
       camera_2d_pos: None,
       instensity: -1.0,
+      instance_render: false,
     }
   }
 
@@ -81,6 +83,11 @@ impl Draw {
       model: Some(model.to_string()),
       ..Draw::new()
     }
+  }
+
+  pub fn instance_render(mut self) -> Draw {
+    self.instance_render = true;
+    self
   }
 
   pub fn instensity(mut self, v: f32) -> Draw {
@@ -179,6 +186,10 @@ impl Draw {
 
   pub fn get_wrap(&self) -> f32 {
     self.wrap
+  }
+
+  pub fn is_instanced(&mut self) -> bool {
+    self.instance_render
   }
 
   pub fn texture_data(&self, time: f32) -> Vec<f32> {

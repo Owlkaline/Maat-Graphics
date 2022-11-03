@@ -173,9 +173,9 @@ impl ModelHandler {
         &mesh_descriptor,
       )
       .update_images(&textures, &samplers, &mesh_descriptor);
-    println!("after");
+
     descriptor_set_writer.build(vulkan.device());
-    println!("Build");
+
     let dummy_buffer =
       Buffer::<f32>::new_storage_buffer(vulkan.device(), &Math::mat4_identity().to_vec());
     let dummy_skin = DescriptorSet::builder()
