@@ -940,8 +940,7 @@ impl MaatGraphics {
             total_delta_time = DELTA_STEP;
           }
 
-          if total_delta_time > DELTA_STEP {
-            //for _ in 0..((total_delta_time / DELTA_STEP).floor() as usize).min(1) {
+          for _ in 0..((total_delta_time / DELTA_STEP).floor() as usize) {
             callback(MaatEvent::FixedUpdate(
               &device_keys,
               &software_keys,
@@ -950,7 +949,6 @@ impl MaatGraphics {
             ));
             total_delta_time -= DELTA_STEP;
             time += DELTA_STEP;
-            //}
           }
 
           callback(MaatEvent::Update(
