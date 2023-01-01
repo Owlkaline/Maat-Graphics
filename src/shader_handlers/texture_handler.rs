@@ -94,7 +94,7 @@ pub struct TextureHandler {
   uniform_descriptor: DescriptorSet,
 
   text_master: TextMaster,
-  text_this_draw: Vec<String>,
+  text_this_draw: Vec<GuiText>,
 
   //font: Font,
 
@@ -193,7 +193,7 @@ impl TextureHandler {
       false,
     );
 
-    let text = gui_text.text();
+    let gui_text_clone = gui_text.clone();
     text_master.load_text(gui_text, vulkan);
 
     TextureHandler {
@@ -204,7 +204,7 @@ impl TextureHandler {
       uniform_descriptor: descriptor_set0,
 
       text_master,
-      text_this_draw: vec![text],
+      text_this_draw: vec![gui_text_clone],
 
       //font,
 
@@ -379,7 +379,8 @@ impl TextureHandler {
         centered,
       );
 
-      self.text_this_draw.push(raw_text);
+      let text_clone = text.clone();
+      self.text_this_draw.push(text_clone);
       self.text_master.load_text(text, vulkan);
     }
   }
@@ -387,7 +388,14 @@ impl TextureHandler {
   pub fn draw_new_text(&mut self, vulkan: &mut Vulkan) {
     for (text, vertex_buffer) in self.text_master.text() {
       let pos = text.position();
-      let data = vec![pos.x, pos.y, self.window_size[0], self.window_size[1]];
+      let data = vec![
+        pos.x,
+        pos.y,
+        self.window_size[0],
+        self.window_size[1],
+        self.camera_position.x,
+        self.camera_position.y,
+      ];
 
       let descriptor = self.text_master.font().descriptor();
       let font_shader = self.text_master.font().shader();

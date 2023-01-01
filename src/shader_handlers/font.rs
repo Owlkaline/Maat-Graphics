@@ -110,6 +110,22 @@ pub struct GuiText {
   center_text: bool,
 }
 
+impl Clone for GuiText {
+  fn clone(&self) -> Self {
+    GuiText {
+      text: self.text.to_owned(),
+      font_size: self.font_size,
+      descriptor_set: None,
+      colour: self.colour,
+      coloured_words: HashMap::new(),
+      position: self.position,
+      max_line_size: self.max_line_size,
+      number_of_lines: self.number_of_lines,
+      center_text: self.center_text,
+    }
+  }
+}
+
 pub struct TextMaster {
   descriptor_pool: vk::DescriptorPool,
   //texts: HashMap<FontType, Vec<GuiText>>,
@@ -167,7 +183,7 @@ impl TextMaster {
   pub fn remove_text(&mut self, text: GuiText, device: &VkDevice) {
     let mut should_remove = None;
     for i in 0..self.text.len() {
-      if self.text[i].0 == text && self.text[i].0.position().x == text.position().x {
+      if self.text[i].0 == text {
         should_remove = Some(i);
       }
     }
@@ -185,7 +201,7 @@ impl TextMaster {
     }
   }
 
-  pub fn remove_unused_text(&mut self, text_this_draw: Vec<String>, device: &VkDevice) {
+  pub fn remove_unused_text(&mut self, text_this_draw: Vec<GuiText>, device: &VkDevice) {
     for i in (0..self.unused_text.len()).rev() {
       self.unused_text[i].1 += 1;
       if self.unused_text[i].1 > 600 {
@@ -195,7 +211,7 @@ impl TextMaster {
     }
 
     for i in (0..self.text.len()).rev() {
-      if !text_this_draw.contains(&self.text[i].0.text()) {
+      if !text_this_draw.contains(&self.text[i].0) {
         //self.text[i].1.destroy(device);
         let gui_text = self.text.remove(i);
         self.unused_text.push((gui_text, 0));
@@ -940,16 +956,16 @@ impl Eq for Meta {}
 impl PartialEq for GuiText {
   fn eq(&self, other: &Self) -> bool {
     self.text == other.text
+      && self.position == other.position
       && self.font_size == other.font_size
       && self.colour == other.colour
-      && self.position == other.position
       && self.font_size == other.font_size
   }
 
-  fn ne(&self, other: &Self) -> bool {
-    self.text != other.text
-      || self.font_size != other.font_size && self.colour != other.colour
-      || self.position != other.position
-      || self.font_size != other.font_size
-  }
+  //fn ne(&self, other: &Self) -> bool {
+  //  self.text != other.text
+  //    || self.font_size != other.font_size && self.colour != other.colour
+  //    || self.position != other.position
+  //    || self.font_size != other.font_size
+  //}
 }
