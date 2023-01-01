@@ -99,7 +99,7 @@ pub struct GuiText {
   text: String,
   font_size: f32,
 
-  descriptor_set: Option<DescriptorSet>,
+  //descriptor_set: Option<DescriptorSet>,
   colour: Vec4,
   coloured_words: HashMap<usize, Vec4>,
   position: Vec2,
@@ -108,6 +108,7 @@ pub struct GuiText {
 
   //font: FontType,
   center_text: bool,
+  camera: Vec2,
 }
 
 impl Clone for GuiText {
@@ -115,13 +116,14 @@ impl Clone for GuiText {
     GuiText {
       text: self.text.to_owned(),
       font_size: self.font_size,
-      descriptor_set: None,
+      //descriptor_set: None,
       colour: self.colour,
       coloured_words: HashMap::new(),
       position: self.position,
       max_line_size: self.max_line_size,
       number_of_lines: self.number_of_lines,
       center_text: self.center_text,
+      camera: self.camera.clone(),
     }
   }
 }
@@ -130,8 +132,10 @@ pub struct TextMaster {
   descriptor_pool: vk::DescriptorPool,
   //texts: HashMap<FontType, Vec<GuiText>>,
   font_type: FontType,
-  text: Vec<(GuiText, Buffer<TextVertex>)>,
-  unused_text: Vec<((GuiText, Buffer<TextVertex>), u32)>,
+  //text: Vec<(GuiText, Buffer<TextVertex>)>,
+  text: Vec<GuiText>,
+  text_atlas: HashMap<String, Buffer<TextVertex>>,
+  //unused_text: Vec<((GuiText, Buffer<TextVertex>), u32)>,
 }
 
 impl TextMaster {
@@ -144,83 +148,95 @@ impl TextMaster {
       descriptor_pool,
       font_type: font,
       text: Vec::new(),
-      unused_text: Vec::new(),
+      text_atlas: HashMap::new(),
+      //unused_text: Vec::new(),
     }
   }
 
   pub fn load_text(&mut self, mut text: GuiText, vulkan: &mut Vulkan) {
-    let mut already_exists = false;
-    for i in 0..self.text.len() {
-      if self.text[i].0 == text {
-        self.text[i].0.set_position(text.position());
-        self.text[i].0.set_colour(text.colour());
-        already_exists = true;
-        break;
-      }
-    }
-
-    for i in 0..self.unused_text.len() {
-      if self.unused_text[i].0 .0 == text {
-        let mut gui_text = self.unused_text.remove(i).0;
-        gui_text.0.set_position(text.position());
-        gui_text.0.set_colour(text.colour());
-        self.text.push(gui_text);
-        already_exists = true;
-        break;
-      }
-    }
-
-    if !already_exists {
+    if !self.text_atlas.contains_key(&text.text()) {
       let data = self.font_type.load_text(&mut text);
-
-      self.text.push((
-        text,
+      self.text_atlas.insert(
+        text.text(),
         Buffer::<TextVertex>::new_vertex(vulkan.device(), data.data().clone()),
-      ));
+      );
     }
+
+    self.text.push(text);
+    //let mut already_exists = false;
+    //for i in 0..self.text.len() {
+    //  if self.text[i] == text {
+    //    self.text[i].set_position(text.position());
+    //    self.text[i].set_colour(text.colour());
+    //    self.text[i].set_camera(camera);
+    //    already_exists = true;
+    //    break;
+    //  }
+    //}
+
+    //for i in 0..self.unused_text.len() {
+    //  if self.unused_text[i].0 .0 == text {
+    //    let mut gui_text = self.unused_text.remove(i).0;
+    //    gui_text.0.set_position(text.position());
+    //    gui_text.0.set_colour(text.colour());
+    //    gui_text.0.set_camera(camera);
+    //    self.text.push(gui_text);
+    //    already_exists = true;
+    //    break;
+    //  }
+    //}
+
+    //if !already_exists {
+    //  let data = self.font_type.load_text(&mut text);
+
+    //  self.text.push((
+    //    text,
+    //    Buffer::<TextVertex>::new_vertex(vulkan.device(), data.data().clone()),
+    //  ));
+    //}
   }
 
   pub fn remove_text(&mut self, text: GuiText, device: &VkDevice) {
     let mut should_remove = None;
     for i in 0..self.text.len() {
-      if self.text[i].0 == text {
+      if self.text[i] == text {
         should_remove = Some(i);
       }
     }
 
     if let Some(i) = should_remove {
-      self.text[i].1.destroy(device);
+      //  self.text[i].1.destroy(device);
       self.text.remove(i);
     }
   }
 
   pub fn remove_all_text(&mut self, device: &VkDevice) {
     for i in (0..self.text.len()).rev() {
-      self.text[i].1.destroy(device);
       self.text.remove(i);
     }
+    //self.text[i].1.destroy(device);
   }
 
   pub fn remove_unused_text(&mut self, text_this_draw: Vec<GuiText>, device: &VkDevice) {
-    for i in (0..self.unused_text.len()).rev() {
-      self.unused_text[i].1 += 1;
-      if self.unused_text[i].1 > 600 {
-        self.unused_text[i].0 .1.destroy(device);
-        self.unused_text.remove(i);
-      }
-    }
+    //   for i in (0..self.unused_text.len()).rev() {
+    //     self.unused_text[i].1 += 1;
+    //     if self.unused_text[i].1 > 600 {
+    //       self.unused_text[i].0 .1.destroy(device);
+    //       self.unused_text.remove(i);
+    //     }
+    //   }
 
-    for i in (0..self.text.len()).rev() {
-      if !text_this_draw.contains(&self.text[i].0) {
-        //self.text[i].1.destroy(device);
-        let gui_text = self.text.remove(i);
-        self.unused_text.push((gui_text, 0));
-      }
-    }
+    //   for i in (0..self.text.len()).rev() {
+    //     if !text_this_draw.contains(&self.text[i].0) {
+    //       //self.text[i].1.destroy(device);
+    //       let gui_text = self.text.remove(i);
+    //       self.unused_text.push((gui_text, 0));
+    //     }
+    //   }
   }
 
-  pub fn text(&self) -> &Vec<(GuiText, Buffer<TextVertex>)> {
-    &self.text
+  pub fn text(&self) -> (&Vec<GuiText>, &HashMap<String, Buffer<TextVertex>>) {
+    (&self.text, &self.text_atlas)
   }
 
   pub fn font(&self) -> &FontType {
@@ -430,6 +446,7 @@ impl GuiText {
     text: String,
     font_size: f32,
     position: Vec2,
+    camera: Vec2,
     colour: Vec4,
     coloured_words: HashMap<usize, Vec4>,
     max_line_length: f32,
@@ -439,7 +456,7 @@ impl GuiText {
       text,
       font_size,
 
-      descriptor_set: None,
+      //descriptor_set: None,
       colour,
       coloured_words,
       position,
@@ -448,6 +465,7 @@ impl GuiText {
 
       //font,
       center_text: centered,
+      camera,
     };
 
     gui_text
@@ -459,6 +477,14 @@ impl GuiText {
 
   pub fn set_position(&mut self, pos: Vec2) {
     self.position = pos;
+  }
+
+  pub fn set_camera(&mut self, cam: Vec2) {
+    self.camera = cam;
+  }
+
+  pub fn camera(&self) -> Vec2 {
+    self.camera
   }
 
   pub fn colour(&self) -> Vec4 {
@@ -477,9 +503,9 @@ impl GuiText {
     self.position
   }
 
-  pub fn descriptor_set(&self) -> &Option<DescriptorSet> {
-    &self.descriptor_set
-  }
+  // pub fn descriptor_set(&self) -> &Option<DescriptorSet> {
+  //   &self.descriptor_set
+  // }
 
   pub fn font_size(&self) -> f32 {
     self.font_size

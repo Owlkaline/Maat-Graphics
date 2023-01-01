@@ -187,6 +187,7 @@ impl TextureHandler {
       "The quick brown fox jumps over the lazy dog.".to_string(),
       1400.0,
       Vec2::new(100.0, 600.0),
+      Vec2::splat(0.0),
       Vec4::new(0.0, 0.0, 1.0, 1.0),
       HashMap::new(),
       100000000.0,
@@ -373,6 +374,7 @@ impl TextureHandler {
         raw_text.to_string(),
         size,
         position,
+        self.camera_position,
         colour,
         draw.get_coloured_words(),
         wrap,
@@ -386,26 +388,33 @@ impl TextureHandler {
   }
 
   pub fn draw_new_text(&mut self, vulkan: &mut Vulkan) {
-    for (text, vertex_buffer) in self.text_master.text() {
+    let (texts, vertex_buffers) = self.text_master.text();
+    for text in texts {
       let pos = text.position();
       let data = vec![
         pos.x,
         pos.y,
         self.window_size[0],
         self.window_size[1],
-        self.camera_position.x,
-        self.camera_position.y,
+        text.camera().x,
+        text.camera().y,
       ];
 
       let descriptor = self.text_master.font().descriptor();
       let font_shader = self.text_master.font().shader();
 
-      vulkan.draw_text(&descriptor, font_shader, &vertex_buffer, data);
+      vulkan.draw_text(
+        &descriptor,
+        font_shader,
+        &vertex_buffers.get(&text.text()).unwrap(),
+        data,
+      );
     }
 
-    self
-      .text_master
-      .remove_unused_text(self.text_this_draw.drain(..).collect(), vulkan.device());
+    self.text_master.remove_all_text(vulkan.device());
+    //self
+    //  .text_master
+    //  .remove_unused_text(self.text_this_draw.drain(..).collect(), vulkan.device());
   }
 
   //pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {
