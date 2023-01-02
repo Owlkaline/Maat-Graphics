@@ -460,7 +460,7 @@ impl TextureHandler {
     if let Some((texture, buffer)) = self.instanced_combo_buffer.get_mut(buffer) {
       let instance_count = buffer.data.len();
 
-      buffer.update_data(vulkan.device(), buffer.data.clone());
+      buffer.update_with_internal_data(vulkan.device());
 
       let texture_descriptor = {
         if let Some((_, texture_descriptor)) = self.textures.get(texture) {
@@ -480,8 +480,6 @@ impl TextureHandler {
         instance_count,
         vec![self.window_size[0], self.window_size[1]],
       );
-
-      buffer.data.clear();
     }
     //  let descriptor = self.font.descriptor();
 

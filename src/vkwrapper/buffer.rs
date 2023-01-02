@@ -31,6 +31,17 @@ impl<T: Sized + Copy> Buffer<T> {
     }
   }
 
+  pub fn update_with_internal_data(&mut self, device: &VkDevice) {
+    let requirements = Memory::<T>::buffer_memory_requirements(device, self.buffer);
+
+    Memory::<T>::map_data_to_memory(
+      device,
+      self.memory.internal(),
+      requirements,
+      &self.data.drain(..).collect(),
+    );
+  }
+
   pub fn update_data(&mut self, device: &VkDevice, data: Vec<T>) {
     let requirements = Memory::<T>::buffer_memory_requirements(device, self.buffer);
 
