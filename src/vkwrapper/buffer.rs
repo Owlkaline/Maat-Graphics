@@ -182,9 +182,9 @@ impl<T: Sized + Copy> BufferBuilder<T> {
   }
 
   pub fn usage_transfer_storage_src_dst(mut self) -> BufferBuilder<T> {
-    self.usage = vk::BufferUsageFlags::TRANSFER_SRC |
-      vk::BufferUsageFlags::TRANSFER_DST |
-      vk::BufferUsageFlags::STORAGE_BUFFER;
+    self.usage = vk::BufferUsageFlags::TRANSFER_SRC
+      | vk::BufferUsageFlags::TRANSFER_DST
+      | vk::BufferUsageFlags::STORAGE_BUFFER;
     self
   }
 

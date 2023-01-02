@@ -133,6 +133,7 @@ impl<T: Copy> Memory<T> {
 
     unsafe {
       index_slice.copy_from_slice(data);
+
       device.internal().unmap_memory(memory);
     }
   }
@@ -191,8 +192,8 @@ impl<T: Copy> Memory<T> {
       .iter()
       .enumerate()
       .find(|(index, memory_type)| {
-        (1 << index) & memory_req.memory_type_bits != 0 &&
-          memory_type.property_flags & flags == flags
+        (1 << index) & memory_req.memory_type_bits != 0
+          && memory_type.property_flags & flags == flags
       })
       .map(|(index, _memory_type)| index as _)
   }

@@ -14,7 +14,7 @@ use crate::Draw;
 
 use glam::{Vec2, Vec3Swizzles, Vec4};
 
-const MAX_INSTANCES: usize = 8192;
+const MAX_INSTANCES: usize = 8196;
 
 #[derive(Clone, Debug, Copy)]
 pub struct ComboVertex {
@@ -23,38 +23,54 @@ pub struct ComboVertex {
   pub uv: [f32; 2],
 }
 
-//#[derive(Clone, Debug, Copy)]
-//pub struct InstancedComboData {
-//  pub pos: [f32; 4],
-//  pub colour: [f32; 4],
-//  pub uv: [f32; 4],
-//  pub pos_scale: [f32; 4],                        // x, y, scale_x, scale_y
-//  pub other_colour: [f32; 4],                     // r g b a
-//  pub is_textured_rotation_overlay_mix: [f32; 4], // is_textured, rotation, overlay_mix, empty
-//  pub sprite_sheet: [f32; 4],                     // rows, texture number, empty
-//  pub flip_xy: [f32; 4],                          // flip x y
-//  pub overlay_colour: [f32; 4],                   // overlay colour
-//  pub attrib6: [f32; 4],
-//  pub camera_intensity_time: [f32; 4], // camera x y, intensity time
-//}
-//
-//impl InstancedComboData {
-//  pub fn new() -> InstancedComboData {
-//    InstancedComboData {
-//      pos: [0.0; 4],
-//      colour: [0.0; 4],
-//      uv: [0.0; 4],
-//      pos_scale: [0.0; 4],                        // x, y, scale_x, scale_y
-//      other_colour: [0.0; 4],                     // r g b a
-//      is_textured_rotation_overlay_mix: [0.0; 4], // is_textured, rotation, overlay_mix, empty
-//      sprite_sheet: [0.0; 4],                     // rows, texture number, empty
-//      flip_xy: [0.0; 4],                          // flip x y
-//      overlay_colour: [0.0; 4],                   // overlay colour
-//      attrib6: [0.0; 4],
-//      camera_intensity_time: [0.0; 4],
-//    } // camera x y, intensity time
-//  }
-//}
+#[derive(Clone, Debug, Copy)]
+pub struct InstancedComboData {
+  //pub pos: [f32; 4],
+  //pub colour: [f32; 4],
+  //pub uv: [f32; 4],
+  pub pos_scale: [f32; 4],                        // x, y, scale_x, scale_y
+  pub other_colour: [f32; 4],                     // r g b a
+  pub is_textured_rotation_overlay_mix: [f32; 4], // is_textured, rotation, overlay_mix, empty
+  pub sprite_sheet: [f32; 4],                     // rows, texture number, empty
+  pub flip_xy: [f32; 4],                          // flip x y
+  pub overlay_colour: [f32; 4],                   // overlay colour
+  pub attrib6: [f32; 4],
+  pub camera_intensity_time: [f32; 4], // camera x y, intensity time
+}
+
+impl InstancedComboData {
+  pub fn new() -> InstancedComboData {
+    InstancedComboData {
+      // pos: [0.0; 4],
+      // colour: [0.0; 4],
+      // uv: [0.0; 4],
+      pos_scale: [0.0; 4],                        // x, y, scale_x, scale_y
+      other_colour: [0.0; 4],                     // r g b a
+      is_textured_rotation_overlay_mix: [0.0; 4], // is_textured, rotation, overlay_mix, empty
+      sprite_sheet: [0.0; 4],                     // rows, texture number, empty
+      flip_xy: [0.0; 4],                          // flip x y
+      overlay_colour: [0.0; 4],                   // overlay colour
+      attrib6: [0.0; 4],
+      camera_intensity_time: [0.0; 4],
+    } // camera x y, intensity time
+  }
+
+  pub fn from_data(data: &[f32]) -> InstancedComboData {
+    InstancedComboData {
+      pos_scale: [data[0], data[1], data[2], data[3]],
+      other_colour: [data[4], data[6], data[6], data[7]],
+      is_textured_rotation_overlay_mix: [data[8], data[9], data[10], data[11]],
+      sprite_sheet: [data[12], data[13], data[14], data[15]],
+      flip_xy: [data[16], data[17], data[18], data[19]],
+      overlay_colour: [data[20], data[21], data[22], data[23]],
+      attrib6: [data[24], data[25], data[26], data[27]],
+      camera_intensity_time: [data[28], data[29], data[30], data[31]],
+      // overlay_colour: [data[32], data[33], data[34], data[35]],
+      // attrib6: [data[36], data[37], data[38], data[39]],
+      // camera_intensity_time: [data[40], data[41], data[42], data[43]],
+    } // camera x y, intensity time
+  }
+}
 
 #[derive(Clone, Copy)]
 pub struct InstancedTextData {
@@ -104,6 +120,8 @@ pub struct TextureHandler {
   combo_shader: Shader<ComboVertex>,
   combo_index_buffer: Buffer<u32>,
   combo_vertex_buffer: Buffer<ComboVertex>,
+  instanced_combo_shader: Shader<ComboVertex>,
+  instanced_combo_buffer: HashMap<String, (String, Buffer<InstancedComboData>)>,
 
   textures: HashMap<String, (Image, DescriptorSet)>,
   dummy_texture: (Image, DescriptorSet),
@@ -159,6 +177,8 @@ impl TextureHandler {
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
+      instanced_combo_shader,
+      // instanced_combo_buffer,
     ) = TextureHandler::create_combo_shader(
       &vulkan,
       &vec![descriptor_set0.clone(), descriptor_set1.clone()],
@@ -215,6 +235,8 @@ impl TextureHandler {
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
+      instanced_combo_shader,
+      instanced_combo_buffer: HashMap::new(),
 
       //strings,
       textures: HashMap::new(),
@@ -246,6 +268,8 @@ impl TextureHandler {
     self.combo_shader.destroy(vulkan.device());
     self.combo_index_buffer.destroy(vulkan.device());
     self.combo_vertex_buffer.destroy(vulkan.device());
+    self.instanced_combo_shader.destroy(vulkan.device());
+    // self.instanced_combo_buffer.destroy(vulkan.device());
 
     unsafe {
       vulkan
@@ -275,6 +299,21 @@ impl TextureHandler {
       DescriptorWriter::builder().update_buffer(&self.uniform_buffer, &self.uniform_descriptor);
 
     uniform_descriptor_set_writer.build(device);
+  }
+
+  pub fn create_instance_render_buffer<T: Into<String>>(
+    &mut self,
+    vulkan: &mut Vulkan,
+    buffer_name: T,
+    texture: T,
+  ) {
+    let instance_data = vec![InstancedComboData::new(); MAX_INSTANCES];
+    let instanced_combo_buffer =
+      Buffer::<InstancedComboData>::new_vertex(vulkan.device(), instance_data);
+
+    self
+      .instanced_combo_buffer
+      .insert(buffer_name.into(), (texture.into(), instanced_combo_buffer));
   }
 
   pub fn load_texture<T: Into<String>>(&mut self, vulkan: &mut Vulkan, texture_ref: T, texture: T) {
@@ -417,6 +456,91 @@ impl TextureHandler {
     //  .remove_unused_text(self.text_this_draw.drain(..).collect(), vulkan.device());
   }
 
+  pub fn draw_instanced_texture(&mut self, vulkan: &mut Vulkan, buffer: &str) {
+    if let Some((texture, buffer)) = self.instanced_combo_buffer.get_mut(buffer) {
+      let instance_count = buffer.data.len();
+
+      buffer.update_data(vulkan.device(), buffer.data.clone());
+
+      let texture_descriptor = {
+        if let Some((_, texture_descriptor)) = self.textures.get(texture) {
+          texture_descriptor
+        } else {
+          &self.dummy_texture.1
+        }
+      };
+
+      vulkan.draw_texture(
+        &texture_descriptor,
+        &self.uniform_descriptor,
+        &self.instanced_combo_shader,
+        &self.combo_vertex_buffer,
+        &self.combo_index_buffer,
+        Some(&buffer),
+        instance_count,
+        vec![self.window_size[0], self.window_size[1]],
+      );
+
+      buffer.data.clear();
+    }
+    //  let descriptor = self.font.descriptor();
+
+    //  self
+    //    .instanced_letter_buffer
+    //    .update_data(vulkan.device(), self.instanced_letter_buffer.data.clone());
+
+    //  vulkan.draw_texture(
+    //    &descriptor,
+    //    &self.uniform_descriptor,
+    //    &self.instanced_letter_shader,
+    //    &self.combo_vertex_buffer,
+    //    &self.combo_index_buffer,
+    //    Some(&self.instanced_letter_buffer),
+    //    instance_count,
+    //    vec![],
+    //  );
+    //}
+  }
+
+  pub fn add_instanced_texture(&mut self, data: Vec<f32>, buffer_name: &str) {
+    let mut data = data;
+    let last_idx = data.len() - 4;
+    data[last_idx] = self.camera_position.x;
+    data[last_idx + 1] = self.camera_position.y;
+
+    if let Some((_, buffer)) = self.instanced_combo_buffer.get_mut(buffer_name) {
+      if buffer.data.len() < MAX_INSTANCES {
+        buffer.data.push(InstancedComboData::from_data(&data));
+      }
+    }
+
+    //  let text_size = data[2].max(0.1);
+    //  let letter_data = self.font.generate_letter_draws(text_size, text.to_string());
+
+    //  let x = data[0];
+    //  let y = data[1];
+
+    //  for (x_offset, y_offset, width, height, uvx0, uvy0, uvx1, uvy1, kerning_x, kerning_y) in
+    //    letter_data
+    //  {
+    //    let pos_x = x + x_offset;
+    //    let pos_y = y + y_offset;
+
+    //    self.instanced_letter_buffer.data[*idx].pos = [pos_x, pos_y];
+    //    self.instanced_letter_buffer.data[*idx].size = [width, height];
+    //    self.instanced_letter_buffer.data[*idx].uv = [uvx0, uvy0, uvx1, uvy1];
+    //    self.instanced_letter_buffer.data[*idx].text_height = data[2];
+    //    self.instanced_letter_buffer.data[*idx].colour = [kerning_x, kerning_y, data[6], data[7]];
+    //    //self.instanced_letter_buffer.data[*idx].text_height = data[2];
+    //    //self.instanced_letter_buffer.data[*idx].colour = [data[4], data[5], data[6], data[7]];
+    //    //      self.instanced_letter_buffer.data[*idx].outline_colour =
+    //    //        [data[8], data[9], data[10], data[11]];
+    //    //      self.instanced_letter_buffer.data[*idx].width_edge = [data[12], data[13], data[14], data[15]];
+
+    //    *idx += 1;
+    //  }
+  }
+
   //pub fn draw_instanced_text(&mut self, vulkan: &mut Vulkan, instance_count: usize) {
   //  let descriptor = self.font.descriptor();
 
@@ -507,6 +631,7 @@ impl TextureHandler {
     Shader<ComboVertex>,
     Buffer<u32>,
     Buffer<ComboVertex>,
+    Shader<ComboVertex>,
   ) {
     let combo_index_buffer_data = vec![0, 1, 2, 3, 4, 5];
     let z = -1.0;
@@ -548,11 +673,14 @@ impl TextureHandler {
       colour: [0.0, 0.0, 0.0, 0.0],
       uv: [0.0, 0.0],
     };
-    let instaced_text = InstancedTextData::new();
-    //let instanced_combo = InstancedComboData::new();
+    //let instaced_text = InstancedTextData::new();
+    let instanced_combo = InstancedComboData::new();
 
     let combo_index_buffer = Buffer::<u32>::new_index(&vulkan.device(), combo_index_buffer_data);
     let combo_vertex_buffer = Buffer::<ComboVertex>::new_vertex(vulkan.device(), combo_vertices);
+
+    // let instanced_combo_buffer =
+    //   Buffer::<InstancedComboData>::new_vertex(vulkan.device(), instance_data);
 
     let graphics_pipeline_builder = GraphicsPipelineBuilder::new()
       .topology_triangle_list()
@@ -585,6 +713,39 @@ impl TextureHandler {
       vulkan.scissors(),
       &layouts,
       None as Option<(InstancedTextData, Vec<u32>)>,
+    );
+
+    let instanced_combo_shader = Shader::new(
+      vulkan.device(),
+      Cursor::new(&include_bytes!("../../shaders/instanced_combo_vert.spv")[..]),
+      Cursor::new(&include_bytes!("../../shaders/combo_frag.spv")[..]),
+      combo_vertex,
+      vec![
+        offset_of!(ComboVertex, pos) as u32,
+        offset_of!(ComboVertex, colour) as u32,
+        offset_of!(ComboVertex, uv) as u32,
+      ],
+      &graphics_pipeline_builder,
+      vulkan.texture_renderpass(),
+      vulkan.viewports(),
+      vulkan.scissors(),
+      &layouts,
+      Some((
+        instanced_combo,
+        vec![
+          // offset_of!(InstancedComboData, pos) as u32,
+          // offset_of!(InstancedComboData, colour) as u32,
+          // offset_of!(InstancedComboData, uv) as u32,
+          offset_of!(InstancedComboData, pos_scale) as u32, // x, y, scale_x, scale_y
+          offset_of!(InstancedComboData, other_colour) as u32, // r g b a
+          offset_of!(InstancedComboData, is_textured_rotation_overlay_mix) as u32, // is_textured, rotation, overlay_mix, empty
+          offset_of!(InstancedComboData, sprite_sheet) as u32, // rows, texture number, empty
+          offset_of!(InstancedComboData, flip_xy) as u32,      // flip x y
+          offset_of!(InstancedComboData, overlay_colour) as u32, // overlay colour
+          offset_of!(InstancedComboData, attrib6) as u32,
+          offset_of!(InstancedComboData, camera_intensity_time) as u32, // camera x y, intensity time
+        ],
+      )),
     );
 
     //let letter_shader = Shader::new(
@@ -639,6 +800,8 @@ impl TextureHandler {
       combo_shader,
       combo_index_buffer,
       combo_vertex_buffer,
+      instanced_combo_shader,
+      //instanced_combo_buffer,
     )
   }
 }

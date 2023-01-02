@@ -255,6 +255,12 @@ impl MaatGraphics {
     }
   }
 
+  pub fn create_instance_render_buffer<T: Into<String>>(&mut self, buffer_name: T, texture: T) {
+    self
+      .texture_handler
+      .create_instance_render_buffer(&mut self.vulkan, buffer_name, texture);
+  }
+
   pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self
       .texture_handler
@@ -434,22 +440,27 @@ impl MaatGraphics {
 
       //let mut text_count = 0;
 
-      for mut draw in texture_data {
-        if let Some(texture) = draw.get_texture() {
-          if draw.is_instanced() {
+      for draw in texture_data {
+        if let Some(buffer_name) = draw.get_buffer() {
+          if draw.adding_buffer_data() {
             self
               .texture_handler
-              .add_draw(&mut self.vulkan, draw.texture_data(time), &texture);
+              .add_instanced_texture(draw.texture_data(time), &buffer_name);
           } else {
             self
               .texture_handler
-              .draw(&mut self.vulkan, draw.texture_data(time), &texture);
+              .draw_instanced_texture(&mut self.vulkan, &buffer_name);
           }
+        } else if let Some(texture) = draw.get_texture() {
+          self
+            .texture_handler
+            .draw(&mut self.vulkan, draw.texture_data(time), &texture);
         } else if let Some(camera) = draw.get_camera() {
           self.texture_handler.set_camera_location(camera);
         } else {
           self.texture_handler.add_text_data(draw, &mut self.vulkan);
         }
+
         //else if let Some(text) = draw.get_text() {
 
         //self
