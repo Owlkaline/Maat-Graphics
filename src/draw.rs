@@ -38,7 +38,7 @@ pub struct Draw {
   flip_horz: bool,
   flip_vert: bool,
   camera_2d_pos: Option<Vec2>,
-  instensity: f32,
+  intensity: f32,
   adding_buffer_data: bool,
   buffer_name: Option<String>,
 }
@@ -60,7 +60,7 @@ impl Draw {
       flip_horz: false,
       flip_vert: false,
       camera_2d_pos: None,
-      instensity: -1.0,
+      intensity: -1.0,
       adding_buffer_data: false,
       buffer_name: None,
     }
@@ -108,8 +108,8 @@ impl Draw {
     &self.buffer_name
   }
 
-  pub fn instensity(mut self, v: f32) -> Draw {
-    self.instensity = v;
+  pub fn intensity(mut self, v: f32) -> Draw {
+    self.intensity = v;
     self
   }
 
@@ -238,7 +238,7 @@ impl Draw {
       EMPTY,
       EMPTY,
       EMPTY,
-      self.instensity,
+      self.intensity,
       time,
     ]
   }
