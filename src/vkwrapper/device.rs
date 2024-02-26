@@ -81,7 +81,7 @@ impl VkDevice {
       phys_device,
       device_memory_properties,
       surface,
-      surface_format: surface_format.build(),
+      surface_format,
       surface_loader,
       queue_family_index,
       present_queue,
