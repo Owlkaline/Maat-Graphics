@@ -26,6 +26,7 @@ pub use self::viewport::Viewport;
 pub use self::vulkan::Vulkan;
 pub use self::window::VkWindow;
 
+pub mod ash_window;
 mod buffer;
 mod clear_values;
 mod command_buffer;

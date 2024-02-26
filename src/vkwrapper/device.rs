@@ -3,9 +3,19 @@ use std::default::Default;
 use ash::extensions::khr::{Maintenance1, Surface, Swapchain};
 //pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
+use raw_window_handle::HasDisplayHandle;
 
 use crate::vkwrapper::{VkInstance, VkWindow};
+use raw_window_handle::*;
 
+use crate::vkwrapper::ash_window;
+use std::error::Error;
+use winit::{
+  dpi::PhysicalSize,
+  event::{Event, WindowEvent},
+  event_loop::{ControlFlow, EventLoop},
+  window::WindowBuilder,
+};
 /*
  if (data->properties.limits.nonCoherentAtomSize > 0) {
    VkDeviceSize atom_size = data->properties.limits.nonCoherentAtomSize - 1;
@@ -26,13 +36,14 @@ pub struct VkDevice {
 }
 
 impl VkDevice {
-  pub fn new(instance: &VkInstance, window: &VkWindow) -> VkDevice {
+  pub fn new(instance: &VkInstance, event_loop: &EventLoop<()>, window: &VkWindow) -> VkDevice {
     let surface_loader = Surface::new(instance.entry(), instance.internal());
     let surface = unsafe {
       ash_window::create_surface(
         instance.entry(),
         instance.internal(),
-        window.internal(),
+        window.internal().raw_display_handle().unwrap(), //.raw_display_handle(),
+        window.internal().raw_window_handle().unwrap(),
         None,
       )
       .unwrap()

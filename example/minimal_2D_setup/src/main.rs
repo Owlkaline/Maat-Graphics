@@ -13,7 +13,7 @@ fn main() {
   let create_window_size: [u32; 2] = [1280, 720];
   let mut screen_resolution = [1, 1];
 
-  let event_loop = EventLoop::new();
+  let event_loop = EventLoop::new().unwrap();
   let mut window = VkWindow::new(
     APP_NAME,
     create_window_size[0],
@@ -22,7 +22,12 @@ fn main() {
     &mut screen_resolution,
   );
 
-  let mut vulkan = MaatGraphics::new(&mut window, screen_resolution, "./fonts/DOSVGA");
+  let mut vulkan = MaatGraphics::new(
+    &mut window,
+    &event_loop,
+    screen_resolution,
+    "./fonts/DOSVGA",
+  );
 
   vulkan.load_texture("orientation", "./textures/negativeviewportheight.jpg");
   vulkan.load_texture("rust_crab", "./textures/rust.png");

@@ -9,6 +9,7 @@ use crate::vkwrapper::{
   ImageBuilder, PassDescription, Renderpass, Scissors, Semaphore, Shader, Viewport, VkCommandPool,
   VkDevice, VkFrameBuffer, VkInstance, VkSwapchain, VkWindow,
 };
+use winit::event_loop::EventLoop;
 
 const FRAMES_IN_FLIGHT: usize = 2;
 
@@ -68,9 +69,13 @@ pub struct Vulkan {
 }
 
 impl Vulkan {
-  pub fn new(window: &mut VkWindow, screen_resolution: vk::Extent2D) -> Vulkan {
-    let instance = VkInstance::new(window);
-    let device = VkDevice::new(&instance, window);
+  pub fn new(
+    window: &mut VkWindow,
+    event_loop: &EventLoop<()>,
+    screen_resolution: vk::Extent2D,
+  ) -> Vulkan {
+    let instance = VkInstance::new(window, event_loop);
+    let device = VkDevice::new(&instance, event_loop, window);
 
     let mut swapchain = VkSwapchain::new(&instance, &device, screen_resolution);
 
