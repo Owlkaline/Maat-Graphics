@@ -38,7 +38,9 @@ pub struct Draw {
   flip_horz: bool,
   flip_vert: bool,
   camera_2d_pos: Option<Vec2>,
-  instensity: f32,
+  intensity: f32,
+  adding_buffer_data: bool,
+  buffer_name: Option<String>,
 }
 
 impl Draw {
@@ -58,7 +60,9 @@ impl Draw {
       flip_horz: false,
       flip_vert: false,
       camera_2d_pos: None,
-      instensity: -1.0,
+      intensity: -1.0,
+      adding_buffer_data: false,
+      buffer_name: None,
     }
   }
 
@@ -83,8 +87,29 @@ impl Draw {
     }
   }
 
-  pub fn instensity(mut self, v: f32) -> Draw {
-    self.instensity = v;
+  pub fn draw_buffer(buffer_name: &str) -> Draw {
+    Draw {
+      buffer_name: Some(buffer_name.to_owned()),
+      ..Draw::new()
+    }
+  }
+
+  pub fn instance_render(mut self, buffer_name: &str) -> Draw {
+    self.buffer_name = Some(buffer_name.to_owned());
+    self.adding_buffer_data = true;
+    self
+  }
+
+  pub fn adding_buffer_data(&self) -> bool {
+    self.adding_buffer_data
+  }
+
+  pub fn get_buffer(&self) -> &Option<String> {
+    &self.buffer_name
+  }
+
+  pub fn intensity(mut self, v: f32) -> Draw {
+    self.intensity = v;
     self
   }
 
@@ -197,10 +222,10 @@ impl Draw {
       EMPTY,
       self.sprite_sheet.x,
       self.sprite_sheet.y,
-      if self.flip_horz { 0.0 } else { 1.0 },
+      EMPTY,
+      EMPTY,
+      if self.flip_horz { 1.0 } else { 0.0 },
       if self.flip_vert { 1.0 } else { 0.0 },
-      EMPTY,
-      EMPTY,
       EMPTY,
       EMPTY,
       self.colour_overlay.x,
@@ -213,7 +238,7 @@ impl Draw {
       EMPTY,
       EMPTY,
       EMPTY,
-      self.instensity,
+      self.intensity,
       time,
     ]
   }

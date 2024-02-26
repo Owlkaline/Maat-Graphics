@@ -3,9 +3,19 @@ use std::default::Default;
 use ash::extensions::khr::{Maintenance1, Surface, Swapchain};
 //pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Device};
+use raw_window_handle::HasDisplayHandle;
 
 use crate::vkwrapper::{VkInstance, VkWindow};
+use raw_window_handle::*;
 
+use crate::vkwrapper::ash_window;
+use std::error::Error;
+use winit::{
+  dpi::PhysicalSize,
+  event::{Event, WindowEvent},
+  event_loop::{ControlFlow, EventLoop},
+  window::WindowBuilder,
+};
 /*
  if (data->properties.limits.nonCoherentAtomSize > 0) {
    VkDeviceSize atom_size = data->properties.limits.nonCoherentAtomSize - 1;
@@ -26,13 +36,14 @@ pub struct VkDevice {
 }
 
 impl VkDevice {
-  pub fn new(instance: &VkInstance, window: &VkWindow) -> VkDevice {
+  pub fn new(instance: &VkInstance, event_loop: &EventLoop<()>, window: &VkWindow) -> VkDevice {
     let surface_loader = Surface::new(instance.entry(), instance.internal());
     let surface = unsafe {
       ash_window::create_surface(
         instance.entry(),
         instance.internal(),
-        window.internal(),
+        window.internal().raw_display_handle().unwrap(), //.raw_display_handle(),
+        window.internal().raw_window_handle().unwrap(),
         None,
       )
       .unwrap()
@@ -43,20 +54,21 @@ impl VkDevice {
     let (device, present_queue, compute_queue) =
       create_logical_device(instance, &phys_device, queue_family_index);
 
-    let mut surface_format: vk::SurfaceFormatKHRBuilder = vk::SurfaceFormatKHR::builder()
-      .format(vk::Format::A8B8G8R8_SRGB_PACK32)
-      .color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR);
-    //let surface_format = {
-    //  vk::SurfaceFormatKHR {
-    //    format: vk: Format::A8B8G8R8_SRGB_PACK32,
-    //    color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR,
-    //  }
-    //};
-    //let surface_format = unsafe {
-    //  surface_loader
-    //    .get_physical_device_surface_formats(phys_device, surface)
-    //    .unwrap()[0]
-    //};
+    let surface_format = unsafe {
+      *surface_loader
+        .get_physical_device_surface_formats(phys_device, surface)
+        .unwrap()
+        .iter()
+        .inspect(|v| println!("{:?}", v))
+        .find_map(|s| {
+          if s.format == vk::Format::B8G8R8A8_SRGB {
+            Some(s)
+          } else {
+            None
+          }
+        })
+        .expect("Failed to get non linear SRGB swapchain format")
+    };
 
     let device_memory_properties = unsafe {
       instance
@@ -133,7 +145,7 @@ fn pick_physical_device(
         .get_physical_device_queue_family_properties(*pdevice)
         .iter()
         .enumerate()
-        .filter_map(|(index, ref info)| {
+        .find_map(|(index, ref info)| {
           let supports_graphic_and_surface = info.queue_flags.contains(vk::QueueFlags::GRAPHICS)
             && info.queue_flags.contains(vk::QueueFlags::COMPUTE)
             && surface_loader
@@ -145,10 +157,8 @@ fn pick_physical_device(
             None
           }
         })
-        .next()
     })
-    .filter_map(|v| v)
-    .next()
+    .find_map(|v| v)
     .expect("Couldn't find suitable device.");
 
   (pdevice, queue_family_index as u32)

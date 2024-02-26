@@ -33,7 +33,13 @@ impl VkSwapchain {
         .iter()
         .cloned()
         .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
-        .unwrap_or(vk::PresentModeKHR::IMMEDIATE);
+        .unwrap_or(
+          present_modes
+            .iter()
+            .cloned()
+            .find(|&mode| mode == vk::PresentModeKHR::IMMEDIATE)
+            .unwrap_or(vk::PresentModeKHR::IMMEDIATE),
+        );
 
       (surface_capabilities, present_mode)
     };

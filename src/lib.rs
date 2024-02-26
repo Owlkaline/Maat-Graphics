@@ -6,6 +6,9 @@ pub extern crate glam;
 pub extern crate image;
 pub extern crate winit;
 
+use std::sync::mpsc;
+use std::thread;
+
 pub use crate::extra::{
   gltf_loader::CollisionInformation, Math, Swizzle2, Swizzle3, Swizzle4, Vector2, Vector3, Vector4,
   VectorMath,
@@ -14,6 +17,8 @@ pub use crate::shader_handlers::Camera;
 pub use crate::vkwrapper::VkWindow;
 
 pub use crate::draw::Draw;
+
+use winit::window::CursorGrabMode;
 
 mod draw;
 mod extra;
@@ -26,18 +31,16 @@ use std::time::Instant;
 use ash::vk;
 use gilrs::{ev::EventType, Axis, Button, Event as GpEvent, GamepadId, Gilrs};
 use winit::{
-  event::{
-    DeviceEvent, ElementState, Event, ModifiersState, MouseButton as WMouseButton, VirtualKeyCode,
-    WindowEvent,
-  },
+  event::{DeviceEvent, ElementState, Event, MouseButton as WMouseButton, WindowEvent},
   event_loop::{ControlFlow, EventLoop},
+  keyboard::{KeyCode, ModifiersState},
   window::Fullscreen,
 };
 
 use crate::shader_handlers::{ComputeHandler, ModelHandler, TextureHandler};
 use crate::vkwrapper::{/*ComputeShader, DescriptorPoolBuilder, DescriptorSet,*/ Image, Vulkan,};
 
-pub const DELTA_STEP: f32 = 0.001;
+pub const DELTA_STEP: f32 = 0.01;
 const ANIMATION_DELTA_STEP: f32 = 0.01;
 const MAX_LOOPS_PER_FRAME: u32 = 5;
 
@@ -128,13 +131,13 @@ pub enum MaatEvent<'a, S: Into<String>> {
     &'a mut Vec<(Vec<f32>, S)>,
   ),
   FixedUpdate(
-    &'a Vec<(VirtualKeyCode, ModifiersState)>,
+    &'a Vec<(KeyCode, ModifiersState)>,
     &'a Vec<(u32, bool)>,
     &'a mut Camera,
     f32,
   ),
   Update(
-    &'a Vec<(VirtualKeyCode, ModifiersState)>,
+    &'a Vec<(KeyCode, ModifiersState)>,
     &'a Vec<(u32, bool)>,
     &'a mut Camera,
     f32,
@@ -147,12 +150,9 @@ pub enum MaatEvent<'a, S: Into<String>> {
   GamepadButton(ControllerInput, bool),
   GamepadAxis(AxisInput),
   Resized(u32, u32),
-  UpdateMaatSettings(
-    &'a Vec<(VirtualKeyCode, ModifiersState)>,
-    &'a mut Vec<MaatSetting>,
-  ),
+  UpdateMaatSettings(&'a Vec<(KeyCode, ModifiersState)>, &'a mut Vec<MaatSetting>),
   // NewModelLoaded -> HashMap<>
-  UnhandledWindowEvent(WindowEvent<'a>),
+  UnhandledWindowEvent(WindowEvent),
   UnhandledDeviceEvent(DeviceEvent),
 }
 
@@ -171,6 +171,7 @@ pub struct MaatGraphics {
 impl MaatGraphics {
   pub fn new<T: Into<String>>(
     window: &mut VkWindow,
+    event_loop: &EventLoop<()>,
     screen_resolution: [u32; 2],
     font_location: T,
   ) -> MaatGraphics {
@@ -178,7 +179,7 @@ impl MaatGraphics {
       width: screen_resolution[0],
       height: screen_resolution[1],
     };
-    let mut vulkan = Vulkan::new(window, screen_resolution);
+    let mut vulkan = Vulkan::new(window, event_loop, screen_resolution);
 
     //let compute_descriptor_pool = DescriptorPoolBuilder::new()
     //  .num_storage(5)
@@ -252,6 +253,12 @@ impl MaatGraphics {
     }
   }
 
+  pub fn create_instance_render_buffer<T: Into<String>>(&mut self, buffer_name: T, texture: T) {
+    self
+      .texture_handler
+      .create_instance_render_buffer(&mut self.vulkan, buffer_name, texture);
+  }
+
   pub fn load_texture<T: Into<String>>(&mut self, texture_ref: T, texture: T) {
     self
       .texture_handler
@@ -319,7 +326,14 @@ impl MaatGraphics {
           window.internal().set_cursor_visible(visible);
         }
         MaatSetting::CaptureMouse(capture) => {
-          window.internal().set_cursor_grab(capture).ok(); // We are not too concerned if this isn't Ok()
+          window
+            .internal()
+            .set_cursor_grab(if capture {
+              CursorGrabMode::Confined
+            } else {
+              CursorGrabMode::None
+            })
+            .ok(); // We are not too concerned if this isn't Ok()
         }
         MaatSetting::WindowFullscreenBorderless(fullscreen, borderless) => {
           let window_mode = {
@@ -353,7 +367,7 @@ impl MaatGraphics {
           use winit::dpi::LogicalSize;
           window
             .internal()
-            .set_inner_size::<LogicalSize<f32>>((width, height).into());
+            .request_inner_size::<LogicalSize<f32>>((width, height).into());
         }
         MaatSetting::LimitFps(limit, should_limit) => {
           *limit_fps = should_limit;
@@ -432,7 +446,17 @@ impl MaatGraphics {
       //let mut text_count = 0;
 
       for draw in texture_data {
-        if let Some(texture) = draw.get_texture() {
+        if let Some(buffer_name) = draw.get_buffer() {
+          if draw.adding_buffer_data() {
+            self
+              .texture_handler
+              .add_instanced_texture(draw.texture_data(time), &buffer_name);
+          } else {
+            self
+              .texture_handler
+              .draw_instanced_texture(&mut self.vulkan, &buffer_name);
+          }
+        } else if let Some(texture) = draw.get_texture() {
           self
             .texture_handler
             .draw(&mut self.vulkan, draw.texture_data(time), &texture);
@@ -441,6 +465,7 @@ impl MaatGraphics {
         } else {
           self.texture_handler.add_text_data(draw, &mut self.vulkan);
         }
+
         //else if let Some(text) = draw.get_text() {
 
         //self
@@ -484,18 +509,313 @@ impl MaatGraphics {
     //}
   }
 
+  //pub fn run<T, V>(
+  //  mut vulkan: MaatGraphics,
+  //  mut window: VkWindow,
+  //  event_loop: EventLoop<()>,
+  //  mut callback: T,
+  //) -> !
+  //where
+  //  T: 'static + FnMut(MaatEvent<V>),
+  //  V: Into<String>,
+  //{
+  //  let mut device_keys = Vec::new();
+  //  let mut software_keys = Vec::new();
+
+  //  let mut time = 0.0;
+
+  //  let mut _delta_time = 0.0;
+  //  let mut last_time = Instant::now();
+
+  //  let mut total_delta_time = 0.0;
+  //  let mut total_animation_delta_time = 0.0;
+
+  //  let mut window_dimensions = [1280.0, 720.0];
+
+  //  let mut limit_fps = false;
+  //  let mut fps_limit = 1.0 / 144.0;
+  //  let mut total_frame_limit_time = 0.0;
+
+  //  let mut texture_data = Vec::new();
+  //  let mut model_data = Vec::new();
+  //  let mut maat_settings_data = Vec::new();
+
+  //  //let (tx, rx): (mpsc::Sender<WindowEvent>, mpsc::Receiver<_>) = mpsc::channel();
+
+  //  //let join = thread::spawn(move || {
+  //  //  while let Ok(event) = rx.recv() {
+  //      //match event {
+  //      //  Event::WindowEvent { event, .. } => match event {
+  //      //    //WindowEvent::CloseRequested => {
+  //      //    //  *control_flow = ControlFlow::Exit;
+  //      //    //}
+  //      //    //WindowEvent::KeyboardInput {
+  //      //    //  input:
+  //      //    //    KeyboardInput {
+  //      //    //      virtual_keycode: Some(VirtualKeyCode::Escape),
+  //      //    //      ..
+  //      //    //    },
+  //      //    //  ..
+  //      //    //} => *control_flow = ControlFlow::Exit,
+  //      //    //WindowEvent::Resized(dimensions) => {
+  //      //    //  vulkan.recreate_swapchain(dimensions.width, dimensions.height);
+  //      //    //  callback(MaatEvent::Resized(dimensions.width, dimensions.height));
+  //      //    //  window_dimensions[0] = dimensions.width as f64;
+  //      //    //  window_dimensions[1] = dimensions.height as f64;
+  //      //    //  //window.internal().request_redraw();
+  //      //    //}
+  //      //    WindowEvent::KeyboardInput { input, .. } => {
+  //      //      let key_code = input.scancode;
+  //      //      let state = input.state == ElementState::Pressed;
+  //      //      software_keys.push((key_code, state));
+  //      //    }
+
+  //      //    WindowEvent::CursorMoved { position, .. } => {
+  //      //      callback(MaatEvent::MouseMoved(
+  //      //        position.x,
+  //      //        window_dimensions[1] - position.y,
+  //      //      ));
+  //      //    }
+  //      //    // TODO:
+  //      //    WindowEvent::MouseInput { state, button, .. } => {
+  //      //      let state = match state {
+  //      //        ElementState::Pressed => true,
+  //      //        ElementState::Released => false,
+  //      //      };
+
+  //      //      if let Some(button) = match button {
+  //      //        WMouseButton::Left => Some(MouseInput::Left(state)),
+  //      //        WMouseButton::Right => Some(MouseInput::Right(state)),
+  //      //        WMouseButton::Middle => Some(MouseInput::Middle(state)),
+  //      //        WMouseButton::Other(_id) => None,
+  //      //      } {
+  //      //        callback(MaatEvent::MouseButton(button));
+  //      //      }
+  //      //    }
+  //      //    window_event => {
+  //      //      callback(MaatEvent::UnhandledWindowEvent(window_event));
+  //      //    }
+  //      //  },
+  //      //  Event::DeviceEvent { event, .. } => match event {
+  //      //    DeviceEvent::MouseMotion { delta: (mx, my) } => {
+  //      //      callback(MaatEvent::MouseDelta(mx, my, vulkan.mut_camera()));
+  //      //    }
+  //      //    DeviceEvent::MouseWheel { delta } => match delta {
+  //      //      winit::event::MouseScrollDelta::LineDelta(x, y) => {
+  //      //        #[cfg(target_os = "windows")]
+  //      //        let y = -y;
+
+  //      //        callback(MaatEvent::ScrollDelta(x, y, vulkan.mut_camera()));
+  //      //      }
+  //      //      _ => {}
+  //      //    },
+  //      //    DeviceEvent::Key(key) => match key.state {
+  //      //      ElementState::Pressed => {
+  //      //        if let Some(key_code) = key.virtual_keycode {
+  //      //          if !device_keys
+  //      //            .iter()
+  //      //            .map(|(k, _)| *k)
+  //      //            .collect::<Vec<VirtualKeyCode>>()
+  //      //            .contains(&key_code)
+  //      //          {
+  //      //            device_keys.push((key_code, key.modifiers));
+  //      //          }
+  //      //        }
+  //      //      }
+  //      //      ElementState::Released => {
+  //      //        if let Some(key_code) = key.virtual_keycode {
+  //      //          let mut i = 0;
+  //      //          while i < device_keys.len() {
+  //      //            if device_keys[i].0 == key_code {
+  //      //              device_keys.remove(i);
+  //      //            }
+
+  //      //            i += 1;
+  //      //          }
+  //      //        }
+  //      //      }
+  //      //    },
+  //      //    device_event => {
+  //      //      callback(MaatEvent::UnhandledDeviceEvent(device_event));
+  //      //    }
+  //      //  },
+  //      //  //Event::MainEventsCleared => {
+  //      //  //Event::RedrawRequested(_id) => {
+  //      //  //  callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+  //      //  //  vulkan.draw(texture_data, model_data, time);
+  //      //  //}
+  //      //  //Event::LoopDestroyed => {
+  //      //  //  vulkan.destroy();
+  //      //  //}
+  //      //  _unhandled_event => {}
+  //      //}
+  //    }
+  //  //});
+
+  //  event_loop.run(move |event, event_loop, control_flow| {
+  //    *control_flow = ControlFlow::Poll;
+
+  //    _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+  //    if _delta_time > 0.25 {
+  //      _delta_time = 0.25;
+  //    }
+  //    last_time = Instant::now();
+  //    total_delta_time += _delta_time as f32;
+  //    total_frame_limit_time += _delta_time as f32;
+  //    total_animation_delta_time += _delta_time as f32;
+
+  //    let mut should_exit = false;
+  //    callback(MaatEvent::Update(
+  //      &device_keys,
+  //      &software_keys,
+  //      vulkan.mut_camera(),
+  //      _delta_time,
+  //      &mut should_exit,
+  //    ));
+
+  //    if should_exit {
+  //      *control_flow = ControlFlow::Exit;
+  //    }
+  //    //let max_steps = 2.0;
+  //    //let max_per_draw = 1;
+  //    //if total_delta_time >= DELTA_STEP * max_steps {
+  //    //  //0.05 {
+  //    //  total_delta_time = DELTA_STEP;
+  //    //}
+
+  //    //if total_delta_time >= DELTA_STEP {
+  //    //  let delta_steps =
+  //    //    ((total_delta_time / DELTA_STEP).floor() as usize).min(max_per_draw as usize);
+  //    //  //println!("Steps: {}", delta_steps);
+
+  //    if total_delta_time > DELTA_STEP * 3.0 {
+  //      total_delta_time = DELTA_STEP;
+  //    }
+
+  //    //  for _ in 0..delta_steps
+  //    if total_delta_time > DELTA_STEP {
+  //      callback(MaatEvent::FixedUpdate(
+  //        &device_keys,
+  //        &software_keys,
+  //        vulkan.mut_camera(),
+  //        DELTA_STEP,
+  //      ));
+  //      total_delta_time -= DELTA_STEP;
+  //      time += DELTA_STEP;
+  //    }
+  //    //}
+  //    //}
+
+  //    // TODO: Make software keys clear the key
+  //    if software_keys.len() > 100 {
+  //      software_keys.clear();
+  //    }
+
+  //    if total_animation_delta_time > ANIMATION_DELTA_STEP {
+  //      let delta_steps =
+  //        ((total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize).max(5);
+  //      for _ in 0..delta_steps {
+  //        vulkan.update_animations(ANIMATION_DELTA_STEP);
+  //        total_animation_delta_time -= ANIMATION_DELTA_STEP;
+  //      }
+  //    }
+
+  //    //let mut texture_data = Vec::new();
+  //    //let mut model_data = Vec::new();
+  //    let mut maat_settings_data = Vec::new();
+
+  //    let mut should_redraw = !limit_fps;
+  //    if total_frame_limit_time > fps_limit {
+  //      total_frame_limit_time -= fps_limit;
+  //      should_redraw = true;
+  //    }
+
+  //    if should_redraw {
+  //      callback(MaatEvent::UpdateMaatSettings(
+  //        &mut device_keys,
+  //        &mut maat_settings_data,
+  //      ));
+
+  //      vulkan.update_maat_settings(
+  //        &mut window,
+  //        event_loop,
+  //        &mut limit_fps,
+  //        &mut fps_limit,
+  //        maat_settings_data,
+  //      );
+
+  //      window.internal().request_redraw();
+  //    }
+
+  //    if let Some(controllers) = &mut vulkan.gamepads {
+  //      if let Some(gamepad_id) = &vulkan.active_controller {
+  //        if let Some(event) = controllers.next_event() {
+  //          match event {
+  //            GpEvent { id, event, .. } => {
+  //              if id == *gamepad_id {
+  //                match event {
+  //                  EventType::ButtonPressed(button, _) => {
+  //                    if let Some(input) = ControllerInput::from_button(button) {
+  //                      callback(MaatEvent::GamepadButton(input, true));
+  //                    }
+  //                  }
+  //                  EventType::ButtonReleased(button, _) => {
+  //                    if let Some(input) = ControllerInput::from_button(button) {
+  //                      callback(MaatEvent::GamepadButton(input, false));
+  //                    }
+  //                  }
+  //                  EventType::AxisChanged(axis, value, _) => {
+  //                    if let Some(axis) = AxisInput::from_axis(axis, value) {
+  //                      callback(MaatEvent::GamepadAxis(axis));
+  //                    }
+  //                  }
+  //                  _ => {}
+  //                }
+  //              }
+  //            }
+  //          }
+  //        }
+  //      }
+  //    }
+
+  //    match event {
+  //      Event::WindowEvent {
+  //        event: WindowEvent::CloseRequested,
+  //        ..
+  //      } => {
+  //        *control_flow = ControlFlow::Exit;
+  //      }
+  //      Event::WindowEvent {
+  //        event: WindowEvent::Resized(dimensions),
+  //        ..
+  //      } => {
+  //        vulkan.recreate_swapchain(dimensions.width, dimensions.height);
+  //        callback(MaatEvent::Resized(dimensions.width, dimensions.height));
+  //        window_dimensions[0] = dimensions.width as f64;
+  //        window_dimensions[1] = dimensions.height as f64;
+  //        //window.internal().request_redraw();
+  //      }
+  //      Event::WindowEvent { window_id, event } => tx.send(event).unwrap(),
+  //      e => {
+  //        //tx.send(event).unwrap();
+  //      }
+  //    }
+  //  })
+  //}
+
   pub fn run<T, V>(
     mut vulkan: MaatGraphics,
     mut window: VkWindow,
     event_loop: EventLoop<()>,
     mut callback: T,
-  ) -> !
-  where
+  ) where
     T: 'static + FnMut(MaatEvent<V>),
     V: Into<String>,
   {
     let mut device_keys = Vec::new();
     let mut software_keys = Vec::new();
+
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut time = 0.0;
 
@@ -508,228 +828,236 @@ impl MaatGraphics {
     let mut window_dimensions = [1280.0, 720.0];
 
     let mut limit_fps = false;
-    let mut fps_limit = 1.0 / 144.0;
+    let mut fps_limit = 1.0 / 15.0;
     let mut total_frame_limit_time = 0.0;
 
-    event_loop.run(move |event, event_loop, control_flow| {
-      *control_flow = ControlFlow::Poll;
+    let mut texture_data = Vec::new();
+    event_loop
+      .run(move |event, event_loop| {
+        match event {
+          Event::WindowEvent { event, .. } => match event {
+            WindowEvent::RedrawRequested => {
+              let mut model_data = Vec::new();
+              texture_data.clear();
+              model_data.clear();
+              callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
+              vulkan.draw(texture_data.clone(), model_data, time);
+            }
+            WindowEvent::CloseRequested => {
+              //*control_flow = ControlFlow::Exit;
+              event_loop.exit();
+            }
+            //WindowEvent::KeyboardInput {
+            //  input:
+            //    KeyboardInput {
+            //      virtual_keycode: Some(VirtualKeyCode::Escape),
+            //      ..
+            //    },
+            //  ..
+            //} => *control_flow = ControlFlow::Exit,
+            WindowEvent::Resized(dimensions) => {
+              vulkan.recreate_swapchain(dimensions.width, dimensions.height);
+              callback(MaatEvent::Resized(dimensions.width, dimensions.height));
+              window_dimensions[0] = dimensions.width as f64;
+              window_dimensions[1] = dimensions.height as f64;
+              //window.internal().request_redraw();
+            }
+            //WindowEvent::KeyboardInput { input, .. } => {
+            //  let key_code = input.scancode;
+            //  let state = input.state == ElementState::Pressed;
+            //  software_keys.push((key_code, state));
+            //}
+            WindowEvent::CursorMoved { position, .. } => {
+              callback(MaatEvent::MouseMoved(
+                position.x,
+                window_dimensions[1] - position.y,
+              ));
+            }
+            // TODO:
+            WindowEvent::MouseInput { state, button, .. } => {
+              let state = match state {
+                ElementState::Pressed => true,
+                ElementState::Released => false,
+              };
 
-      _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
-      last_time = Instant::now();
-      total_delta_time += _delta_time as f32;
-      total_frame_limit_time += _delta_time as f32;
-      total_animation_delta_time += _delta_time as f32;
-
-      let mut should_exit = false;
-      callback(MaatEvent::Update(
-        &device_keys,
-        &software_keys,
-        vulkan.mut_camera(),
-        _delta_time,
-        &mut should_exit,
-      ));
-
-      if should_exit {
-        *control_flow = ControlFlow::Exit;
-      }
-
-      if total_delta_time >= 0.05 {
-        total_delta_time = DELTA_STEP;
-      }
-
-      if total_delta_time > DELTA_STEP {
-        let delta_steps = ((total_delta_time / DELTA_STEP).floor() as usize).min(5);
-
-        for _ in 0..delta_steps {
-          callback(MaatEvent::FixedUpdate(
-            &device_keys,
-            &software_keys,
-            vulkan.mut_camera(),
-            DELTA_STEP,
-          ));
-          total_delta_time -= DELTA_STEP;
-          time += DELTA_STEP;
-        }
-      }
-
-      // TODO: Make software keys clear the key
-      if software_keys.len() > 100 {
-        software_keys.clear();
-      }
-
-      if total_animation_delta_time > ANIMATION_DELTA_STEP {
-        let delta_steps =
-          ((total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize).max(5);
-        for _ in 0..delta_steps {
-          vulkan.update_animations(ANIMATION_DELTA_STEP);
-          total_animation_delta_time -= ANIMATION_DELTA_STEP;
-        }
-      }
-
-      let mut texture_data = Vec::new();
-      let mut model_data = Vec::new();
-      let mut maat_settings_data = Vec::new();
-
-      let mut should_redraw = !limit_fps;
-      if total_frame_limit_time > fps_limit {
-        total_frame_limit_time -= fps_limit;
-        should_redraw = true;
-      }
-
-      if should_redraw {
-        callback(MaatEvent::UpdateMaatSettings(
-          &mut device_keys,
-          &mut maat_settings_data,
-        ));
-
-        vulkan.update_maat_settings(
-          &mut window,
-          event_loop,
-          &mut limit_fps,
-          &mut fps_limit,
-          maat_settings_data,
-        );
-
-        window.internal().request_redraw();
-      }
-
-      if let Some(controllers) = &mut vulkan.gamepads {
-        if let Some(gamepad_id) = &vulkan.active_controller {
-          if let Some(event) = controllers.next_event() {
-            match event {
-              GpEvent { id, event, .. } => {
-                if id == *gamepad_id {
-                  match event {
-                    EventType::ButtonPressed(button, _) => {
-                      if let Some(input) = ControllerInput::from_button(button) {
-                        callback(MaatEvent::GamepadButton(input, true));
-                      }
-                    }
-                    EventType::ButtonReleased(button, _) => {
-                      if let Some(input) = ControllerInput::from_button(button) {
-                        callback(MaatEvent::GamepadButton(input, false));
-                      }
-                    }
-                    EventType::AxisChanged(axis, value, _) => {
-                      if let Some(axis) = AxisInput::from_axis(axis, value) {
-                        callback(MaatEvent::GamepadAxis(axis));
-                      }
-                    }
-                    _ => {}
-                  }
+              if let Some(button) = match button {
+                WMouseButton::Left => Some(MouseInput::Left(state)),
+                WMouseButton::Right => Some(MouseInput::Right(state)),
+                WMouseButton::Middle => Some(MouseInput::Middle(state)),
+                WMouseButton::Other(_id) => None,
+                _ => {
+                  panic!("Other mouse button event");
                 }
+              } {
+                callback(MaatEvent::MouseButton(button));
               }
             }
-          }
-        }
-      }
+            window_event => {
+              callback(MaatEvent::UnhandledWindowEvent(window_event));
+            }
+          },
+          Event::DeviceEvent { event, .. } => match event {
+            DeviceEvent::MouseMotion { delta: (mx, my) } => {
+              callback(MaatEvent::MouseDelta(mx, my, vulkan.mut_camera()));
+            }
+            DeviceEvent::MouseWheel { delta } => match delta {
+              winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                #[cfg(target_os = "windows")]
+                let y = -y;
 
-      match event {
-        Event::WindowEvent { event, .. } => match event {
-          WindowEvent::CloseRequested => {
-            *control_flow = ControlFlow::Exit;
-          }
-          //WindowEvent::KeyboardInput {
-          //  input:
-          //    KeyboardInput {
-          //      virtual_keycode: Some(VirtualKeyCode::Escape),
-          //      ..
-          //    },
-          //  ..
-          //} => *control_flow = ControlFlow::Exit,
-          WindowEvent::Resized(dimensions) => {
-            vulkan.recreate_swapchain(dimensions.width, dimensions.height);
-            callback(MaatEvent::Resized(dimensions.width, dimensions.height));
-            window_dimensions[0] = dimensions.width as f64;
-            window_dimensions[1] = dimensions.height as f64;
-            //window.internal().request_redraw();
-          }
-          WindowEvent::KeyboardInput { input, .. } => {
-            let key_code = input.scancode;
-            let state = input.state == ElementState::Pressed;
-            software_keys.push((key_code, state));
-          }
+                callback(MaatEvent::ScrollDelta(x, y, vulkan.mut_camera()));
+              }
+              _ => {}
+            },
+            DeviceEvent::Key(key) => match key.state {
+              ElementState::Pressed => {
+                //if let Some(key_code) = key.virtual_keycode {
+                //  if !device_keys
+                //    .iter()
+                //    .map(|(k, _)| *k)
+                //    .collect::<Vec<KeyCode>>()
+                //    .contains(&key_code)
+                //  {
+                //    device_keys.push((key_code, key.modifiers));
+                //  }
+                //}
+              }
+              ElementState::Released => {
+                //if let Some(key_code) = key.virtual_keycode {
+                //  let mut i = 0;
+                //  while i < device_keys.len() {
+                //    if device_keys[i].0 == key_code {
+                //      device_keys.remove(i);
+                //    }
 
-          WindowEvent::CursorMoved { position, .. } => {
-            callback(MaatEvent::MouseMoved(
-              position.x,
-              window_dimensions[1] - position.y,
+                //    i += 1;
+                //  }
+                //}
+              }
+            },
+            device_event => {
+              callback(MaatEvent::UnhandledDeviceEvent(device_event));
+            }
+          },
+
+          Event::NewEvents(_) => {
+            _delta_time = last_time.elapsed().subsec_nanos() as f32 / 1000000000.0 as f32;
+            total_frame_limit_time += _delta_time as f32;
+            //if _delta_time > 0.25 {
+            //  _delta_time = 0.25;
+            //}
+            last_time = Instant::now();
+            total_delta_time += _delta_time as f32;
+            total_animation_delta_time += _delta_time as f32;
+
+            let mut should_exit = false;
+
+            if should_exit {
+              event_loop.exit();
+              //*control_flow = ControlFlow::Exit;
+            }
+
+            if total_delta_time > 0.1 {
+              total_delta_time = DELTA_STEP;
+            }
+
+            for _ in 0..((total_delta_time / DELTA_STEP).floor() as usize) {
+              callback(MaatEvent::FixedUpdate(
+                &device_keys,
+                &software_keys,
+                vulkan.mut_camera(),
+                DELTA_STEP,
+              ));
+              total_delta_time -= DELTA_STEP;
+              time += DELTA_STEP;
+            }
+
+            callback(MaatEvent::Update(
+              &device_keys,
+              &software_keys,
+              vulkan.mut_camera(),
+              _delta_time,
+              &mut should_exit,
             ));
-          }
-          // TODO:
-          WindowEvent::MouseInput { state, button, .. } => {
-            let state = match state {
-              ElementState::Pressed => true,
-              ElementState::Released => false,
-            };
 
-            if let Some(button) = match button {
-              WMouseButton::Left => Some(MouseInput::Left(state)),
-              WMouseButton::Right => Some(MouseInput::Right(state)),
-              WMouseButton::Middle => Some(MouseInput::Middle(state)),
-              WMouseButton::Other(_id) => None,
-            } {
-              callback(MaatEvent::MouseButton(button));
+            // TODO: Make software keys clear the key
+            if software_keys.len() > 100 {
+              software_keys.clear();
             }
-          }
-          window_event => {
-            callback(MaatEvent::UnhandledWindowEvent(window_event));
-          }
-        },
-        Event::DeviceEvent { event, .. } => match event {
-          DeviceEvent::MouseMotion { delta: (mx, my) } => {
-            callback(MaatEvent::MouseDelta(mx, my, vulkan.mut_camera()));
-          }
-          DeviceEvent::MouseWheel { delta } => match delta {
-            winit::event::MouseScrollDelta::LineDelta(x, y) => {
-              #[cfg(target_os = "windows")]
-              let y = -y;
 
-              callback(MaatEvent::ScrollDelta(x, y, vulkan.mut_camera()));
-            }
-            _ => {}
-          },
-          DeviceEvent::Key(key) => match key.state {
-            ElementState::Pressed => {
-              if let Some(key_code) = key.virtual_keycode {
-                if !device_keys
-                  .iter()
-                  .map(|(k, _)| *k)
-                  .collect::<Vec<VirtualKeyCode>>()
-                  .contains(&key_code)
-                {
-                  device_keys.push((key_code, key.modifiers));
-                }
+            if total_animation_delta_time > ANIMATION_DELTA_STEP {
+              let delta_steps =
+                ((total_animation_delta_time / ANIMATION_DELTA_STEP).floor() as usize).max(5);
+              for _ in 0..delta_steps {
+                vulkan.update_animations(ANIMATION_DELTA_STEP);
+                total_animation_delta_time -= ANIMATION_DELTA_STEP;
               }
             }
-            ElementState::Released => {
-              if let Some(key_code) = key.virtual_keycode {
-                let mut i = 0;
-                while i < device_keys.len() {
-                  if device_keys[i].0 == key_code {
-                    device_keys.remove(i);
+
+            let mut maat_settings_data = Vec::new();
+
+            let mut should_redraw = !limit_fps;
+            if total_frame_limit_time > fps_limit {
+              total_frame_limit_time = 0.0;
+              should_redraw = true;
+            }
+
+            if should_redraw {
+              callback(MaatEvent::UpdateMaatSettings(
+                &mut device_keys,
+                &mut maat_settings_data,
+              ));
+
+              vulkan.update_maat_settings(
+                &mut window,
+                event_loop,
+                &mut limit_fps,
+                &mut fps_limit,
+                maat_settings_data,
+              );
+
+              window.internal().request_redraw();
+            }
+
+            if let Some(controllers) = &mut vulkan.gamepads {
+              if let Some(gamepad_id) = &vulkan.active_controller {
+                if let Some(event) = controllers.next_event() {
+                  match event {
+                    GpEvent { id, event, .. } => {
+                      if id == *gamepad_id {
+                        match event {
+                          EventType::ButtonPressed(button, _) => {
+                            if let Some(input) = ControllerInput::from_button(button) {
+                              callback(MaatEvent::GamepadButton(input, true));
+                            }
+                          }
+                          EventType::ButtonReleased(button, _) => {
+                            if let Some(input) = ControllerInput::from_button(button) {
+                              callback(MaatEvent::GamepadButton(input, false));
+                            }
+                          }
+                          EventType::AxisChanged(axis, value, _) => {
+                            if let Some(axis) = AxisInput::from_axis(axis, value) {
+                              callback(MaatEvent::GamepadAxis(axis));
+                            }
+                          }
+                          _ => {}
+                        }
+                      }
+                    }
                   }
-
-                  i += 1;
                 }
               }
             }
-          },
-          device_event => {
-            callback(MaatEvent::UnhandledDeviceEvent(device_event));
           }
-        },
-        //Event::MainEventsCleared => {
-        Event::RedrawRequested(_id) => {
-          callback(MaatEvent::Draw(&mut texture_data, &mut model_data));
-          vulkan.draw(texture_data, model_data, time);
+
+          Event::LoopExiting => {
+            vulkan.destroy();
+          }
+          _unhandled_event => {}
         }
-        Event::LoopDestroyed => {
-          vulkan.destroy();
-        }
-        _unhandled_event => {}
-      }
-    })
+      })
+      .expect("Game loop failed");
   }
 }
 

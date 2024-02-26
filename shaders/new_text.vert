@@ -11,6 +11,7 @@ layout (location = 1) out vec4 o_colour;
 layout(push_constant) uniform PushConstants {
   vec2 translation;
   vec2 window_size;
+  vec2 camera_pos;
 } push_constants;
 
 mat4 ortho_projection(float bottom, float top, float left, float right, float near, float far) {
@@ -33,5 +34,5 @@ void main(){
   //vec2 translation = vec2(0.5, 0.5);//push_constants.translation;//vec2(0.5, 0.5);
   //gl_Position = vec4(position.xy + translation * vec2(2.0, -2.0), 0.0, 1.0);
 
-  gl_Position = ortho_matrix * vec4(position.xy + push_constants.translation, -1.0, 1.0);
+  gl_Position = ortho_matrix * vec4(position.xy + push_constants.translation + push_constants.camera_pos.xy, -1.0, 1.0);
 }

@@ -6,6 +6,11 @@ use ash::extensions::ext::DebugUtils;
 use ash::vk::make_api_version;
 //pub use ash::version::{DeviceV1_0, EntryV1_0, InstanceV1_0};
 use ash::{vk, Entry, Instance};
+use raw_window_handle::HasRawDisplayHandle;
+
+use crate::vkwrapper::ash_window;
+
+use winit::event_loop::EventLoop;
 
 use crate::vkwrapper::VkWindow;
 
@@ -50,9 +55,9 @@ pub struct VkInstance {
 }
 
 impl VkInstance {
-  pub fn new(window: &VkWindow) -> VkInstance {
+  pub fn new(window: &VkWindow, event_loop: &EventLoop<()>) -> VkInstance {
     let entry: Entry = unsafe { Entry::load().expect("Vulkan failed to laod") }; //unsafe { Entry::new() };
-    let instance: Instance = create_instance(&entry, window);
+    let instance: Instance = create_instance(&entry, window, event_loop);
 
     let (debug_utils_loader, debug_call_back) = create_debug_utils(&entry, &instance);
 
@@ -73,7 +78,7 @@ impl VkInstance {
   }
 }
 
-fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
+fn create_instance(entry: &Entry, window: &VkWindow, event_loop: &EventLoop<()>) -> Instance {
   let app_name = CString::new("Maat_Graphics").unwrap();
 
   let validation_layers_enabled = match env::var("ValLayers") {
@@ -87,9 +92,10 @@ fn create_instance(entry: &Entry, window: &VkWindow) -> Instance {
     .map(|raw_name| raw_name.as_ptr())
     .collect();
 
-  let mut extension_names = ash_window::enumerate_required_extensions(window.internal())
-    .unwrap()
-    .to_vec();
+  let mut extension_names =
+    ash_window::enumerate_required_extensions(event_loop.raw_display_handle().unwrap())
+      .unwrap()
+      .to_vec();
   extension_names.push(DebugUtils::name().as_ptr());
 
   let appinfo = vk::ApplicationInfo::builder()
@@ -125,7 +131,7 @@ fn create_debug_utils(
     .message_severity(
       vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
         | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO,
+        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO, //| vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
     )
     .message_type(
       vk::DebugUtilsMessageTypeFlagsEXT::GENERAL

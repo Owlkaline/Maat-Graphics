@@ -1469,7 +1469,8 @@ impl Math {
     m[r * 1 + 3] = v1[2];
     m[r * 2 + 1] = v2[0];
     m[r * 2 + 2] = v2[1];
-    m[r * 2 + 3] = v2[2];
+    panic!("This needs inspecting");
+    //m[r * 2 + 3] = v2[2];
 
     m
   }
@@ -1572,9 +1573,9 @@ impl Math {
   pub fn mat3_determinant(m: [f32; 9]) -> f32 {
     let r = 3;
 
-    m[r * 0 + 0] * (m[r * 1 + 1] * m[r * 2 + 2] - m[r * 2 + 1] * m[r * 1 + 2]) -
-      m[r * 1 + 0] * (m[r * 0 + 1] * m[r * 2 + 2] - m[r * 2 + 1] * m[r * 0 + 2]) +
-      m[r * 2 + 0] * (m[r * 0 + 1] * m[r * 1 + 2] - m[r * 1 + 1] * m[r * 0 + 2])
+    m[r * 0 + 0] * (m[r * 1 + 1] * m[r * 2 + 2] - m[r * 2 + 1] * m[r * 1 + 2])
+      - m[r * 1 + 0] * (m[r * 0 + 1] * m[r * 2 + 2] - m[r * 2 + 1] * m[r * 0 + 2])
+      + m[r * 2 + 0] * (m[r * 0 + 1] * m[r * 1 + 2] - m[r * 1 + 1] * m[r * 0 + 2])
   }
 
   pub fn mat3_inverse(m: [f32; 9]) -> [f32; 9] {
@@ -1811,10 +1812,10 @@ impl Math {
       -(m[r * 1 + 0] * sub_factor2 - m[r * 1 + 1] * sub_factor4 + m[r * 1 + 2] * sub_factor5),
     ];
 
-    m[r * 0 + 0] * def_cof[0] +
-      m[r * 0 + 1] * def_cof[1] +
-      m[r * 0 + 2] * def_cof[2] +
-      m[r * 0 + 3] * def_cof[3]
+    m[r * 0 + 0] * def_cof[0]
+      + m[r * 0 + 1] * def_cof[1]
+      + m[r * 0 + 2] * def_cof[2]
+      + m[r * 0 + 3] * def_cof[3]
   }
 
   pub fn mat4_translate_vec3(mut m: [f32; 16], v: [f32; 3]) -> [f32; 16] {
@@ -1930,85 +1931,85 @@ impl Math {
     let mut inv = [0.0; 16];
     let mut det;
 
-    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] +
-      m[9] * m[7] * m[14] +
-      m[13] * m[6] * m[11] -
-      m[13] * m[7] * m[10];
+    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15]
+      + m[9] * m[7] * m[14]
+      + m[13] * m[6] * m[11]
+      - m[13] * m[7] * m[10];
 
-    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] -
-      m[8] * m[7] * m[14] -
-      m[12] * m[6] * m[11] +
-      m[12] * m[7] * m[10];
+    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15]
+      - m[8] * m[7] * m[14]
+      - m[12] * m[6] * m[11]
+      + m[12] * m[7] * m[10];
 
-    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] +
-      m[8] * m[7] * m[13] +
-      m[12] * m[5] * m[11] -
-      m[12] * m[7] * m[9];
+    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15]
+      + m[8] * m[7] * m[13]
+      + m[12] * m[5] * m[11]
+      - m[12] * m[7] * m[9];
 
-    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] -
-      m[8] * m[6] * m[13] -
-      m[12] * m[5] * m[10] +
-      m[12] * m[6] * m[9];
+    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14]
+      - m[8] * m[6] * m[13]
+      - m[12] * m[5] * m[10]
+      + m[12] * m[6] * m[9];
 
-    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] -
-      m[9] * m[3] * m[14] -
-      m[13] * m[2] * m[11] +
-      m[13] * m[3] * m[10];
+    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15]
+      - m[9] * m[3] * m[14]
+      - m[13] * m[2] * m[11]
+      + m[13] * m[3] * m[10];
 
-    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] +
-      m[8] * m[3] * m[14] +
-      m[12] * m[2] * m[11] -
-      m[12] * m[3] * m[10];
+    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15]
+      + m[8] * m[3] * m[14]
+      + m[12] * m[2] * m[11]
+      - m[12] * m[3] * m[10];
 
-    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] -
-      m[8] * m[3] * m[13] -
-      m[12] * m[1] * m[11] +
-      m[12] * m[3] * m[9];
+    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15]
+      - m[8] * m[3] * m[13]
+      - m[12] * m[1] * m[11]
+      + m[12] * m[3] * m[9];
 
-    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] +
-      m[8] * m[2] * m[13] +
-      m[12] * m[1] * m[10] -
-      m[12] * m[2] * m[9];
+    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14]
+      + m[8] * m[2] * m[13]
+      + m[12] * m[1] * m[10]
+      - m[12] * m[2] * m[9];
 
-    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] +
-      m[5] * m[3] * m[14] +
-      m[13] * m[2] * m[7] -
-      m[13] * m[3] * m[6];
+    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15]
+      + m[5] * m[3] * m[14]
+      + m[13] * m[2] * m[7]
+      - m[13] * m[3] * m[6];
 
-    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] -
-      m[4] * m[3] * m[14] -
-      m[12] * m[2] * m[7] +
-      m[12] * m[3] * m[6];
+    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15]
+      - m[4] * m[3] * m[14]
+      - m[12] * m[2] * m[7]
+      + m[12] * m[3] * m[6];
 
-    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] +
-      m[4] * m[3] * m[13] +
-      m[12] * m[1] * m[7] -
-      m[12] * m[3] * m[5];
+    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15]
+      + m[4] * m[3] * m[13]
+      + m[12] * m[1] * m[7]
+      - m[12] * m[3] * m[5];
 
-    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] -
-      m[4] * m[2] * m[13] -
-      m[12] * m[1] * m[6] +
-      m[12] * m[2] * m[5];
+    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14]
+      - m[4] * m[2] * m[13]
+      - m[12] * m[1] * m[6]
+      + m[12] * m[2] * m[5];
 
-    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] -
-      m[5] * m[3] * m[10] -
-      m[9] * m[2] * m[7] +
-      m[9] * m[3] * m[6];
+    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11]
+      - m[5] * m[3] * m[10]
+      - m[9] * m[2] * m[7]
+      + m[9] * m[3] * m[6];
 
-    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] +
-      m[4] * m[3] * m[10] +
-      m[8] * m[2] * m[7] -
-      m[8] * m[3] * m[6];
+    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11]
+      + m[4] * m[3] * m[10]
+      + m[8] * m[2] * m[7]
+      - m[8] * m[3] * m[6];
 
-    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] -
-      m[4] * m[3] * m[9] -
-      m[8] * m[1] * m[7] +
-      m[8] * m[3] * m[5];
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11]
+      - m[4] * m[3] * m[9]
+      - m[8] * m[1] * m[7]
+      + m[8] * m[3] * m[5];
 
-    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] +
-      m[4] * m[2] * m[9] +
-      m[8] * m[1] * m[6] -
-      m[8] * m[2] * m[5];
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10]
+      + m[4] * m[2] * m[9]
+      + m[8] * m[1] * m[6]
+      - m[8] * m[2] * m[5];
 
     det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
 
@@ -2051,44 +2052,44 @@ impl Math {
 
     let mut result = [0.0; 16];
 
-    result[r * 0 + 0] = mat4[r * 0 + 0] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 0 + 2];
-    result[r * 0 + 1] = mat4[r * 0 + 1] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 0 + 2];
-    result[r * 0 + 2] = mat4[r * 0 + 2] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 0 + 2];
-    result[r * 0 + 3] = mat4[r * 0 + 3] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 0 + 2];
+    result[r * 0 + 0] = mat4[r * 0 + 0] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 0 + 2];
+    result[r * 0 + 1] = mat4[r * 0 + 1] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 0 + 2];
+    result[r * 0 + 2] = mat4[r * 0 + 2] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 0 + 2];
+    result[r * 0 + 3] = mat4[r * 0 + 3] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 0 + 2];
 
-    result[r * 1 + 0] = mat4[r * 0 + 0] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 1 + 2];
-    result[r * 1 + 1] = mat4[r * 0 + 1] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 1 + 2];
-    result[r * 1 + 2] = mat4[r * 0 + 2] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 1 + 2];
-    result[r * 1 + 3] = mat4[r * 0 + 3] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 1 + 2];
+    result[r * 1 + 0] = mat4[r * 0 + 0] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 1 + 2];
+    result[r * 1 + 1] = mat4[r * 0 + 1] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 1 + 2];
+    result[r * 1 + 2] = mat4[r * 0 + 2] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 1 + 2];
+    result[r * 1 + 3] = mat4[r * 0 + 3] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 1 + 2];
 
-    result[r * 2 + 0] = mat4[r * 0 + 0] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 2 + 2];
-    result[r * 2 + 1] = mat4[r * 0 + 1] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 2 + 2];
-    result[r * 2 + 2] = mat4[r * 0 + 2] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 2 + 2];
-    result[r * 2 + 3] = mat4[r * 0 + 3] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 2 + 2];
+    result[r * 2 + 0] = mat4[r * 0 + 0] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 2 + 2];
+    result[r * 2 + 1] = mat4[r * 0 + 1] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 2 + 2];
+    result[r * 2 + 2] = mat4[r * 0 + 2] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 2 + 2];
+    result[r * 2 + 3] = mat4[r * 0 + 3] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 2 + 2];
 
     result[r * 3 + 0] = mat4[r * 3 + 0];
     result[r * 3 + 1] = mat4[r * 3 + 1];
@@ -2124,44 +2125,44 @@ impl Math {
 
     let mut result = [0.0; 16];
 
-    result[r * 0 + 0] = mat4[r * 0 + 0] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 0 + 2];
-    result[r * 0 + 1] = mat4[r * 0 + 1] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 0 + 2];
-    result[r * 0 + 2] = mat4[r * 0 + 2] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 0 + 2];
-    result[r * 0 + 3] = mat4[r * 0 + 3] * rotate[r * 0 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 0 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 0 + 2];
+    result[r * 0 + 0] = mat4[r * 0 + 0] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 0 + 2];
+    result[r * 0 + 1] = mat4[r * 0 + 1] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 0 + 2];
+    result[r * 0 + 2] = mat4[r * 0 + 2] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 0 + 2];
+    result[r * 0 + 3] = mat4[r * 0 + 3] * rotate[r * 0 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 0 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 0 + 2];
 
-    result[r * 1 + 0] = mat4[r * 0 + 0] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 1 + 2];
-    result[r * 1 + 1] = mat4[r * 0 + 1] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 1 + 2];
-    result[r * 1 + 2] = mat4[r * 0 + 2] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 1 + 2];
-    result[r * 1 + 3] = mat4[r * 0 + 3] * rotate[r * 1 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 1 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 1 + 2];
+    result[r * 1 + 0] = mat4[r * 0 + 0] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 1 + 2];
+    result[r * 1 + 1] = mat4[r * 0 + 1] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 1 + 2];
+    result[r * 1 + 2] = mat4[r * 0 + 2] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 1 + 2];
+    result[r * 1 + 3] = mat4[r * 0 + 3] * rotate[r * 1 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 1 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 1 + 2];
 
-    result[r * 2 + 0] = mat4[r * 0 + 0] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 0] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 0] * rotate[r * 2 + 2];
-    result[r * 2 + 1] = mat4[r * 0 + 1] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 1] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 1] * rotate[r * 2 + 2];
-    result[r * 2 + 2] = mat4[r * 0 + 2] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 2] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 2] * rotate[r * 2 + 2];
-    result[r * 2 + 3] = mat4[r * 0 + 3] * rotate[r * 2 + 0] +
-      mat4[r * 1 + 3] * rotate[r * 2 + 1] +
-      mat4[r * 2 + 3] * rotate[r * 2 + 2];
+    result[r * 2 + 0] = mat4[r * 0 + 0] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 0] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 0] * rotate[r * 2 + 2];
+    result[r * 2 + 1] = mat4[r * 0 + 1] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 1] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 1] * rotate[r * 2 + 2];
+    result[r * 2 + 2] = mat4[r * 0 + 2] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 2] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 2] * rotate[r * 2 + 2];
+    result[r * 2 + 3] = mat4[r * 0 + 3] * rotate[r * 2 + 0]
+      + mat4[r * 1 + 3] * rotate[r * 2 + 1]
+      + mat4[r * 2 + 3] * rotate[r * 2 + 2];
 
     result[r * 3 + 0] = mat4[r * 3 + 0];
     result[r * 3 + 1] = mat4[r * 3 + 1];
@@ -2246,10 +2247,10 @@ impl Math {
   // Quaternion interpolation using the rotation short path
   pub fn quat_short_mix(x: [f32; 4], y: [f32; 4], a: f32) -> [f32; 4] {
     if a <= 0.0 {
-      return x
+      return x;
     }
     if a >= 1.0 {
-      return y
+      return y;
     }
 
     let mut f_cos = Math::vec4_dot(x, y);
@@ -2300,7 +2301,7 @@ impl Math {
 
     if (cos_half_theta).abs() >= 1.0 {
       qm = qa;
-      return qm
+      return qm;
     }
 
     let half_theta = (cos_half_theta).acos();
@@ -2312,7 +2313,7 @@ impl Math {
       qm[2] = qa[2] * 0.5 + qb[2] * 0.5;
       qm[3] = qa[3] * 0.5 + qb[3] * 0.5;
 
-      return qm
+      return qm;
     }
 
     let ratio_a = ((1.0 - t) * half_theta).sin() / sin_half_theta;
